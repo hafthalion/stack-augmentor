@@ -10,7 +10,6 @@ include(
     "stack-augmentor-api",
     "stack-augmentor-bridge",
     "stack-augmentor-agent",
-    "stack-augmentor-logback",
     "stack-augmentor-it",
     "examples:demo",
 )

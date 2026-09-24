@@ -4,8 +4,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Properties
 
-enum class Mode { REWRITE, REGISTRY }
-
 enum class Fallback { TO_STRING, IDENTITY, NONE }
 
 /** Where a receiver id comes from, for classes configured externally. */
@@ -26,7 +24,6 @@ class ConfigException(message: String) : IllegalArgumentException(message)
 
 data class AugmentorConfig(
     val include: List<String> = emptyList(),
-    val mode: Mode = Mode.REWRITE,
     val fallback: Fallback = Fallback.TO_STRING,
     val maxIdLength: Int = 64,
     val frameFormat: String = DEFAULT_FRAME_FORMAT,
@@ -54,7 +51,7 @@ data class AugmentorConfig(
         const val CONFIG_PROPERTY = "stackaugmentor.config"
 
         private val KNOWN_KEYS = setOf(
-            "include", "mode", "fallback", "maxIdLength", "frameFormat", "receiverFormat", "paramsFormat", "debug",
+            "include", "fallback", "maxIdLength", "frameFormat", "receiverFormat", "paramsFormat", "debug",
         )
         private val IDENTIFIER = Regex("[\\p{L}_$][\\p{L}\\p{N}_$]*")
 
@@ -94,7 +91,6 @@ data class AugmentorConfig(
             return AugmentorConfig(
                 include = properties.getProperty("include")?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
                     ?: defaults.include,
-                mode = properties.getProperty("mode")?.let { parseMode(it.trim()) } ?: defaults.mode,
                 fallback = properties.getProperty("fallback")?.let { parseFallback(it.trim()) } ?: defaults.fallback,
                 maxIdLength = properties.getProperty("maxIdLength")?.let { parseMaxIdLength(it.trim()) }
                     ?: defaults.maxIdLength,
@@ -134,12 +130,6 @@ data class AugmentorConfig(
             }
             if (refs.isEmpty()) throw ConfigException("'$key' must list parameter names or #indexes")
             return refs
-        }
-
-        private fun parseMode(value: String): Mode = when (value.lowercase()) {
-            "rewrite" -> Mode.REWRITE
-            "registry" -> Mode.REGISTRY
-            else -> throw ConfigException("mode must be 'rewrite' or 'registry', was '$value'")
         }
 
         private fun parseFallback(value: String): Fallback = when (value.lowercase()) {

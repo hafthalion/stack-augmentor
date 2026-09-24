@@ -1,7 +1,6 @@
 package com.hafnium.stackaugmentor.agent
 
 import com.hafnium.stackaugmentor.bridge.Dispatch
-import com.hafnium.stackaugmentor.bridge.FrameIdRegistry
 import com.hafnium.stackaugmentor.bridge.WeakIdentityMap
 
 /**
@@ -43,13 +42,7 @@ class ThrowHandler(
         }
         if (receiverId == null && paramIds.isEmpty()) return
 
-        val element = trace[index]
-        when (config.mode) {
-            Mode.REWRITE -> {
-                trace[index] = format.rewrite(element, receiverId, paramIds)
-                thrown.stackTrace = trace // no effect if the throwable's stack trace is not writable
-            }
-            Mode.REGISTRY -> FrameIdRegistry.put(thrown, index, trace.size, format.renderRegistry(element, receiverId, paramIds))
-        }
+        trace[index] = format.rewrite(trace[index], receiverId, paramIds)
+        thrown.stackTrace = trace // no effect if the throwable's stack trace is not writable
     }
 }

@@ -34,8 +34,8 @@ import java.io.PrintWriter
 import java.io.StringWriter
 import java.lang.management.ManagementFactory
 
-/** Runs with `src/test/config/rewrite.properties`: ids are written into the stack trace itself. */
-class RewriteModeTest {
+/** Runs with the agent and `src/test/config/agent.properties` attached; see build.gradle.kts. */
+class StackTraceIdsTest {
 
     private fun Throwable.frame(index: Int = 0): String = stackTrace[index].toString()
 
@@ -173,7 +173,7 @@ class RewriteModeTest {
         val multiLine = assertThrows<IllegalStateException> { MultiLine().fail() }
         assertEquals("com.hafnium.it.fixtures.MultiLine[text=line1 line2]", multiLine.stackTrace[0].className)
 
-        // maxIdLength=20 in rewrite.properties
+        // maxIdLength=20 in agent.properties
         val long = assertThrows<IllegalStateException> { LongId().fail() }
         assertEquals("com.hafnium.it.fixtures.LongId[text=${"x".repeat(19)}…]", long.stackTrace[0].className)
     }

@@ -15,7 +15,6 @@ class AugmentorConfigTest {
     @Test
     fun defaults() {
         val config = parse("")
-        assertEquals(Mode.REWRITE, config.mode)
         assertEquals(Fallback.TO_STRING, config.fallback)
         assertEquals("{class}{receiver}.{method}{params}", config.frameFormat)
         assertEquals("[{name}={id}]", config.receiverFormat)
@@ -27,7 +26,6 @@ class AugmentorConfigTest {
         val config = parse(
             """
             include=com.hafnium.**, com.acme.orders.*
-            mode=registry
             fallback=identity
             maxIdLength=32
             paramsFormat=({name}: {id}; ...)
@@ -36,7 +34,6 @@ class AugmentorConfigTest {
             param.com.thirdparty.OrderService.process=orderId, #2
             """.trimIndent(),
         )
-        assertEquals(Mode.REGISTRY, config.mode)
         assertEquals(Fallback.IDENTITY, config.fallback)
         assertEquals(32, config.maxIdLength)
         assertEquals("({name}: {id}; ...)", config.paramsFormat)
@@ -63,7 +60,7 @@ class AugmentorConfigTest {
 
     @Test
     fun `invalid values are rejected`() {
-        assertThrows<ConfigException> { parse("mode=sometimes") }
+        assertThrows<ConfigException> { parse("mode=registry") } // registry mode was removed
         assertThrows<ConfigException> { parse("fallback=hash") }
         assertThrows<ConfigException> { parse("maxIdLength=1") }
         assertThrows<ConfigException> { parse("id.com.acme.Order=get-id()") }

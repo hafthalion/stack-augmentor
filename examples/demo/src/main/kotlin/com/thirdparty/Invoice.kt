@@ -7,5 +7,7 @@ class Invoice(private val invoiceNumber: String) {
 }
 
 class InvoicePrinter {
+    val printerId = "dummy-printer"
+
     fun print(invoice: Invoice): Unit = throw IllegalStateException("printer offline")
 }

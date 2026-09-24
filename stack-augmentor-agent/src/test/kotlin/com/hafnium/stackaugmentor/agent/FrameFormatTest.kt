@@ -15,10 +15,7 @@ class FrameFormatTest {
         frameFormat: String = AugmentorConfig.DEFAULT_FRAME_FORMAT,
         receiverFormat: String = AugmentorConfig.DEFAULT_RECEIVER_FORMAT,
         paramsFormat: String = AugmentorConfig.DEFAULT_PARAMS_FORMAT,
-    ) = FrameFormat.create(Mode.REWRITE, frameFormat, receiverFormat, paramsFormat)
-
-    private fun registry(frameFormat: String, paramsFormat: String = AugmentorConfig.DEFAULT_PARAMS_FORMAT) =
-        FrameFormat.create(Mode.REGISTRY, frameFormat, AugmentorConfig.DEFAULT_RECEIVER_FORMAT, paramsFormat)
+    ) = FrameFormat.create(frameFormat, receiverFormat, paramsFormat)
 
     @Test
     fun `default format`() {
@@ -72,7 +69,7 @@ class FrameFormatTest {
     }
 
     @Test
-    fun `rewrite mode needs dot method`() {
+    fun `frame format needs dot method`() {
         val error = assertThrows<ConfigException> { rewrite(frameFormat = "{class}#{method}") }
         assertEquals(true, error.message!!.contains(".{method}"))
         assertThrows<ConfigException> { rewrite(frameFormat = "{class}.{method}.{method}") }
@@ -87,7 +84,7 @@ class FrameFormatTest {
             Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, "{method}", AugmentorConfig.DEFAULT_PARAMS_FORMAT),
             Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, AugmentorConfig.DEFAULT_RECEIVER_FORMAT, "[...]"),
             Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, AugmentorConfig.DEFAULT_RECEIVER_FORMAT, "[{name}, ...{id}]"),
-            // {file} and {line} only exist in registry mode.
+            // {file} and {line} are not placeholders: the JDK always prints the location itself.
             Triple("{class}.{method}{line}", AugmentorConfig.DEFAULT_RECEIVER_FORMAT, AugmentorConfig.DEFAULT_PARAMS_FORMAT),
         )
         for ((frame, receiver, params) in invalid) {
@@ -96,22 +93,9 @@ class FrameFormatTest {
     }
 
     @Test
-    fun `registry mode renders free-form frames`() {
-        val text = registry("{receiver} {class}#{method}{params} at {file}:{line}").renderRegistry(element, receiver, listOf(orderId))
-        assertEquals("[objectId=123] com.hafnium.ObjectClass#process[orderId=42] at ObjectClass.java:13", text)
-    }
-
-    @Test
-    fun `registry mode appends the location if the template has none`() {
-        val format = registry(AugmentorConfig.DEFAULT_FRAME_FORMAT)
-        assertEquals(
-            "com.hafnium.ObjectClass[objectId=123].process(ObjectClass.java:13)",
-            format.renderRegistry(element, receiver, emptyList()),
-        )
-        assertEquals(
-            "com.hafnium.ObjectClass.process(Native Method)",
-            format.renderRegistry(StackTraceElement("com.hafnium.ObjectClass", "process", "ObjectClass.java", -2), null, emptyList()),
-        )
+    fun `native method location is kept`() {
+        val native = StackTraceElement("com.hafnium.ObjectClass", "process", "ObjectClass.java", -2)
+        assertEquals("com.hafnium.ObjectClass[objectId=123].process(Native Method)", rewrite().rewrite(native, receiver, emptyList()).toString())
     }
 
     @Test
@@ -119,10 +103,6 @@ class FrameFormatTest {
         val inModule = StackTraceElement("my-loader", "my.module", "1.0", "com.hafnium.ObjectClass", "process", "ObjectClass.java", 13)
         val result = rewrite().rewrite(inModule, receiver, emptyList())
         assertEquals("my-loader/my.module@1.0/com.hafnium.ObjectClass[objectId=123].process(ObjectClass.java:13)", result.toString())
-        assertEquals(
-            "my-loader/my.module@1.0/com.hafnium.ObjectClass[objectId=123].process(ObjectClass.java:13)",
-            registry(AugmentorConfig.DEFAULT_FRAME_FORMAT).renderRegistry(inModule, receiver, emptyList()),
-        )
     }
 
     @Test

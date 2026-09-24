@@ -14,37 +14,17 @@ dependencies {
     agent(project(path = ":stack-augmentor-agent", configuration = "shadowRuntimeElements"))
 
     testImplementation(project(":stack-augmentor-api"))
-    testImplementation(project(":stack-augmentor-logback"))
-    testImplementation(libs.logback.classic)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.launcher)
 }
 
-fun Test.withAgent(configFile: String) {
+tasks.test {
     val agentJar = agent
-    val config = layout.projectDirectory.file(configFile)
+    val config = layout.projectDirectory.file("src/test/config/agent.properties")
     inputs.files(agentJar).withPropertyName("agent")
     inputs.file(config).withPropertyName("agentConfig")
     jvmArgumentProviders.add(CommandLineArgumentProvider {
         listOf("-javaagent:${agentJar.singleFile.absolutePath}=config=${config.asFile.absolutePath}")
     })
-}
-
-tasks.test {
-    withAgent("src/test/config/rewrite.properties")
-    useJUnitPlatform { excludeTags("registry") }
-}
-
-val registryTest by tasks.registering(Test::class) {
-    description = "Runs the integration tests for registry mode."
-    group = LifecycleBasePlugin.VERIFICATION_GROUP
-    testClassesDirs = sourceSets.test.get().output.classesDirs
-    classpath = sourceSets.test.get().runtimeClasspath
-    withAgent("src/test/config/registry.properties")
-    useJUnitPlatform { includeTags("registry") }
-}
-
-tasks.check {
-    dependsOn(registryTest)
 }
