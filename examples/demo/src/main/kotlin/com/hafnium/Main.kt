@@ -13,6 +13,6 @@ object Main {
             println()
         }
 
-        ObjectClass("object-1").objectMethod(42)
+        ObjectClass("object-1").objectMethod(ObjectParam("object-param-1"))
     }
 }
