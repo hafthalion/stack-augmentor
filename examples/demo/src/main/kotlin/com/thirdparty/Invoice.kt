@@ -1,0 +1,11 @@
+package com.thirdparty
+
+// Stand-ins for library classes: no annotations, configured in stack-augmentor.properties.
+
+class Invoice(private val invoiceNumber: String) {
+    fun getInvoiceNumber(): String = invoiceNumber
+}
+
+class InvoicePrinter {
+    fun print(invoice: Invoice): Unit = throw IllegalStateException("printer offline")
+}
