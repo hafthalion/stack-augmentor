@@ -78,9 +78,7 @@ data class AugmentorConfig(
          * or by the `stackaugmentor.config` system property. Without either, the defaults apply.
          */
         fun load(agentArgs: String?): AugmentorConfig {
-            val location = agentArgs?.trim()?.takeIf { it.isNotEmpty() }?.removePrefix("config=")
-                ?: System.getProperty(CONFIG_PROPERTY)?.takeIf { it.isNotBlank() }
-                ?: return AugmentorConfig()
+            val location = location(agentArgs) ?: return AugmentorConfig()
             val path = Path.of(location)
             if (!Files.isRegularFile(path)) throw ConfigException("Configuration file not found: $path")
             if (!path.fileName.toString().endsWith(".toml", ignoreCase = true)) {
@@ -88,6 +86,11 @@ data class AugmentorConfig(
             }
             return parse(Files.readString(path), path.fileName.toString())
         }
+
+        /** The configuration file named by the agent arguments or the system property, if any. */
+        fun location(agentArgs: String?): String? =
+            agentArgs?.trim()?.takeIf { it.isNotEmpty() }?.removePrefix("config=")
+                ?: System.getProperty(CONFIG_PROPERTY)?.takeIf { it.isNotBlank() }
 
         /** Parses a TOML configuration. [source] names it in error messages. */
         fun parse(text: String, source: String = "configuration"): AugmentorConfig {

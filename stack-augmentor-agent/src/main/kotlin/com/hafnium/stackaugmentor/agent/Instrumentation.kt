@@ -52,6 +52,36 @@ class IdParameters(private val config: AugmentorConfig) {
         return labels.map { (index, label) -> IdParameter(parameters[index], label) }
     }
 
+    /** Debug messages for `[augmentMethodParams]` entries of this type that match no method or parameter. */
+    fun unmatchedEntries(type: TypeDescription): List<String> {
+        val messages = mutableListOf<String>()
+        for ((target, refs) in config.params) {
+            if (target.substringBeforeLast('.') != type.name) continue
+            val methodName = target.substringAfterLast('.')
+            val entry = "[augmentMethodParams] \"$target\""
+            val methods = type.declaredMethods.filter { it.isMethod && it.internalName == methodName }
+            if (methods.isEmpty()) {
+                messages += "$entry: ${type.name} has no method '$methodName'"
+                continue
+            }
+            for (method in methods) {
+                val signature = "$methodName(${method.parameters.joinToString { "${it.type.asErasure().simpleName} ${it.name}" }})"
+                for (ref in refs) {
+                    messages += when (ref) {
+                        is ParamRef.ByIndex -> if (ref.index < method.parameters.size) continue else "$entry: no parameter #${ref.index} in $signature"
+                        is ParamRef.ByName -> when {
+                            method.parameters.any { it.isNamed && it.name == ref.name } -> continue
+                            method.parameters.any { !it.isNamed } ->
+                                "$entry: cannot find '${ref.name}' in $signature, the class has no parameter names (compile with -parameters, or use an index)"
+                            else -> "$entry: no parameter '${ref.name}' in $signature"
+                        }
+                    }
+                }
+            }
+        }
+        return messages
+    }
+
     private fun annotationLabel(annotation: AnnotationDescription): String? = try {
         annotation.getValue("name").resolve(String::class.java).takeIf { it.isNotEmpty() }
     } catch (_: RuntimeException) {
@@ -65,8 +95,36 @@ internal fun idAnnotation(annotations: AnnotationList): AnnotationDescription? =
 /** Decides which types and methods get the exit advice. */
 class TypeMatching(private val config: AugmentorConfig, private val parameters: IdParameters) {
 
-    fun instrument(type: TypeDescription): Boolean =
-        !type.isAnnotation && (receiverRelevant(type) || type.declaredMethods.any { isCandidate(it) && parameters.select(type, it).isNotEmpty() })
+    fun instrument(type: TypeDescription): Boolean {
+        if (type.isAnnotation) return false
+        val instrument = receiverRelevant(type) || type.declaredMethods.any { isCandidate(it) && parameters.select(type, it).isNotEmpty() }
+        if (Log.debug) {
+            parameters.unmatchedEntries(type).forEach { message -> Log.debug { message } }
+            if (!instrument && !config.honoursAnnotations(type.name) && usesAnnotations(type)) {
+                Log.debug { "ignoring @StackTraceId in ${type.name}: not in augmentAnnotatedClasses ${config.augmentAnnotatedClasses}" }
+            }
+        }
+        return instrument
+    }
+
+    /** One line for the debug log: why the type is instrumented, and which methods get which parameter ids. */
+    fun describe(type: TypeDescription, methods: ElementMatcher<MethodDescription>): String {
+        val configured = hierarchy(type).firstOrNull { config.ids.containsKey(it.name) }
+        val reason = when {
+            configured != null -> "receiver id from [augmentClassIds] \"${configured.name}\""
+            receiverRelevant(type) -> "receiver id from @StackTraceId"
+            else -> "parameter ids only"
+        }
+        val instrumented = type.declaredMethods.filter { methods.matches(it) }.joinToString { method ->
+            val params = parameters.select(type, method)
+            if (params.isEmpty()) method.internalName else "${method.internalName}{${params.joinToString { it.label }}}"
+        }
+        return "instrumenting ${type.name} ($reason): $instrumented"
+    }
+
+    private fun usesAnnotations(type: TypeDescription): Boolean =
+        hierarchy(type).any { hasAnnotatedMember(it) } ||
+            type.declaredMethods.any { method -> method.parameters.any { idAnnotation(it.declaredAnnotations) != null } }
 
     /** Instance methods get a receiver id; other methods are only instrumented for their id parameters. */
     fun methods(type: TypeDescription): ElementMatcher<MethodDescription> {
@@ -163,7 +221,6 @@ internal object Installer {
     )
 
     fun install(instrumentation: Instrumentation, config: AugmentorConfig, format: FrameFormat) {
-        Log.debug = config.debug
         Dispatch.install(ThrowHandler(IdResolver(config), format))
 
         // Inlined advice needs neither the Nexus nor Unsafe-based class injection; turning them off avoids
@@ -185,9 +242,10 @@ internal object Installer {
             .with(AgentBuilder.TypeStrategy.Default.DECORATE)
             // The advice is inlined, so no helper classes need to be injected into class loaders.
             .with(AgentBuilder.InjectionStrategy.Disabled.INSTANCE)
+            // Transformations are logged by the transformer below; ByteBuddy only reports classes it failed on.
             .with(
                 if (config.debug) {
-                    AgentBuilder.Listener.StreamWriting.toSystemError().withTransformationsOnly()
+                    AgentBuilder.Listener.StreamWriting.toSystemError().withErrorsOnly()
                 } else {
                     AgentBuilder.Listener.NoOp.INSTANCE
                 },
@@ -196,7 +254,11 @@ internal object Installer {
             .ignore(IGNORED_PACKAGES.fold(isSynthetic<TypeDescription>()) { matcher, prefix -> matcher.or(nameStartsWith("$prefix.")) })
             .or(any(), isBootstrapClassLoader())
             .type(ElementMatcher { type -> matching.instrument(type) })
-            .transform { builder, type, _, _, _ -> builder.visit(advice.on(matching.methods(type))) }
+            .transform { builder, type, _, _, _ ->
+                val methods = matching.methods(type)
+                Log.debug { matching.describe(type, methods) }
+                builder.visit(advice.on(methods))
+            }
             .installOn(instrumentation)
     }
 }

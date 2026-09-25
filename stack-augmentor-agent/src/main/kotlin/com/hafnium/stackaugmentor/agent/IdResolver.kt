@@ -16,19 +16,24 @@ class IdResolver(private val config: AugmentorConfig) {
 
     private sealed interface Source {
         val name: String
+        val description: String
         fun read(target: Any): Any?
     }
 
     private class FieldSource(private val field: Field, override val name: String) : Source {
+        override val description get() = "field ${field.declaringClass.name}.${field.name}, label '$name'"
         override fun read(target: Any): Any? = field.get(target)
     }
 
     private class MethodSource(private val method: Method, override val name: String) : Source {
+        override val description get() = "method ${method.declaringClass.name}.${method.name}(), label '$name'"
         override fun read(target: Any): Any? = method.invoke(target)
     }
 
     private val sources = object : ClassValue<Source?>() {
-        override fun computeValue(type: Class<*>): Source? = findSource(type)
+        override fun computeValue(type: Class<*>): Source? = findSource(type).also { source ->
+            Log.debug { "id source of ${type.name}: ${source?.description ?: "none"}" }
+        }
     }
 
     private val lineBreaks = Regex("[\\r\\n]+")
@@ -104,16 +109,16 @@ class IdResolver(private val config: AugmentorConfig) {
             }?.let { methodSource(it, it.name) }
         }
         if (source == null) {
-            Log.warn("[augmentClassIds] \"${owner.name}\": no ${if (spec is IdSpec.MethodSpec) "method ${spec.memberName}()" else "field ${spec.memberName}"} found")
+            Log.warn { "[augmentClassIds] \"${owner.name}\": no ${if (spec is IdSpec.MethodSpec) "method ${spec.memberName}()" else "field ${spec.memberName}"} found" }
         }
         return source
     }
 
     private fun fieldSource(field: Field, name: String): Source? =
-        if (field.trySetAccessible()) FieldSource(field, name) else null.also { Log.warn("cannot access $field") }
+        if (field.trySetAccessible()) FieldSource(field, name) else null.also { Log.warn { "cannot access $field" } }
 
     private fun methodSource(method: Method, name: String): Source? =
-        if (method.trySetAccessible()) MethodSource(method, name) else null.also { Log.warn("cannot access $method") }
+        if (method.trySetAccessible()) MethodSource(method, name) else null.also { Log.warn { "cannot access $method" } }
 
     private fun hierarchy(type: Class<*>): Sequence<Class<*>> =
         generateSequence(type) { it.superclass }.takeWhile { it != Any::class.java }

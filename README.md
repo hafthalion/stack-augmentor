@@ -73,7 +73,8 @@ frameFormat = "{class}{receiver}.{method}{params}"
 receiverFormat = "{$name=$id}"
 paramsFormat = "{$name=$id, ...}"
 
-# Print which classes get instrumented
+# Print diagnostics to stderr: the configuration, which classes and methods get instrumented and why,
+# where each id comes from, and config entries or annotations that have no effect.
 debug = false
 
 # Receiver ids for classes you cannot annotate: a field, or a no-argument method ending in "()"

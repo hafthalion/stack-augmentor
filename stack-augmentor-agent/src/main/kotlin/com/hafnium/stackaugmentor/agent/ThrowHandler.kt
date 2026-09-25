@@ -29,7 +29,11 @@ class ThrowHandler(
         if (trace.isEmpty()) return
         val start = cursors[thrown] ?: 0
         val index = (start until trace.size).firstOrNull { trace[it].className == owner && trace[it].methodName == method }
-            ?: return // created elsewhere, e.g. rethrown from another thread
+        if (index == null) {
+            // Created elsewhere, e.g. stored and rethrown later, or rethrown from another thread.
+            Log.debug { "$owner.$method: frame not found in the stack trace of ${thrown.javaClass.name}, which was created elsewhere" }
+            return
+        }
         cursors[thrown] = index + 1
 
         val receiverId = self?.let { resolver.receiverId(it) }

@@ -1,10 +1,18 @@
 # Packages whose @StackTraceId annotations are used; classes without annotations are not augmented.
+# '*' matches within one package, '**' across packages. Empty: all packages (default).
 augmentAnnotatedClasses = ["com.hafnium.**"]
 
-# Where ids go, see the README. These are the defaults:
-#frameFormat = "{class}{receiver}.{method}{params}"
-#receiverFormat = "{$name=$id}"
-#paramsFormat = "{$name=$id, ...}"
+# Longer ids are cut off with "…" (default: 64).
+maxIdLength = 64
+
+# Where ids go, see the README (these are the defaults).
+frameFormat = "{class}{receiver}.{method}{params}"
+receiverFormat = "{$name=$id}"
+paramsFormat = "{$name=$id, ...}"
+
+# Print diagnostics to stderr (default: false): the configuration, which classes and methods get
+# instrumented and why, where each id comes from, and config entries or annotations that have no effect.
+debug = false
 
 # Classes you cannot annotate: an order is identified by its getOrderNumber() method,
 # a customer by its customerId field ...

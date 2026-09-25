@@ -29,8 +29,26 @@ object StackAugmentorAgent {
         // Invalid configuration stops the JVM here, with the reason in the message.
         val config = AugmentorConfig.load(agentArgs)
         val format = FrameFormat.create(config)
+        Log.debug = config.debug
+        logConfiguration(agentArgs, config)
         BridgeInjector.inject(instrumentation)
         Installer.install(instrumentation, config, format)
+    }
+
+    private fun logConfiguration(agentArgs: String?, config: AugmentorConfig) {
+        Log.debug { "configuration: ${AugmentorConfig.location(agentArgs) ?: "none, using the defaults"}" }
+        val packages = config.augmentAnnotatedClasses
+        Log.debug { "augmentAnnotatedClasses: ${if (packages.isEmpty()) "all packages" else packages.toString()}" }
+        Log.debug { "[augmentClassIds]: ${config.ids.entries.joinToString { (type, spec) -> "$type=${spec.describe()}" }.ifEmpty { "none" }}" }
+        Log.debug { "[augmentMethodParams]: ${config.params.entries.joinToString { (method, refs) -> "$method${refs.map { it.describe() }}" }.ifEmpty { "none" }}" }
+        Log.debug { "format: ${config.frameFormat} / ${config.receiverFormat} / ${config.paramsFormat}, maxIdLength=${config.maxIdLength}" }
+    }
+
+    private fun IdSpec.describe() = if (this is IdSpec.MethodSpec) "$memberName()" else memberName
+
+    private fun ParamRef.describe() = when (this) {
+        is ParamRef.ByName -> name
+        is ParamRef.ByIndex -> "#$index"
     }
 }
 
