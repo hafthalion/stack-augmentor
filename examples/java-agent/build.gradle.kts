@@ -10,6 +10,8 @@ val agent = configurations.create("agent") {
 
 dependencies {
     agent(project(path = ":stack-augmentor-agent", configuration = "shadowRuntimeElements"))
+    // The example is written in Kotlin; stack-augmentor itself does not need the Kotlin runtime.
+    implementation(libs.kotlin.stdlib)
     implementation(project(":stack-augmentor-api"))
 }
 

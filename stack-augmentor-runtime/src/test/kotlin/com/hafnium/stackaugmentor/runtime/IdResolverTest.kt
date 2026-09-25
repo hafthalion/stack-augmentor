@@ -34,7 +34,7 @@ class IdResolverTest {
     enum class Color { RED }
 
     private fun resolver(vararg ids: Pair<String, IdSpec>, annotated: List<String> = emptyList()) =
-        IdResolver(AugmentorConfig(ids = ids.toMap(), annotatedClasses = annotated, maxIdLength = 10))
+        IdResolver(AugmentorConfig.builder().ids(ids.toMap()).annotatedClasses(annotated).maxIdLength(10).build())
 
     @Test
     fun `annotated field, method and constructor property`() {

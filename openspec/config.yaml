@@ -5,8 +5,8 @@ schema: spec-driven
 context: |
   Stack Augmentor: shows object ids (@StackTraceId) and parameter ids in Java stack traces,
   either with a Java agent or with build-time instrumentation (ByteBuddy Gradle plugin).
-  Tech stack: Kotlin (Java for the bridge and the advice classes), Java 25, Gradle 9 (Kotlin DSL,
-  version catalog), ByteBuddy, tomlj, JUnit 6.
+  Tech stack: Java for the published modules (no Kotlin runtime dependency), Kotlin for examples and
+  tests, Java 25, Gradle 9 (Kotlin DSL, version catalog), ByteBuddy, tomlj, JUnit 6.
   Modules: api, instrument-bridge, runtime, instrument, agent, build-plugin, it (integration tests with
   the agent), examples/java-agent, examples/build-time.
   Configuration: stack-augmentor.toml with debug, [instrument] and [augment].

@@ -10,9 +10,16 @@ val agent = configurations.create("agent") {
     isTransitive = false
 }
 
+// The API jar and its dependencies (none), for the Java-only application run without the Kotlin runtime.
+val javaApplication = configurations.create("javaApplication") {
+    isCanBeConsumed = false
+}
+
 dependencies {
     agent(project(path = ":stack-augmentor-agent", configuration = "shadowRuntimeElements"))
+    javaApplication(project(":stack-augmentor-api"))
 
+    testImplementation(libs.kotlin.stdlib)
     testImplementation(project(":stack-augmentor-api"))
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
@@ -26,5 +33,18 @@ tasks.test {
     inputs.file(config).withPropertyName("agentConfig")
     jvmArgumentProviders.add(CommandLineArgumentProvider {
         listOf("-javaagent:${agentJar.singleFile.absolutePath}=config=${config.asFile.absolutePath}")
+    })
+
+    // WithoutKotlinTest starts a JVM of its own with the agent and only the Java test classes and the API jar:
+    // Gradle compiles the Kotlin test classes to a separate directory, so that classpath has no Kotlin.
+    val javaClasses = sourceSets.test.get().java.classesDirectory
+    val apiJars = javaApplication
+    inputs.files(apiJars).withPropertyName("javaApplication")
+    jvmArgumentProviders.add(CommandLineArgumentProvider {
+        val classpath = listOf(javaClasses.get().asFile) + apiJars.files
+        listOf(
+            "-Dstackaugmentor.it.agentJar=${agentJar.singleFile.absolutePath}",
+            "-Dstackaugmentor.it.javaClasspath=${classpath.joinToString(File.pathSeparator) { it.absolutePath }}",
+        )
     })
 }
