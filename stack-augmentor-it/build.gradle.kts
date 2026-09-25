@@ -5,7 +5,7 @@ plugins {
 // Integration tests: the fixtures run in a test JVM started with the shaded agent jar,
 // exactly as an application would use it.
 
-val agent: Configuration by configurations.creating {
+val agent = configurations.create("agent") {
     isCanBeConsumed = false
     isTransitive = false
 }

@@ -3,7 +3,7 @@ plugins {
     application
 }
 
-val agent: Configuration by configurations.creating {
+val agent = configurations.create("agent") {
     isCanBeConsumed = false
     isTransitive = false
 }

@@ -33,22 +33,9 @@ class IdResolver(private val config: AugmentorConfig) {
 
     private val lineBreaks = Regex("[\\r\\n]+")
 
-    /**
-     * The id of the object a frame runs on, or `null` if it has none.
-     *
-     * @param allowFallback whether `toString()`/identity may be used when the class has no configured
-     *   or annotated id source (true for classes selected by `include`).
-     */
-    fun receiverId(target: Any, allowFallback: Boolean): NamedId? {
-        val source = sources.get(target.javaClass)
-        if (source != null) return NamedId(source.name, read(source, target))
-        if (!allowFallback) return null
-        return when (config.fallback) {
-            Fallback.TO_STRING -> if (overridesToString(target.javaClass)) NamedId("toString", guarded { target.toString() }) else identity(target)
-            Fallback.IDENTITY -> identity(target)
-            Fallback.NONE -> null
-        }
-    }
+    /** The id of the object a frame runs on, or `null` if its class has no configured or annotated id source. */
+    fun receiverId(target: Any): NamedId? =
+        sources.get(target.javaClass)?.let { NamedId(it.name, read(it, target)) }
 
     /** The id of an argument: its class's id source if it has one, otherwise its text. */
     fun paramId(value: Any?): String {
@@ -64,8 +51,6 @@ class IdResolver(private val config: AugmentorConfig) {
     }
 
     private fun read(source: Source, target: Any): String = guarded { source.read(target)?.toString() ?: "null" }
-
-    private fun identity(target: Any) = NamedId("identity", Integer.toHexString(System.identityHashCode(target)))
 
     private inline fun guarded(block: () -> String): String {
         val text = try {
@@ -86,7 +71,9 @@ class IdResolver(private val config: AugmentorConfig) {
         hierarchy(type).forEach { owner ->
             config.ids[owner.name]?.let { spec -> return sourceFor(owner, spec) }
         }
-        // 2. @StackTraceId on a field, a no-argument method or (Kotlin) a primary constructor property.
+        // 2. @StackTraceId on a field, a no-argument method or (Kotlin) a primary constructor property,
+        //    for classes in the augmentAnnotatedClasses packages.
+        if (!config.honoursAnnotations(type.name)) return null
         hierarchy(type).forEach { owner ->
             owner.declaredFields.firstOrNull { !Modifier.isStatic(it.modifiers) && idAnnotation(it) != null }?.let {
                 return fieldSource(it, label(idAnnotation(it), it.name))
@@ -117,7 +104,7 @@ class IdResolver(private val config: AugmentorConfig) {
             }?.let { methodSource(it, it.name) }
         }
         if (source == null) {
-            Log.warn("[id] \"${owner.name}\": no ${if (spec is IdSpec.MethodSpec) "method ${spec.memberName}()" else "field ${spec.memberName}"} found")
+            Log.warn("[augmentClassIds] \"${owner.name}\": no ${if (spec is IdSpec.MethodSpec) "method ${spec.memberName}()" else "field ${spec.memberName}"} found")
         }
         return source
     }
@@ -130,12 +117,6 @@ class IdResolver(private val config: AugmentorConfig) {
 
     private fun hierarchy(type: Class<*>): Sequence<Class<*>> =
         generateSequence(type) { it.superclass }.takeWhile { it != Any::class.java }
-
-    private fun overridesToString(type: Class<*>): Boolean = try {
-        type.getMethod("toString").declaringClass != Any::class.java
-    } catch (_: NoSuchMethodException) {
-        false
-    }
 
     companion object {
         fun idAnnotation(element: AnnotatedElement): Annotation? =

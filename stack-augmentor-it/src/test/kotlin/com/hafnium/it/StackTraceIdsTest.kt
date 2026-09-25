@@ -1,6 +1,6 @@
 package com.hafnium.it
 
-import com.hafnium.it.fixtures.BadToString
+import com.hafnium.it.fixtures.BrokenId
 import com.hafnium.it.fixtures.Derived
 import com.hafnium.it.fixtures.JavaFixture
 import com.hafnium.it.fixtures.KeyedByMethod
@@ -70,20 +70,13 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `class outside the include packages is instrumented through an inherited annotation`() {
-        val e = assertThrows<IllegalStateException> { DerivedOutside().fail() }
-        assertEquals("com.hafnium.it.outside.DerivedOutside[baseId=b1]", e.stackTrace[0].className)
-    }
+    fun `annotations outside the augmentAnnotatedClasses packages are ignored`() {
+        val inherited = assertThrows<IllegalStateException> { DerivedOutside().fail() }
+        assertEquals("com.hafnium.it.outside.DerivedOutside", inherited.stackTrace[0].className)
 
-    @Test
-    fun `class outside the include packages with only an id parameter gets no receiver id`() {
         val withParam = assertThrows<IllegalStateException> { ParamsOnly().withParam(7) }
         assertEquals("com.hafnium.it.outside.ParamsOnly", withParam.stackTrace[0].className)
-        assertEquals("withParam[code=7]", withParam.stackTrace[0].methodName)
-
-        val withoutParam = assertThrows<IllegalStateException> { ParamsOnly().withoutParam() }
-        assertEquals("com.hafnium.it.outside.ParamsOnly", withoutParam.stackTrace[0].className)
-        assertEquals("withoutParam", withoutParam.stackTrace[0].methodName)
+        assertEquals("withParam", withParam.stackTrace[0].methodName)
     }
 
     @Test
@@ -148,24 +141,19 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `toString fallback`() {
-        val e = assertThrows<IllegalStateException> { WithToString().fail() }
-        assertEquals("com.hafnium.it.fixtures.WithToString[toString=WTS-1]", e.stackTrace[0].className)
+    fun `classes without an id source are not augmented, even with a toString`() {
+        val withToString = assertThrows<IllegalStateException> { WithToString().fail() }
+        assertEquals("com.hafnium.it.fixtures.WithToString", withToString.stackTrace[0].className)
+
+        val plain = assertThrows<IllegalStateException> { Plain().fail() }
+        assertEquals("com.hafnium.it.fixtures.Plain", plain.stackTrace[0].className)
     }
 
     @Test
-    fun `identity fallback when toString is not overridden`() {
-        val plain = Plain()
-        val e = assertThrows<IllegalStateException> { plain.fail() }
-        val hash = Integer.toHexString(System.identityHashCode(plain))
-        assertEquals("com.hafnium.it.fixtures.Plain[identity=$hash]", e.stackTrace[0].className)
-    }
-
-    @Test
-    fun `a toString that throws is shown as a question mark`() {
-        val e = assertThrows<IllegalStateException> { BadToString().fail() }
+    fun `an id source that throws is shown as a question mark`() {
+        val e = assertThrows<IllegalStateException> { BrokenId().fail() }
         assertEquals("fail", e.message)
-        assertEquals("com.hafnium.it.fixtures.BadToString[toString=?]", e.stackTrace[0].className)
+        assertEquals("com.hafnium.it.fixtures.BrokenId[id=?]", e.stackTrace[0].className)
     }
 
     @Test
@@ -196,8 +184,7 @@ class StackTraceIdsTest {
         val e = assertThrows<IllegalStateException> { holder.viaLambda() }
         val lambdaFrame = e.stackTrace.first { it.methodName.contains("lambda") }
         assertEquals("com.hafnium.it.fixtures.LambdaHolder", lambdaFrame.className)
-        val hash = Integer.toHexString(System.identityHashCode(holder))
-        assertNotNull(e.stackTrace.firstOrNull { it.className == "com.hafnium.it.fixtures.LambdaHolder[identity=$hash]" && it.methodName == "viaLambda" })
+        assertNotNull(e.stackTrace.firstOrNull { it.className == "com.hafnium.it.fixtures.LambdaHolder[id=lambda]" && it.methodName == "viaLambda" })
     }
 
     @Test

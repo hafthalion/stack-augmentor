@@ -7,8 +7,6 @@ import org.tomlj.TomlTable
 import java.nio.file.Files
 import java.nio.file.Path
 
-enum class Fallback { TO_STRING, IDENTITY, NONE }
-
 /** Where a receiver id comes from, for classes configured externally. */
 sealed interface IdSpec {
     val memberName: String
@@ -29,37 +27,38 @@ class ConfigException(message: String) : IllegalArgumentException(message)
  * The agent configuration, read from a TOML file:
  *
  * ```toml
- * include = ["com.hafnium.**"]
- * fallback = "toString"
+ * augmentAnnotatedClasses = ["com.hafnium.**"]
  * maxIdLength = 64
  * frameFormat = "{class}{receiver}.{method}{params}"
  * receiverFormat = "[{name}={id}]"
  * paramsFormat = "[{name}={id}, ...]"
  * debug = false
  *
- * [id]
+ * [augmentClassIds]
  * "com.thirdparty.Order" = "getOrderNumber()"
  *
- * [param]
+ * [augmentMethodParams]
  * "com.thirdparty.OrderService.process" = ["order", 2]
  * ```
  */
 data class AugmentorConfig(
-    val include: List<String> = emptyList(),
-    val fallback: Fallback = Fallback.TO_STRING,
+    /** Packages (globs) where `@StackTraceId` is honoured; empty means all packages. */
+    val augmentAnnotatedClasses: List<String> = emptyList(),
     val maxIdLength: Int = 64,
     val frameFormat: String = DEFAULT_FRAME_FORMAT,
     val receiverFormat: String = DEFAULT_RECEIVER_FORMAT,
     val paramsFormat: String = DEFAULT_PARAMS_FORMAT,
-    /** Receiver id sources by class name: the `[id]` table. */
+    /** Receiver id sources by class name: the `[augmentClassIds]` table. */
     val ids: Map<String, IdSpec> = emptyMap(),
-    /** Parameter ids by `className.methodName`: the `[param]` table. */
+    /** Parameter ids by `className.methodName`: the `[augmentMethodParams]` table. */
     val params: Map<String, List<ParamRef>> = emptyMap(),
     val debug: Boolean = false,
 ) {
-    private val includePatterns: List<Regex> = include.map(::globToRegex)
+    private val annotatedClassPatterns: List<Regex> = augmentAnnotatedClasses.map(::globToRegex)
 
-    fun isIncluded(className: String): Boolean = includePatterns.any { it.matches(className) }
+    /** Whether `@StackTraceId` annotations on this class are used. */
+    fun honoursAnnotations(className: String): Boolean =
+        annotatedClassPatterns.isEmpty() || annotatedClassPatterns.any { it.matches(className) }
 
     fun paramRefs(className: String, methodName: String): List<ParamRef> =
         params["$className.$methodName"].orEmpty()
@@ -129,14 +128,13 @@ data class AugmentorConfig(
             }
             val defaults = AugmentorConfig()
             return AugmentorConfig(
-                include = stringArray("include") ?: defaults.include,
-                fallback = value<String>("fallback", "a string")?.let { fallback(it) } ?: defaults.fallback,
+                augmentAnnotatedClasses = stringArray("augmentAnnotatedClasses") ?: defaults.augmentAnnotatedClasses,
                 maxIdLength = value<Long>("maxIdLength", "an integer")?.let { maxIdLength(it) } ?: defaults.maxIdLength,
                 frameFormat = value("frameFormat", "a string") ?: defaults.frameFormat,
                 receiverFormat = value("receiverFormat", "a string") ?: defaults.receiverFormat,
                 paramsFormat = value("paramsFormat", "a string") ?: defaults.paramsFormat,
-                ids = entries("id").associate { (path, value) -> target(path, "id") to idSpec(path, value) },
-                params = entries("param").associate { (path, value) -> target(path, "param") to paramRefs(path, value) },
+                ids = entries(ID_TABLE).associate { (path, value) -> target(path, ID_TABLE) to idSpec(path, value) },
+                params = entries(PARAM_TABLE).associate { (path, value) -> target(path, PARAM_TABLE) to paramRefs(path, value) },
                 debug = value("debug", "true or false") ?: defaults.debug,
             )
         }
@@ -152,7 +150,7 @@ data class AugmentorConfig(
         }
 
         /**
-         * The entries of the `[id]` or `[param]` table, with their full key paths. Key paths make quoted
+         * The entries of the `[augmentClassIds]` or `[augmentMethodParams]` table, with their full key paths. Key paths make quoted
          * (`"com.acme.Order"`) and unquoted (`com.acme.Order`, i.e. nested tables) class names equivalent.
          */
         private fun entries(table: String): List<Pair<List<String>, Any>> {
@@ -162,10 +160,10 @@ data class AugmentorConfig(
 
         private fun target(path: List<String>, table: String): String {
             val target = path.drop(1).joinToString(".")
-            val valid = if (table == "id") target.isNotEmpty() else target.lastIndexOf('.') > 0
+            val valid = if (table == ID_TABLE) target.isNotEmpty() else target.lastIndexOf('.') > 0
             if (!valid) {
-                val example = if (table == "id") "\"com.acme.Order\"" else "\"com.acme.OrderService.process\""
-                throw error(path, "[$table] keys must name a ${if (table == "id") "class" else "class and a method"}, e.g. $example")
+                val example = if (table == ID_TABLE) "\"com.acme.Order\"" else "\"com.acme.OrderService.process\""
+                throw error(path, "[$table] keys must name a ${if (table == ID_TABLE) "class" else "class and a method"}, e.g. $example")
             }
             return target
         }
@@ -192,13 +190,6 @@ data class AugmentorConfig(
             }
         }
 
-        private fun fallback(value: String): Fallback = when (value.lowercase()) {
-            "tostring" -> Fallback.TO_STRING
-            "identity" -> Fallback.IDENTITY
-            "none" -> Fallback.NONE
-            else -> throw error(listOf("fallback"), "fallback must be \"toString\", \"identity\" or \"none\", was \"$value\"")
-        }
-
         private fun maxIdLength(value: Long): Int {
             if (value !in 2..10_000) throw error(listOf("maxIdLength"), "maxIdLength must be between 2 and 10000, was $value")
             return value.toInt()
@@ -210,8 +201,11 @@ data class AugmentorConfig(
         }
 
         companion object {
+            const val ID_TABLE = "augmentClassIds"
+            const val PARAM_TABLE = "augmentMethodParams"
+
             private val KNOWN_KEYS = listOf(
-                "include", "fallback", "maxIdLength", "frameFormat", "receiverFormat", "paramsFormat", "debug", "id", "param",
+                "augmentAnnotatedClasses", "maxIdLength", "frameFormat", "receiverFormat", "paramsFormat", "debug", ID_TABLE, PARAM_TABLE,
             )
         }
     }

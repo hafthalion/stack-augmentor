@@ -29,15 +29,17 @@ import java.lang.instrument.Instrumentation
 /** A parameter whose value is shown after the method name, with its label. */
 class IdParameter(val parameter: ParameterDescription, val label: String)
 
-/** Finds the id parameters of a method: annotated with `@StackTraceId`, or listed in the `[param]` config table. */
+/** Finds the id parameters of a method: annotated with `@StackTraceId`, or listed in the `[augmentMethodParams]` config table. */
 class IdParameters(private val config: AugmentorConfig) {
 
     fun select(type: TypeDescription, method: MethodDescription): List<IdParameter> {
         val parameters = method.parameters
         val labels = sortedMapOf<Int, String>()
-        for (parameter in parameters) {
-            val annotation = idAnnotation(parameter.declaredAnnotations) ?: continue
-            labels[parameter.index] = annotationLabel(annotation) ?: parameter.name
+        if (config.honoursAnnotations(type.name)) {
+            for (parameter in parameters) {
+                val annotation = idAnnotation(parameter.declaredAnnotations) ?: continue
+                labels[parameter.index] = annotationLabel(annotation) ?: parameter.name
+            }
         }
         for (ref in config.paramRefs(type.name, method.internalName)) {
             val parameter = when (ref) {
@@ -74,8 +76,10 @@ class TypeMatching(private val config: AugmentorConfig, private val parameters: 
         }
     }
 
+    /** Configured in `[augmentClassIds]`, or annotated (possibly in a superclass) in an `augmentAnnotatedClasses` package. */
     private fun receiverRelevant(type: TypeDescription): Boolean =
-        config.isIncluded(type.name) || hierarchy(type).any { config.ids.containsKey(it.name) || hasAnnotatedMember(it) }
+        hierarchy(type).any { config.ids.containsKey(it.name) } ||
+            (config.honoursAnnotations(type.name) && hierarchy(type).any { hasAnnotatedMember(it) })
 
     private fun isCandidate(method: MethodDescription): Boolean =
         method.isMethod && !method.isAbstract && !method.isNative && !method.isBridge && !method.isSynthetic
@@ -160,7 +164,7 @@ internal object Installer {
 
     fun install(instrumentation: Instrumentation, config: AugmentorConfig, format: FrameFormat) {
         Log.debug = config.debug
-        Dispatch.install(ThrowHandler(config, IdResolver(config), format))
+        Dispatch.install(ThrowHandler(IdResolver(config), format))
 
         // Inlined advice needs neither the Nexus nor Unsafe-based class injection; turning them off avoids
         // the JDK's sun.misc.Unsafe warnings. In the shaded jar these property names are relocated, so they

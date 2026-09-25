@@ -8,12 +8,12 @@ Exception in thread "main" java.lang.Exception: An error has occured
 	at com.hafnium.Main.main(Main.kt:15)
 ```
 
-Ids come from a `@StackTraceId` field, method or parameter, from an external configuration for classes you cannot change, or from `toString()` as a fallback.
+Ids come from a `@StackTraceId` field, method or parameter, or from an external configuration for classes you cannot change. Classes without either are left alone.
 
 ## Quick start
 
 ```bash
-./gradlew :examples:demo:run
+./gradlew :examples:java-agent:run
 ```
 
 Use it in your own application:
@@ -35,23 +35,22 @@ Use it in your own application:
    java -javaagent:stack-augmentor-agent-<version>.jar=config=stack-augmentor.toml -jar app.jar
    ```
 
-   `-Dstackaugmentor.config=<path>` works as well. The configuration is a TOML file (see [Configuration](#configuration)). Without a configuration, only classes with `@StackTraceId` are instrumented.
+   `-Dstackaugmentor.config=<path>` works as well. The configuration is a TOML file (see [Configuration](#configuration)). Without a configuration, classes with `@StackTraceId` in any package are instrumented.
 
 ## Where ids come from
 
 **Receiver id**: the object a frame runs on. It is looked up in this order, including superclasses:
 
-1. External configuration: an entry in the `[id]` table, naming a field or a `method()`.
-2. `@StackTraceId` on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`.
-3. A fallback, only for classes matched by `include`:
-   - `toString()` if the class overrides it (label `toString`);
-   - otherwise the identity hash (label `identity`).
+1. External configuration: an entry in the `[augmentClassIds]` table, naming a field or a `method()`.
+2. `@StackTraceId` on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`, in a class matched by `augmentAnnotatedClasses`.
+
+A class with neither gets no receiver id.
 
 The label is the real field or method name (`[objectId=…]`, `[getKey=…]`). `@StackTraceId(name = "…")` sets a different label.
 
 **Parameter ids** are shown after the method name. A parameter becomes an id when it is:
-- annotated with `@StackTraceId`, or
-- listed in the `[param]` table, by name or 0-based index.
+- annotated with `@StackTraceId`, in a class matched by `augmentAnnotatedClasses`, or
+- listed in the `[augmentMethodParams]` table, by name or 0-based index.
 
 The label is the parameter name. That needs the `MethodParameters` attribute (`javac -parameters`, Kotlin `javaParameters = true`); without it, the label is `arg<N>`. An argument whose class has a receiver id source is shown by that id, e.g. `order=4711`. Anything else is shown with `toString()`.
 
@@ -62,12 +61,11 @@ All ids become Strings when they are captured. Line breaks are replaced, the len
 The configuration is a TOML file (ending in `.toml`):
 
 ```toml
-# Classes to instrument; they may use the toString()/identity fallback.
+# Packages whose @StackTraceId annotations are used (fields, methods and parameters).
+# Empty or missing: all packages. Classes without annotations are never augmented.
 # '*' matches within one package, '**' across packages.
-include = ["com.hafnium.**", "com.acme.orders.*"]
+augmentAnnotatedClasses = ["com.hafnium.**", "com.acme.orders.*"]
 
-# "toString" (default) | "identity" | "none"
-fallback = "toString"
 maxIdLength = 64
 
 # Layout (these are the defaults)
@@ -79,18 +77,18 @@ paramsFormat = "[{name}={id}, ...]"
 debug = false
 
 # Receiver ids for classes you cannot annotate: a field, or a no-argument method ending in "()"
-[id]
+[augmentClassIds]
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"
 
 # Parameter ids for methods you cannot annotate: parameter names, or 0-based indexes
-[param]
+[augmentMethodParams]
 "com.thirdparty.OrderService.process" = ["order", 2]
 ```
 
-Quote class names in `[id]` and `[param]`. Without quotes, TOML treats each `.` as a nested table; the agent accepts that too, but the quoted form is the clear one.
+Quote class names in `[augmentClassIds]` and `[augmentMethodParams]`. Without quotes, TOML treats each `.` as a nested table; the agent accepts that too, but the quoted form is the clear one.
 
-An invalid configuration stops the JVM at startup. The message names the key and its line, e.g. `agent.toml, line 2: fallback must be "toString", "identity" or "none", was "hash"`.
+An invalid configuration stops the JVM at startup. The message names the key and its line, e.g. `agent.toml, line 2: maxIdLength must be between 2 and 10000, was 1`.
 
 ### Formats
 
@@ -138,6 +136,6 @@ The classes the advice calls (`stack-augmentor-bridge`) are appended to the boot
 | `stack-augmentor-bridge` | Classes the advice calls, loaded into the bootstrap class loader (Java, no dependencies) |
 | `stack-augmentor-agent` | The agent; `shadowJar` builds the `-javaagent` jar |
 | `stack-augmentor-it` | Integration tests, run with the agent attached |
-| `examples/demo` | The example above |
+| `examples/java-agent` | The demo: the example above, plus third-party stand-ins configured in `stack-augmentor.toml` |
 
 Build and test with `./gradlew build`; run the demo with `run.bat`. This needs JDK 25.

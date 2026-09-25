@@ -3,7 +3,7 @@ plugins {
     alias(libs.plugins.shadow)
 }
 
-val bridge: Configuration by configurations.creating {
+val bridge = configurations.create("bridge") {
     isTransitive = false
 }
 

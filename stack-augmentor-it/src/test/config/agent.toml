@@ -1,10 +1,10 @@
-include = ["com.hafnium.it.fixtures.**"]
+augmentAnnotatedClasses = ["com.hafnium.it.fixtures.**"]
 maxIdLength = 20
 
 # Stand-ins for classes you cannot annotate
-[id]
+[augmentClassIds]
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"
 
-[param]
+[augmentMethodParams]
 "com.thirdparty.OrderService.process" = ["order", 1]

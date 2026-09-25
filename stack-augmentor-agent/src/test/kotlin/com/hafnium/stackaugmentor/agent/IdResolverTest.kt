@@ -33,41 +33,46 @@ class IdResolverTest {
 
     enum class Color { RED }
 
-    private fun resolver(vararg ids: Pair<String, IdSpec>, fallback: Fallback = Fallback.TO_STRING) =
-        IdResolver(AugmentorConfig(ids = ids.toMap(), fallback = fallback, maxIdLength = 10))
+    private fun resolver(vararg ids: Pair<String, IdSpec>, annotated: List<String> = emptyList()) =
+        IdResolver(AugmentorConfig(ids = ids.toMap(), augmentAnnotatedClasses = annotated, maxIdLength = 10))
 
     @Test
     fun `annotated field, method and constructor property`() {
-        assertEquals(NamedId("objectId", "a-1"), resolver().receiverId(Annotated(), allowFallback = false))
-        assertEquals(NamedId("key", "k-2"), resolver().receiverId(ByMethod(), allowFallback = false))
-        assertEquals(NamedId("code", "X"), resolver().receiverId(ConstructorProperty("X"), allowFallback = false))
+        assertEquals(NamedId("objectId", "a-1"), resolver().receiverId(Annotated()))
+        assertEquals(NamedId("key", "k-2"), resolver().receiverId(ByMethod()))
+        assertEquals(NamedId("code", "X"), resolver().receiverId(ConstructorProperty("X")))
     }
 
     @Test
     fun `configuration wins over annotations`() {
         val resolver = resolver(Annotated::class.java.name to IdSpec.FieldSpec("customerId"))
-        assertEquals(NamedId("customerId", "c-1"), resolver.receiverId(Annotated(), allowFallback = false))
+        assertEquals(NamedId("customerId", "c-1"), resolver.receiverId(Annotated()))
     }
 
     @Test
     fun `configured method`() {
         val resolver = resolver(Unannotated::class.java.name to IdSpec.MethodSpec("toString"))
-        assertEquals(NamedId("toString", "Unannotat…"), resolver.receiverId(Unannotated("c-7"), allowFallback = false))
+        assertEquals(NamedId("toString", "Unannotat…"), resolver.receiverId(Unannotated("c-7")))
     }
 
     @Test
-    fun fallbacks() {
-        val plain = Any()
-        assertNull(resolver().receiverId(Unannotated("c"), allowFallback = false))
-        assertEquals(NamedId("toString", "Unannotat…"), resolver().receiverId(Unannotated("c"), allowFallback = true))
-        assertEquals(NamedId("identity", Integer.toHexString(System.identityHashCode(plain))), resolver().receiverId(plain, allowFallback = true))
-        assertEquals("identity", resolver(fallback = Fallback.IDENTITY).receiverId(Unannotated("c"), allowFallback = true)?.name)
-        assertNull(resolver(fallback = Fallback.NONE).receiverId(Unannotated("c"), allowFallback = true))
+    fun `no id source means no receiver id`() {
+        assertNull(resolver().receiverId(Unannotated("c")))
+        assertNull(resolver().receiverId(Any()))
+    }
+
+    @Test
+    fun `annotations outside augmentAnnotatedClasses are ignored`() {
+        assertNull(resolver(annotated = listOf("com.acme.**")).receiverId(Annotated()))
+        assertEquals(NamedId("objectId", "a-1"), resolver(annotated = listOf("com.hafnium.**")).receiverId(Annotated()))
+        // Configured ids apply in every package.
+        val configured = resolver(Annotated::class.java.name to IdSpec.FieldSpec("customerId"), annotated = listOf("com.acme.**"))
+        assertEquals(NamedId("customerId", "c-1"), configured.receiverId(Annotated()))
     }
 
     @Test
     fun `failing id source`() {
-        assertEquals(NamedId("id", "?"), resolver().receiverId(Throwing(), allowFallback = false))
+        assertEquals(NamedId("id", "?"), resolver().receiverId(Throwing()))
     }
 
     @Test

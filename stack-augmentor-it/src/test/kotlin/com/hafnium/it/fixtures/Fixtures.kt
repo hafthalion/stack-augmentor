@@ -80,6 +80,7 @@ class Shipping {
     fun op(@StackTraceId name: String, y: Int): Nothing = throw IllegalStateException("op string $y")
 }
 
+/** In an augmentAnnotatedClasses package, but without @StackTraceId: not augmented. */
 class WithToString {
     override fun toString() = "WTS-1"
     fun fail(): Nothing = throw IllegalStateException("fail")
@@ -89,8 +90,10 @@ class Plain {
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
-class BadToString {
-    override fun toString(): String = throw IllegalStateException("toString is broken")
+class BrokenId {
+    @StackTraceId
+    fun id(): String = throw IllegalStateException("id is broken")
+
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
@@ -109,6 +112,9 @@ class LongId {
 }
 
 class LambdaHolder {
+    @StackTraceId
+    val id = "lambda"
+
     fun viaLambda() {
         val action = Runnable { throw IllegalStateException("from lambda") }
         action.run()

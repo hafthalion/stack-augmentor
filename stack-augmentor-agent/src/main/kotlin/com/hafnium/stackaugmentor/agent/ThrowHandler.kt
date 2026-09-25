@@ -7,7 +7,6 @@ import com.hafnium.stackaugmentor.bridge.Dispatch
  * exception's stack trace and attaches the ids to it.
  */
 class ThrowHandler(
-    private val config: AugmentorConfig,
     private val resolver: IdResolver,
     private val format: FrameFormat,
 ) : Dispatch.Handler {
@@ -33,7 +32,7 @@ class ThrowHandler(
             ?: return // created elsewhere, e.g. rethrown from another thread
         cursors[thrown] = index + 1
 
-        val receiverId = self?.let { resolver.receiverId(it, allowFallback = config.isIncluded(owner)) }
+        val receiverId = self?.let { resolver.receiverId(it) }
         val paramIds = if (paramValues != null && paramNames != null) {
             paramNames.indices.map { NamedId(paramNames[it], resolver.paramId(paramValues[it])) }
         } else {

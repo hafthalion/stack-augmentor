@@ -11,5 +11,5 @@ include(
     "stack-augmentor-bridge",
     "stack-augmentor-agent",
     "stack-augmentor-it",
-    "examples:demo",
+    "examples:java-agent",
 )
