@@ -1,0 +1,36 @@
+schema: spec-driven
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+context: |
+  Stack Augmentor: shows object ids (@StackTraceId) and parameter ids in Java stack traces,
+  either with a Java agent or with build-time instrumentation (ByteBuddy Gradle plugin).
+  Tech stack: Kotlin (Java for the bridge and the advice classes), Java 25, Gradle 9 (Kotlin DSL,
+  version catalog), ByteBuddy, tomlj, JUnit 6.
+  Modules: api, instrument-bridge, runtime, instrument, agent, build-plugin, it (integration tests with
+  the agent), examples/java-agent, examples/build-time.
+  Configuration: stack-augmentor.toml with debug, [instrument] and [augment].
+  Specs: functional capabilities under specs/functional/, non-functional requirements under
+  specs/non-functional/.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
