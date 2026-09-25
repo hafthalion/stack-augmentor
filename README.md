@@ -35,7 +35,7 @@ Use it in your own application:
        @StackTraceId
        val objectId = "object-1"
 
-       fun objectMethod(@StackTraceId orderId: Int) { ... }
+       fun objectMethod(@StackTraceId orderId: Int) { }
    }
    ```
 
