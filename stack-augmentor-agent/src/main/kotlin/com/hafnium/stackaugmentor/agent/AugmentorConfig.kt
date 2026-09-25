@@ -30,8 +30,8 @@ class ConfigException(message: String) : IllegalArgumentException(message)
  * augmentAnnotatedClasses = ["com.hafnium.**"]
  * maxIdLength = 64
  * frameFormat = "{class}{receiver}.{method}{params}"
- * receiverFormat = "[{name}={id}]"
- * paramsFormat = "[{name}={id}, ...]"
+ * receiverFormat = "{$name=$id}"
+ * paramsFormat = "{$name=$id, ...}"
  * debug = false
  *
  * [augmentClassIds]
@@ -67,8 +67,8 @@ data class AugmentorConfig(
 
     companion object {
         const val DEFAULT_FRAME_FORMAT = "{class}{receiver}.{method}{params}"
-        const val DEFAULT_RECEIVER_FORMAT = "[{name}={id}]"
-        const val DEFAULT_PARAMS_FORMAT = "[{name}={id}, ...]"
+        const val DEFAULT_RECEIVER_FORMAT = "{\$name=\$id}"
+        const val DEFAULT_PARAMS_FORMAT = "{\$name=\$id, ...}"
         const val CONFIG_PROPERTY = "stackaugmentor.config"
 
         private val IDENTIFIER = Regex("[\\p{L}_$][\\p{L}\\p{N}_$]*")

@@ -3,8 +3,8 @@ augmentAnnotatedClasses = ["com.hafnium.**"]
 
 # Where ids go, see the README. These are the defaults:
 #frameFormat = "{class}{receiver}.{method}{params}"
-#receiverFormat = "[{name}={id}]"
-#paramsFormat = "[{name}={id}, ...]"
+#receiverFormat = "{$name=$id}"
+#paramsFormat = "{$name=$id, ...}"
 
 # Classes you cannot annotate: an order is identified by its getOrderNumber() method,
 # a customer by its customerId field ...

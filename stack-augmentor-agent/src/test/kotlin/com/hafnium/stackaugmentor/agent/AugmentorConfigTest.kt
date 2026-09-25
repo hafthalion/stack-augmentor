@@ -19,8 +19,8 @@ class AugmentorConfigTest {
     fun defaults() {
         assertEquals(AugmentorConfig(), parse(""))
         assertEquals("{class}{receiver}.{method}{params}", AugmentorConfig().frameFormat)
-        assertEquals("[{name}={id}]", AugmentorConfig().receiverFormat)
-        assertEquals("[{name}={id}, ...]", AugmentorConfig().paramsFormat)
+        assertEquals("{\$name=\$id}", AugmentorConfig().receiverFormat)
+        assertEquals("{\$name=\$id, ...}", AugmentorConfig().paramsFormat)
     }
 
     @Test
@@ -31,8 +31,8 @@ class AugmentorConfigTest {
             maxIdLength = 32
             debug = true
             frameFormat = "{class}.{method}{receiver}{params}"
-            receiverFormat = "<{id}>"
-            paramsFormat = "({name}: {id}; ...)"
+            receiverFormat = "<${'$'}id>"
+            paramsFormat = "(${'$'}name: ${'$'}id; ...)"
 
             [augmentClassIds]
             "com.thirdparty.Order" = "getOrderNumber()"
@@ -48,8 +48,8 @@ class AugmentorConfigTest {
                 maxIdLength = 32,
                 debug = true,
                 frameFormat = "{class}.{method}{receiver}{params}",
-                receiverFormat = "<{id}>",
-                paramsFormat = "({name}: {id}; ...)",
+                receiverFormat = "<\$id>",
+                paramsFormat = "(\$name: \$id; ...)",
                 ids = mapOf(
                     "com.thirdparty.Order" to IdSpec.MethodSpec("getOrderNumber"),
                     "com.thirdparty.Customer" to IdSpec.FieldSpec("customerId"),

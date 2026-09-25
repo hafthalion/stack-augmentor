@@ -4,7 +4,7 @@ A Java agent that shows **which object** (and optionally **which arguments**) ea
 
 ```
 Exception in thread "main" java.lang.Exception: An error has occured
-	at com.hafnium.ObjectClass[objectId=object-1].objectMethod[orderId=42](ObjectClass.kt:10)
+	at com.hafnium.ObjectClass{objectId=object-1}.objectMethod{orderId=42}(ObjectClass.kt:10)
 	at com.hafnium.Main.main(Main.kt:15)
 ```
 
@@ -46,7 +46,7 @@ Use it in your own application:
 
 A class with neither gets no receiver id.
 
-The label is the real field or method name (`[objectId=…]`, `[getKey=…]`). `@StackTraceId(name = "…")` sets a different label.
+The label is the real field or method name (`{objectId=…}`, `{getKey=…}`). `@StackTraceId(name = "…")` sets a different label.
 
 **Parameter ids** are shown after the method name. A parameter becomes an id when it is:
 - annotated with `@StackTraceId`, in a class matched by `augmentAnnotatedClasses`, or
@@ -70,8 +70,8 @@ maxIdLength = 64
 
 # Layout (these are the defaults)
 frameFormat = "{class}{receiver}.{method}{params}"
-receiverFormat = "[{name}={id}]"
-paramsFormat = "[{name}={id}, ...]"
+receiverFormat = "{$name=$id}"
+paramsFormat = "{$name=$id, ...}"
 
 # Print which classes get instrumented
 debug = false
@@ -95,20 +95,21 @@ An invalid configuration stops the JVM at startup. The message names the key and
 | Template | Placeholders |
 |---|---|
 | `frameFormat` | `{class}`, `{simpleClass}`, `{method}`, `{receiver}`, `{params}` |
-| `receiverFormat` | `{name}`, `{id}`. Renders empty when the frame has no receiver id. |
-| `paramsFormat` | `{name}`, `{id}`, and `...` to mark repetition. Renders empty when the method has no parameter ids. |
+| `receiverFormat` | `$name`, `$id`. Renders empty when the frame has no receiver id. |
+| `paramsFormat` | `$name`, `$id`, and `...` to mark repetition. Renders empty when the method has no parameter ids. |
 
-- **`paramsFormat`** is split as follows. The text before the first placeholder and the text after `...` wrap the list. The part from the first to the last placeholder is repeated for each parameter. The text between the last placeholder and `...` separates the items. So `({name}: {id}; ...)` renders `(orderId: 42; customer: 7)`.
-- **`{{` and `}}`** are literal braces.
+- **`paramsFormat`** is split as follows. The text before the first placeholder and the text after `...` wrap the list. The part from the first to the last placeholder is repeated for each parameter. The text between the last placeholder and `...` separates the items. So `($name: $id; ...)` renders `(orderId: 42; customer: 7)`.
+- **In `frameFormat`**, placeholders are in braces and `{{` and `}}` are literal braces. **In `receiverFormat` and `paramsFormat`**, placeholders start with `$` and everything else is literal, braces included; `$$` is a literal `$`.
 - **`frameFormat` must contain `.{method}` exactly once**, because the JDK always prints `<class>.<method>(<file>:<line>)`.
 
 Examples:
 
 | Setting | Frame |
 |---|---|
-| defaults | `com.hafnium.ObjectClass[objectId=1].process[orderId=42](ObjectClass.java:13)` |
-| `frameFormat = "{class}.{method}{receiver}{params}"` | `com.hafnium.ObjectClass.process[objectId=1][orderId=42](ObjectClass.java:13)` |
-| `receiverFormat = "<{id}>"` | `com.hafnium.ObjectClass<1>.process[orderId=42](ObjectClass.java:13)` |
+| defaults | `com.hafnium.ObjectClass{objectId=1}.process{orderId=42}(ObjectClass.java:13)` |
+| `frameFormat = "{class}.{method}{receiver}{params}"` | `com.hafnium.ObjectClass.process{objectId=1}{orderId=42}(ObjectClass.java:13)` |
+| `receiverFormat = "<$id>"` | `com.hafnium.ObjectClass<1>.process{orderId=42}(ObjectClass.java:13)` |
+| `receiverFormat = "[$name=$id]"`, `paramsFormat = "[$name=$id, ...]"` | `com.hafnium.ObjectClass[objectId=1].process[orderId=42](ObjectClass.java:13)` |
 
 ## How it works
 

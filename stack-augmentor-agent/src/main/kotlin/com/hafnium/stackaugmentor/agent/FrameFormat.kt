@@ -57,7 +57,7 @@ class FrameFormat private constructor(
         private val FRAME_PLACEHOLDERS = setOf("class", "simpleClass", "method", "receiver", "params")
         private val ID_PLACEHOLDERS = setOf("name", "id")
         private const val REPEAT = "..."
-        private const val DEFAULT_SEPARATOR = ", "
+        private const val DEFAULT_SEPARATOR = ","
 
         fun create(config: AugmentorConfig): FrameFormat =
             create(config.frameFormat, config.receiverFormat, config.paramsFormat)
@@ -73,19 +73,19 @@ class FrameFormat private constructor(
             }
             val declaringClassPart = parse(frameFormat.substring(0, split), FRAME_PLACEHOLDERS, "frameFormat")
             val methodPart = parse(frameFormat.substring(split + 1), FRAME_PLACEHOLDERS, "frameFormat")
-            val receiver = parse(receiverFormat, ID_PLACEHOLDERS, "receiverFormat")
+            val receiver = parseIdTemplate(receiverFormat, "receiverFormat")
             return FrameFormat(declaringClassPart, methodPart, receiver, parseParams(paramsFormat))
         }
 
         private fun parseParams(template: String): ParamsTemplate {
             val repeat = template.lastIndexOf(REPEAT)
             if (repeat < 0) {
-                val item = parse(template, ID_PLACEHOLDERS, "paramsFormat")
+                val item = parseIdTemplate(template, "paramsFormat")
                 requirePlaceholder(item, template)
                 return ParamsTemplate("", item, DEFAULT_SEPARATOR, "")
             }
-            val head = parse(template.substring(0, repeat), ID_PLACEHOLDERS, "paramsFormat")
-            val tail = parse(template.substring(repeat + REPEAT.length), ID_PLACEHOLDERS, "paramsFormat")
+            val head = parseIdTemplate(template.substring(0, repeat), "paramsFormat")
+            val tail = parseIdTemplate(template.substring(repeat + REPEAT.length), "paramsFormat")
             requirePlaceholder(head, template)
             if (tail.any { it is Token.Placeholder }) {
                 throw ConfigException("paramsFormat must not have placeholders after '$REPEAT'; was '$template'")
@@ -102,14 +102,51 @@ class FrameFormat private constructor(
 
         private fun requirePlaceholder(tokens: List<Token>, template: String) {
             if (tokens.none { it is Token.Placeholder }) {
-                throw ConfigException("paramsFormat must contain {name} or {id}; was '$template'")
+                throw ConfigException("paramsFormat must contain \$name or \$id; was '$template'")
             }
         }
 
         private fun literalText(tokens: List<Token>): String =
             tokens.joinToString("") { (it as Token.Literal).text }
 
-        /** Splits a template into literals and placeholders; `{{` and `}}` are literal braces. */
+        /**
+         * Splits a receiver or parameter template into literals and the placeholders `$name` and `$id`.
+         * Everything else, braces included, is literal; `$$` is a literal `$`.
+         */
+        private fun parseIdTemplate(template: String, key: String): List<Token> {
+            val tokens = mutableListOf<Token>()
+            val literal = StringBuilder()
+            var i = 0
+            while (i < template.length) {
+                val c = template[i]
+                if (c != '$') {
+                    literal.append(c)
+                    i++
+                    continue
+                }
+                if (template.startsWith("$$", i)) {
+                    literal.append('$')
+                    i += 2
+                    continue
+                }
+                var end = i + 1
+                while (end < template.length && template[end].isLetterOrDigit()) end++
+                val name = template.substring(i + 1, end)
+                if (name !in ID_PLACEHOLDERS) {
+                    throw ConfigException(
+                        "$key uses unknown placeholder '\$$name' at position $i; allowed: \$name, \$id (write \$\$ for a literal \$)",
+                    )
+                }
+                if (literal.isNotEmpty()) tokens += Token.Literal(literal.toString())
+                literal.clear()
+                tokens += Token.Placeholder(name)
+                i = end
+            }
+            if (literal.isNotEmpty()) tokens += Token.Literal(literal.toString())
+            return tokens
+        }
+
+        /** Splits the frame template into literals and `{placeholder}`s; `{{` and `}}` are literal braces. */
         private fun parse(template: String, allowed: Set<String>, key: String): List<Token> {
             val tokens = mutableListOf<Token>()
             val literal = StringBuilder()
