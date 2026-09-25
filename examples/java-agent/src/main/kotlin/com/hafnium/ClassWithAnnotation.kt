@@ -7,7 +7,7 @@ data class ObjectParam(
     val name: String
 )
 
-data class ObjectWithAnnotation(
+data class ClassWithAnnotation(
     @StackTraceId
     private val objectId: String
 ) {
@@ -15,15 +15,15 @@ data class ObjectWithAnnotation(
         throw Exception("An error has occured")
     }
 
-    fun objectMethod(@StackTraceId param: ObjectParam) {
+    fun method(@StackTraceId param: ObjectParam) {
         error()
     }
 }
 
-data class ObjectWithoutAnnotation(
+data class ClassWithoutAnnotation(
     val objectId: String
 ) {
-    fun objectMethod() {
+    fun method() {
         throw Exception("An error has occured")
     }
 }

@@ -8,8 +8,8 @@ object Main {
     @JvmStatic
     fun main(args: Array<String>) {
         // direct annotation
-        printStackTraceOf { ObjectWithAnnotation("object-1").objectMethod(ObjectParam("object-param-1")) }
-        printStackTraceOf { ObjectWithoutAnnotation("object-2").objectMethod() }
+        printStackTraceOf { ClassWithAnnotation("object-1").method(ObjectParam("object-param-1")) }
+        printStackTraceOf { ClassWithoutAnnotation("object-2").method() }
 
         // thirdparty classes without annotations
         printStackTraceOf { OrderService().process(Order(4711), 3, "rush") }

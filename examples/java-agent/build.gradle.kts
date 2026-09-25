@@ -24,6 +24,4 @@ tasks.named<JavaExec>("run") {
     jvmArgumentProviders.add(CommandLineArgumentProvider {
         listOf("-javaagent:${agentJar.singleFile.absolutePath}=config=${config.asFile.absolutePath}")
     })
-    // The demo ends with an uncaught exception on purpose.
-    isIgnoreExitValue = true
 }
