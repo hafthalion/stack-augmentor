@@ -1,7 +1,6 @@
 package com.hafnium.stackaugmentor.agent
 
 import com.hafnium.stackaugmentor.bridge.Dispatch
-import com.hafnium.stackaugmentor.bridge.WeakIdentityMap
 
 /**
  * Called when an exception leaves an instrumented method: finds that method's frame in the
@@ -29,10 +28,10 @@ class ThrowHandler(
     ) {
         val trace = thrown.stackTrace
         if (trace.isEmpty()) return
-        val start = cursors.get(thrown) ?: 0
+        val start = cursors[thrown] ?: 0
         val index = (start until trace.size).firstOrNull { trace[it].className == owner && trace[it].methodName == method }
             ?: return // created elsewhere, e.g. rethrown from another thread
-        cursors.put(thrown, index + 1)
+        cursors[thrown] = index + 1
 
         val receiverId = self?.let { resolver.receiverId(it, allowFallback = config.isIncluded(owner)) }
         val paramIds = if (paramValues != null && paramNames != null) {
