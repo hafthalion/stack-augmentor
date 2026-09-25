@@ -10,8 +10,10 @@ val bridge: Configuration by configurations.creating {
 dependencies {
     implementation(libs.bytebuddy)
     implementation(libs.tomlj) {
-        exclude(group = "org.checkerframework") // annotations only
+        exclude(group = "org.checkerframework")
     }
+    // tomlj's nullness annotations: needed by the Kotlin compiler, not at runtime.
+    compileOnly(libs.checker.qual)
     // Loaded into the bootstrap class loader at runtime (see BridgeInjector), never shaded.
     compileOnly(project(":stack-augmentor-bridge"))
     bridge(project(":stack-augmentor-bridge"))

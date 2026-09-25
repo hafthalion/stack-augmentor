@@ -4,10 +4,12 @@ bytebuddy = "1.18.14"
 shadow = "9.6.1"
 junit = "6.1.3"
 tomlj = "1.3.0"
+checker-qual = "3.55.1"
 
 [libraries]
 bytebuddy = { module = "net.bytebuddy:byte-buddy", version.ref = "bytebuddy" }
 tomlj = { module = "org.tomlj:tomlj", version.ref = "tomlj" }
+checker-qual = { module = "org.checkerframework:checker-qual", version.ref = "checker-qual" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-launcher = { module = "org.junit.platform:junit-platform-launcher" }

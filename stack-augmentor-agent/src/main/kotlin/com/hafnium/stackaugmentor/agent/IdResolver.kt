@@ -117,7 +117,7 @@ class IdResolver(private val config: AugmentorConfig) {
             }?.let { methodSource(it, it.name) }
         }
         if (source == null) {
-            Log.warn("id.${owner.name}: no ${if (spec is IdSpec.MethodSpec) "method ${spec.memberName}()" else "field ${spec.memberName}"} found")
+            Log.warn("[id] \"${owner.name}\": no ${if (spec is IdSpec.MethodSpec) "method ${spec.memberName}()" else "field ${spec.memberName}"} found")
         }
         return source
     }

@@ -2,9 +2,10 @@ package com.hafnium.stackaugmentor.agent
 
 import org.tomlj.Toml
 import org.tomlj.TomlArray
+import org.tomlj.TomlParseResult
+import org.tomlj.TomlTable
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.Properties
 
 enum class Fallback { TO_STRING, IDENTITY, NONE }
 
@@ -24,6 +25,25 @@ sealed interface ParamRef {
 
 class ConfigException(message: String) : IllegalArgumentException(message)
 
+/**
+ * The agent configuration, read from a TOML file:
+ *
+ * ```toml
+ * include = ["com.hafnium.**"]
+ * fallback = "toString"
+ * maxIdLength = 64
+ * frameFormat = "{class}{receiver}.{method}{params}"
+ * receiverFormat = "[{name}={id}]"
+ * paramsFormat = "[{name}={id}, ...]"
+ * debug = false
+ *
+ * [id]
+ * "com.thirdparty.Order" = "getOrderNumber()"
+ *
+ * [param]
+ * "com.thirdparty.OrderService.process" = ["order", 2]
+ * ```
+ */
 data class AugmentorConfig(
     val include: List<String> = emptyList(),
     val fallback: Fallback = Fallback.TO_STRING,
@@ -31,9 +51,9 @@ data class AugmentorConfig(
     val frameFormat: String = DEFAULT_FRAME_FORMAT,
     val receiverFormat: String = DEFAULT_RECEIVER_FORMAT,
     val paramsFormat: String = DEFAULT_PARAMS_FORMAT,
-    /** Receiver id sources by class name. */
+    /** Receiver id sources by class name: the `[id]` table. */
     val ids: Map<String, IdSpec> = emptyMap(),
-    /** Parameter ids by `className.methodName`. */
+    /** Parameter ids by `className.methodName`: the `[param]` table. */
     val params: Map<String, List<ParamRef>> = emptyMap(),
     val debug: Boolean = false,
 ) {
@@ -52,15 +72,11 @@ data class AugmentorConfig(
         const val DEFAULT_PARAMS_FORMAT = "[{name}={id}, ...]"
         const val CONFIG_PROPERTY = "stackaugmentor.config"
 
-        private val KNOWN_KEYS = setOf(
-            "include", "fallback", "maxIdLength", "frameFormat", "receiverFormat", "paramsFormat", "debug",
-        )
         private val IDENTIFIER = Regex("[\\p{L}_$][\\p{L}\\p{N}_$]*")
 
         /**
-         * Loads the configuration named by the agent arguments (`config=<path>` or just `<path>`),
+         * Loads the TOML file named by the agent arguments (`config=<path>` or just `<path>`),
          * or by the `stackaugmentor.config` system property. Without either, the defaults apply.
-         * A `.toml` file is read as TOML, anything else as a properties file.
          */
         fun load(agentArgs: String?): AugmentorConfig {
             val location = agentArgs?.trim()?.takeIf { it.isNotEmpty() }?.removePrefix("config=")
@@ -68,118 +84,19 @@ data class AugmentorConfig(
                 ?: return AugmentorConfig()
             val path = Path.of(location)
             if (!Files.isRegularFile(path)) throw ConfigException("Configuration file not found: $path")
-            if (path.fileName.toString().endsWith(".toml", ignoreCase = true)) {
-                return parseToml(Files.readString(path), path.toString())
+            if (!path.fileName.toString().endsWith(".toml", ignoreCase = true)) {
+                throw ConfigException("$path: the configuration must be a TOML file ending in .toml")
             }
-            val properties = Properties()
-            Files.newBufferedReader(path).use(properties::load)
-            return parse(properties)
+            return parse(Files.readString(path), path.fileName.toString())
         }
 
-        /**
-         * Parses a TOML configuration. It is flattened into the same keys as the properties format,
-         * e.g. `"com.acme.Order"` in the `[id]` table becomes `id.com.acme.Order`; arrays become lists.
-         */
-        fun parseToml(text: String, source: String = "TOML configuration"): AugmentorConfig {
+        /** Parses a TOML configuration. [source] names it in error messages. */
+        fun parse(text: String, source: String = "configuration"): AugmentorConfig {
             val toml = Toml.parse(text)
             if (toml.hasErrors()) {
                 throw ConfigException("Invalid TOML in $source: ${toml.errors().joinToString("; ")}")
             }
-            val properties = Properties()
-            // Key paths make quoted ("com.acme.Order") and unquoted (com.acme.Order) class names equivalent.
-            for (path in toml.keyPathSet()) {
-                val key = path.joinToString(".")
-                properties.setProperty(key, tomlValue(key, toml.get(path)))
-            }
-            return parse(properties)
-        }
-
-        private fun tomlValue(key: String, value: Any?): String = when (value) {
-            is String -> value
-            is Long, is Boolean -> value.toString()
-            is TomlArray -> value.toList().joinToString(",") { item ->
-                when {
-                    item is String -> item
-                    item is Long && key.startsWith("param.") -> "#$item" // parameter index
-                    else -> throw ConfigException("'$key': unsupported array element '$item'")
-                }
-            }
-            else -> throw ConfigException("'$key': unsupported value '$value'")
-        }
-
-        fun parse(properties: Properties): AugmentorConfig {
-            val ids = mutableMapOf<String, IdSpec>()
-            val params = mutableMapOf<String, List<ParamRef>>()
-            for (key in properties.stringPropertyNames()) {
-                val value = properties.getProperty(key).trim()
-                when {
-                    key.startsWith("id.") -> ids[key.removePrefix("id.").requireClassName(key)] = parseIdSpec(key, value)
-                    key.startsWith("param.") -> {
-                        val target = key.removePrefix("param.")
-                        if (target.lastIndexOf('.') <= 0) {
-                            throw ConfigException("'$key' must name a class and a method, e.g. param.com.acme.OrderService.process")
-                        }
-                        params[target] = parseParamRefs(key, value)
-                    }
-                    key !in KNOWN_KEYS -> throw ConfigException("Unknown configuration key '$key'")
-                }
-            }
-            val defaults = AugmentorConfig()
-            return AugmentorConfig(
-                include = properties.getProperty("include")?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
-                    ?: defaults.include,
-                fallback = properties.getProperty("fallback")?.let { parseFallback(it.trim()) } ?: defaults.fallback,
-                maxIdLength = properties.getProperty("maxIdLength")?.let { parseMaxIdLength(it.trim()) }
-                    ?: defaults.maxIdLength,
-                frameFormat = properties.getProperty("frameFormat") ?: defaults.frameFormat,
-                receiverFormat = properties.getProperty("receiverFormat") ?: defaults.receiverFormat,
-                paramsFormat = properties.getProperty("paramsFormat") ?: defaults.paramsFormat,
-                ids = ids,
-                params = params,
-                debug = properties.getProperty("debug")?.trim().toBoolean(),
-            )
-        }
-
-        private fun String.requireClassName(key: String): String {
-            if (isEmpty()) throw ConfigException("'$key' must name a class, e.g. id.com.acme.Order")
-            return this
-        }
-
-        private fun parseIdSpec(key: String, value: String): IdSpec {
-            val method = value.endsWith("()")
-            val name = value.removeSuffix("()")
-            if (!IDENTIFIER.matches(name)) {
-                throw ConfigException("'$key' must be a field name (e.g. orderId) or a method (e.g. getOrderId()), was '$value'")
-            }
-            return if (method) IdSpec.MethodSpec(name) else IdSpec.FieldSpec(name)
-        }
-
-        private fun parseParamRefs(key: String, value: String): List<ParamRef> {
-            val refs = value.split(',').map { it.trim() }.filter { it.isNotEmpty() }.map { ref ->
-                if (ref.startsWith("#")) {
-                    val index = ref.substring(1).toIntOrNull()
-                    if (index == null || index < 0) throw ConfigException("'$key': invalid parameter index '$ref'")
-                    ParamRef.ByIndex(index)
-                } else {
-                    if (!IDENTIFIER.matches(ref)) throw ConfigException("'$key': invalid parameter name '$ref'")
-                    ParamRef.ByName(ref)
-                }
-            }
-            if (refs.isEmpty()) throw ConfigException("'$key' must list parameter names or #indexes")
-            return refs
-        }
-
-        private fun parseFallback(value: String): Fallback = when (value.lowercase()) {
-            "tostring" -> Fallback.TO_STRING
-            "identity" -> Fallback.IDENTITY
-            "none" -> Fallback.NONE
-            else -> throw ConfigException("fallback must be 'toString', 'identity' or 'none', was '$value'")
-        }
-
-        private fun parseMaxIdLength(value: String): Int {
-            val length = value.toIntOrNull()
-            if (length == null || length < 2) throw ConfigException("maxIdLength must be a number >= 2, was '$value'")
-            return length
+            return ConfigReader(toml, source).read()
         }
 
         /** `*` matches within one package segment, `**` across segments, `?` one character. */
@@ -200,6 +117,102 @@ data class AugmentorConfig(
                 i++
             }
             return Regex(regex.toString())
+        }
+    }
+
+    /** Maps the parsed TOML onto [AugmentorConfig]; errors name the key and its line. */
+    private class ConfigReader(private val toml: TomlParseResult, private val source: String) {
+
+        fun read(): AugmentorConfig {
+            for (key in toml.keySet()) {
+                if (key !in KNOWN_KEYS) throw error(listOf(key), "unknown key '$key'; allowed: ${KNOWN_KEYS.joinToString()}")
+            }
+            val defaults = AugmentorConfig()
+            return AugmentorConfig(
+                include = stringArray("include") ?: defaults.include,
+                fallback = value<String>("fallback", "a string")?.let { fallback(it) } ?: defaults.fallback,
+                maxIdLength = value<Long>("maxIdLength", "an integer")?.let { maxIdLength(it) } ?: defaults.maxIdLength,
+                frameFormat = value("frameFormat", "a string") ?: defaults.frameFormat,
+                receiverFormat = value("receiverFormat", "a string") ?: defaults.receiverFormat,
+                paramsFormat = value("paramsFormat", "a string") ?: defaults.paramsFormat,
+                ids = entries("id").associate { (path, value) -> target(path, "id") to idSpec(path, value) },
+                params = entries("param").associate { (path, value) -> target(path, "param") to paramRefs(path, value) },
+                debug = value("debug", "true or false") ?: defaults.debug,
+            )
+        }
+
+        private inline fun <reified T> value(key: String, expected: String): T? {
+            val value = toml.get(listOf(key)) ?: return null
+            return value as? T ?: throw error(listOf(key), "'$key' must be $expected")
+        }
+
+        private fun stringArray(key: String): List<String>? {
+            val array = value<TomlArray>(key, "an array of strings, e.g. [\"com.acme.**\"]") ?: return null
+            return array.toList().map { it as? String ?: throw error(listOf(key), "'$key' must be an array of strings") }
+        }
+
+        /**
+         * The entries of the `[id]` or `[param]` table, with their full key paths. Key paths make quoted
+         * (`"com.acme.Order"`) and unquoted (`com.acme.Order`, i.e. nested tables) class names equivalent.
+         */
+        private fun entries(table: String): List<Pair<List<String>, Any>> {
+            val content = value<TomlTable>(table, "a table, e.g. [$table]") ?: return emptyList()
+            return content.keyPathSet().map { path -> (listOf(table) + path) to content.get(path)!! }
+        }
+
+        private fun target(path: List<String>, table: String): String {
+            val target = path.drop(1).joinToString(".")
+            val valid = if (table == "id") target.isNotEmpty() else target.lastIndexOf('.') > 0
+            if (!valid) {
+                val example = if (table == "id") "\"com.acme.Order\"" else "\"com.acme.OrderService.process\""
+                throw error(path, "[$table] keys must name a ${if (table == "id") "class" else "class and a method"}, e.g. $example")
+            }
+            return target
+        }
+
+        private fun idSpec(path: List<String>, value: Any): IdSpec {
+            val text = value as? String
+            if (text == null || !IDENTIFIER.matches(text.removeSuffix("()"))) {
+                throw error(path, "must be a field name (e.g. \"orderId\") or a method (e.g. \"getOrderId()\"), was $value")
+            }
+            val name = text.removeSuffix("()")
+            return if (text.endsWith("()")) IdSpec.MethodSpec(name) else IdSpec.FieldSpec(name)
+        }
+
+        private fun paramRefs(path: List<String>, value: Any): List<ParamRef> {
+            val array = value as? TomlArray
+                ?: throw error(path, "must be an array of parameter names and indexes, e.g. [\"order\", 2]")
+            if (array.size() == 0) throw error(path, "must list at least one parameter")
+            return array.toList().map { ref ->
+                when {
+                    ref is String && IDENTIFIER.matches(ref) -> ParamRef.ByName(ref)
+                    ref is Long && ref in 0..255 -> ParamRef.ByIndex(ref.toInt())
+                    else -> throw error(path, "invalid parameter '$ref': use a parameter name or a 0-based index")
+                }
+            }
+        }
+
+        private fun fallback(value: String): Fallback = when (value.lowercase()) {
+            "tostring" -> Fallback.TO_STRING
+            "identity" -> Fallback.IDENTITY
+            "none" -> Fallback.NONE
+            else -> throw error(listOf("fallback"), "fallback must be \"toString\", \"identity\" or \"none\", was \"$value\"")
+        }
+
+        private fun maxIdLength(value: Long): Int {
+            if (value !in 2..10_000) throw error(listOf("maxIdLength"), "maxIdLength must be between 2 and 10000, was $value")
+            return value.toInt()
+        }
+
+        private fun error(path: List<String>, message: String): ConfigException {
+            val position = toml.inputPositionOf(path)?.let { ", line ${it.line()}" } ?: ""
+            return ConfigException("$source$position: $message")
+        }
+
+        companion object {
+            private val KNOWN_KEYS = listOf(
+                "include", "fallback", "maxIdLength", "frameFormat", "receiverFormat", "paramsFormat", "debug", "id", "param",
+            )
         }
     }
 }

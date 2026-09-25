@@ -29,7 +29,7 @@ import java.lang.instrument.Instrumentation
 /** A parameter whose value is shown after the method name, with its label. */
 class IdParameter(val parameter: ParameterDescription, val label: String)
 
-/** Finds the id parameters of a method: annotated with `@StackTraceId`, or listed in `param.` config entries. */
+/** Finds the id parameters of a method: annotated with `@StackTraceId`, or listed in the `[param]` config table. */
 class IdParameters(private val config: AugmentorConfig) {
 
     fun select(type: TypeDescription, method: MethodDescription): List<IdParameter> {

@@ -32,16 +32,16 @@ Use it in your own application:
 2. Start the JVM with the agent (`./gradlew :stack-augmentor-agent:shadowJar` builds it):
 
    ```
-   java -javaagent:stack-augmentor-agent-<version>.jar=config=stack-augmentor.properties -jar app.jar
+   java -javaagent:stack-augmentor-agent-<version>.jar=config=stack-augmentor.toml -jar app.jar
    ```
 
-   `-Dstackaugmentor.config=<path>` works as well. The configuration can be a `.properties` or a `.toml` file (chosen by extension). Without a configuration, only classes with `@StackTraceId` are instrumented.
+   `-Dstackaugmentor.config=<path>` works as well. The configuration is a TOML file (see [Configuration](#configuration)). Without a configuration, only classes with `@StackTraceId` are instrumented.
 
 ## Where ids come from
 
 **Receiver id**: the object a frame runs on. It is looked up in this order, including superclasses:
 
-1. External configuration: `id.<class>=<field>` or `id.<class>=<method>()`.
+1. External configuration: an entry in the `[id]` table, naming a field or a `method()`.
 2. `@StackTraceId` on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`.
 3. A fallback, only for classes matched by `include`:
    - `toString()` if the class overrides it (label `toString`);
@@ -51,7 +51,7 @@ The label is the real field or method name (`[objectId=…]`, `[getKey=…]`). `
 
 **Parameter ids** are shown after the method name. A parameter becomes an id when it is:
 - annotated with `@StackTraceId`, or
-- listed in `param.<class>.<method>=<name>,#<index>,…`.
+- listed in the `[param]` table, by name or 0-based index.
 
 The label is the parameter name. That needs the `MethodParameters` attribute (`javac -parameters`, Kotlin `javaParameters = true`); without it, the label is `arg<N>`. An argument whose class has a receiver id source is shown by that id, e.g. `order=4711`. Anything else is shown with `toString()`.
 
@@ -59,53 +59,38 @@ All ids become Strings when they are captured. Line breaks are replaced, the len
 
 ## Configuration
 
-```properties
-# Classes to instrument; they may use the toString()/identity fallback.
-# '*' matches within one package, '**' across packages.
-include=com.hafnium.**,com.acme.orders.*
-
-# toString (default) | identity | none
-fallback=toString
-maxIdLength=64
-
-# Layout (these are the defaults)
-frameFormat={class}{receiver}.{method}{params}
-receiverFormat=[{name}={id}]
-paramsFormat=[{name}={id}, ...]
-
-# Classes you cannot annotate
-id.com.thirdparty.Order=getOrderNumber()
-id.com.thirdparty.Customer=customerId
-param.com.thirdparty.OrderService.process=order,#2
-
-# Print which classes get instrumented
-debug=false
-```
-
-The same configuration as TOML (a file ending in `.toml`):
+The configuration is a TOML file (ending in `.toml`):
 
 ```toml
+# Classes to instrument; they may use the toString()/identity fallback.
+# '*' matches within one package, '**' across packages.
 include = ["com.hafnium.**", "com.acme.orders.*"]
+
+# "toString" (default) | "identity" | "none"
 fallback = "toString"
 maxIdLength = 64
 
+# Layout (these are the defaults)
 frameFormat = "{class}{receiver}.{method}{params}"
 receiverFormat = "[{name}={id}]"
 paramsFormat = "[{name}={id}, ...]"
 
+# Print which classes get instrumented
 debug = false
 
+# Receiver ids for classes you cannot annotate: a field, or a no-argument method ending in "()"
 [id]
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"
 
+# Parameter ids for methods you cannot annotate: parameter names, or 0-based indexes
 [param]
-"com.thirdparty.OrderService.process" = ["order", 2]   # a name, or a number for the parameter index
+"com.thirdparty.OrderService.process" = ["order", 2]
 ```
 
-The keys are the same as in the properties file. `[id]` and `[param]` hold the `id.` and `param.` entries, and lists are arrays. Quote class names: without quotes, TOML treats each `.` as a nested table. The agent accepts that too, but the quoted form is the clear one.
+Quote class names in `[id]` and `[param]`. Without quotes, TOML treats each `.` as a nested table; the agent accepts that too, but the quoted form is the clear one.
 
-An invalid configuration stops the JVM at startup, with the reason in the error message. For TOML syntax errors, the message includes the line and column.
+An invalid configuration stops the JVM at startup. The message names the key and its line, e.g. `agent.toml, line 2: fallback must be "toString", "identity" or "none", was "hash"`.
 
 ### Formats
 
@@ -124,8 +109,8 @@ Examples:
 | Setting | Frame |
 |---|---|
 | defaults | `com.hafnium.ObjectClass[objectId=1].process[orderId=42](ObjectClass.java:13)` |
-| `frameFormat={class}.{method}{receiver}{params}` | `com.hafnium.ObjectClass.process[objectId=1][orderId=42](ObjectClass.java:13)` |
-| `receiverFormat=<{id}>` | `com.hafnium.ObjectClass<1>.process[orderId=42](ObjectClass.java:13)` |
+| `frameFormat = "{class}.{method}{receiver}{params}"` | `com.hafnium.ObjectClass.process[objectId=1][orderId=42](ObjectClass.java:13)` |
+| `receiverFormat = "<{id}>"` | `com.hafnium.ObjectClass<1>.process[orderId=42](ObjectClass.java:13)` |
 
 ## How it works
 
