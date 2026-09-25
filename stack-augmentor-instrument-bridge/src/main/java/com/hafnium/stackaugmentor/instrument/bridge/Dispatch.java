@@ -1,4 +1,4 @@
-package com.hafnium.stackaugmentor.bridge;
+package com.hafnium.stackaugmentor.instrument.bridge;
 
 import java.util.ServiceLoader;
 

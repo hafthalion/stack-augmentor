@@ -38,7 +38,7 @@ tasks.shadowJar {
         "META-INF/versions/*/module-info.class",
         "module-info.class",
         // The agent installs its handler itself; the service is for build-time instrumentation.
-        "META-INF/services/com.hafnium.stackaugmentor.bridge.Dispatch\$Handler",
+        "META-INF/services/com.hafnium.stackaugmentor.instrument.bridge.Dispatch\$Handler",
     )
     manifest {
         attributes(

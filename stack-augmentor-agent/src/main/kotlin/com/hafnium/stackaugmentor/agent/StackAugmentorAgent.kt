@@ -61,7 +61,7 @@ object StackAugmentorAgent {
 internal object BridgeInjector {
 
     private const val RESOURCE = "/META-INF/stack-augmentor/stack-augmentor-instrument-bridge.jar"
-    private const val PROBE = "com.hafnium.stackaugmentor.bridge.Dispatch"
+    private const val PROBE = "com.hafnium.stackaugmentor.instrument.bridge.Dispatch"
 
     fun inject(instrumentation: Instrumentation) {
         if (bootstrapHasBridge()) return

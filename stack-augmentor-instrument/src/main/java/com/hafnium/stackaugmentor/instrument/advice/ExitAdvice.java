@@ -1,6 +1,6 @@
 package com.hafnium.stackaugmentor.instrument.advice;
 
-import com.hafnium.stackaugmentor.bridge.Dispatch;
+import com.hafnium.stackaugmentor.instrument.bridge.Dispatch;
 import net.bytebuddy.asm.Advice;
 
 /**

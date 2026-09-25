@@ -1,6 +1,6 @@
 package com.hafnium.stackaugmentor.agent
 
-import com.hafnium.stackaugmentor.bridge.Dispatch
+import com.hafnium.stackaugmentor.instrument.bridge.Dispatch
 import com.hafnium.stackaugmentor.instrument.IdParameters
 import com.hafnium.stackaugmentor.instrument.TypeMatching
 import com.hafnium.stackaugmentor.instrument.exitAdvice
