@@ -34,7 +34,7 @@ class IdResolverTest {
     enum class Color { RED }
 
     private fun resolver(vararg ids: Pair<String, IdSpec>, annotated: List<String> = emptyList()) =
-        IdResolver(AugmentorConfig(ids = ids.toMap(), augmentAnnotatedClasses = annotated, maxIdLength = 10))
+        IdResolver(AugmentorConfig(ids = ids.toMap(), annotatedClasses = annotated, maxIdLength = 10))
 
     @Test
     fun `annotated field, method and constructor property`() {
@@ -62,7 +62,7 @@ class IdResolverTest {
     }
 
     @Test
-    fun `annotations outside augmentAnnotatedClasses are ignored`() {
+    fun `annotations outside annotatedClasses are ignored`() {
         assertNull(resolver(annotated = listOf("com.acme.**")).receiverId(Annotated()))
         assertEquals(NamedId("objectId", "a-1"), resolver(annotated = listOf("com.hafnium.**")).receiverId(Annotated()))
         // Configured ids apply in every package.

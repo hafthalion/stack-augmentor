@@ -8,7 +8,7 @@ dependencyResolutionManagement {
 
 include(
     "stack-augmentor-api",
-    "stack-augmentor-bridge",
+    "stack-augmentor-instrument-bridge",
     "stack-augmentor-runtime",
     "stack-augmentor-instrument",
     "stack-augmentor-agent",

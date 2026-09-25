@@ -24,7 +24,7 @@ import net.bytebuddy.matcher.ElementMatcher
 /** A parameter whose value is shown after the method name, with its label. */
 class IdParameter(val parameter: ParameterDescription, val label: String)
 
-/** Finds the id parameters of a method: annotated with `@StackTraceId`, or listed in the `[augmentMethodParams]` config table. */
+/** Finds the id parameters of a method: annotated with `@StackTraceId`, or listed in the `[instrument.methodParams]` config table. */
 class IdParameters(private val config: AugmentorConfig) {
 
     fun select(type: TypeDescription, method: MethodDescription): List<IdParameter> {
@@ -47,13 +47,13 @@ class IdParameters(private val config: AugmentorConfig) {
         return labels.map { (index, label) -> IdParameter(parameters[index], label) }
     }
 
-    /** Debug messages for `[augmentMethodParams]` entries of this type that match no method or parameter. */
+    /** Debug messages for `[instrument.methodParams]` entries of this type that match no method or parameter. */
     fun unmatchedEntries(type: TypeDescription): List<String> {
         val messages = mutableListOf<String>()
         for ((target, refs) in config.params) {
             if (target.substringBeforeLast('.') != type.name) continue
             val methodName = target.substringAfterLast('.')
-            val entry = "[augmentMethodParams] \"$target\""
+            val entry = "[instrument.methodParams] \"$target\""
             val methods = type.declaredMethods.filter { it.isMethod && it.internalName == methodName }
             if (methods.isEmpty()) {
                 messages += "$entry: ${type.name} has no method '$methodName'"
@@ -96,7 +96,7 @@ class TypeMatching(private val config: AugmentorConfig, private val parameters: 
         if (Log.debug) {
             parameters.unmatchedEntries(type).forEach { message -> Log.debug { message } }
             if (!instrument && !config.honoursAnnotations(type.name) && usesAnnotations(type)) {
-                Log.debug { "ignoring @StackTraceId in ${type.name}: not in augmentAnnotatedClasses ${config.augmentAnnotatedClasses}" }
+                Log.debug { "ignoring @StackTraceId in ${type.name}: not in instrument.annotatedClasses ${config.annotatedClasses}" }
             }
         }
         return instrument
@@ -106,7 +106,7 @@ class TypeMatching(private val config: AugmentorConfig, private val parameters: 
     fun describe(type: TypeDescription, methods: ElementMatcher<MethodDescription>): String {
         val configured = hierarchy(type).firstOrNull { config.ids.containsKey(it.name) }
         val reason = when {
-            configured != null -> "receiver id from [augmentClassIds] \"${configured.name}\""
+            configured != null -> "receiver id from [instrument.classIds] \"${configured.name}\""
             receiverRelevant(type) -> "receiver id from @StackTraceId"
             else -> "parameter ids only"
         }
@@ -129,7 +129,7 @@ class TypeMatching(private val config: AugmentorConfig, private val parameters: 
         }
     }
 
-    /** Configured in `[augmentClassIds]`, or annotated (possibly in a superclass) in an `augmentAnnotatedClasses` package. */
+    /** Configured in `[instrument.classIds]`, or annotated (possibly in a superclass) in an `instrument.annotatedClasses` package. */
     private fun receiverRelevant(type: TypeDescription): Boolean =
         hierarchy(type).any { config.ids.containsKey(it.name) } ||
             (config.honoursAnnotations(type.name) && hierarchy(type).any { hasAnnotatedMember(it) })

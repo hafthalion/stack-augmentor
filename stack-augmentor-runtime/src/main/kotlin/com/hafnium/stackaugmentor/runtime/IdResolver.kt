@@ -77,7 +77,7 @@ class IdResolver(private val config: AugmentorConfig) {
             config.ids[owner.name]?.let { spec -> return sourceFor(owner, spec) }
         }
         // 2. @StackTraceId on a field, a no-argument method or (Kotlin) a primary constructor property,
-        //    for classes in the augmentAnnotatedClasses packages.
+        //    for classes in the instrument.annotatedClasses packages.
         if (!config.honoursAnnotations(type.name)) return null
         hierarchy(type).forEach { owner ->
             owner.declaredFields.firstOrNull { !Modifier.isStatic(it.modifiers) && idAnnotation(it) != null }?.let {
@@ -109,7 +109,7 @@ class IdResolver(private val config: AugmentorConfig) {
             }?.let { methodSource(it, it.name) }
         }
         if (source == null) {
-            Log.warn { "[augmentClassIds] \"${owner.name}\": no ${if (spec is IdSpec.MethodSpec) "method ${spec.memberName}()" else "field ${spec.memberName}"} found" }
+            Log.warn { "[instrument.classIds] \"${owner.name}\": no ${if (spec is IdSpec.MethodSpec) "method ${spec.memberName}()" else "field ${spec.memberName}"} found" }
         }
         return source
     }

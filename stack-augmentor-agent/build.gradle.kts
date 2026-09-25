@@ -10,16 +10,16 @@ val bridge = configurations.create("bridge") {
 dependencies {
     implementation(project(":stack-augmentor-instrument")) {
         // Loaded into the bootstrap class loader at runtime (see BridgeInjector), never shaded.
-        exclude(group = "com.hafnium", module = "stack-augmentor-bridge")
+        exclude(group = "com.hafnium", module = "stack-augmentor-instrument-bridge")
     }
-    compileOnly(project(":stack-augmentor-bridge"))
-    bridge(project(":stack-augmentor-bridge"))
+    compileOnly(project(":stack-augmentor-instrument-bridge"))
+    bridge(project(":stack-augmentor-instrument-bridge"))
 }
 
 tasks.processResources {
     from(bridge) {
         into("META-INF/stack-augmentor")
-        rename { "stack-augmentor-bridge.jar" }
+        rename { "stack-augmentor-instrument-bridge.jar" }
     }
 }
 

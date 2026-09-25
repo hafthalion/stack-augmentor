@@ -7,9 +7,8 @@ import com.hafnium.stackaugmentor.bridge.Dispatch
  * `ServiceLoader` when the first exception leaves an instrumented method.
  *
  * The configuration is read from the file named by `-Dstackaugmentor.config`, or from
- * `stack-augmentor.toml` on the classpath; without either, the defaults apply. Only the layout keys
- * (`frameFormat`, `receiverFormat`, `paramsFormat`, `maxIdLength`) and `debug` matter here: what gets
- * instrumented was decided at build time.
+ * `stack-augmentor.toml` on the classpath; without either, the defaults apply. Only `[augment]` and
+ * `debug` matter here: what gets instrumented (`[instrument]`) was decided at build time.
  */
 class DefaultHandler : Dispatch.Handler {
 

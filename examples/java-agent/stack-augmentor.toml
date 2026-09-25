@@ -1,25 +1,27 @@
-# Packages whose @StackTraceId annotations are used; classes without annotations are not augmented.
-# '*' matches within one package, '**' across packages. Empty: all packages (default).
-augmentAnnotatedClasses = ["com.hafnium.**"]
-
-# Longer ids are cut off with "…" (default: 64).
-maxIdLength = 64
-
-# Where ids go, see the README (these are the defaults).
-frameFormat = "{class}{receiver}.{method}{params}"
-receiverFormat = "{$name=$id}"
-paramsFormat = "{$name=$id, ...}"
-
 # Print diagnostics to stderr (default: false): the configuration, which classes and methods get
 # instrumented and why, where each id comes from, and config entries or annotations that have no effect.
 debug = false
 
+# What gets instrumented; the agent reads this when classes are loaded.
+[instrument]
+# Packages whose @StackTraceId annotations are used; classes without annotations are not augmented.
+# '*' matches within one package, '**' across packages. Empty: all packages (default).
+annotatedClasses = ["com.hafnium.**"]
+
 # Classes you cannot annotate: an order is identified by its getOrderNumber() method,
 # a customer by its customerId field ...
-[augmentClassIds]
+[instrument.classIds]
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"
 
 # ... and OrderService.process shows its order argument and its second parameter (quantity).
-[augmentMethodParams]
+[instrument.methodParams]
 "com.thirdparty.OrderService.process" = ["order", 1]
+
+# How frames look; used at runtime (these are the defaults, see the README).
+[augment]
+frameFormat = "{class}{receiver}.{method}{params}"
+receiverFormat = "{$name=$id}"
+paramsFormat = "{$name=$id, ...}"
+# Longer ids are cut off with "…".
+maxIdLength = 64

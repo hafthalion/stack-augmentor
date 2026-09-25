@@ -1,14 +1,20 @@
-# Read at runtime from the classpath (or from -Dstackaugmentor.config=<file>).
-# With build-time instrumentation only the layout and debug matter: what gets instrumented
-# was decided at build time (all classes of this project that use @StackTraceId).
-
-# Longer ids are cut off with "…" (default: 64).
-maxIdLength = 64
-
-# Where ids go, see the README (these are the defaults).
-frameFormat = "{class}{receiver}.{method}{params}"
-receiverFormat = "{$name=$id}"
-paramsFormat = "{$name=$id, ...}"
+# One file for both phases:
+# - [instrument] is read at build time by the ByteBuddy build plugin (see build.gradle.kts);
+# - [augment] and debug are read at runtime, from the classpath (or from -Dstackaugmentor.config=<file>).
 
 # Print diagnostics to stderr (default: false).
 debug = false
+
+# What gets instrumented, at build time. Only this project's classes are changed, so the
+# [instrument.classIds] and [instrument.methodParams] tables for third-party classes don't apply.
+[instrument]
+# Packages whose @StackTraceId annotations are used. Empty: all packages (default).
+annotatedClasses = ["com.hafnium.**"]
+
+# How frames look, at runtime (these are the defaults, see the README).
+[augment]
+frameFormat = "{class}{receiver}.{method}{params}"
+receiverFormat = "{$name=$id}"
+paramsFormat = "{$name=$id, ...}"
+# Longer ids are cut off with "…".
+maxIdLength = 64

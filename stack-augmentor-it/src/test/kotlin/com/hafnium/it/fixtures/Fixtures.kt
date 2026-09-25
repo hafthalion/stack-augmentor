@@ -80,7 +80,7 @@ class Shipping {
     fun op(@StackTraceId name: String, y: Int): Nothing = throw IllegalStateException("op string $y")
 }
 
-/** In an augmentAnnotatedClasses package, but without @StackTraceId: not augmented. */
+/** In an instrument.annotatedClasses package, but without @StackTraceId: not augmented. */
 class WithToString {
     override fun toString() = "WTS-1"
     fun fail(): Nothing = throw IllegalStateException("fail")

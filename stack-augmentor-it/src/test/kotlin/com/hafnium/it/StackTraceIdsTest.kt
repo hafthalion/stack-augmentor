@@ -70,7 +70,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `annotations outside the augmentAnnotatedClasses packages are ignored`() {
+    fun `annotations outside the annotatedClasses packages are ignored`() {
         val inherited = assertThrows<IllegalStateException> { DerivedOutside().fail() }
         assertEquals("com.hafnium.it.outside.DerivedOutside", inherited.stackTrace[0].className)
 

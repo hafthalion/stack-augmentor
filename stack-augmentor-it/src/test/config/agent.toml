@@ -1,10 +1,13 @@
-augmentAnnotatedClasses = ["com.hafnium.it.fixtures.**"]
-maxIdLength = 20
+[instrument]
+annotatedClasses = ["com.hafnium.it.fixtures.**"]
 
 # Stand-ins for classes you cannot annotate
-[augmentClassIds]
+[instrument.classIds]
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"
 
-[augmentMethodParams]
+[instrument.methodParams]
 "com.thirdparty.OrderService.process" = ["order", 1]
+
+[augment]
+maxIdLength = 20

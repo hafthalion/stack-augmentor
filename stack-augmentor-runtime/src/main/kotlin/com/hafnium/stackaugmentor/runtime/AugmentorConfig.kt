@@ -24,37 +24,41 @@ sealed interface ParamRef {
 class ConfigException(message: String) : IllegalArgumentException(message)
 
 /**
- * The agent configuration, read from a TOML file:
+ * The configuration, read from a TOML file:
  *
  * ```toml
- * augmentAnnotatedClasses = ["com.hafnium.**"]
- * maxIdLength = 64
+ * debug = false
+ *
+ * [instrument]                  # what gets instrumented: agent at class load, build plugin at build time
+ * annotatedClasses = ["com.hafnium.**"]
+ *
+ * [instrument.classIds]
+ * "com.thirdparty.Order" = "getOrderNumber()"
+ *
+ * [instrument.methodParams]
+ * "com.thirdparty.OrderService.process" = ["order", 2]
+ *
+ * [augment]                      # how frames look: at runtime, in both modes
  * frameFormat = "{class}{receiver}.{method}{params}"
  * receiverFormat = "{$name=$id}"
  * paramsFormat = "{$name=$id, ...}"
- * debug = false
- *
- * [augmentClassIds]
- * "com.thirdparty.Order" = "getOrderNumber()"
- *
- * [augmentMethodParams]
- * "com.thirdparty.OrderService.process" = ["order", 2]
+ * maxIdLength = 64
  * ```
  */
 data class AugmentorConfig(
     /** Packages (globs) where `@StackTraceId` is honoured; empty means all packages. */
-    val augmentAnnotatedClasses: List<String> = emptyList(),
-    val maxIdLength: Int = 64,
+    val annotatedClasses: List<String> = emptyList(),
+    /** Receiver id sources by class name: the `[instrument.classIds]` table. */
+    val ids: Map<String, IdSpec> = emptyMap(),
+    /** Parameter ids by `className.methodName`: the `[instrument.methodParams]` table. */
+    val params: Map<String, List<ParamRef>> = emptyMap(),
     val frameFormat: String = DEFAULT_FRAME_FORMAT,
     val receiverFormat: String = DEFAULT_RECEIVER_FORMAT,
     val paramsFormat: String = DEFAULT_PARAMS_FORMAT,
-    /** Receiver id sources by class name: the `[augmentClassIds]` table. */
-    val ids: Map<String, IdSpec> = emptyMap(),
-    /** Parameter ids by `className.methodName`: the `[augmentMethodParams]` table. */
-    val params: Map<String, List<ParamRef>> = emptyMap(),
+    val maxIdLength: Int = 64,
     val debug: Boolean = false,
 ) {
-    private val annotatedClassPatterns: List<Regex> = augmentAnnotatedClasses.map(::globToRegex)
+    private val annotatedClassPatterns: List<Regex> = annotatedClasses.map(::globToRegex)
 
     /** Whether `@StackTraceId` annotations on this class are used. */
     fun honoursAnnotations(className: String): Boolean =
@@ -77,9 +81,10 @@ data class AugmentorConfig(
          * Loads the TOML file named by the agent arguments (`config=<path>` or just `<path>`),
          * or by the `stackaugmentor.config` system property. Without either, the defaults apply.
          */
-        fun load(agentArgs: String?): AugmentorConfig {
-            val location = location(agentArgs) ?: return AugmentorConfig()
-            val path = Path.of(location)
+        fun load(agentArgs: String?): AugmentorConfig = location(agentArgs)?.let { load(Path.of(it)) } ?: AugmentorConfig()
+
+        /** Loads a TOML configuration file. */
+        fun load(path: Path): AugmentorConfig {
             if (!Files.isRegularFile(path)) throw ConfigException("Configuration file not found: $path")
             if (!path.fileName.toString().endsWith(".toml", ignoreCase = true)) {
                 throw ConfigException("$path: the configuration must be a TOML file ending in .toml")
@@ -126,47 +131,59 @@ data class AugmentorConfig(
     private class ConfigReader(private val toml: TomlParseResult, private val source: String) {
 
         fun read(): AugmentorConfig {
-            for (key in toml.keySet()) {
-                if (key !in KNOWN_KEYS) throw error(listOf(key), "unknown key '$key'; allowed: ${KNOWN_KEYS.joinToString()}")
-            }
+            checkKeys(emptyList(), toml, ROOT_KEYS)
+            table(INSTRUMENT)?.let { checkKeys(INSTRUMENT, it, INSTRUMENT_KEYS) }
+            table(AUGMENT)?.let { checkKeys(AUGMENT, it, AUGMENT_KEYS) }
             val defaults = AugmentorConfig()
             return AugmentorConfig(
-                augmentAnnotatedClasses = stringArray("augmentAnnotatedClasses") ?: defaults.augmentAnnotatedClasses,
-                maxIdLength = value<Long>("maxIdLength", "an integer")?.let { maxIdLength(it) } ?: defaults.maxIdLength,
-                frameFormat = value("frameFormat", "a string") ?: defaults.frameFormat,
-                receiverFormat = value("receiverFormat", "a string") ?: defaults.receiverFormat,
-                paramsFormat = value("paramsFormat", "a string") ?: defaults.paramsFormat,
-                ids = entries(ID_TABLE).associate { (path, value) -> target(path, ID_TABLE) to idSpec(path, value) },
-                params = entries(PARAM_TABLE).associate { (path, value) -> target(path, PARAM_TABLE) to paramRefs(path, value) },
-                debug = value("debug", "true or false") ?: defaults.debug,
+                annotatedClasses = stringArray(INSTRUMENT + "annotatedClasses") ?: defaults.annotatedClasses,
+                ids = entries(CLASS_IDS).associate { (path, value) -> target(path, CLASS_IDS) to idSpec(path, value) },
+                params = entries(METHOD_PARAMS).associate { (path, value) -> target(path, METHOD_PARAMS) to paramRefs(path, value) },
+                frameFormat = value(AUGMENT + "frameFormat", "a string") ?: defaults.frameFormat,
+                receiverFormat = value(AUGMENT + "receiverFormat", "a string") ?: defaults.receiverFormat,
+                paramsFormat = value(AUGMENT + "paramsFormat", "a string") ?: defaults.paramsFormat,
+                maxIdLength = value<Long>(AUGMENT + "maxIdLength", "an integer")?.let { maxIdLength(it) } ?: defaults.maxIdLength,
+                debug = value(listOf("debug"), "true or false") ?: defaults.debug,
             )
         }
 
-        private inline fun <reified T> value(key: String, expected: String): T? {
-            val value = toml.get(listOf(key)) ?: return null
-            return value as? T ?: throw error(listOf(key), "'$key' must be $expected")
+        private fun checkKeys(path: List<String>, table: TomlTable, allowed: List<String>) {
+            for (key in table.keySet()) {
+                if (key !in allowed) {
+                    val where = if (path.isEmpty()) "" else " in [${name(path)}]"
+                    throw error(path + key, "unknown key '$key'$where; allowed: ${allowed.joinToString()}")
+                }
+            }
         }
 
-        private fun stringArray(key: String): List<String>? {
-            val array = value<TomlArray>(key, "an array of strings, e.g. [\"com.acme.**\"]") ?: return null
-            return array.toList().map { it as? String ?: throw error(listOf(key), "'$key' must be an array of strings") }
+        private fun table(path: List<String>): TomlTable? = value(path, "a table, e.g. [${name(path)}]")
+
+        private inline fun <reified T> value(path: List<String>, expected: String): T? {
+            val value = toml.get(path) ?: return null
+            return value as? T ?: throw error(path, "'${name(path)}' must be $expected")
+        }
+
+        private fun stringArray(path: List<String>): List<String>? {
+            val array = value<TomlArray>(path, "an array of strings, e.g. [\"com.acme.**\"]") ?: return null
+            return array.toList().map { it as? String ?: throw error(path, "'${name(path)}' must be an array of strings") }
         }
 
         /**
-         * The entries of the `[augmentClassIds]` or `[augmentMethodParams]` table, with their full key paths. Key paths make quoted
-         * (`"com.acme.Order"`) and unquoted (`com.acme.Order`, i.e. nested tables) class names equivalent.
+         * The entries of the `[instrument.classIds]` or `[instrument.methodParams]` table, with their full key paths.
+         * Key paths make quoted (`"com.acme.Order"`) and unquoted (`com.acme.Order`, i.e. nested tables) class names equivalent.
          */
-        private fun entries(table: String): List<Pair<List<String>, Any>> {
-            val content = value<TomlTable>(table, "a table, e.g. [$table]") ?: return emptyList()
-            return content.keyPathSet().map { path -> (listOf(table) + path) to content.get(path)!! }
+        private fun entries(table: List<String>): List<Pair<List<String>, Any>> {
+            val content = table(table) ?: return emptyList()
+            return content.keyPathSet().map { path -> (table + path) to content.get(path)!! }
         }
 
-        private fun target(path: List<String>, table: String): String {
-            val target = path.drop(1).joinToString(".")
-            val valid = if (table == ID_TABLE) target.isNotEmpty() else target.lastIndexOf('.') > 0
+        private fun target(path: List<String>, table: List<String>): String {
+            val target = path.drop(table.size).joinToString(".")
+            val classIds = table == CLASS_IDS
+            val valid = if (classIds) target.isNotEmpty() else target.lastIndexOf('.') > 0
             if (!valid) {
-                val example = if (table == ID_TABLE) "\"com.acme.Order\"" else "\"com.acme.OrderService.process\""
-                throw error(path, "[$table] keys must name a ${if (table == ID_TABLE) "class" else "class and a method"}, e.g. $example")
+                val example = if (classIds) "\"com.acme.Order\"" else "\"com.acme.OrderService.process\""
+                throw error(path, "[${name(table)}] keys must name a ${if (classIds) "class" else "class and a method"}, e.g. $example")
             }
             return target
         }
@@ -194,9 +211,11 @@ data class AugmentorConfig(
         }
 
         private fun maxIdLength(value: Long): Int {
-            if (value !in 2..10_000) throw error(listOf("maxIdLength"), "maxIdLength must be between 2 and 10000, was $value")
+            if (value !in 2..10_000) throw error(AUGMENT + "maxIdLength", "maxIdLength must be between 2 and 10000, was $value")
             return value.toInt()
         }
+
+        private fun name(path: List<String>) = path.joinToString(".")
 
         private fun error(path: List<String>, message: String): ConfigException {
             val position = toml.inputPositionOf(path)?.let { ", line ${it.line()}" } ?: ""
@@ -204,12 +223,14 @@ data class AugmentorConfig(
         }
 
         companion object {
-            const val ID_TABLE = "augmentClassIds"
-            const val PARAM_TABLE = "augmentMethodParams"
+            val INSTRUMENT = listOf("instrument")
+            val AUGMENT = listOf("augment")
+            val CLASS_IDS = INSTRUMENT + "classIds"
+            val METHOD_PARAMS = INSTRUMENT + "methodParams"
 
-            private val KNOWN_KEYS = listOf(
-                "augmentAnnotatedClasses", "maxIdLength", "frameFormat", "receiverFormat", "paramsFormat", "debug", ID_TABLE, PARAM_TABLE,
-            )
+            private val ROOT_KEYS = listOf("debug", "instrument", "augment")
+            private val INSTRUMENT_KEYS = listOf("annotatedClasses", "classIds", "methodParams")
+            private val AUGMENT_KEYS = listOf("frameFormat", "receiverFormat", "paramsFormat", "maxIdLength")
         }
     }
 }

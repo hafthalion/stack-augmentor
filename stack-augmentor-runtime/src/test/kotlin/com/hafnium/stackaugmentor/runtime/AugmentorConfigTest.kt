@@ -27,34 +27,38 @@ class AugmentorConfigTest {
     fun `full configuration`() {
         val config = parse(
             """
-            augmentAnnotatedClasses = ["com.hafnium.**", "com.acme.orders.*"]
-            maxIdLength = 32
             debug = true
-            frameFormat = "{class}.{method}{receiver}{params}"
-            receiverFormat = "<${'$'}id>"
-            paramsFormat = "(${'$'}name: ${'$'}id; ...)"
 
-            [augmentClassIds]
+            [instrument]
+            annotatedClasses = ["com.hafnium.**", "com.acme.orders.*"]
+
+            [instrument.classIds]
             "com.thirdparty.Order" = "getOrderNumber()"
             "com.thirdparty.Customer" = "customerId"
 
-            [augmentMethodParams]
+            [instrument.methodParams]
             "com.thirdparty.OrderService.process" = ["orderId", 2]
+
+            [augment]
+            frameFormat = "{class}.{method}{receiver}{params}"
+            receiverFormat = "<${'$'}id>"
+            paramsFormat = "(${'$'}name: ${'$'}id; ...)"
+            maxIdLength = 32
             """,
         )
         assertEquals(
             AugmentorConfig(
-                augmentAnnotatedClasses = listOf("com.hafnium.**", "com.acme.orders.*"),
-                maxIdLength = 32,
-                debug = true,
-                frameFormat = "{class}.{method}{receiver}{params}",
-                receiverFormat = "<\$id>",
-                paramsFormat = "(\$name: \$id; ...)",
+                annotatedClasses = listOf("com.hafnium.**", "com.acme.orders.*"),
                 ids = mapOf(
                     "com.thirdparty.Order" to IdSpec.MethodSpec("getOrderNumber"),
                     "com.thirdparty.Customer" to IdSpec.FieldSpec("customerId"),
                 ),
                 params = mapOf("com.thirdparty.OrderService.process" to listOf(ParamRef.ByName("orderId"), ParamRef.ByIndex(2))),
+                frameFormat = "{class}.{method}{receiver}{params}",
+                receiverFormat = "<\$id>",
+                paramsFormat = "(\$name: \$id; ...)",
+                maxIdLength = 32,
+                debug = true,
             ),
             config,
         )
@@ -63,20 +67,34 @@ class AugmentorConfigTest {
     }
 
     @Test
+    fun `dotted keys and inline tables are the same as sections`() {
+        val sections = parse(
+            """
+            [instrument]
+            annotatedClasses = ["com.acme.**"]
+            [augment]
+            maxIdLength = 20
+            """,
+        )
+        assertEquals(sections, parse("instrument.annotatedClasses = [\"com.acme.**\"]\naugment.maxIdLength = 20"))
+        assertEquals(sections, parse("instrument = { annotatedClasses = [\"com.acme.**\"] }\naugment = { maxIdLength = 20 }"))
+    }
+
+    @Test
     fun `unquoted class names are the same as quoted ones`() {
         val quoted = parse(
             """
-            [augmentClassIds]
+            [instrument.classIds]
             "com.acme.Order" = "orderId"
-            [augmentMethodParams]
+            [instrument.methodParams]
             "com.acme.OrderService.process" = ["order"]
             """,
         )
         val unquoted = parse(
             """
-            [augmentClassIds]
+            [instrument.classIds]
             com.acme.Order = "orderId"
-            [augmentMethodParams]
+            [instrument.methodParams]
             com.acme.OrderService.process = ["order"]
             """,
         )
@@ -84,8 +102,8 @@ class AugmentorConfigTest {
     }
 
     @Test
-    fun `augmentAnnotatedClasses globs`() {
-        val config = parse("""augmentAnnotatedClasses = ["com.hafnium.**", "com.acme.orders.*", "com.acme.Order?"]""")
+    fun `annotatedClasses globs`() {
+        val config = parse("""instrument.annotatedClasses = ["com.hafnium.**", "com.acme.orders.*", "com.acme.Order?"]""")
         assertTrue(config.honoursAnnotations("com.hafnium.ObjectClass"))
         assertTrue(config.honoursAnnotations("com.hafnium.deep.pkg.ObjectClass\$Inner"))
         assertTrue(config.honoursAnnotations("com.acme.orders.Order"))
@@ -100,7 +118,7 @@ class AugmentorConfigTest {
 
     @Test
     fun `syntax errors report their position`() {
-        val message = error("augmentAnnotatedClasses = [\"a\"\nmaxIdLength = ")
+        val message = error("[augment]\nmaxIdLength = ")
         assertTrue(message.startsWith("Invalid TOML in test.toml:"), message)
         assertTrue(message.contains("line"), message)
     }
@@ -108,45 +126,62 @@ class AugmentorConfigTest {
     @Test
     fun `invalid values name the key and its line`() {
         assertEquals(
-            "test.toml, line 2: maxIdLength must be between 2 and 10000, was 1",
-            error("augmentAnnotatedClasses = []\nmaxIdLength = 1"),
+            "test.toml, line 3: maxIdLength must be between 2 and 10000, was 1",
+            error("debug = false\n[augment]\nmaxIdLength = 1"),
         )
-        assertTrue(error("maxIdLength = \"64\"").contains("'maxIdLength' must be an integer"))
-        assertTrue(error("maxIdLength = 1").contains("maxIdLength must be between"))
-        assertTrue(error("maxIdLength = 1.5").contains("'maxIdLength' must be an integer"))
-        assertTrue(error("augmentAnnotatedClasses = \"com.acme.**\"").contains("'augmentAnnotatedClasses' must be an array of strings"))
-        assertTrue(error("augmentAnnotatedClasses = [1, 2]").contains("'augmentAnnotatedClasses' must be an array of strings"))
+        assertTrue(error("augment.maxIdLength = \"64\"").contains("'augment.maxIdLength' must be an integer"))
+        assertTrue(error("augment.maxIdLength = 1.5").contains("'augment.maxIdLength' must be an integer"))
+        assertTrue(error("instrument.annotatedClasses = \"com.acme.**\"").contains("'instrument.annotatedClasses' must be an array of strings"))
+        assertTrue(error("instrument.annotatedClasses = [1, 2]").contains("'instrument.annotatedClasses' must be an array of strings"))
         assertTrue(error("debug = \"yes\"").contains("'debug' must be true or false"))
-        assertTrue(error("mode = \"registry\"").contains("unknown key 'mode'"))
-        assertTrue(error("[format]\nframe = \"{class}.{method}\"").contains("unknown key 'format'"))
-        assertTrue(error("augmentClassIds = \"x\"").contains("'augmentClassIds' must be a table"))
-        // Removed and renamed keys are rejected, not silently ignored.
-        assertTrue(error("fallback = \"toString\"").contains("unknown key 'fallback'"))
-        assertTrue(error("include = [\"com.acme.**\"]").contains("unknown key 'include'"))
-        assertTrue(error("[augmentIds]\n\"com.acme.Order\" = \"orderId\"").contains("unknown key 'augmentIds'"))
-        assertTrue(error("[augmentParams]\n\"com.acme.Order.process\" = [\"order\"]").contains("unknown key 'augmentParams'"))
+        assertTrue(error("instrument = \"x\"").contains("'instrument' must be a table"))
+        assertTrue(error("[instrument]\nclassIds = \"x\"").contains("'instrument.classIds' must be a table"))
     }
 
     @Test
-    fun `invalid id and param entries`() {
+    fun `unknown keys are rejected, in every section`() {
+        assertEquals(
+            "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxIdLength",
+            error("[augment]\nframe = \"{class}.{method}\""),
+        )
+        assertTrue(error("[instrument]\nclasses = []").contains("unknown key 'classes' in [instrument]"))
+        assertTrue(error("[other]\nx = 1").contains("unknown key 'other'; allowed: debug, instrument, augment"))
+        // Keys of earlier layouts are rejected, not silently ignored.
+        for (old in listOf(
+            "augmentAnnotatedClasses = []",
+            "include = []",
+            "maxIdLength = 64",
+            "frameFormat = \"{class}.{method}\"",
+            "[augmentClassIds]",
+            "[augmentMethodParams]",
+            "[format]\nmaxIdLength = 64",
+            "fallback = \"toString\"",
+        )) {
+            assertTrue(error(old).contains("unknown key"), old)
+        }
+    }
+
+    @Test
+    fun `invalid classIds and methodParams entries`() {
         assertEquals(
             "test.toml, line 3: must be a field name (e.g. \"orderId\") or a method (e.g. \"getOrderId()\"), was get-id()",
-            error("augmentAnnotatedClasses = []\n[augmentClassIds]\n\"com.acme.Order\" = \"get-id()\""),
+            error("debug = false\n[instrument.classIds]\n\"com.acme.Order\" = \"get-id()\""),
         )
-        assertTrue(error("[augmentClassIds]\n\"com.acme.Order\" = 5").contains("must be a field name"))
-        assertTrue(error("[augmentMethodParams]\n\"com.acme.Order.process\" = \"order\"").contains("must be an array"))
-        assertTrue(error("[augmentMethodParams]\n\"com.acme.Order.process\" = []").contains("at least one parameter"))
-        assertTrue(error("[augmentMethodParams]\n\"com.acme.Order.process\" = [\"#1\"]").contains("invalid parameter '#1'"))
-        assertTrue(error("[augmentMethodParams]\n\"com.acme.Order.process\" = [-1]").contains("invalid parameter '-1'"))
-        assertTrue(error("[augmentMethodParams]\nOrder = [\"id\"]").contains("must name a class and a method"))
+        assertTrue(error("[instrument.classIds]\n\"com.acme.Order\" = 5").contains("must be a field name"))
+        assertTrue(error("[instrument.methodParams]\n\"com.acme.Order.process\" = \"order\"").contains("must be an array"))
+        assertTrue(error("[instrument.methodParams]\n\"com.acme.Order.process\" = []").contains("at least one parameter"))
+        assertTrue(error("[instrument.methodParams]\n\"com.acme.Order.process\" = [\"#1\"]").contains("invalid parameter '#1'"))
+        assertTrue(error("[instrument.methodParams]\n\"com.acme.Order.process\" = [-1]").contains("invalid parameter '-1'"))
+        assertTrue(error("[instrument.methodParams]\nOrder = [\"id\"]").contains("[instrument.methodParams] keys must name a class and a method"))
     }
 
     @Test
     fun `load reads toml files only`(@TempDir dir: Path) {
         val toml = dir.resolve("agent.toml")
-        Files.writeString(toml, "maxIdLength = 10")
+        Files.writeString(toml, "augment.maxIdLength = 10")
         assertEquals(10, AugmentorConfig.load("config=$toml").maxIdLength)
         assertEquals(10, AugmentorConfig.load(toml.toString()).maxIdLength)
+        assertEquals(10, AugmentorConfig.load(toml).maxIdLength)
 
         val properties = dir.resolve("agent.properties")
         Files.writeString(properties, "maxIdLength=10")
@@ -154,6 +189,6 @@ class AugmentorConfigTest {
         assertTrue(message.contains("must be a TOML file ending in .toml"), message)
 
         assertTrue(assertThrows<ConfigException> { AugmentorConfig.load("config=${dir.resolve("missing.toml")}") }.message!!.contains("not found"))
-        assertEquals(AugmentorConfig(), AugmentorConfig.load(null))
+        assertEquals(AugmentorConfig(), AugmentorConfig.load(null as String?))
     }
 }

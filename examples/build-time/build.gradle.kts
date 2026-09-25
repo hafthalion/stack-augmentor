@@ -14,7 +14,7 @@ dependencies {
     implementation(project(":stack-augmentor-api"))
     // Dispatch and the handler that the instrumented code calls at runtime.
     implementation(project(":stack-augmentor-runtime"))
-    // The ByteBuddy build plugin, found through META-INF/net.bytebuddy/build.plugins.
+    // The ByteBuddy build plugin.
     byteBuddy(project(":stack-augmentor-build-plugin"))
 
     testImplementation(platform(libs.junit.bom))
@@ -22,9 +22,22 @@ dependencies {
     testRuntimeOnly(libs.junit.launcher)
 }
 
+// One configuration for both phases: [instrument] is read here at build time, [augment] from the classpath at runtime.
+val stackAugmentorConfig = layout.projectDirectory.file("src/main/resources/stack-augmentor.toml")
+
 byteBuddy {
     // Only adds advice to existing methods: keep the classes' methods as they are (no rebasing).
     entryPoint = EntryPoint.Default.DECORATE
+    transformation {
+        pluginName = "com.hafnium.stackaugmentor.build.StackAugmentorPlugin"
+        // Without this argument, every class using @StackTraceId is instrumented.
+        argument { value = stackAugmentorConfig.asFile.absolutePath }
+    }
+}
+
+tasks.matching { it.name == "byteBuddyKotlin" }.configureEach {
+    // Re-instrument when the configuration changes (the task is registered after evaluation).
+    inputs.file(stackAugmentorConfig)
 }
 
 application {

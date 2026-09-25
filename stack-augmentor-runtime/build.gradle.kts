@@ -8,7 +8,7 @@ plugins {
 
 dependencies {
     // Dispatch: for build-time instrumentation it is an ordinary dependency of the application.
-    api(project(":stack-augmentor-bridge"))
+    api(project(":stack-augmentor-instrument-bridge"))
     implementation(libs.tomlj) {
         exclude(group = "org.checkerframework")
     }
