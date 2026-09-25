@@ -9,7 +9,7 @@ setlocal
 cd /d "%~dp0"
 
 set AGENT_JAR=stack-augmentor-agent\build\libs\stack-augmentor-agent-0.1.0-SNAPSHOT.jar
-set CONFIG=examples\demo\stack-augmentor.properties
+set CONFIG=examples\demo\stack-augmentor.toml
 set CLASSPATH=examples\demo\build\install\demo\lib\*
 
 call "%~dp0gradlew.bat" build :examples:demo:installDist

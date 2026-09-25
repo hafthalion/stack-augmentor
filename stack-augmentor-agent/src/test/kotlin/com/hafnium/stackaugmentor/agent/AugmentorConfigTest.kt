@@ -59,6 +59,52 @@ class AugmentorConfigTest {
     }
 
     @Test
+    fun `toml is equivalent to properties`() {
+        val fromProperties = parse(
+            """
+            include=com.hafnium.**,com.acme.orders.*
+            fallback=identity
+            maxIdLength=32
+            debug=true
+            frameFormat={class}.{method}{receiver}{params}
+            paramsFormat=({name}: {id}; ...)
+            id.com.thirdparty.Order=getOrderNumber()
+            id.com.thirdparty.Customer=customerId
+            param.com.thirdparty.OrderService.process=orderId,#2
+            """.trimIndent(),
+        )
+        val fromToml = AugmentorConfig.parseToml(
+            """
+            include = ["com.hafnium.**", "com.acme.orders.*"]
+            fallback = "identity"
+            maxIdLength = 32
+            debug = true
+            frameFormat = "{class}.{method}{receiver}{params}"
+            paramsFormat = "({name}: {id}; ...)"
+
+            [id]
+            "com.thirdparty.Order" = "getOrderNumber()"
+            com.thirdparty.Customer = "customerId"   # unquoted works as well
+
+            [param]
+            "com.thirdparty.OrderService.process" = ["orderId", 2]
+            """.trimIndent(),
+        )
+        assertEquals(fromProperties, fromToml)
+    }
+
+    @Test
+    fun `invalid toml is rejected with its position`() {
+        val syntax = assertThrows<ConfigException> { AugmentorConfig.parseToml("include = [\"a\"\nfallback = ", "test.toml") }
+        assertTrue(syntax.message!!.startsWith("Invalid TOML in test.toml:"), syntax.message)
+        assertTrue(syntax.message!!.contains("line"), syntax.message)
+
+        assertThrows<ConfigException> { AugmentorConfig.parseToml("maxIdLength = 1.5") }
+        assertThrows<ConfigException> { AugmentorConfig.parseToml("include = [1, 2]") }
+        assertThrows<ConfigException> { AugmentorConfig.parseToml("[format]\nframe = \"{class}.{method}\"") }
+    }
+
+    @Test
     fun `invalid values are rejected`() {
         assertThrows<ConfigException> { parse("mode=registry") } // registry mode was removed
         assertThrows<ConfigException> { parse("fallback=hash") }

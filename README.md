@@ -35,7 +35,7 @@ Use it in your own application:
    java -javaagent:stack-augmentor-agent-<version>.jar=config=stack-augmentor.properties -jar app.jar
    ```
 
-   `-Dstackaugmentor.config=<path>` works as well. Without a configuration, only classes with `@StackTraceId` are instrumented.
+   `-Dstackaugmentor.config=<path>` works as well. The configuration can be a `.properties` or a `.toml` file (chosen by extension). Without a configuration, only classes with `@StackTraceId` are instrumented.
 
 ## Where ids come from
 
@@ -82,7 +82,30 @@ param.com.thirdparty.OrderService.process=order,#2
 debug=false
 ```
 
-An invalid configuration stops the JVM at startup, with the reason in the error message.
+The same configuration as TOML (a file ending in `.toml`):
+
+```toml
+include = ["com.hafnium.**", "com.acme.orders.*"]
+fallback = "toString"
+maxIdLength = 64
+
+frameFormat = "{class}{receiver}.{method}{params}"
+receiverFormat = "[{name}={id}]"
+paramsFormat = "[{name}={id}, ...]"
+
+debug = false
+
+[id]
+"com.thirdparty.Order" = "getOrderNumber()"
+"com.thirdparty.Customer" = "customerId"
+
+[param]
+"com.thirdparty.OrderService.process" = ["order", 2]   # a name, or a number for the parameter index
+```
+
+The keys are the same as in the properties file. `[id]` and `[param]` hold the `id.` and `param.` entries, and lists are arrays. Quote class names: without quotes, TOML treats each `.` as a nested table. The agent accepts that too, but the quoted form is the clear one.
+
+An invalid configuration stops the JVM at startup, with the reason in the error message. For TOML syntax errors, the message includes the line and column.
 
 ### Formats
 

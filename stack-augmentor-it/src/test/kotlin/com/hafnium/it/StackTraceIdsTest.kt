@@ -34,7 +34,7 @@ import java.io.PrintWriter
 import java.io.StringWriter
 import java.lang.management.ManagementFactory
 
-/** Runs with the agent and `src/test/config/agent.properties` attached; see build.gradle.kts. */
+/** Runs with the agent and `src/test/config/agent.toml` attached; see build.gradle.kts. */
 class StackTraceIdsTest {
 
     private fun Throwable.frame(index: Int = 0): String = stackTrace[index].toString()
@@ -173,7 +173,7 @@ class StackTraceIdsTest {
         val multiLine = assertThrows<IllegalStateException> { MultiLine().fail() }
         assertEquals("com.hafnium.it.fixtures.MultiLine[text=line1 line2]", multiLine.stackTrace[0].className)
 
-        // maxIdLength=20 in agent.properties
+        // maxIdLength = 20 in agent.toml
         val long = assertThrows<IllegalStateException> { LongId().fail() }
         assertEquals("com.hafnium.it.fixtures.LongId[text=${"x".repeat(19)}…]", long.stackTrace[0].className)
     }

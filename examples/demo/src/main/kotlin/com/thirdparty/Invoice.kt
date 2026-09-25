@@ -1,6 +1,6 @@
 package com.thirdparty
 
-// Stand-ins for library classes: no annotations, configured in stack-augmentor.properties.
+// Stand-ins for library classes: no annotations, configured in stack-augmentor.toml.
 
 class Invoice(private val invoiceNumber: String) {
     fun getInvoiceNumber(): String = invoiceNumber

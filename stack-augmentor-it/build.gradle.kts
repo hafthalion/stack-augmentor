@@ -21,7 +21,7 @@ dependencies {
 
 tasks.test {
     val agentJar = agent
-    val config = layout.projectDirectory.file("src/test/config/agent.properties")
+    val config = layout.projectDirectory.file("src/test/config/agent.toml")
     inputs.files(agentJar).withPropertyName("agent")
     inputs.file(config).withPropertyName("agentConfig")
     jvmArgumentProviders.add(CommandLineArgumentProvider {

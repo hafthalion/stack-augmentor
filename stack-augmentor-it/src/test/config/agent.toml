@@ -1,0 +1,10 @@
+include = ["com.hafnium.it.fixtures.**"]
+maxIdLength = 20
+
+# Stand-ins for classes you cannot annotate
+[id]
+"com.thirdparty.Order" = "getOrderNumber()"
+"com.thirdparty.Customer" = "customerId"
+
+[param]
+"com.thirdparty.OrderService.process" = ["order", 1]

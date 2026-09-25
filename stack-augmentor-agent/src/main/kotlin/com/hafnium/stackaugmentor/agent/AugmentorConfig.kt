@@ -1,5 +1,7 @@
 package com.hafnium.stackaugmentor.agent
 
+import org.tomlj.Toml
+import org.tomlj.TomlArray
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Properties
@@ -58,6 +60,7 @@ data class AugmentorConfig(
         /**
          * Loads the configuration named by the agent arguments (`config=<path>` or just `<path>`),
          * or by the `stackaugmentor.config` system property. Without either, the defaults apply.
+         * A `.toml` file is read as TOML, anything else as a properties file.
          */
         fun load(agentArgs: String?): AugmentorConfig {
             val location = agentArgs?.trim()?.takeIf { it.isNotEmpty() }?.removePrefix("config=")
@@ -65,9 +68,43 @@ data class AugmentorConfig(
                 ?: return AugmentorConfig()
             val path = Path.of(location)
             if (!Files.isRegularFile(path)) throw ConfigException("Configuration file not found: $path")
+            if (path.fileName.toString().endsWith(".toml", ignoreCase = true)) {
+                return parseToml(Files.readString(path), path.toString())
+            }
             val properties = Properties()
             Files.newBufferedReader(path).use(properties::load)
             return parse(properties)
+        }
+
+        /**
+         * Parses a TOML configuration. It is flattened into the same keys as the properties format,
+         * e.g. `"com.acme.Order"` in the `[id]` table becomes `id.com.acme.Order`; arrays become lists.
+         */
+        fun parseToml(text: String, source: String = "TOML configuration"): AugmentorConfig {
+            val toml = Toml.parse(text)
+            if (toml.hasErrors()) {
+                throw ConfigException("Invalid TOML in $source: ${toml.errors().joinToString("; ")}")
+            }
+            val properties = Properties()
+            // Key paths make quoted ("com.acme.Order") and unquoted (com.acme.Order) class names equivalent.
+            for (path in toml.keyPathSet()) {
+                val key = path.joinToString(".")
+                properties.setProperty(key, tomlValue(key, toml.get(path)))
+            }
+            return parse(properties)
+        }
+
+        private fun tomlValue(key: String, value: Any?): String = when (value) {
+            is String -> value
+            is Long, is Boolean -> value.toString()
+            is TomlArray -> value.toList().joinToString(",") { item ->
+                when {
+                    item is String -> item
+                    item is Long && key.startsWith("param.") -> "#$item" // parameter index
+                    else -> throw ConfigException("'$key': unsupported array element '$item'")
+                }
+            }
+            else -> throw ConfigException("'$key': unsupported value '$value'")
         }
 
         fun parse(properties: Properties): AugmentorConfig {

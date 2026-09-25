@@ -9,6 +9,9 @@ val bridge: Configuration by configurations.creating {
 
 dependencies {
     implementation(libs.bytebuddy)
+    implementation(libs.tomlj) {
+        exclude(group = "org.checkerframework") // annotations only
+    }
     // Loaded into the bootstrap class loader at runtime (see BridgeInjector), never shaded.
     compileOnly(project(":stack-augmentor-bridge"))
     bridge(project(":stack-augmentor-bridge"))
@@ -35,6 +38,8 @@ tasks.shadowJar {
     archiveClassifier = ""
     relocate("net.bytebuddy", "com.hafnium.stackaugmentor.shaded.bytebuddy")
     relocate("kotlin", "com.hafnium.stackaugmentor.shaded.kotlin")
+    relocate("org.tomlj", "com.hafnium.stackaugmentor.shaded.tomlj")
+    relocate("org.antlr", "com.hafnium.stackaugmentor.shaded.antlr")
     exclude("META-INF/*.kotlin_module", "META-INF/versions/*/module-info.class", "module-info.class")
     manifest {
         attributes(
