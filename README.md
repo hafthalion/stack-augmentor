@@ -1,6 +1,6 @@
 # Stack Augmentor
 
-A Java agent that shows **which object** (and optionally **which arguments**) each frame of a stack trace was running on:
+Shows **which object** (and optionally **which arguments**) each frame of a stack trace was running on, either with a Java agent or by instrumenting your classes at build time:
 
 ```
 Exception in thread "main" java.lang.Exception: An error has occured
@@ -10,7 +10,17 @@ Exception in thread "main" java.lang.Exception: An error has occured
 
 Ids come from a `@StackTraceId` field, method or parameter, or from an external configuration for classes you cannot change. Classes without either are left alone.
 
-## Quick start
+## Two ways to use it
+
+| | Java agent | Build-time instrumentation |
+|---|---|---|
+| How | `-javaagent:stack-augmentor-agent.jar` at startup | The ByteBuddy Gradle plugin changes your compiled classes |
+| Classes | Your classes and libraries | Only the classes of the project being built |
+| `[augmentClassIds]` / `[augmentMethodParams]` (third-party classes) | Yes | No |
+| At runtime | The agent jar (self-contained) | `stack-augmentor-runtime` on the classpath |
+| Example | `./gradlew :examples:java-agent:run` | `./gradlew :examples:build-time:run` |
+
+## Quick start: Java agent
 
 ```bash
 ./gradlew :examples:java-agent:run
@@ -36,6 +46,36 @@ Use it in your own application:
    ```
 
    `-Dstackaugmentor.config=<path>` works as well. The configuration is a TOML file (see [Configuration](#configuration)). Without a configuration, classes with `@StackTraceId` in any package are instrumented.
+
+## Quick start: build-time instrumentation
+
+```bash
+./gradlew :examples:build-time:run
+```
+
+Use it in your own Gradle project (see [examples/build-time/build.gradle.kts](examples/build-time/build.gradle.kts)):
+
+```kotlin
+import net.bytebuddy.build.EntryPoint
+
+plugins {
+    id("net.bytebuddy.byte-buddy-gradle-plugin") version "<byte-buddy version>"
+}
+
+dependencies {
+    implementation("com.hafnium:stack-augmentor-api:<version>")
+    implementation("com.hafnium:stack-augmentor-runtime:<version>")   // called by the instrumented code
+    byteBuddy("com.hafnium:stack-augmentor-build-plugin:<version>")   // the ByteBuddy build plugin
+}
+
+byteBuddy {
+    entryPoint = EntryPoint.Default.DECORATE   // only add advice, keep the methods as they are
+}
+```
+
+After compiling, the ByteBuddy Gradle plugin applies `StackAugmentorPlugin` to every class of the project that uses `@StackTraceId` (Java and Kotlin). No agent is needed at runtime. Libraries are not changed, so `[augmentClassIds]` and `[augmentMethodParams]` don't apply here.
+
+At runtime the configuration is read from `-Dstackaugmentor.config=<file>`, or from `stack-augmentor.toml` on the classpath. Only the layout keys (`frameFormat`, `receiverFormat`, `paramsFormat`, `maxIdLength`) and `debug` are used there.
 
 ## Where ids come from
 
@@ -114,13 +154,14 @@ Examples:
 
 ## How it works
 
-The agent (ByteBuddy, shaded) adds exit advice to instrumented methods:
+The agent (ByteBuddy, shaded), or the ByteBuddy build plugin, adds exit advice to instrumented methods:
 - instance methods of matched classes;
 - static methods that have id parameters.
 
-When an exception leaves such a method, the advice passes `this`, the id arguments and their labels to the handler. The handler finds that method's frame in the exception's stack trace and replaces it (`setStackTrace`), so every printer and logger shows the ids. The advice is inlined, so on a normal return it costs one null check: the argument array is only built on the exception path. A test checks that normal calls allocate nothing.
+When an exception leaves such a method, the advice passes `this`, the id arguments and their labels to `Dispatch` (in `stack-augmentor-bridge`), which hands them to the handler. The handler finds that method's frame in the exception's stack trace and replaces it (`setStackTrace`), so every printer and logger shows the ids. The advice is inlined, so on a normal return it costs one null check: the argument array is only built on the exception path. A test checks that normal calls allocate nothing.
 
-The classes the advice calls (`stack-augmentor-bridge`) are appended to the bootstrap class loader, so every class loader can see them.
+- **Java agent:** the bridge is appended to the bootstrap class loader, so every class loader can see it, and the agent installs the handler at startup.
+- **Build time:** the bridge is an ordinary dependency (through `stack-augmentor-runtime`), and `Dispatch` finds the runtime's handler with `ServiceLoader` when the first exception needs it.
 
 ## Limitations
 
@@ -128,16 +169,20 @@ The classes the advice calls (`stack-augmentor-bridge`) are appended to the boot
 - **Constructors are not instrumented.**
 - **Parameter values are read when the exception leaves the method.** A parameter that was reassigned shows its new value.
 - **Class and method names in the `StackTraceElement`s change.** Tools that parse stack traces (IDE links, error grouping) may not recognise the changed frames.
-- **The JVM prints `Sharing is only supported for boot loader classes because bootstrap classpath has been appended`** at startup. This is expected, because the agent extends the bootstrap class path; add `-Xshare:off` to silence it.
+- **With the agent, the JVM prints `Sharing is only supported for boot loader classes because bootstrap classpath has been appended`** at startup. This is expected, because the agent extends the bootstrap class path; add `-Xshare:off` to silence it.
 
 ## Project layout
 
 | Module | Contents |
 |---|---|
 | `stack-augmentor-api` | `@StackTraceId` |
-| `stack-augmentor-bridge` | Classes the advice calls, loaded into the bootstrap class loader (Java, no dependencies) |
-| `stack-augmentor-agent` | The agent; `shadowJar` builds the `-javaagent` jar |
+| `stack-augmentor-bridge` | `Dispatch`, which the advice calls (Java, no dependencies) |
+| `stack-augmentor-runtime` | Configuration, id lookup, frame formatting, and the handler; shared by both ways |
+| `stack-augmentor-instrument` | Which classes and methods get the advice, and the advice itself (ByteBuddy); shared by both ways |
+| `stack-augmentor-agent` | The Java agent; `shadowJar` builds the `-javaagent` jar |
+| `stack-augmentor-build-plugin` | The ByteBuddy build plugin for build-time instrumentation |
 | `stack-augmentor-it` | Integration tests, run with the agent attached |
-| `examples/java-agent` | The demo: the example above, plus third-party stand-ins configured in `stack-augmentor.toml` |
+| `examples/java-agent` | Demo with the agent: the example above, plus third-party stand-ins configured in `stack-augmentor.toml` |
+| `examples/build-time` | Demo with build-time instrumentation, including tests that run without an agent |
 
-Build and test with `./gradlew build`; run the demo with `run.bat`. This needs JDK 25.
+Build and test with `./gradlew build`; run the agent demo with `run.bat`. This needs JDK 25.

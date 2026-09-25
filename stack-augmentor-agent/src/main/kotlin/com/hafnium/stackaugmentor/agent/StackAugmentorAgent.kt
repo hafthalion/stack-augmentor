@@ -1,5 +1,10 @@
 package com.hafnium.stackaugmentor.agent
 
+import com.hafnium.stackaugmentor.runtime.AugmentorConfig
+import com.hafnium.stackaugmentor.runtime.FrameFormat
+import com.hafnium.stackaugmentor.runtime.IdSpec
+import com.hafnium.stackaugmentor.runtime.Log
+import com.hafnium.stackaugmentor.runtime.ParamRef
 import java.lang.instrument.Instrumentation
 import java.nio.file.Files
 import java.nio.file.Path

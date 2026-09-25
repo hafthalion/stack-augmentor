@@ -8,21 +8,12 @@ val bridge = configurations.create("bridge") {
 }
 
 dependencies {
-    implementation(libs.bytebuddy)
-    implementation(libs.tomlj) {
-        exclude(group = "org.checkerframework")
+    implementation(project(":stack-augmentor-instrument")) {
+        // Loaded into the bootstrap class loader at runtime (see BridgeInjector), never shaded.
+        exclude(group = "com.hafnium", module = "stack-augmentor-bridge")
     }
-    // tomlj's nullness annotations: needed by the Kotlin compiler, not at runtime.
-    compileOnly(libs.checker.qual)
-    // Loaded into the bootstrap class loader at runtime (see BridgeInjector), never shaded.
     compileOnly(project(":stack-augmentor-bridge"))
     bridge(project(":stack-augmentor-bridge"))
-
-    testImplementation(project(":stack-augmentor-bridge"))
-    testImplementation(project(":stack-augmentor-api"))
-    testImplementation(platform(libs.junit.bom))
-    testImplementation(libs.junit.jupiter)
-    testRuntimeOnly(libs.junit.launcher)
 }
 
 tasks.processResources {
@@ -42,7 +33,13 @@ tasks.shadowJar {
     relocate("kotlin", "com.hafnium.stackaugmentor.shaded.kotlin")
     relocate("org.tomlj", "com.hafnium.stackaugmentor.shaded.tomlj")
     relocate("org.antlr", "com.hafnium.stackaugmentor.shaded.antlr")
-    exclude("META-INF/*.kotlin_module", "META-INF/versions/*/module-info.class", "module-info.class")
+    exclude(
+        "META-INF/*.kotlin_module",
+        "META-INF/versions/*/module-info.class",
+        "module-info.class",
+        // The agent installs its handler itself; the service is for build-time instrumentation.
+        "META-INF/services/com.hafnium.stackaugmentor.bridge.Dispatch\$Handler",
+    )
     manifest {
         attributes(
             "Premain-Class" to "com.hafnium.stackaugmentor.agent.StackAugmentorAgent",
