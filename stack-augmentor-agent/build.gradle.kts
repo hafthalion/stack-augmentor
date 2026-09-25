@@ -1,5 +1,5 @@
 plugins {
-    alias(libs.plugins.kotlin.jvm)
+    java
     alias(libs.plugins.shadow)
 }
 
@@ -30,11 +30,9 @@ tasks.jar {
 tasks.shadowJar {
     archiveClassifier = ""
     relocate("net.bytebuddy", "com.hafnium.stackaugmentor.shaded.bytebuddy")
-    relocate("kotlin", "com.hafnium.stackaugmentor.shaded.kotlin")
     relocate("org.tomlj", "com.hafnium.stackaugmentor.shaded.tomlj")
     relocate("org.antlr", "com.hafnium.stackaugmentor.shaded.antlr")
     exclude(
-        "META-INF/*.kotlin_module",
         "META-INF/versions/*/module-info.class",
         "module-info.class",
         // The agent installs its handler itself; the service is for build-time instrumentation.

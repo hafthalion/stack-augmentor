@@ -1,0 +1,27 @@
+package com.hafnium.stackaugmentor;
+
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+/**
+ * Marks the source of an id shown in stack traces by the stack augmentor agent.
+ *
+ * <ul>
+ *   <li>On a field or a no-argument method: the value identifies the object, and is shown next to the
+ *       class name of every frame running on that object, e.g. {@code ObjectClass{objectId=object-1}.objectMethod}.</li>
+ *   <li>On a method parameter: the argument is shown after the method name, e.g. {@code objectMethod{orderId=42}}.</li>
+ * </ul>
+ *
+ * <p>In Kotlin, a {@code val} declared in the primary constructor is also recognised.
+ */
+@Documented
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER})
+public @interface StackTraceId {
+
+    /** Label shown in the stack trace; empty means the real field, method or parameter name. */
+    String name() default "";
+}

@@ -10,6 +10,8 @@ Exception in thread "main" java.lang.Exception: An error has occured
 
 Ids come from a `@StackTraceId` field, method or parameter, or from an external configuration for classes you cannot change. Classes without either are left alone.
 
+It works for Java and Kotlin classes. The library is written in Java, so it does not need the Kotlin runtime; only the examples and tests use Kotlin.
+
 ## Two ways to use it
 
 | | Java agent | Build-time instrumentation |
@@ -17,7 +19,7 @@ Ids come from a `@StackTraceId` field, method or parameter, or from an external 
 | How | `-javaagent:stack-augmentor-agent.jar` at startup | The ByteBuddy Gradle plugin changes your compiled classes |
 | Classes | Your classes and libraries | Only the classes of the project being built |
 | `[instrument.classIds]` / `[instrument.methodParams]` (third-party classes) | Yes | No |
-| At runtime | The agent jar (self-contained) | `stack-augmentor-runtime` on the classpath |
+| At runtime | The agent jar (self-contained) | `stack-augmentor-runtime` on the classpath (with tomlj; no ByteBuddy, no Kotlin) |
 | Example | `./gradlew :examples:java-agent:run` | `./gradlew :examples:build-time:run` |
 
 ## Quick start: Java agent
@@ -29,6 +31,17 @@ Ids come from a `@StackTraceId` field, method or parameter, or from an external 
 Use it in your own application:
 
 1. Add `stack-augmentor-api` to your dependencies and annotate:
+
+   ```java
+   public class ObjectClass {
+       @StackTraceId
+       private final String objectId = "object-1";
+
+       public void objectMethod(@StackTraceId int orderId) { }
+   }
+   ```
+
+   or in Kotlin:
 
    ```kotlin
    class ObjectClass {
@@ -78,12 +91,13 @@ byteBuddy {
     }
 }
 
-tasks.matching { it.name == "byteBuddyKotlin" }.configureEach {   // byteBuddyJava for Java sources
+// byteBuddy transforms the Java classes, byteBuddyKotlin the Kotlin classes
+tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.configureEach {
     inputs.file(stackAugmentorConfig)   // re-instrument when the configuration changes
 }
 ```
 
-After compiling, the ByteBuddy Gradle plugin applies `StackAugmentorBuildPlugin` to the project's classes that use `@StackTraceId` (Java and Kotlin), limited to `[instrument] annotatedClasses` of the given configuration. No agent is needed at runtime. Libraries are not changed, so `[instrument.classIds]` and `[instrument.methodParams]` don't apply here.
+After compiling, the ByteBuddy Gradle plugin applies `StackAugmentorBuildPlugin` to the project's classes that use `@StackTraceId` (Java and Kotlin), limited to `[instrument] annotatedClasses` of the given configuration. No agent is needed at runtime: the application needs only `stack-augmentor-api` and `stack-augmentor-runtime`, which bring the bridge and tomlj, but neither ByteBuddy nor the Kotlin runtime. Libraries are not changed, so `[instrument.classIds]` and `[instrument.methodParams]` don't apply here.
 
 With the configuration in `src/main/resources`, one file serves both phases: the build plugin reads `[instrument]`, and at runtime `[augment]` and `debug` are read from `stack-augmentor.toml` on the classpath (or from `-Dstackaugmentor.config=<file>`).
 
@@ -185,16 +199,18 @@ When an exception leaves such a method, the advice passes `this`, the id argumen
 
 ## Project layout
 
+The library modules are written in Java and don't depend on the Kotlin runtime; `./gradlew check` verifies that (`verifyNoKotlinRuntime`). The integration tests, the runtime's unit tests and the examples are written in Kotlin.
+
 | Module | Contents |
 |---|---|
-| `stack-augmentor-api` | `@StackTraceId` |
+| `stack-augmentor-api` | `@StackTraceId` (no dependencies) |
 | `stack-augmentor-instrument-bridge` | `Dispatch`, which the advice calls (Java, no dependencies) |
 | `stack-augmentor-runtime` | Configuration, id lookup, frame formatting, and the handler; shared by both ways |
 | `stack-augmentor-instrument` | Which classes and methods get the advice, and the advice itself (ByteBuddy); shared by both ways |
 | `stack-augmentor-agent` | The Java agent; `shadowJar` builds the `-javaagent` jar |
 | `stack-augmentor-build-plugin` | The ByteBuddy build plugin for build-time instrumentation |
-| `stack-augmentor-it` | Integration tests, run with the agent attached |
+| `stack-augmentor-it` | Integration tests, run with the agent attached, including a Java application run without the Kotlin runtime |
 | `examples/java-agent` | Demo with the agent: the example above, plus third-party stand-ins configured in `stack-augmentor.toml` |
-| `examples/build-time` | Demo with build-time instrumentation, including tests that run without an agent |
+| `examples/build-time` | Demo with build-time instrumentation, including tests that run without an agent, and a Java class run without the Kotlin runtime |
 
 Build and test with `./gradlew build`; run the agent demo with `run.bat`. This needs JDK 25.

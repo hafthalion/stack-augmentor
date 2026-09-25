@@ -18,9 +18,9 @@ class AugmentorConfigTest {
     @Test
     fun defaults() {
         assertEquals(AugmentorConfig(), parse(""))
-        assertEquals("{class}{receiver}.{method}{params}", AugmentorConfig().frameFormat)
-        assertEquals("{\$name=\$id}", AugmentorConfig().receiverFormat)
-        assertEquals("{\$name=\$id, ...}", AugmentorConfig().paramsFormat)
+        assertEquals("{class}{receiver}.{method}{params}", AugmentorConfig().frameFormat())
+        assertEquals("{\$name=\$id}", AugmentorConfig().receiverFormat())
+        assertEquals("{\$name=\$id, ...}", AugmentorConfig().paramsFormat())
     }
 
     @Test
@@ -47,19 +47,21 @@ class AugmentorConfigTest {
             """,
         )
         assertEquals(
-            AugmentorConfig(
-                annotatedClasses = listOf("com.hafnium.**", "com.acme.orders.*"),
-                ids = mapOf(
-                    "com.thirdparty.Order" to IdSpec.MethodSpec("getOrderNumber"),
-                    "com.thirdparty.Customer" to IdSpec.FieldSpec("customerId"),
-                ),
-                params = mapOf("com.thirdparty.OrderService.process" to listOf(ParamRef.ByName("orderId"), ParamRef.ByIndex(2))),
-                frameFormat = "{class}.{method}{receiver}{params}",
-                receiverFormat = "<\$id>",
-                paramsFormat = "(\$name: \$id; ...)",
-                maxIdLength = 32,
-                debug = true,
-            ),
+            AugmentorConfig.builder()
+                .annotatedClasses(listOf("com.hafnium.**", "com.acme.orders.*"))
+                .ids(
+                    mapOf(
+                        "com.thirdparty.Order" to IdSpec.MethodSpec("getOrderNumber"),
+                        "com.thirdparty.Customer" to IdSpec.FieldSpec("customerId"),
+                    ),
+                )
+                .params(mapOf("com.thirdparty.OrderService.process" to listOf(ParamRef.ByName("orderId"), ParamRef.ByIndex(2))))
+                .frameFormat("{class}.{method}{receiver}{params}")
+                .receiverFormat("<\$id>")
+                .paramsFormat("(\$name: \$id; ...)")
+                .maxIdLength(32)
+                .debug(true)
+                .build(),
             config,
         )
         assertEquals(listOf(ParamRef.ByName("orderId"), ParamRef.ByIndex(2)), config.paramRefs("com.thirdparty.OrderService", "process"))
@@ -179,9 +181,9 @@ class AugmentorConfigTest {
     fun `load reads toml files only`(@TempDir dir: Path) {
         val toml = dir.resolve("agent.toml")
         Files.writeString(toml, "augment.maxIdLength = 10")
-        assertEquals(10, AugmentorConfig.load("config=$toml").maxIdLength)
-        assertEquals(10, AugmentorConfig.load(toml.toString()).maxIdLength)
-        assertEquals(10, AugmentorConfig.load(toml).maxIdLength)
+        assertEquals(10, AugmentorConfig.load("config=$toml").maxIdLength())
+        assertEquals(10, AugmentorConfig.load(toml.toString()).maxIdLength())
+        assertEquals(10, AugmentorConfig.load(toml).maxIdLength())
 
         val properties = dir.resolve("agent.properties")
         Files.writeString(properties, "maxIdLength=10")

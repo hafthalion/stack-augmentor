@@ -8,6 +8,7 @@ checker-qual = "3.55.1"
 
 [libraries]
 bytebuddy = { module = "net.bytebuddy:byte-buddy", version.ref = "bytebuddy" }
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
 tomlj = { module = "org.tomlj:tomlj", version.ref = "tomlj" }
 checker-qual = { module = "org.checkerframework:checker-qual", version.ref = "checker-qual" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
