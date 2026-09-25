@@ -73,7 +73,7 @@ val stackAugmentorConfig = layout.projectDirectory.file("src/main/resources/stac
 byteBuddy {
     entryPoint = EntryPoint.Default.DECORATE   // only add advice, keep the methods as they are
     transformation {
-        pluginName = "com.hafnium.stackaugmentor.build.StackAugmentorPlugin"
+        pluginName = "com.hafnium.stackaugmentor.build.StackAugmentorBuildPlugin"
         argument { value = stackAugmentorConfig.asFile.absolutePath }   // optional: the [instrument] section
     }
 }
@@ -83,7 +83,7 @@ tasks.matching { it.name == "byteBuddyKotlin" }.configureEach {   // byteBuddyJa
 }
 ```
 
-After compiling, the ByteBuddy Gradle plugin applies `StackAugmentorPlugin` to the project's classes that use `@StackTraceId` (Java and Kotlin), limited to `[instrument] annotatedClasses` of the given configuration. No agent is needed at runtime. Libraries are not changed, so `[instrument.classIds]` and `[instrument.methodParams]` don't apply here.
+After compiling, the ByteBuddy Gradle plugin applies `StackAugmentorBuildPlugin` to the project's classes that use `@StackTraceId` (Java and Kotlin), limited to `[instrument] annotatedClasses` of the given configuration. No agent is needed at runtime. Libraries are not changed, so `[instrument.classIds]` and `[instrument.methodParams]` don't apply here.
 
 With the configuration in `src/main/resources`, one file serves both phases: the build plugin reads `[instrument]`, and at runtime `[augment]` and `debug` are read from `stack-augmentor.toml` on the classpath (or from `-Dstackaugmentor.config=<file>`).
 
@@ -141,7 +141,7 @@ maxIdLength = 64
 
 Quote class names in `[instrument.classIds]` and `[instrument.methodParams]`. Without quotes, TOML treats each `.` as a nested table; the agent accepts that too, but the quoted form is the clear one. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.
 
-An invalid configuration stops the JVM (or the build) at startup. The message names the key and its line, e.g. `agent.toml, line 3: maxIdLength must be between 2 and 10000, was 1`. Unknown keys are rejected, so a typo doesn't go unnoticed.
+An invalid configuration stops the JVM (or the build) at startup. The message names the key and its line, e.g. `stack-augmentor.toml, line 3: maxIdLength must be between 2 and 10000, was 1`. Unknown keys are rejected, so a typo doesn't go unnoticed.
 
 ### Formats
 

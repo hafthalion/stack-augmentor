@@ -20,7 +20,7 @@ import java.nio.file.Path
  * using `@StackTraceId` is instrumented. With the path of a TOML configuration as argument 0, its
  * `[instrument] annotatedClasses` limits the packages, and `debug` logs what gets instrumented.
  */
-class StackAugmentorPlugin private constructor(config: AugmentorConfig) : Plugin {
+class StackAugmentorBuildPlugin private constructor(config: AugmentorConfig) : Plugin {
 
     constructor() : this(AugmentorConfig())
 
