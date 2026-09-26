@@ -13,3 +13,7 @@ class Customer(private val customerId: String) {
 class OrderService {
     fun process(order: Order, quantity: Int, note: String): Nothing = throw IllegalStateException("cannot process")
 }
+
+class InventoryService {
+    fun reserve(sku: String, count: Int): Nothing = throw IllegalStateException("cannot reserve")
+}

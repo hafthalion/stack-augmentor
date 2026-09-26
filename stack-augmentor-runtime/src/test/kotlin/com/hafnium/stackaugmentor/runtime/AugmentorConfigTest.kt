@@ -44,6 +44,7 @@ class AugmentorConfigTest {
             receiverFormat = "<${'$'}id>"
             paramsFormat = "(${'$'}name: ${'$'}id; ...)"
             maxIdLength = 32
+            maxParams = 3
             """,
         )
         assertEquals(
@@ -60,6 +61,7 @@ class AugmentorConfigTest {
                 .receiverFormat("<\$id>")
                 .paramsFormat("(\$name: \$id; ...)")
                 .maxIdLength(32)
+                .maxParams(3)
                 .debug(true)
                 .build(),
             config,
@@ -143,7 +145,7 @@ class AugmentorConfigTest {
     @Test
     fun `unknown keys are rejected, in every section`() {
         assertEquals(
-            "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxIdLength",
+            "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams",
             error("[augment]\nframe = \"{class}.{method}\""),
         )
         assertTrue(error("[instrument]\nclasses = []").contains("unknown key 'classes' in [instrument]"))
@@ -175,6 +177,58 @@ class AugmentorConfigTest {
         assertTrue(error("[instrument.methodParams]\n\"com.acme.Order.process\" = [\"#1\"]").contains("invalid parameter '#1'"))
         assertTrue(error("[instrument.methodParams]\n\"com.acme.Order.process\" = [-1]").contains("invalid parameter '-1'"))
         assertTrue(error("[instrument.methodParams]\nOrder = [\"id\"]").contains("[instrument.methodParams] keys must name a class and a method"))
+    }
+
+    @Test
+    fun `method params with wildcards and all parameters`() {
+        val config = parse(
+            """
+            [instrument.methodParams]
+            "com.thirdparty.OrderService.process" = ["order"]
+            "com.thirdparty.OrderService.*" = [2]
+            "com.thirdparty.Inventory*.*" = "*"
+            "com.thirdparty.**.*Repository.find*" = [0]
+            "com.acme.Outer${'$'}Inner.ru?" = ["x"]
+            """,
+        )
+        val all = listOf(ParamRef.All())
+        assertEquals(all, config.params()["com.thirdparty.Inventory*.*"])
+        // The exact entry first, then the matching wildcard entries in configuration order.
+        assertEquals(listOf(ParamRef.ByName("order"), ParamRef.ByIndex(2)), config.paramRefs("com.thirdparty.OrderService", "process"))
+        assertEquals(listOf(ParamRef.ByIndex(2)), config.paramRefs("com.thirdparty.OrderService", "cancel"))
+        assertEquals(all, config.paramRefs("com.thirdparty.InventoryService", "reserve"))
+        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.thirdparty.db.OrderRepository", "findById"))
+        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.thirdparty.db.sql.OrderRepository", "findAll"))
+        // As in annotatedClasses, '.**.' stands for at least one package segment.
+        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.OrderRepository", "findAll"))
+        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.db.OrderRepository", "save"))
+        // '*' stays within one package segment in the class part.
+        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.sub.InventoryService", "reserve"))
+        assertEquals(listOf(ParamRef.ByName("x")), config.paramRefs("com.acme.Outer\$Inner", "run"))
+        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.acme.Outer\$Inner", "runs"))
+
+        assertTrue(config.hasParamEntries("com.thirdparty.InventoryService"))
+        assertTrue(config.hasParamEntries("com.thirdparty.db.OrderRepository"))
+        assertFalse(config.hasParamEntries("com.thirdparty.Customer"))
+        assertTrue(AugmentorConfig.isPattern("com.thirdparty.OrderService.*"))
+        assertFalse(AugmentorConfig.isPattern("com.thirdparty.OrderService.process"))
+    }
+
+    @Test
+    fun `invalid method params and maxParams`() {
+        assertTrue(error("[instrument.methodParams]\n\"com.acme.Order.process\" = \"all\"").contains("or \"*\" for all parameters, was all"))
+        assertTrue(error("[instrument.methodParams]\n\"com.acme.Order.process\" = [\"*\"]").contains("invalid parameter '*'"))
+        assertEquals(
+            "test.toml, line 2: [instrument.methodParams] keys must name a class and a method, e.g. \"com.acme.OrderService.process\"; " +
+                "allowed are letters, digits, _, \$ and the wildcards * (within a package or name), ** (across packages) and ?",
+            error("[instrument.methodParams]\n\"com.acme.Order+.process\" = \"*\""),
+        )
+        assertTrue(error("[instrument.methodParams]\n\"com.acme.Order.\" = \"*\"").contains("keys must name a class and a method"))
+        assertTrue(error("[instrument.methodParams]\n\"com..Order.run\" = \"*\"").contains("keys must name a class and a method"))
+        assertEquals("test.toml, line 2: maxParams must be between 1 and 255, was 0", error("[augment]\nmaxParams = 0"))
+        assertTrue(error("augment.maxParams = 256").contains("maxParams must be between 1 and 255, was 256"))
+        assertEquals(8, AugmentorConfig().maxParams())
+        assertEquals(1, parse("augment.maxParams = 1").maxParams())
     }
 
     @Test

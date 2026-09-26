@@ -1,13 +1,14 @@
 package com.hafnium.it.fixtures
 
 import com.hafnium.stackaugmentor.StackTraceId
+import com.hafnium.stackaugmentor.StackTraceParam
 import com.thirdparty.Order
 
 class ObjectClass {
     @StackTraceId
     val objectId = "object-1"
 
-    fun objectMethod(@StackTraceId orderId: Int): Nothing = throw Exception("An error has occurred")
+    fun objectMethod(@StackTraceParam orderId: Int): Nothing = throw Exception("An error has occurred")
 }
 
 class KeyedByMethod {
@@ -35,7 +36,7 @@ class Derived : Base() {
 
 /** Annotation on a primary constructor property, without `@field:`. */
 class Node(@StackTraceId val name: String, private val next: Node?) {
-    fun walk(@StackTraceId depth: Int) {
+    fun walk(@StackTraceParam depth: Int) {
         if (next == null) throw IllegalStateException("end of list")
         next.walk(depth + 1)
     }
@@ -46,22 +47,22 @@ class ManyParams {
     val id = "many"
 
     fun six(
-        @StackTraceId a: Int,
-        @StackTraceId b: Long,
-        @StackTraceId c: String,
-        @StackTraceId d: Double,
-        @StackTraceId e: Boolean,
-        @StackTraceId f: Char,
+        @StackTraceParam a: Int,
+        @StackTraceParam b: Long,
+        @StackTraceParam c: String,
+        @StackTraceParam d: Double,
+        @StackTraceParam e: Boolean,
+        @StackTraceParam f: Char,
     ): Nothing = throw IllegalStateException("six")
 
     /** Only fails when asked, to measure the cost of the normal path. */
     fun maybeFail(
-        @StackTraceId a: Int,
-        @StackTraceId b: Int,
-        @StackTraceId c: Int,
-        @StackTraceId d: Int,
-        @StackTraceId e: Int,
-        @StackTraceId f: Int,
+        @StackTraceParam a: Int,
+        @StackTraceParam b: Int,
+        @StackTraceParam c: Int,
+        @StackTraceParam d: Int,
+        @StackTraceParam e: Int,
+        @StackTraceParam f: Int,
         fail: Boolean,
     ): Int {
         if (fail) throw IllegalStateException("asked to fail")
@@ -73,11 +74,11 @@ class Shipping {
     @StackTraceId
     val id = "ship"
 
-    fun ship(@StackTraceId order: Order?): Nothing = throw IllegalStateException("cannot ship")
+    fun ship(@StackTraceParam order: Order?): Nothing = throw IllegalStateException("cannot ship")
 
-    fun op(@StackTraceId x: Int): Nothing = throw IllegalStateException("op int")
+    fun op(@StackTraceParam x: Int): Nothing = throw IllegalStateException("op int")
 
-    fun op(@StackTraceId name: String, y: Int): Nothing = throw IllegalStateException("op string $y")
+    fun op(@StackTraceParam name: String, y: Int): Nothing = throw IllegalStateException("op string $y")
 }
 
 /** In an instrument.annotatedClasses package, but without @StackTraceId: not augmented. */
@@ -131,7 +132,7 @@ class Layers {
     @StackTraceId
     val layer = "layers"
 
-    fun inner(@StackTraceId step: Int): Nothing = throw IllegalStateException("inner $step")
+    fun inner(@StackTraceParam step: Int): Nothing = throw IllegalStateException("inner $step")
 
     /** Catches the exception and hands it back, like code that logs and carries on. */
     fun catchAndReturn(): Throwable = try {
@@ -147,6 +148,6 @@ class Layers {
     }
 }
 
-fun staticWithParam(@StackTraceId code: Int): Nothing = throw IllegalStateException("static $code")
+fun staticWithParam(@StackTraceParam code: Int): Nothing = throw IllegalStateException("static $code")
 
 fun staticWithoutParam(): Nothing = throw IllegalStateException("static")

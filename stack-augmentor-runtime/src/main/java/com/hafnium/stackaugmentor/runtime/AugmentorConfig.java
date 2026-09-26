@@ -32,14 +32,16 @@ import java.util.stream.Collectors;
  * [instrument.classIds]
  * "com.thirdparty.Order" = "getOrderNumber()"
  *
- * [instrument.methodParams]
+ * [instrument.methodParams]      # "<class>.<method>", with * and ? as wildcards
  * "com.thirdparty.OrderService.process" = ["order", 2]
+ * "com.thirdparty.**.*Repository.find*" = "*"
  *
  * [augment]                      # how frames look: at runtime, in both modes
  * frameFormat = "{class}{receiver}.{method}{params}"
  * receiverFormat = "{$name=$id}"
  * paramsFormat = "{$name=$id, ...}"
  * maxIdLength = 64
+ * maxParams = 8
  * }</pre>
  *
  * <p>Immutable. Equality covers the configured values only.
@@ -50,6 +52,7 @@ public final class AugmentorConfig {
     public static final String DEFAULT_RECEIVER_FORMAT = "{$name=$id}";
     public static final String DEFAULT_PARAMS_FORMAT = "{$name=$id, ...}";
     public static final int DEFAULT_MAX_ID_LENGTH = 64;
+    public static final int DEFAULT_MAX_PARAMS = 8;
     public static final String CONFIG_PROPERTY = "stackaugmentor.config";
 
     private static final Pattern IDENTIFIER = Pattern.compile("[\\p{L}_$][\\p{L}\\p{N}_$]*");
@@ -61,23 +64,33 @@ public final class AugmentorConfig {
     private final String receiverFormat;
     private final String paramsFormat;
     private final int maxIdLength;
+    private final int maxParams;
     private final boolean debug;
 
     private final List<Pattern> annotatedClassPatterns;
 
+    /** An {@code [instrument.methodParams]} entry with wildcards, matched against every class and method. */
+    private record PatternEntry(Pattern classPattern, Pattern methodPattern, List<ParamRef> refs) {
+    }
+
+    private final List<PatternEntry> paramPatterns;
+
     /** The defaults. */
     public AugmentorConfig() {
         this(List.of(), Map.of(), Map.of(), DEFAULT_FRAME_FORMAT, DEFAULT_RECEIVER_FORMAT, DEFAULT_PARAMS_FORMAT,
-                DEFAULT_MAX_ID_LENGTH, false);
+                DEFAULT_MAX_ID_LENGTH, DEFAULT_MAX_PARAMS, false);
     }
 
     /**
-     * @param annotatedClasses packages (globs) where {@code @StackTraceId} is honoured; empty means all packages
+     * @param annotatedClasses packages (globs) where the annotations are honoured; empty means all packages
      * @param ids              receiver id sources by class name: the {@code [instrument.classIds]} table
-     * @param params           parameter ids by {@code className.methodName}: the {@code [instrument.methodParams]} table
+     * @param params           parameter ids by {@code "<class>.<method>"}, possibly with wildcards: the
+     *                         {@code [instrument.methodParams]} table
+     * @param maxParams        the most parameter ids shown per frame
      */
     public AugmentorConfig(List<String> annotatedClasses, Map<String, IdSpec> ids, Map<String, List<ParamRef>> params,
-                           String frameFormat, String receiverFormat, String paramsFormat, int maxIdLength, boolean debug) {
+                           String frameFormat, String receiverFormat, String paramsFormat, int maxIdLength, int maxParams,
+                           boolean debug) {
         this.annotatedClasses = List.copyOf(annotatedClasses);
         this.ids = Collections.unmodifiableMap(new LinkedHashMap<>(ids));
         Map<String, List<ParamRef>> paramsCopy = new LinkedHashMap<>();
@@ -87,8 +100,17 @@ public final class AugmentorConfig {
         this.receiverFormat = Objects.requireNonNull(receiverFormat, "receiverFormat");
         this.paramsFormat = Objects.requireNonNull(paramsFormat, "paramsFormat");
         this.maxIdLength = maxIdLength;
+        this.maxParams = maxParams;
         this.debug = debug;
         this.annotatedClassPatterns = this.annotatedClasses.stream().map(AugmentorConfig::globToRegex).toList();
+        List<PatternEntry> patterns = new ArrayList<>();
+        this.params.forEach((target, refs) -> {
+            if (isPattern(target)) {
+                int dot = target.lastIndexOf('.');
+                patterns.add(new PatternEntry(globToRegex(target.substring(0, dot)), globToRegex(target.substring(dot + 1)), refs));
+            }
+        });
+        this.paramPatterns = List.copyOf(patterns);
     }
 
     public static Builder builder() {
@@ -105,7 +127,7 @@ public final class AugmentorConfig {
         return ids;
     }
 
-    /** Parameter ids by {@code className.methodName}: the {@code [instrument.methodParams]} table. */
+    /** Parameter ids by {@code "<class>.<method>"}, possibly with wildcards: the {@code [instrument.methodParams]} table. */
     public Map<String, List<ParamRef>> params() {
         return params;
     }
@@ -126,11 +148,16 @@ public final class AugmentorConfig {
         return maxIdLength;
     }
 
+    /** The most parameter ids shown per frame. */
+    public int maxParams() {
+        return maxParams;
+    }
+
     public boolean debug() {
         return debug;
     }
 
-    /** Whether {@code @StackTraceId} annotations on this class are used. */
+    /** Whether the {@code @StackTraceId}, {@code @StackTraceParam} and {@code @StackTraceParams} annotations on this class are used. */
     public boolean honoursAnnotations(String className) {
         if (annotatedClassPatterns.isEmpty()) {
             return true;
@@ -143,18 +170,46 @@ public final class AugmentorConfig {
         return false;
     }
 
+    /**
+     * The parameters selected for a method by {@code [instrument.methodParams]}: the entry without wildcards for
+     * exactly this class and method, then every entry with wildcards that matches. Parameters selected more than
+     * once are shown once, in declaration order, so the order of this list does not matter.
+     */
     public List<ParamRef> paramRefs(String className, String methodName) {
-        return params.getOrDefault(className + "." + methodName, List.of());
+        List<ParamRef> exact = params.getOrDefault(className + "." + methodName, List.of());
+        if (paramPatterns.isEmpty()) {
+            return exact;
+        }
+        List<ParamRef> refs = null;
+        for (PatternEntry entry : paramPatterns) {
+            if (entry.classPattern().matcher(className).matches() && entry.methodPattern().matcher(methodName).matches()) {
+                if (refs == null) {
+                    refs = new ArrayList<>(exact);
+                }
+                refs.addAll(entry.refs());
+            }
+        }
+        return refs != null ? refs : exact;
     }
 
     public boolean hasParamEntries(String className) {
         String prefix = className + ".";
         for (String target : params.keySet()) {
-            if (target.startsWith(prefix)) {
+            if (!isPattern(target) && target.startsWith(prefix)) {
+                return true;
+            }
+        }
+        for (PatternEntry entry : paramPatterns) {
+            if (entry.classPattern().matcher(className).matches()) {
                 return true;
             }
         }
         return false;
+    }
+
+    /** Whether an {@code [instrument.methodParams]} key has wildcards ({@code *} or {@code ?}). */
+    public static boolean isPattern(String target) {
+        return target.indexOf('*') >= 0 || target.indexOf('?') >= 0;
     }
 
     /**
@@ -238,19 +293,20 @@ public final class AugmentorConfig {
                 && receiverFormat.equals(that.receiverFormat)
                 && paramsFormat.equals(that.paramsFormat)
                 && maxIdLength == that.maxIdLength
+                && maxParams == that.maxParams
                 && debug == that.debug;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(annotatedClasses, ids, params, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug);
+        return Objects.hash(annotatedClasses, ids, params, frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams, debug);
     }
 
     @Override
     public String toString() {
         return "AugmentorConfig[annotatedClasses=" + annotatedClasses + ", ids=" + ids + ", params=" + params
                 + ", frameFormat=" + frameFormat + ", receiverFormat=" + receiverFormat + ", paramsFormat=" + paramsFormat
-                + ", maxIdLength=" + maxIdLength + ", debug=" + debug + "]";
+                + ", maxIdLength=" + maxIdLength + ", maxParams=" + maxParams + ", debug=" + debug + "]";
     }
 
     /** Starts from the defaults; every setter replaces one value. */
@@ -263,6 +319,7 @@ public final class AugmentorConfig {
         private String receiverFormat = DEFAULT_RECEIVER_FORMAT;
         private String paramsFormat = DEFAULT_PARAMS_FORMAT;
         private int maxIdLength = DEFAULT_MAX_ID_LENGTH;
+        private int maxParams = DEFAULT_MAX_PARAMS;
         private boolean debug;
 
         private Builder() {
@@ -303,13 +360,19 @@ public final class AugmentorConfig {
             return this;
         }
 
+        public Builder maxParams(int maxParams) {
+            this.maxParams = maxParams;
+            return this;
+        }
+
         public Builder debug(boolean debug) {
             this.debug = debug;
             return this;
         }
 
         public AugmentorConfig build() {
-            return new AugmentorConfig(annotatedClasses, ids, params, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug);
+            return new AugmentorConfig(annotatedClasses, ids, params, frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams,
+                    debug);
         }
     }
 
@@ -323,7 +386,12 @@ public final class AugmentorConfig {
 
         private static final List<String> ROOT_KEYS = List.of("debug", "instrument", "augment");
         private static final List<String> INSTRUMENT_KEYS = List.of("annotatedClasses", "classIds", "methodParams");
-        private static final List<String> AUGMENT_KEYS = List.of("frameFormat", "receiverFormat", "paramsFormat", "maxIdLength");
+        private static final List<String> AUGMENT_KEYS = List.of("frameFormat", "receiverFormat", "paramsFormat", "maxIdLength",
+                "maxParams");
+
+        /** Class part of an [instrument.methodParams] key: dotted segments of identifier characters and wildcards. */
+        private static final Pattern CLASS_PART = Pattern.compile("[\\p{L}\\p{N}_$*?]+(\\.[\\p{L}\\p{N}_$*?]+)*");
+        private static final Pattern METHOD_PART = Pattern.compile("[\\p{L}\\p{N}_$*?]+");
 
         private final TomlParseResult toml;
         private final String source;
@@ -374,6 +442,10 @@ public final class AugmentorConfig {
             Long maxIdLength = value(plus(AUGMENT, "maxIdLength"), Long.class, "an integer");
             if (maxIdLength != null) {
                 config.maxIdLength(maxIdLength(maxIdLength));
+            }
+            Long maxParams = value(plus(AUGMENT, "maxParams"), Long.class, "an integer");
+            if (maxParams != null) {
+                config.maxParams(maxParams(maxParams));
             }
             Boolean debug = value(List.of("debug"), Boolean.class, "true or false");
             if (debug != null) {
@@ -446,11 +518,14 @@ public final class AugmentorConfig {
         private String target(List<String> path, List<String> table) {
             String target = String.join(".", path.subList(table.size(), path.size()));
             boolean classIds = table.equals(CLASS_IDS);
-            boolean valid = classIds ? !target.isEmpty() : target.lastIndexOf('.') > 0;
-            if (!valid) {
-                String example = classIds ? "\"com.acme.Order\"" : "\"com.acme.OrderService.process\"";
-                throw error(path, "[" + name(table) + "] keys must name a " + (classIds ? "class" : "class and a method")
-                        + ", e.g. " + example);
+            if (classIds && target.isEmpty()) {
+                throw error(path, "[" + name(table) + "] keys must name a class, e.g. \"com.acme.Order\"");
+            }
+            int dot = target.lastIndexOf('.');
+            if (!classIds && (dot <= 0 || !CLASS_PART.matcher(target.substring(0, dot)).matches()
+                    || !METHOD_PART.matcher(target.substring(dot + 1)).matches())) {
+                throw error(path, "[" + name(table) + "] keys must name a class and a method, e.g. \"com.acme.OrderService.process\"; "
+                        + "allowed are letters, digits, _, $ and the wildcards * (within a package or name), ** (across packages) and ?");
             }
             return target;
         }
@@ -468,8 +543,11 @@ public final class AugmentorConfig {
         }
 
         private List<ParamRef> paramRefs(List<String> path, Object value) {
+            if ("*".equals(value)) {
+                return List.of(new ParamRef.All());
+            }
             if (!(value instanceof TomlArray array)) {
-                throw error(path, "must be an array of parameter names and indexes, e.g. [\"order\", 2]");
+                throw error(path, "must be an array of parameter names and indexes, e.g. [\"order\", 2], or \"*\" for all parameters, was " + value);
             }
             if (array.size() == 0) {
                 throw error(path, "must list at least one parameter");
@@ -485,6 +563,13 @@ public final class AugmentorConfig {
                 }
             }
             return refs;
+        }
+
+        private int maxParams(long value) {
+            if (value < 1 || value > 255) {
+                throw error(plus(AUGMENT, "maxParams"), "maxParams must be between 1 and 255, was " + value);
+            }
+            return (int) value;
         }
 
         private int maxIdLength(long value) {

@@ -10,6 +10,10 @@ class Customer(private val customerId: String) {
     fun rename(): Nothing = throw IllegalStateException("cannot rename")
 }
 
+class InventoryService {
+    fun reserve(sku: String, count: Int): Nothing = throw IllegalStateException("cannot reserve")
+}
+
 class OrderService {
     fun process(order: Order, quantity: Int, note: String): Nothing = throw IllegalStateException("cannot process")
 }

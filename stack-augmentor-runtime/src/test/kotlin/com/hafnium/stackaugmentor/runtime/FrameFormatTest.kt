@@ -72,6 +72,33 @@ class FrameFormatTest {
     }
 
     @Test
+    fun `parameter ids are cut at maxParams`() {
+        val a = NamedId("a", "1")
+        val b = NamedId("b", "2")
+        val c = NamedId("c", "3")
+        val two = FrameFormat.create(
+            AugmentorConfig.DEFAULT_FRAME_FORMAT, AugmentorConfig.DEFAULT_RECEIVER_FORMAT, AugmentorConfig.DEFAULT_PARAMS_FORMAT, 2,
+        )
+        assertEquals(2, two.maxParams())
+        assertEquals("process{a=1, b=2, …}", two.rewrite(element, null, listOf(a, b, c)).methodName)
+        assertEquals("process{a=1, b=2}", two.rewrite(element, null, listOf(a, b)).methodName)
+        assertEquals("process{a=1}", two.rewrite(element, null, listOf(a)).methodName)
+        // Already cut by the caller: only the number left out is passed.
+        assertEquals("process{a=1, b=2, …}", two.rewrite(element, null, listOf(a, b), 5).methodName)
+        // The receiver id is not affected.
+        assertEquals("com.hafnium.ObjectClass{objectId=123}", two.rewrite(element, receiver, listOf(a, b, c)).className)
+
+        val custom = FrameFormat.create(AugmentorConfig.DEFAULT_FRAME_FORMAT, AugmentorConfig.DEFAULT_RECEIVER_FORMAT, "(\$name: \$id; ...)", 1)
+        assertEquals("process(orderId: 42; …)", custom.rewrite(element, null, listOf(orderId, customer)).methodName)
+
+        val repeated = FrameFormat.create(AugmentorConfig.DEFAULT_FRAME_FORMAT, AugmentorConfig.DEFAULT_RECEIVER_FORMAT, "{\$name=\$id}", 1)
+        assertEquals("process{orderId=42},…", repeated.rewrite(element, null, listOf(orderId, customer)).methodName)
+
+        assertEquals(AugmentorConfig.DEFAULT_MAX_PARAMS, rewrite().maxParams())
+        assertEquals(3, FrameFormat.create(AugmentorConfig.builder().maxParams(3).build()).maxParams())
+    }
+
+    @Test
     fun `double dollar is a literal dollar`() {
         val result = rewrite(receiverFormat = "\$\$\$id").rewrite(element, receiver, emptyList())
         assertEquals("com.hafnium.ObjectClass\$123", result.className)

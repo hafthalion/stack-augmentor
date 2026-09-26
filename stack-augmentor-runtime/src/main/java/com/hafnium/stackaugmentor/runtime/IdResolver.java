@@ -19,6 +19,12 @@ public final class IdResolver {
     /** Name of the id annotation. Matched by name, because the application may load its own copy of the API. */
     public static final String STACK_TRACE_ID = "com.hafnium.stackaugmentor.StackTraceId";
 
+    /** Name of the annotation that selects one parameter. */
+    public static final String STACK_TRACE_PARAM = "com.hafnium.stackaugmentor.StackTraceParam";
+
+    /** Name of the annotation that selects all parameters of a method, or of the methods of a class. */
+    public static final String STACK_TRACE_PARAMS = "com.hafnium.stackaugmentor.StackTraceParams";
+
     private static final Pattern LINE_BREAKS = Pattern.compile("[\\r\\n]+");
 
     private sealed interface Source {

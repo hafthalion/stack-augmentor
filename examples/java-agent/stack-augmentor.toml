@@ -4,7 +4,7 @@ debug = false
 
 # What gets instrumented; the agent reads this when classes are loaded.
 [instrument]
-# Packages whose @StackTraceId annotations are used; classes without annotations are not augmented.
+# Packages whose @StackTraceId, @StackTraceParam and @StackTraceParams annotations are used; classes without annotations are not augmented.
 # '*' matches within one package, '**' across packages. Empty: all packages (default).
 annotatedClasses = ["com.hafnium.**"]
 
@@ -14,9 +14,12 @@ annotatedClasses = ["com.hafnium.**"]
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"
 
-# ... and OrderService.process shows its order argument and its second parameter (quantity).
+# ... OrderService.process shows its order argument and its second parameter (quantity), and all methods
+# of the Inventory* classes show all their parameters ("*"). In keys, '*' matches within a package or name,
+# '**' across packages, '?' one character.
 [instrument.methodParams]
 "com.thirdparty.OrderService.process" = ["order", 1]
+"com.thirdparty.Inventory*.*" = "*"
 
 # How frames look; used at runtime (these are the defaults, see the README).
 [augment]
@@ -25,3 +28,5 @@ receiverFormat = "{$name=$id}"
 paramsFormat = "{$name=$id, ...}"
 # Longer ids are cut off with "…".
 maxIdLength = 64
+# At most this many parameter ids per frame; more are shown as "…".
+maxParams = 8

@@ -22,4 +22,11 @@ class BuildTimeInstrumentationTest {
         assertEquals("com.hafnium.ClassWithoutAnnotation", e.stackTrace[0].className)
         assertEquals("method", e.stackTrace[0].methodName)
     }
+
+    @Test
+    fun `class-level StackTraceParams shows all parameters`() {
+        val e = assertThrows<IllegalStateException> { Shipping().ship("o-17", 2) }
+        assertEquals("com.hafnium.Shipping", e.stackTrace[0].className)
+        assertEquals("ship{orderId=o-17, quantity=2}", e.stackTrace[0].methodName)
+    }
 }
