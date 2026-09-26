@@ -22,9 +22,11 @@ class WithoutKotlinTest {
     private val agentJar = System.getProperty("stackaugmentor.it.agentJar")
     private val classpath = System.getProperty("stackaugmentor.it.javaClasspath")
 
-    private fun run(config: Path): Result {
+    /** Runs JavaMain with the agent and this configuration, or without one. */
+    private fun run(config: Path?): Result {
         val java = Path.of(System.getProperty("java.home"), "bin", "java").toString()
-        val process = ProcessBuilder(java, "-javaagent:$agentJar=config=$config", "-cp", classpath, "com.hafnium.it.fixtures.JavaMain")
+        val agent = if (config != null) "-javaagent:$agentJar=config=$config" else "-javaagent:$agentJar"
+        val process = ProcessBuilder(java, agent, "-cp", classpath, "com.hafnium.it.fixtures.JavaMain")
             .redirectErrorStream(true)
             .start()
         val output = process.inputStream.bufferedReader().use { it.readText() }
@@ -50,12 +52,27 @@ class WithoutKotlinTest {
 
     @Test
     fun `agent augments a Java application without the Kotlin runtime`(@TempDir dir: Path) {
-        val result = run(config(dir, "debug = true\n[instrument]\nannotatedClasses = [\"com.hafnium.it.fixtures.**\"]\n"))
+        val result = run(config(dir, "debug = true\n[instrument.classes]\n\"com.hafnium.it.fixtures.**\" = \"@\"\n"))
         assertEquals(0, result.exitCode, result.output)
         assertTrue(result.output.contains("at com.hafnium.it.fixtures.JavaFixture{key=java-1}.run{arg0=42}(JavaFixture.java:"), result.output)
         // Debug output exercises the logging, configuration and matching code paths as well.
         assertTrue(result.output.contains("[stack-augmentor] DEBUG instrumenting com.hafnium.it.fixtures.JavaFixture"), result.output)
         assertTrue(result.output.contains("[stack-augmentor] DEBUG id source of com.hafnium.it.fixtures.JavaFixture"), result.output)
+        assertNoKotlin(result.output)
+    }
+
+    @Test
+    fun `without a configuration nothing is augmented`() {
+        val result = run(null)
+        assertEquals(0, result.exitCode, result.output)
+        assertTrue(
+            result.output.contains(
+                "[stack-augmentor] WARN the configuration has no [instrument.classes] or [instrument.methods] entries, " +
+                    "so nothing will be augmented",
+            ),
+            result.output,
+        )
+        assertTrue(result.output.contains("at com.hafnium.it.fixtures.JavaFixture.run(JavaFixture.java:"), result.output)
         assertNoKotlin(result.output)
     }
 

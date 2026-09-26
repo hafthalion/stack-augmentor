@@ -1,5 +1,6 @@
 package com.hafnium.it.fixtures
 
+import com.hafnium.stackaugmentor.StackTraceId
 import com.hafnium.stackaugmentor.StackTraceParam
 import com.hafnium.stackaugmentor.StackTraceParams
 
@@ -27,7 +28,7 @@ class DerivedInventory : Inventory() {
     fun run(x: Int): Nothing = throw IllegalStateException("run $x")
 }
 
-/** Also listed in [instrument.methodParams] with both parameters: each is shown once. */
+/** Also listed in [instrument.methods] with both parameters: each is shown once. */
 class Overlap {
     fun op(@StackTraceParam x: Int, y: Int): Nothing = throw IllegalStateException("op")
 }
@@ -49,4 +50,19 @@ class Wide {
     @StackTraceParams
     fun ten(a: Int, b: Int, c: Int, d: Int, e: Int, f: Int, g: Int, h: Int, i: Int, j: Counted): Nothing =
         throw IllegalStateException("ten")
+}
+
+/**
+ * Matched by the "@" entry of the fixtures, but its exact entry "getId()" is more specific: its annotations are
+ * not used, except the parameter annotations of failAnnotated, which has an [instrument.methods] "@" entry.
+ */
+class Overridden {
+    @StackTraceId
+    val code = "c-1"
+
+    fun getId() = "o-1"
+
+    fun fail(@StackTraceParam x: Int): Nothing = throw IllegalStateException("fail $x")
+
+    fun failAnnotated(@StackTraceParam(name = "why") y: Int): Nothing = throw IllegalStateException("fail $y")
 }

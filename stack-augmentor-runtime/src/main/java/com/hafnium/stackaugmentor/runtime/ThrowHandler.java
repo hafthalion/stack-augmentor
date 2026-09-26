@@ -17,8 +17,9 @@ import java.util.List;
  * <p>The Java agent creates it with the agent's configuration and installs it. With build-time
  * instrumentation no agent does that: {@link Dispatch} creates it through {@code ServiceLoader} with the
  * no-argument constructor, which reads the configuration from {@code -Dstackaugmentor.config} or from
- * {@code stack-augmentor.toml} on the classpath. Only {@code [augment]} and {@code debug} matter then: what gets
- * instrumented was decided at build time.
+ * {@code stack-augmentor.toml} on the classpath. What gets instrumented was decided at build time; at runtime,
+ * {@code [augment]}, {@code debug} and the {@code [instrument.classes]} entries apply, and classes without an entry
+ * use their annotations.
  */
 public final class ThrowHandler implements Dispatch.Handler {
 
@@ -39,12 +40,19 @@ public final class ThrowHandler implements Dispatch.Handler {
     }
 
     public ThrowHandler(AugmentorConfig config) {
-        this(new IdResolver(config), FrameFormat.create(config));
+        this(config, false);
     }
 
-    /** For {@code ServiceLoader}: build-time instrumentation. */
+    /**
+     * For {@code ServiceLoader}: build-time instrumentation. The build plugin already chose which classes to
+     * instrument, so classes without an {@code [instrument.classes]} entry use their annotations.
+     */
     public ThrowHandler() {
-        this(runtimeConfig());
+        this(runtimeConfig(), true);
+    }
+
+    private ThrowHandler(AugmentorConfig config, boolean annotationsWithoutEntry) {
+        this(new IdResolver(config, annotationsWithoutEntry), FrameFormat.create(config));
     }
 
     @Override

@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -26,13 +27,11 @@ import java.util.stream.Collectors;
  * <pre>{@code
  * debug = false
  *
- * [instrument]                  # what gets instrumented: agent at class load, build plugin at build time
- * annotatedClasses = ["com.hafnium.**"]
- *
- * [instrument.classIds]
+ * [instrument.classes]           # receiver ids: a field, a "method()", or "@" for the class's annotations
+ * "com.hafnium.**" = "@"
  * "com.thirdparty.Order" = "getOrderNumber()"
  *
- * [instrument.methodParams]      # "<class>.<method>", with * and ? as wildcards
+ * [instrument.methods]           # parameter ids: names and indexes, "*" for all, "@" for the annotations
  * "com.thirdparty.OrderService.process" = ["order", 2]
  * "com.thirdparty.**.*Repository.find*" = "*"
  *
@@ -44,7 +43,8 @@ import java.util.stream.Collectors;
  * maxParams = 8
  * }</pre>
  *
- * <p>Immutable. Equality covers the configured values only.
+ * <p>Keys of both tables may use wildcards: {@code *} within one package segment (or name), {@code **} across
+ * segments, {@code ?} one character. Immutable. Equality covers the configured values only.
  */
 public final class AugmentorConfig {
 
@@ -55,11 +55,13 @@ public final class AugmentorConfig {
     public static final int DEFAULT_MAX_PARAMS = 8;
     public static final String CONFIG_PROPERTY = "stackaugmentor.config";
 
+    /** The value that stands for "use the annotations", in both tables. */
+    public static final String ANNOTATIONS = "@";
+
     private static final Pattern IDENTIFIER = Pattern.compile("[\\p{L}_$][\\p{L}\\p{N}_$]*");
 
-    private final List<String> annotatedClasses;
-    private final Map<String, IdSpec> ids;
-    private final Map<String, List<ParamRef>> params;
+    private final Map<String, IdSpec> classes;
+    private final Map<String, List<ParamRef>> methods;
     private final String frameFormat;
     private final String receiverFormat;
     private final String paramsFormat;
@@ -67,69 +69,85 @@ public final class AugmentorConfig {
     private final int maxParams;
     private final boolean debug;
 
-    private final List<Pattern> annotatedClassPatterns;
+    /** An {@code [instrument.classes]} entry: the key as written, and the id source it names. */
+    public record ClassEntry(String key, IdSpec spec) {
 
-    /** An {@code [instrument.methodParams]} entry with wildcards, matched against every class and method. */
-    private record PatternEntry(Pattern classPattern, Pattern methodPattern, List<ParamRef> refs) {
+        /** Whether the key has wildcards. */
+        public boolean isPattern() {
+            return AugmentorConfig.isPattern(key);
+        }
     }
 
-    private final List<PatternEntry> paramPatterns;
+    private record ClassPattern(Pattern pattern, ClassEntry entry) {
+    }
 
-    /** The defaults. */
+    /** The {@code [instrument.classes]} entries with wildcards, most specific first. */
+    private final List<ClassPattern> classPatterns;
+
+    /** An {@code [instrument.methods]} entry with wildcards, matched against every class and method. */
+    private record MethodPattern(Pattern classPattern, Pattern methodPattern, List<ParamRef> refs) {
+    }
+
+    private final List<MethodPattern> methodPatterns;
+
+    /** The defaults: no class or method entries, so nothing gets ids. */
     public AugmentorConfig() {
-        this(List.of(), Map.of(), Map.of(), DEFAULT_FRAME_FORMAT, DEFAULT_RECEIVER_FORMAT, DEFAULT_PARAMS_FORMAT,
+        this(Map.of(), Map.of(), DEFAULT_FRAME_FORMAT, DEFAULT_RECEIVER_FORMAT, DEFAULT_PARAMS_FORMAT,
                 DEFAULT_MAX_ID_LENGTH, DEFAULT_MAX_PARAMS, false);
     }
 
     /**
-     * @param annotatedClasses packages (globs) where the annotations are honoured; empty means all packages
-     * @param ids              receiver id sources by class name: the {@code [instrument.classIds]} table
-     * @param params           parameter ids by {@code "<class>.<method>"}, possibly with wildcards: the
-     *                         {@code [instrument.methodParams]} table
-     * @param maxParams        the most parameter ids shown per frame
+     * @param classes   receiver id sources by class name or class pattern: the {@code [instrument.classes]} table
+     * @param methods   parameter ids by {@code "<class>.<method>"}, possibly with wildcards: the
+     *                  {@code [instrument.methods]} table
+     * @param maxParams the most parameter ids shown per frame
      */
-    public AugmentorConfig(List<String> annotatedClasses, Map<String, IdSpec> ids, Map<String, List<ParamRef>> params,
+    public AugmentorConfig(Map<String, IdSpec> classes, Map<String, List<ParamRef>> methods,
                            String frameFormat, String receiverFormat, String paramsFormat, int maxIdLength, int maxParams,
                            boolean debug) {
-        this.annotatedClasses = List.copyOf(annotatedClasses);
-        this.ids = Collections.unmodifiableMap(new LinkedHashMap<>(ids));
-        Map<String, List<ParamRef>> paramsCopy = new LinkedHashMap<>();
-        params.forEach((target, refs) -> paramsCopy.put(target, List.copyOf(refs)));
-        this.params = Collections.unmodifiableMap(paramsCopy);
+        this.classes = Collections.unmodifiableMap(new LinkedHashMap<>(classes));
+        Map<String, List<ParamRef>> methodsCopy = new LinkedHashMap<>();
+        methods.forEach((target, refs) -> methodsCopy.put(target, List.copyOf(refs)));
+        this.methods = Collections.unmodifiableMap(methodsCopy);
         this.frameFormat = Objects.requireNonNull(frameFormat, "frameFormat");
         this.receiverFormat = Objects.requireNonNull(receiverFormat, "receiverFormat");
         this.paramsFormat = Objects.requireNonNull(paramsFormat, "paramsFormat");
         this.maxIdLength = maxIdLength;
         this.maxParams = maxParams;
         this.debug = debug;
-        this.annotatedClassPatterns = this.annotatedClasses.stream().map(AugmentorConfig::globToRegex).toList();
-        List<PatternEntry> patterns = new ArrayList<>();
-        this.params.forEach((target, refs) -> {
-            if (isPattern(target)) {
-                int dot = target.lastIndexOf('.');
-                patterns.add(new PatternEntry(globToRegex(target.substring(0, dot)), globToRegex(target.substring(dot + 1)), refs));
+
+        List<ClassPattern> classPatterns = new ArrayList<>();
+        this.classes.forEach((key, spec) -> {
+            if (isPattern(key)) {
+                classPatterns.add(new ClassPattern(globToRegex(key), new ClassEntry(key, spec)));
             }
         });
-        this.paramPatterns = List.copyOf(patterns);
+        classPatterns.sort(Comparator.comparingInt((ClassPattern it) -> specificity(it.entry().key())).reversed()
+                .thenComparing(it -> it.entry().key()));
+        this.classPatterns = List.copyOf(classPatterns);
+
+        List<MethodPattern> methodPatterns = new ArrayList<>();
+        this.methods.forEach((target, refs) -> {
+            if (isPattern(target)) {
+                int dot = target.lastIndexOf('.');
+                methodPatterns.add(new MethodPattern(globToRegex(target.substring(0, dot)), globToRegex(target.substring(dot + 1)), refs));
+            }
+        });
+        this.methodPatterns = List.copyOf(methodPatterns);
     }
 
     public static Builder builder() {
         return new Builder();
     }
 
-    /** Packages (globs) where {@code @StackTraceId} is honoured; empty means all packages. */
-    public List<String> annotatedClasses() {
-        return annotatedClasses;
+    /** Receiver id sources by class name or class pattern: the {@code [instrument.classes]} table. */
+    public Map<String, IdSpec> classes() {
+        return classes;
     }
 
-    /** Receiver id sources by class name: the {@code [instrument.classIds]} table. */
-    public Map<String, IdSpec> ids() {
-        return ids;
-    }
-
-    /** Parameter ids by {@code "<class>.<method>"}, possibly with wildcards: the {@code [instrument.methodParams]} table. */
-    public Map<String, List<ParamRef>> params() {
-        return params;
+    /** Parameter ids by {@code "<class>.<method>"}, possibly with wildcards: the {@code [instrument.methods]} table. */
+    public Map<String, List<ParamRef>> methods() {
+        return methods;
     }
 
     public String frameFormat() {
@@ -157,31 +175,68 @@ public final class AugmentorConfig {
         return debug;
     }
 
-    /** Whether the {@code @StackTraceId}, {@code @StackTraceParam} and {@code @StackTraceParams} annotations on this class are used. */
-    public boolean honoursAnnotations(String className) {
-        if (annotatedClassPatterns.isEmpty()) {
-            return true;
-        }
-        for (Pattern pattern : annotatedClassPatterns) {
-            if (pattern.matcher(className).matches()) {
-                return true;
-            }
-        }
-        return false;
+    /** The {@code [instrument.classes]} entries for the debug log, e.g. {@code com.acme.**=@, com.acme.Order=getId()}. */
+    public String classesDescription() {
+        String text = classes.entrySet().stream()
+                .map(entry -> entry.getKey() + "=" + switch (entry.getValue()) {
+                    case IdSpec.Annotations annotations -> ANNOTATIONS;
+                    case IdSpec.MethodSpec method -> method.memberName() + "()";
+                    case IdSpec.FieldSpec field -> field.memberName();
+                })
+                .collect(Collectors.joining(", "));
+        return text.isEmpty() ? "none" : text;
+    }
+
+    /** The {@code [instrument.methods]} entries for the debug log, e.g. {@code com.acme.Order.process[order, #2]}. */
+    public String methodsDescription() {
+        String text = methods.entrySet().stream()
+                .map(entry -> entry.getKey() + entry.getValue().stream()
+                        .map(ref -> switch (ref) {
+                            case ParamRef.ByName byName -> byName.name();
+                            case ParamRef.ByIndex byIndex -> "#" + byIndex.index();
+                            case ParamRef.All all -> "*";
+                            case ParamRef.Annotations annotations -> ANNOTATIONS;
+                        })
+                        .collect(Collectors.joining(", ", "[", "]")))
+                .collect(Collectors.joining(", "));
+        return text.isEmpty() ? "none" : text;
+    }
+
+    /** Whether anything can be augmented: without class or method entries, nothing is. */
+    public boolean hasInstrumentEntries() {
+        return !classes.isEmpty() || !methods.isEmpty();
     }
 
     /**
-     * The parameters selected for a method by {@code [instrument.methodParams]}: the entry without wildcards for
+     * The most specific {@code [instrument.classes]} entry that matches exactly this class name, or {@code null}:
+     * an entry without wildcards, otherwise the pattern with the most characters other than {@code *} and
+     * {@code ?}, ties broken by key. Superclasses are not looked at; the callers walk the hierarchy.
+     */
+    public ClassEntry classEntry(String className) {
+        IdSpec exact = classes.get(className);
+        if (exact != null) {
+            return new ClassEntry(className, exact);
+        }
+        for (ClassPattern pattern : classPatterns) {
+            if (pattern.pattern().matcher(className).matches()) {
+                return pattern.entry();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The parameters selected for a method by {@code [instrument.methods]}: the entry without wildcards for
      * exactly this class and method, then every entry with wildcards that matches. Parameters selected more than
      * once are shown once, in declaration order, so the order of this list does not matter.
      */
     public List<ParamRef> paramRefs(String className, String methodName) {
-        List<ParamRef> exact = params.getOrDefault(className + "." + methodName, List.of());
-        if (paramPatterns.isEmpty()) {
+        List<ParamRef> exact = methods.getOrDefault(className + "." + methodName, List.of());
+        if (methodPatterns.isEmpty()) {
             return exact;
         }
         List<ParamRef> refs = null;
-        for (PatternEntry entry : paramPatterns) {
+        for (MethodPattern entry : methodPatterns) {
             if (entry.classPattern().matcher(className).matches() && entry.methodPattern().matcher(methodName).matches()) {
                 if (refs == null) {
                     refs = new ArrayList<>(exact);
@@ -192,14 +247,14 @@ public final class AugmentorConfig {
         return refs != null ? refs : exact;
     }
 
-    public boolean hasParamEntries(String className) {
+    public boolean hasMethodEntries(String className) {
         String prefix = className + ".";
-        for (String target : params.keySet()) {
+        for (String target : methods.keySet()) {
             if (!isPattern(target) && target.startsWith(prefix)) {
                 return true;
             }
         }
-        for (PatternEntry entry : paramPatterns) {
+        for (MethodPattern entry : methodPatterns) {
             if (entry.classPattern().matcher(className).matches()) {
                 return true;
             }
@@ -207,9 +262,21 @@ public final class AugmentorConfig {
         return false;
     }
 
-    /** Whether an {@code [instrument.methodParams]} key has wildcards ({@code *} or {@code ?}). */
-    public static boolean isPattern(String target) {
-        return target.indexOf('*') >= 0 || target.indexOf('?') >= 0;
+    /** Whether a key of {@code [instrument.classes]} or {@code [instrument.methods]} has wildcards ({@code *} or {@code ?}). */
+    public static boolean isPattern(String key) {
+        return key.indexOf('*') >= 0 || key.indexOf('?') >= 0;
+    }
+
+    /** The number of characters of a key other than the wildcards: the more, the more specific. */
+    static int specificity(String key) {
+        int literal = 0;
+        for (int i = 0; i < key.length(); i++) {
+            char c = key.charAt(i);
+            if (c != '*' && c != '?') {
+                literal++;
+            }
+        }
+        return literal;
     }
 
     /**
@@ -286,9 +353,8 @@ public final class AugmentorConfig {
     @Override
     public boolean equals(Object other) {
         return this == other || other instanceof AugmentorConfig that
-                && annotatedClasses.equals(that.annotatedClasses)
-                && ids.equals(that.ids)
-                && params.equals(that.params)
+                && classes.equals(that.classes)
+                && methods.equals(that.methods)
                 && frameFormat.equals(that.frameFormat)
                 && receiverFormat.equals(that.receiverFormat)
                 && paramsFormat.equals(that.paramsFormat)
@@ -299,12 +365,12 @@ public final class AugmentorConfig {
 
     @Override
     public int hashCode() {
-        return Objects.hash(annotatedClasses, ids, params, frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams, debug);
+        return Objects.hash(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams, debug);
     }
 
     @Override
     public String toString() {
-        return "AugmentorConfig[annotatedClasses=" + annotatedClasses + ", ids=" + ids + ", params=" + params
+        return "AugmentorConfig[classes=" + classes + ", methods=" + methods
                 + ", frameFormat=" + frameFormat + ", receiverFormat=" + receiverFormat + ", paramsFormat=" + paramsFormat
                 + ", maxIdLength=" + maxIdLength + ", maxParams=" + maxParams + ", debug=" + debug + "]";
     }
@@ -312,9 +378,8 @@ public final class AugmentorConfig {
     /** Starts from the defaults; every setter replaces one value. */
     public static final class Builder {
 
-        private List<String> annotatedClasses = List.of();
-        private Map<String, IdSpec> ids = Map.of();
-        private Map<String, List<ParamRef>> params = Map.of();
+        private Map<String, IdSpec> classes = Map.of();
+        private Map<String, List<ParamRef>> methods = Map.of();
         private String frameFormat = DEFAULT_FRAME_FORMAT;
         private String receiverFormat = DEFAULT_RECEIVER_FORMAT;
         private String paramsFormat = DEFAULT_PARAMS_FORMAT;
@@ -325,18 +390,13 @@ public final class AugmentorConfig {
         private Builder() {
         }
 
-        public Builder annotatedClasses(List<String> annotatedClasses) {
-            this.annotatedClasses = annotatedClasses;
+        public Builder classes(Map<String, IdSpec> classes) {
+            this.classes = classes;
             return this;
         }
 
-        public Builder ids(Map<String, IdSpec> ids) {
-            this.ids = ids;
-            return this;
-        }
-
-        public Builder params(Map<String, List<ParamRef>> params) {
-            this.params = params;
+        public Builder methods(Map<String, List<ParamRef>> methods) {
+            this.methods = methods;
             return this;
         }
 
@@ -371,7 +431,7 @@ public final class AugmentorConfig {
         }
 
         public AugmentorConfig build() {
-            return new AugmentorConfig(annotatedClasses, ids, params, frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams,
+            return new AugmentorConfig(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams,
                     debug);
         }
     }
@@ -381,17 +441,19 @@ public final class AugmentorConfig {
 
         private static final List<String> INSTRUMENT = List.of("instrument");
         private static final List<String> AUGMENT = List.of("augment");
-        private static final List<String> CLASS_IDS = List.of("instrument", "classIds");
-        private static final List<String> METHOD_PARAMS = List.of("instrument", "methodParams");
+        private static final List<String> CLASSES = List.of("instrument", "classes");
+        private static final List<String> METHODS = List.of("instrument", "methods");
 
         private static final List<String> ROOT_KEYS = List.of("debug", "instrument", "augment");
-        private static final List<String> INSTRUMENT_KEYS = List.of("annotatedClasses", "classIds", "methodParams");
+        private static final List<String> INSTRUMENT_KEYS = List.of("classes", "methods");
         private static final List<String> AUGMENT_KEYS = List.of("frameFormat", "receiverFormat", "paramsFormat", "maxIdLength",
                 "maxParams");
 
-        /** Class part of an [instrument.methodParams] key: dotted segments of identifier characters and wildcards. */
+        /** A class name or class pattern: dotted segments of identifier characters and wildcards. */
         private static final Pattern CLASS_PART = Pattern.compile("[\\p{L}\\p{N}_$*?]+(\\.[\\p{L}\\p{N}_$*?]+)*");
         private static final Pattern METHOD_PART = Pattern.compile("[\\p{L}\\p{N}_$*?]+");
+        private static final String ALLOWED_CHARACTERS =
+                "allowed are letters, digits, _, $ and the wildcards * (within a package or name), ** (across packages) and ?";
 
         private final TomlParseResult toml;
         private final String source;
@@ -413,20 +475,16 @@ public final class AugmentorConfig {
             }
 
             Builder config = builder();
-            List<String> annotatedClasses = stringArray(plus(INSTRUMENT, "annotatedClasses"));
-            if (annotatedClasses != null) {
-                config.annotatedClasses(annotatedClasses);
+            Map<String, IdSpec> classes = new LinkedHashMap<>();
+            for (Entry entry : entries(CLASSES)) {
+                classes.put(classKey(entry.path()), classSpec(entry.path(), entry.value()));
             }
-            Map<String, IdSpec> ids = new LinkedHashMap<>();
-            for (Entry entry : entries(CLASS_IDS)) {
-                ids.put(target(entry.path(), CLASS_IDS), idSpec(entry.path(), entry.value()));
+            config.classes(classes);
+            Map<String, List<ParamRef>> methods = new LinkedHashMap<>();
+            for (Entry entry : entries(METHODS)) {
+                methods.put(methodKey(entry.path()), paramRefs(entry.path(), entry.value()));
             }
-            config.ids(ids);
-            Map<String, List<ParamRef>> params = new LinkedHashMap<>();
-            for (Entry entry : entries(METHOD_PARAMS)) {
-                params.put(target(entry.path(), METHOD_PARAMS), paramRefs(entry.path(), entry.value()));
-            }
-            config.params(params);
+            config.methods(methods);
             String frameFormat = value(plus(AUGMENT, "frameFormat"), String.class, "a string");
             if (frameFormat != null) {
                 config.frameFormat(frameFormat);
@@ -478,27 +536,12 @@ public final class AugmentorConfig {
             return type.cast(value);
         }
 
-        private List<String> stringArray(List<String> path) {
-            TomlArray array = value(path, TomlArray.class, "an array of strings, e.g. [\"com.acme.**\"]");
-            if (array == null) {
-                return null;
-            }
-            List<String> strings = new ArrayList<>(array.size());
-            for (Object item : array.toList()) {
-                if (!(item instanceof String text)) {
-                    throw error(path, "'" + name(path) + "' must be an array of strings");
-                }
-                strings.add(text);
-            }
-            return strings;
-        }
-
         private record Entry(List<String> path, Object value) {
         }
 
         /**
-         * The entries of the {@code [instrument.classIds]} or {@code [instrument.methodParams]} table, with their full
-         * key paths. Key paths make quoted ({@code "com.acme.Order"}) and unquoted ({@code com.acme.Order}, i.e. nested
+         * The entries of the {@code [instrument.classes]} or {@code [instrument.methods]} table, with their full key
+         * paths. Key paths make quoted ({@code "com.acme.Order"}) and unquoted ({@code com.acme.Order}, i.e. nested
          * tables) class names equivalent.
          */
         private List<Entry> entries(List<String> table) {
@@ -515,24 +558,37 @@ public final class AugmentorConfig {
             return entries;
         }
 
-        private String target(List<String> path, List<String> table) {
-            String target = String.join(".", path.subList(table.size(), path.size()));
-            boolean classIds = table.equals(CLASS_IDS);
-            if (classIds && target.isEmpty()) {
-                throw error(path, "[" + name(table) + "] keys must name a class, e.g. \"com.acme.Order\"");
-            }
-            int dot = target.lastIndexOf('.');
-            if (!classIds && (dot <= 0 || !CLASS_PART.matcher(target.substring(0, dot)).matches()
-                    || !METHOD_PART.matcher(target.substring(dot + 1)).matches())) {
-                throw error(path, "[" + name(table) + "] keys must name a class and a method, e.g. \"com.acme.OrderService.process\"; "
-                        + "allowed are letters, digits, _, $ and the wildcards * (within a package or name), ** (across packages) and ?");
+        private static String target(List<String> path, List<String> table) {
+            return String.join(".", path.subList(table.size(), path.size()));
+        }
+
+        private String classKey(List<String> path) {
+            String target = target(path, CLASSES);
+            if (!CLASS_PART.matcher(target).matches()) {
+                throw error(path, "[" + name(CLASSES) + "] keys must name a class or a class pattern, e.g. \"com.acme.Order\" or "
+                        + "\"com.acme.**\"; " + ALLOWED_CHARACTERS);
             }
             return target;
         }
 
-        private IdSpec idSpec(List<String> path, Object value) {
+        private String methodKey(List<String> path) {
+            String target = target(path, METHODS);
+            int dot = target.lastIndexOf('.');
+            if (dot <= 0 || !CLASS_PART.matcher(target.substring(0, dot)).matches()
+                    || !METHOD_PART.matcher(target.substring(dot + 1)).matches()) {
+                throw error(path, "[" + name(METHODS) + "] keys must name a class and a method, e.g. \"com.acme.OrderService.process\"; "
+                        + ALLOWED_CHARACTERS);
+            }
+            return target;
+        }
+
+        private IdSpec classSpec(List<String> path, Object value) {
+            if (ANNOTATIONS.equals(value)) {
+                return new IdSpec.Annotations();
+            }
             if (!(value instanceof String text) || !IDENTIFIER.matcher(removeCallSuffix(text)).matches()) {
-                throw error(path, "must be a field name (e.g. \"orderId\") or a method (e.g. \"getOrderId()\"), was " + value);
+                throw error(path, "must be a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\") or \"@\" for the "
+                        + "class's annotations, was " + value);
             }
             String name = removeCallSuffix(text);
             return text.endsWith("()") ? new IdSpec.MethodSpec(name) : new IdSpec.FieldSpec(name);
@@ -546,8 +602,12 @@ public final class AugmentorConfig {
             if ("*".equals(value)) {
                 return List.of(new ParamRef.All());
             }
+            if (ANNOTATIONS.equals(value)) {
+                return List.of(new ParamRef.Annotations());
+            }
             if (!(value instanceof TomlArray array)) {
-                throw error(path, "must be an array of parameter names and indexes, e.g. [\"order\", 2], or \"*\" for all parameters, was " + value);
+                throw error(path, "must be an array of parameter names and indexes, e.g. [\"order\", 2], \"*\" for all parameters, "
+                        + "or \"@\" for the method's annotations, was " + value);
             }
             if (array.size() == 0) {
                 throw error(path, "must list at least one parameter");

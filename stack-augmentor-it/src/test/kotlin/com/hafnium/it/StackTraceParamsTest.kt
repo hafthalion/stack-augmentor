@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
-/** @StackTraceParams, wildcard [instrument.methodParams] entries and maxParams; runs with the agent, see build.gradle.kts. */
+/** @StackTraceParams, wildcard [instrument.methods] entries and maxParams; runs with the agent, see build.gradle.kts. */
 class StackTraceParamsTest {
 
     private fun Throwable.method(index: Int = 0): String = stackTrace[index].methodName
@@ -42,7 +42,7 @@ class StackTraceParamsTest {
     }
 
     @Test
-    fun `class-level annotation outside annotatedClasses is ignored`() {
+    fun `class-level annotation outside the @ entries is ignored`() {
         assertEquals("run", assertThrows<IllegalStateException> { AllParamsOutside().run(1) }.method())
     }
 

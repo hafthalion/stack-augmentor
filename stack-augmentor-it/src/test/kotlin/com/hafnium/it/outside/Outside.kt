@@ -3,8 +3,10 @@ package com.hafnium.it.outside
 import com.hafnium.it.fixtures.Base
 import com.hafnium.stackaugmentor.StackTraceParam
 import com.hafnium.stackaugmentor.StackTraceParams
+import com.thirdparty.SavingsAccount
 
-// Not in the instrument.annotatedClasses packages: their annotations are ignored.
+// No [instrument.classes] entry matches these classes: their annotations are ignored, unless a superclass
+// entry or an [instrument.methods] "@" entry applies.
 
 class DerivedOutside : Base() {
     fun fail(): Nothing = throw IllegalStateException("outside")
@@ -17,4 +19,20 @@ class ParamsOnly {
 @StackTraceParams
 class AllParamsOutside {
     fun run(x: Int): Nothing = throw IllegalStateException("run $x")
+}
+
+/** Its parameter annotations are enabled by an [instrument.methods] "@" entry. */
+class MethodAnnotationsOutside {
+    fun run(@StackTraceParam code: Int): Nothing = throw IllegalStateException("run $code")
+}
+
+/** Its class-level annotation is enabled by an [instrument.methods] "@" entry for all its methods. */
+@StackTraceParams
+class ClassParamsViaMethods {
+    fun run(a: Int, b: String): Nothing = throw IllegalStateException("run $a $b")
+}
+
+/** Gets the receiver id of the [instrument.classes] entry of its superclass. */
+class PremiumAccount(number: String) : SavingsAccount(number) {
+    fun upgrade(): Nothing = throw IllegalStateException("upgrade")
 }

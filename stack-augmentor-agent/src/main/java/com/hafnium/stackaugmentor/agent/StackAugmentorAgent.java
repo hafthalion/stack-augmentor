@@ -2,14 +2,10 @@ package com.hafnium.stackaugmentor.agent;
 
 import com.hafnium.stackaugmentor.runtime.AugmentorConfig;
 import com.hafnium.stackaugmentor.runtime.FrameFormat;
-import com.hafnium.stackaugmentor.runtime.IdSpec;
 import com.hafnium.stackaugmentor.runtime.Log;
-import com.hafnium.stackaugmentor.runtime.ParamRef;
 
 import java.lang.instrument.Instrumentation;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 /**
  * Agent entry point: {@code -javaagent:stack-augmentor-agent.jar[=config=<path>]}.
@@ -20,6 +16,9 @@ import java.util.stream.Collectors;
 public final class StackAugmentorAgent {
 
     private static final AtomicBoolean STARTED = new AtomicBoolean();
+
+    static final String NOTHING_CONFIGURED =
+            "the configuration has no [instrument.classes] or [instrument.methods] entries, so nothing will be augmented";
 
     private StackAugmentorAgent() {
     }
@@ -41,6 +40,9 @@ public final class StackAugmentorAgent {
         FrameFormat format = FrameFormat.create(config);
         Log.setDebug(config.debug());
         logConfiguration(agentArgs, config);
+        if (!config.hasInstrumentEntries()) {
+            Log.warn(NOTHING_CONFIGURED);
+        }
         BridgeInjector.inject(instrumentation);
         Installer.install(instrumentation, config, format);
     }
@@ -51,31 +53,9 @@ public final class StackAugmentorAgent {
         }
         String location = AugmentorConfig.location(agentArgs);
         Log.debug(() -> "configuration: " + (location != null ? location : "none, using the defaults"));
-        List<String> packages = config.annotatedClasses();
-        Log.debug(() -> "instrument.annotatedClasses: " + (packages.isEmpty() ? "all packages" : packages.toString()));
-        String classIds = config.ids().entrySet().stream()
-                .map(entry -> entry.getKey() + "=" + describe(entry.getValue()))
-                .collect(Collectors.joining(", "));
-        Log.debug(() -> "[instrument.classIds]: " + (classIds.isEmpty() ? "none" : classIds));
-        String methodParams = config.params().entrySet().stream()
-                .map(entry -> entry.getKey() + entry.getValue().stream()
-                        .map(StackAugmentorAgent::describe)
-                        .collect(Collectors.joining(", ", "[", "]")))
-                .collect(Collectors.joining(", "));
-        Log.debug(() -> "[instrument.methodParams]: " + (methodParams.isEmpty() ? "none" : methodParams));
+        Log.debug(() -> "[instrument.classes]: " + config.classesDescription());
+        Log.debug(() -> "[instrument.methods]: " + config.methodsDescription());
         Log.debug(() -> "format: " + config.frameFormat() + " / " + config.receiverFormat() + " / " + config.paramsFormat()
                 + ", maxIdLength=" + config.maxIdLength() + ", maxParams=" + config.maxParams());
-    }
-
-    private static String describe(IdSpec spec) {
-        return spec instanceof IdSpec.MethodSpec ? spec.memberName() + "()" : spec.memberName();
-    }
-
-    private static String describe(ParamRef ref) {
-        return switch (ref) {
-            case ParamRef.ByName byName -> byName.name();
-            case ParamRef.ByIndex byIndex -> "#" + byIndex.index();
-            case ParamRef.All all -> "*";
-        };
     }
 }

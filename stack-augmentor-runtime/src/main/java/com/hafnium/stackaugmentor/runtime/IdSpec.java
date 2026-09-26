@@ -1,13 +1,15 @@
 package com.hafnium.stackaugmentor.runtime;
 
-/** Where a receiver id comes from, for classes configured externally. */
+/** The receiver id source an {@code [instrument.classes]} entry names. */
 public sealed interface IdSpec {
-
-    String memberName();
 
     record FieldSpec(String memberName) implements IdSpec {
     }
 
     record MethodSpec(String memberName) implements IdSpec {
+    }
+
+    /** {@code "@"}: the class's {@code @StackTraceId}, {@code @StackTraceParam} and {@code @StackTraceParams} annotations. */
+    record Annotations() implements IdSpec {
     }
 }
