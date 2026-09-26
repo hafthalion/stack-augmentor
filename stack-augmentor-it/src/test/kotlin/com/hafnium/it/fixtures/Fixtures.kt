@@ -7,7 +7,7 @@ class ObjectClass {
     @StackTraceId
     val objectId = "object-1"
 
-    fun objectMethod(@StackTraceId orderId: Int): Nothing = throw Exception("An error has occured")
+    fun objectMethod(@StackTraceId orderId: Int): Nothing = throw Exception("An error has occurred")
 }
 
 class KeyedByMethod {

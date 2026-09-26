@@ -3,7 +3,7 @@
 Shows **which object** (and optionally **which arguments**) each frame of a stack trace was running on, either with a Java agent or by instrumenting your classes at build time:
 
 ```
-Exception in thread "main" java.lang.Exception: An error has occured
+Exception in thread "main" java.lang.Exception: An error has occurred
 	at com.hafnium.ObjectClass{objectId=object-1}.objectMethod{orderId=42}(ObjectClass.kt:10)
 	at com.hafnium.Main.main(Main.kt:15)
 ```
