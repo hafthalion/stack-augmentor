@@ -73,16 +73,20 @@ public final class ThrowHandler implements Dispatch.Handler {
 
         NamedId receiverId = self != null ? resolver.receiverId(self) : null;
         List<NamedId> paramIds = new ArrayList<>();
+        int omitted = 0;
         if (paramValues != null && paramNames != null) {
-            for (int i = 0; i < paramNames.length; i++) {
+            // Only the parameters that will be shown are resolved: an id source or toString() may be expensive.
+            int shown = Math.min(paramNames.length, format.maxParams());
+            for (int i = 0; i < shown; i++) {
                 paramIds.add(new NamedId(paramNames[i], resolver.paramId(paramValues[i])));
             }
+            omitted = paramNames.length - shown;
         }
         if (receiverId == null && paramIds.isEmpty()) {
             return;
         }
 
-        trace[index] = format.rewrite(trace[index], receiverId, paramIds);
+        trace[index] = format.rewrite(trace[index], receiverId, paramIds, omitted);
         thrown.setStackTrace(trace); // no effect if the throwable's stack trace is not writable
     }
 

@@ -1,6 +1,8 @@
 package com.hafnium
 
 import com.hafnium.stackaugmentor.StackTraceId
+import com.hafnium.stackaugmentor.StackTraceParam
+import com.hafnium.stackaugmentor.StackTraceParams
 
 data class ObjectParam(
     @StackTraceId
@@ -15,7 +17,13 @@ data class ClassWithAnnotation(
         throw Exception("An error has occurred")
     }
 
-    fun method(@StackTraceId param: ObjectParam) {
+    fun method(@StackTraceParam param: ObjectParam) {
+        error()
+    }
+
+    /** All parameters are shown. */
+    @StackTraceParams
+    fun transfer(from: String, to: String, amount: Long) {
         error()
     }
 }

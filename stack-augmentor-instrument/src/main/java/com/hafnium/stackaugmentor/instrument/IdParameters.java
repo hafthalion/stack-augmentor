@@ -29,8 +29,16 @@ public final class IdParameters {
         ParameterList<?> parameters = method.getParameters();
         TreeMap<Integer, String> labels = new TreeMap<>();
         if (config.honoursAnnotations(type.getName())) {
+            // @StackTraceParams on the method, or on the class declaring it: all parameters.
+            if (annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null
+                    || annotation(type.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null) {
+                for (ParameterDescription parameter : parameters) {
+                    labels.put(parameter.getIndex(), parameter.getName());
+                }
+            }
+            // @StackTraceParam: this parameter, with its label.
             for (ParameterDescription parameter : parameters) {
-                AnnotationDescription annotation = idAnnotation(parameter.getDeclaredAnnotations());
+                AnnotationDescription annotation = annotation(parameter.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAM);
                 if (annotation == null) {
                     continue;
                 }
@@ -39,12 +47,23 @@ public final class IdParameters {
             }
         }
         for (ParamRef ref : config.paramRefs(type.getName(), method.getInternalName())) {
-            ParameterDescription parameter = switch (ref) {
-                case ParamRef.ByName byName -> named(parameters, byName.name());
-                case ParamRef.ByIndex byIndex -> byIndex.index() < parameters.size() ? parameters.get(byIndex.index()) : null;
-            };
-            if (parameter != null) {
-                labels.putIfAbsent(parameter.getIndex(), parameter.getName());
+            switch (ref) {
+                case ParamRef.All all -> {
+                    for (ParameterDescription parameter : parameters) {
+                        labels.putIfAbsent(parameter.getIndex(), parameter.getName());
+                    }
+                }
+                case ParamRef.ByName byName -> {
+                    ParameterDescription parameter = named(parameters, byName.name());
+                    if (parameter != null) {
+                        labels.putIfAbsent(parameter.getIndex(), parameter.getName());
+                    }
+                }
+                case ParamRef.ByIndex byIndex -> {
+                    if (byIndex.index() < parameters.size()) {
+                        labels.putIfAbsent(byIndex.index(), parameters.get(byIndex.index()).getName());
+                    }
+                }
             }
         }
         // Without the MethodParameters attribute, ByteBuddy names parameters arg0, arg1, ...
@@ -55,11 +74,17 @@ public final class IdParameters {
         return selected;
     }
 
-    /** Debug messages for {@code [instrument.methodParams]} entries of this type that match no method or parameter. */
+    /**
+     * Debug messages for {@code [instrument.methodParams]} entries of this type that match no method or parameter.
+     * Entries with wildcards are skipped: they are expected not to fit every class and method they match.
+     */
     public List<String> unmatchedEntries(TypeDescription type) {
         List<String> messages = new ArrayList<>();
         for (Map.Entry<String, List<ParamRef>> params : config.params().entrySet()) {
             String target = params.getKey();
+            if (AugmentorConfig.isPattern(target)) {
+                continue;
+            }
             int dot = target.lastIndexOf('.');
             if (!(dot >= 0 ? target.substring(0, dot) : target).equals(type.getName())) {
                 continue;
@@ -83,6 +108,8 @@ public final class IdParameters {
                         .collect(Collectors.joining(", ")) + ")";
                 for (ParamRef ref : params.getValue()) {
                     switch (ref) {
+                        case ParamRef.All all -> {
+                        }
                         case ParamRef.ByIndex byIndex -> {
                             if (byIndex.index() >= parameters.size()) {
                                 messages.add(entry + ": no parameter #" + byIndex.index() + " in " + signature);
@@ -124,9 +151,10 @@ public final class IdParameters {
         }
     }
 
-    static AnnotationDescription idAnnotation(AnnotationList annotations) {
+    /** The annotation with this class name, matched by name because the application may load its own copy of the API. */
+    static AnnotationDescription annotation(AnnotationList annotations, String name) {
         for (AnnotationDescription annotation : annotations) {
-            if (annotation.getAnnotationType().getName().equals(IdResolver.STACK_TRACE_ID)) {
+            if (annotation.getAnnotationType().getName().equals(name)) {
                 return annotation;
             }
         }

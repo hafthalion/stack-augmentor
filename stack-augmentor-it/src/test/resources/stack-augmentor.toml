@@ -8,6 +8,14 @@ annotatedClasses = ["com.hafnium.it.fixtures.**"]
 
 [instrument.methodParams]
 "com.thirdparty.OrderService.process" = ["order", 1]
+# Wildcards: combined with the entry above, and across packages
+"com.thirdparty.OrderService.*" = [2]
+"com.thirdparty.Inventory*.*" = "*"
+"com.thirdparty.**.*Repository.find*" = [0]
+# Matches JDK classes, which the agent never instruments
+"java.**.*" = "*"
+# Selects the parameter that is also annotated
+"com.hafnium.it.fixtures.Overlap.op" = ["x", "y"]
 
 [augment]
 maxIdLength = 20

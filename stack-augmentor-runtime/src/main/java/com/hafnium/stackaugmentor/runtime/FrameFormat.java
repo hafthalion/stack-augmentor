@@ -15,22 +15,46 @@ public final class FrameFormat {
     private static final List<String> ID_PLACEHOLDERS = List.of("name", "id");
     private static final String REPEAT = "...";
     private static final String DEFAULT_SEPARATOR = ",";
+    /** The last item of a parameter list that was cut at maxParams. */
+    private static final String OMITTED = "…";
 
     private final List<Token> declaringClassPart;
     private final List<Token> methodPart;
     private final List<Token> receiver;
     private final ParamsTemplate params;
+    private final int maxParams;
 
-    private FrameFormat(List<Token> declaringClassPart, List<Token> methodPart, List<Token> receiver, ParamsTemplate params) {
+    private FrameFormat(List<Token> declaringClassPart, List<Token> methodPart, List<Token> receiver, ParamsTemplate params,
+                        int maxParams) {
         this.declaringClassPart = declaringClassPart;
         this.methodPart = methodPart;
         this.receiver = receiver;
         this.params = params;
+        this.maxParams = maxParams;
     }
 
-    /** A replacement element whose {@code toString()} shows the ids. */
+    /** The most parameter ids shown per frame. */
+    public int maxParams() {
+        return maxParams;
+    }
+
+    /**
+     * A replacement element whose {@code toString()} shows the ids. Of the parameter ids, the first {@link #maxParams()}
+     * are shown, followed by {@code …} if there are more.
+     */
     public StackTraceElement rewrite(StackTraceElement element, NamedId receiverId, List<NamedId> paramIds) {
-        UnaryOperator<String> values = values(element, receiverId, paramIds);
+        if (paramIds.size() > maxParams) {
+            return rewrite(element, receiverId, paramIds.subList(0, maxParams), paramIds.size() - maxParams);
+        }
+        return rewrite(element, receiverId, paramIds, 0);
+    }
+
+    /**
+     * A replacement element whose {@code toString()} shows the ids, for parameter ids already cut to {@link #maxParams()}:
+     * {@code omitted} is the number of parameters left out, shown as {@code …}.
+     */
+    public StackTraceElement rewrite(StackTraceElement element, NamedId receiverId, List<NamedId> paramIds, int omitted) {
+        UnaryOperator<String> values = values(element, receiverId, paramIds, omitted);
         String declaringClass = render(declaringClassPart, values);
         String method = render(methodPart, values);
         String prefix = prefixOf(element);
@@ -44,13 +68,13 @@ public final class FrameFormat {
         return new StackTraceElement(loader, module, version, declaringClass, method, element.getFileName(), element.getLineNumber());
     }
 
-    private UnaryOperator<String> values(StackTraceElement element, NamedId receiverId, List<NamedId> paramIds) {
+    private UnaryOperator<String> values(StackTraceElement element, NamedId receiverId, List<NamedId> paramIds, int omitted) {
         return name -> switch (name) {
             case "class" -> element.getClassName();
             case "simpleClass" -> element.getClassName().substring(element.getClassName().lastIndexOf('.') + 1);
             case "method" -> element.getMethodName();
             case "receiver" -> receiverId != null ? render(receiver, values(receiverId)) : "";
-            case "params" -> params.render(paramIds);
+            case "params" -> params.render(paramIds, omitted);
             default -> throw new IllegalStateException("unexpected placeholder " + name);
         };
     }
@@ -66,21 +90,30 @@ public final class FrameFormat {
 
     private record ParamsTemplate(String prefix, List<Token> item, String separator, String suffix) {
 
-        String render(List<NamedId> ids) {
-            if (ids.isEmpty()) {
+        String render(List<NamedId> ids, int omitted) {
+            if (ids.isEmpty() && omitted == 0) {
                 return "";
             }
-            return ids.stream()
-                    .map(id -> FrameFormat.render(item, values(id)))
-                    .collect(Collectors.joining(separator, prefix, suffix));
+            List<String> items = new ArrayList<>(ids.size() + 1);
+            for (NamedId id : ids) {
+                items.add(FrameFormat.render(item, values(id)));
+            }
+            if (omitted > 0) {
+                items.add(OMITTED);
+            }
+            return prefix + String.join(separator, items) + suffix;
         }
     }
 
     public static FrameFormat create(AugmentorConfig config) {
-        return create(config.frameFormat(), config.receiverFormat(), config.paramsFormat());
+        return create(config.frameFormat(), config.receiverFormat(), config.paramsFormat(), config.maxParams());
     }
 
     public static FrameFormat create(String frameFormat, String receiverFormat, String paramsFormat) {
+        return create(frameFormat, receiverFormat, paramsFormat, AugmentorConfig.DEFAULT_MAX_PARAMS);
+    }
+
+    public static FrameFormat create(String frameFormat, String receiverFormat, String paramsFormat, int maxParams) {
         // The JDK prints declaringClass + "." + methodName, so the template is split at ".{method}".
         int split = frameFormat.indexOf(".{method}");
         if (split < 0 || frameFormat.indexOf("{method}") != split + 1 || frameFormat.lastIndexOf("{method}") != split + 1) {
@@ -91,7 +124,7 @@ public final class FrameFormat {
         List<Token> declaringClassPart = parse(frameFormat.substring(0, split), FRAME_PLACEHOLDERS, "frameFormat");
         List<Token> methodPart = parse(frameFormat.substring(split + 1), FRAME_PLACEHOLDERS, "frameFormat");
         List<Token> receiver = parseIdTemplate(receiverFormat, "receiverFormat");
-        return new FrameFormat(declaringClassPart, methodPart, receiver, parseParams(paramsFormat));
+        return new FrameFormat(declaringClassPart, methodPart, receiver, parseParams(paramsFormat), maxParams);
     }
 
     private static ParamsTemplate parseParams(String template) {

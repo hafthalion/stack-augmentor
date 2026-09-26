@@ -124,7 +124,8 @@ class StackTraceIdsTest {
     fun `external configuration for classes you cannot annotate`() {
         val service = assertThrows<IllegalStateException> { OrderService().process(Order(4711), 3, "rush") }
         assertEquals("com.thirdparty.OrderService", service.stackTrace[0].className)
-        assertEquals("process{order=4711, quantity=3}", service.stackTrace[0].methodName)
+        // "process" selects order and #1; the wildcard entry "com.thirdparty.OrderService.*" adds #2.
+        assertEquals("process{order=4711, quantity=3, note=rush}", service.stackTrace[0].methodName)
 
         val customer = assertThrows<IllegalStateException> { Customer("c-9").rename() }
         assertEquals("com.thirdparty.Customer{customerId=c-9}", customer.stackTrace[0].className)

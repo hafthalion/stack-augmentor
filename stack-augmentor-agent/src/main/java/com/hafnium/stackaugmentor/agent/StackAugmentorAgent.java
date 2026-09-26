@@ -64,7 +64,7 @@ public final class StackAugmentorAgent {
                 .collect(Collectors.joining(", "));
         Log.debug(() -> "[instrument.methodParams]: " + (methodParams.isEmpty() ? "none" : methodParams));
         Log.debug(() -> "format: " + config.frameFormat() + " / " + config.receiverFormat() + " / " + config.paramsFormat()
-                + ", maxIdLength=" + config.maxIdLength());
+                + ", maxIdLength=" + config.maxIdLength() + ", maxParams=" + config.maxParams());
     }
 
     private static String describe(IdSpec spec) {
@@ -75,6 +75,7 @@ public final class StackAugmentorAgent {
         return switch (ref) {
             case ParamRef.ByName byName -> byName.name();
             case ParamRef.ByIndex byIndex -> "#" + byIndex.index();
+            case ParamRef.All all -> "*";
         };
     }
 }

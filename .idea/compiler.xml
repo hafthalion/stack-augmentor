@@ -8,8 +8,10 @@
       <module name="stack-augmentor.stack-augmentor-agent.main" options="-parameters" />
       <module name="stack-augmentor.stack-augmentor-api.main" options="-parameters" />
       <module name="stack-augmentor.stack-augmentor-build-plugin.main" options="-parameters" />
+      <module name="stack-augmentor.stack-augmentor-instrument" options="-parameters" />
       <module name="stack-augmentor.stack-augmentor-instrument-bridge.main" options="-parameters" />
       <module name="stack-augmentor.stack-augmentor-instrument.main" options="-parameters" />
+      <module name="stack-augmentor.stack-augmentor-instrument.test" options="-parameters" />
       <module name="stack-augmentor.stack-augmentor-runtime.main" options="-parameters" />
     </option>
   </component>
