@@ -18,7 +18,7 @@ It works for Java and Kotlin classes. The library is written in Java, so it does
 |---|---|---|
 | How | `-javaagent:stack-augmentor-agent.jar` at startup | The ByteBuddy Gradle plugin changes your compiled classes |
 | Classes | Your classes and libraries | Only the classes of the project being built |
-| `[instrument.classIds]` / `[instrument.methodParams]` (third-party classes) | Yes | No |
+| `[instrument.classes]` / `[instrument.methods]` for third-party classes | Yes | No |
 | At runtime | The agent jar (self-contained) | `stack-augmentor-runtime` on the classpath (with tomlj; no ByteBuddy, no Kotlin) |
 | Example | `./gradlew :examples:java-agent:run` | `./gradlew :examples:build-time:run` |
 
@@ -58,13 +58,20 @@ Use it in your own application:
    }
    ```
 
-2. Start the JVM with the agent (`./gradlew :stack-augmentor-agent:shadowJar` builds it):
+2. Say which classes use their annotations, in `stack-augmentor.toml` (see [Configuration](#configuration)):
+
+   ```toml
+   [instrument.classes]
+   "com.acme.**" = "@"
+   ```
+
+3. Start the JVM with the agent (`./gradlew :stack-augmentor-agent:shadowJar` builds it):
 
    ```
    java -javaagent:stack-augmentor-agent-<version>.jar=config=stack-augmentor.toml -jar app.jar
    ```
 
-   `-Dstackaugmentor.config=<path>` works as well. The configuration is a TOML file (see [Configuration](#configuration)). Without a configuration, annotated classes in any package are instrumented.
+   `-Dstackaugmentor.config=<path>` works as well. Without a configuration, or without `[instrument.classes]` and `[instrument.methods]` entries, nothing is augmented, and the agent prints a warning.
 
 ## Quick start: build-time instrumentation
 
@@ -93,7 +100,7 @@ byteBuddy {
     entryPoint = EntryPoint.Default.DECORATE   // only add advice, keep the methods as they are
     transformation {
         pluginName = "com.hafnium.stackaugmentor.build.StackAugmentorByteBuddyPlugin"
-        argument { value = stackAugmentorConfig.asFile.absolutePath }   // optional: the [instrument] section
+        argument { value = stackAugmentorConfig.asFile.absolutePath }   // required: its [instrument] section
     }
 }
 
@@ -103,18 +110,18 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 }
 ```
 
-After compiling, the ByteBuddy Gradle plugin applies `StackAugmentorByteBuddyPlugin` to the project's classes that use `@StackTraceId`, `@StackTraceParam` or `@StackTraceParams` (Java and Kotlin), limited to `[instrument] annotatedClasses` of the given configuration. No agent is needed at runtime: the application needs only `stack-augmentor-api` and `stack-augmentor-runtime`, which bring the bridge and tomlj, but neither ByteBuddy nor the Kotlin runtime. Libraries are not changed, so `[instrument.classIds]` and `[instrument.methodParams]` don't apply here.
+After compiling, the ByteBuddy Gradle plugin applies `StackAugmentorByteBuddyPlugin` to the project's classes (Java and Kotlin), choosing classes and methods with the `[instrument.classes]` and `[instrument.methods]` entries of the given configuration, as the agent does (e.g. `"com.acme.**" = "@"`). Without the configuration argument, nothing is instrumented and the build prints a warning. No agent is needed at runtime: the application needs only `stack-augmentor-api` and `stack-augmentor-runtime`, which bring the bridge and tomlj, but neither ByteBuddy nor the Kotlin runtime. Libraries are not changed, so entries for third-party classes don't apply here.
 
-With the configuration in `src/main/resources`, one file serves both phases: the build plugin reads `[instrument]`, and at runtime `[augment]` and `debug` are read from `stack-augmentor.toml` on the classpath (or from `-Dstackaugmentor.config=<file>`).
+With the configuration in `src/main/resources`, one file serves both phases: the build plugin reads `[instrument]`, and at runtime `[instrument.classes]` (for receiver ids), `[augment]` and `debug` are read from `stack-augmentor.toml` on the classpath (or from `-Dstackaugmentor.config=<file>`). At runtime, a class without a matching `[instrument.classes]` entry uses its annotations, because the build plugin already chose what to instrument; so a missing runtime configuration doesn't lose receiver ids.
 
 ## Where ids come from
 
-**Receiver id**: the object a frame runs on. It is looked up in this order, including superclasses:
+**Receiver id**: the object a frame runs on. It comes from the class's deciding `[instrument.classes]` entry: that of the first class up the superclass chain that an entry matches, so an entry also applies to subclasses. The entry names:
 
-1. External configuration: an entry in the `[instrument.classIds]` table, naming a field or a `method()`.
-2. `@StackTraceId` on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`, in a class matched by `annotatedClasses`.
+- a field, or a no-argument `method()`, looked up in that class and its superclasses; or
+- `"@"`: the `@StackTraceId` on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`.
 
-A class with neither gets no receiver id.
+When several entries match a class, the most specific one decides: an exact class name beats any pattern, and among patterns the one with the most characters other than `*` and `?` wins. So `"com.acme.Order" = "getId()"` overrides `"com.acme.**" = "@"` for `Order`. A class without a deciding entry, or without the member it names, gets no receiver id.
 
 The label is the real field or method name (`{objectId=…}`, `{getKey=…}`). `@StackTraceId(name = "…")` sets a different label.
 
@@ -122,13 +129,21 @@ The label is the real field or method name (`{objectId=…}`, `{getKey=…}`). `
 - it is annotated with `@StackTraceParam`;
 - its method is annotated with `@StackTraceParams` (all parameters of that method);
 - its class is annotated with `@StackTraceParams` (all parameters of every method declared in that class; not of subclasses or nested classes);
-- or an `[instrument.methodParams]` entry selects it, by name, by 0-based index, or with `"*"` for all parameters (see [Configuration](#configuration)).
+- or an `[instrument.methods]` entry selects it, by name, by 0-based index, or with `"*"` for all parameters (see [Configuration](#configuration)).
 
-Annotations count only in classes matched by `annotatedClasses`. At most `maxParams` parameter ids (default 8) are shown per frame; if there are more, the list ends with `…`, e.g. `process{a=1, b=2, …}`. The others are not even converted to text.
+The parameter annotations count in classes whose deciding `[instrument.classes]` entry is `"@"`, and in methods matched by an `[instrument.methods]` entry with the value `"@"`. The latter lets a class take its receiver id from an explicit entry and still use its parameter annotations:
 
-The label is the parameter name, or `@StackTraceParam(name = "…")`.
+```toml
+[instrument.classes]
+"com.acme.Order" = "getId()"
 
-> **Upgrading:** `@StackTraceId` no longer applies to parameters. Replace `@StackTraceId` on a parameter with `@StackTraceParam` (keeping any `name`); the compiler reports every place that needs it. Classes compiled against the old annotation show no id for such parameters until they are recompiled. Configuration files need no changes. That needs the `MethodParameters` attribute (`javac -parameters`, Kotlin `javaParameters = true`); without it, the label is `arg<N>`. An argument whose class has a receiver id source is shown by that id, e.g. `order=4711`. Anything else is shown with `toString()`.
+[instrument.methods]
+"com.acme.Order.*" = "@"
+```
+
+At most `maxParams` parameter ids (default 8) are shown per frame; if there are more, the list ends with `…`, e.g. `process{a=1, b=2, …}`. The others are not even converted to text.
+
+The label is the parameter name, or `@StackTraceParam(name = "…")`. That needs the `MethodParameters` attribute (`javac -parameters`, Kotlin `javaParameters = true`); without it, the label is `arg<N>`. An argument whose class has a receiver id source is shown by that id, e.g. `order=4711`. Anything else is shown with `toString()`.
 
 All ids become Strings when they are captured. Line breaks are replaced, the length is capped at `maxIdLength`, and an id source that throws shows `?`.
 
@@ -142,24 +157,25 @@ The configuration is a TOML file (ending in `.toml`). `[instrument]` decides wha
 debug = false
 
 # What gets instrumented: read by the agent when classes load, or by the build plugin at build time.
-[instrument]
-# Packages whose @StackTraceId, @StackTraceParam and @StackTraceParams annotations are used.
-# Empty or missing: all packages. Classes without annotations are never augmented.
-# '*' matches within one package, '**' across packages.
-annotatedClasses = ["com.hafnium.**", "com.acme.orders.*"]
+# Keys may use wildcards: '*' within one package (or name), '**' across packages, '?' one character.
 
-# Receiver ids for classes you cannot annotate (agent only): a field, or a no-argument method ending in "()"
-[instrument.classIds]
+# Receiver ids: "@" for the classes' @StackTraceId, @StackTraceParam and @StackTraceParams annotations
+# (without an "@" entry, no annotations are used), or, for classes you cannot annotate, a field or a
+# no-argument method ending in "()". An entry applies to subclasses too; the most specific entry wins.
+[instrument.classes]
+"com.hafnium.**" = "@"
+"com.acme.orders.*" = "@"
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"
+"com.thirdparty.**.*Account" = "number"
 
-# Parameter ids for methods you cannot annotate (agent only): "<class>.<method>" = parameter names and 0-based
-# indexes, or "*" for all parameters. Keys may use wildcards: in the class, '*' within one package, '**' across
-# packages, '?' one character; in the method, '*' and '?'. Entries that match the same method are combined.
-[instrument.methodParams]
+# Parameter ids: "<class>.<method>" = parameter names and 0-based indexes, "*" for all parameters, or "@" for
+# the method's @StackTraceParam and @StackTraceParams annotations. Entries that match the same method are combined.
+[instrument.methods]
 "com.thirdparty.OrderService.process" = ["order", 2]
 "com.thirdparty.InventoryService.*" = "*"             # all methods of a class
 "com.thirdparty.**.*Repository.find*" = [0]          # across packages
+"com.acme.legacy.Order.*" = "@"                      # annotations of methods whose class has no "@" entry
 
 # How frames look: read at runtime, in both modes (these are the defaults).
 [augment]
@@ -170,9 +186,21 @@ maxIdLength = 64
 maxParams = 8        # at most this many parameter ids per frame, then "…"
 ```
 
-Quote class names in `[instrument.classIds]` and `[instrument.methodParams]`. Without quotes, TOML treats each `.` as a nested table; the agent accepts that too, but the quoted form is the clear one. Keys with wildcards must be quoted. Broad wildcards such as `"com.**.*" = "*"` make the agent instrument many classes, which costs time when they are loaded; `debug = true` lists every instrumented class. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.
+Quote class names in `[instrument.classes]` and `[instrument.methods]`. Without quotes, TOML treats each `.` as a nested table; the agent accepts that too, but the quoted form is the clear one. Keys with wildcards must be quoted. Broad wildcards such as `"com.**.*" = "*"` make the agent instrument many classes, which costs time when they are loaded; `debug = true` lists every instrumented class, and the annotations it ignores. A missing field or method is a warning for exact class names, and only a debug message for patterns. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.
 
 An invalid configuration stops the JVM (or the build) at startup. The message names the key and its line, e.g. `stack-augmentor.toml, line 3: maxIdLength must be between 2 and 10000, was 1`. Unknown keys are rejected, so a typo doesn't go unnoticed.
+
+### Upgrading from earlier versions
+
+| Before | Now |
+|---|---|
+| `[instrument] annotatedClasses = ["com.acme.**"]` | `[instrument.classes]` `"com.acme.**" = "@"` (one entry per pattern) |
+| `annotatedClasses` empty or missing (all packages) | `"**" = "@"`: without an `"@"` entry, no annotations are used |
+| `[instrument.classIds]` | `[instrument.classes]` (now also with wildcards) |
+| `[instrument.methodParams]` | `[instrument.methods]` |
+| `@StackTraceId` on a parameter | `@StackTraceParam` (keeping any `name`); the compiler reports every place |
+
+The old keys are rejected with an "unknown key" error. Classes compiled against the old `@StackTraceId` on parameters show no id for such parameters until they are recompiled.
 
 ### Formats
 

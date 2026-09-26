@@ -14,16 +14,15 @@ import net.bytebuddy.dynamic.DynamicType;
 import net.bytebuddy.matcher.ElementMatcher;
 
 import java.nio.file.Path;
-import java.util.List;
 
 /**
  * Adds the exit advice to the compiled classes of a project at build time, so no Java agent is needed.
- * Only classes that use {@code @StackTraceId} are changed; libraries are left alone.
+ * Only the project's classes are changed; libraries are left alone.
  * At runtime, the application needs {@code stack-augmentor-runtime} on its classpath.
  *
- * <p>Without arguments (e.g. when discovered through {@code META-INF/net.bytebuddy/build.plugins}), every class
- * using {@code @StackTraceId} is instrumented. With the path of a TOML configuration as argument 0, its
- * {@code [instrument] annotatedClasses} limits the packages, and {@code debug} logs what gets instrumented.
+ * <p>Argument 0 is the path of a TOML configuration: its {@code [instrument.classes]} and {@code [instrument.methods]}
+ * entries choose the classes and methods, as with the agent, and {@code debug} logs what gets instrumented. Without
+ * it (e.g. when discovered through {@code META-INF/net.bytebuddy/build.plugins}), nothing is instrumented.
  */
 public final class StackAugmentorByteBuddyPlugin implements Plugin {
 
@@ -44,8 +43,12 @@ public final class StackAugmentorByteBuddyPlugin implements Plugin {
         this.matching = new TypeMatching(config, parameters);
         this.advice = ExitAdviceFactory.create(parameters);
         Log.setDebug(config.debug());
-        List<String> packages = config.annotatedClasses();
-        Log.debug(() -> "build plugin, instrument.annotatedClasses: " + (packages.isEmpty() ? "all packages" : packages.toString()));
+        if (!config.hasInstrumentEntries()) {
+            Log.warn("build plugin: the configuration has no [instrument.classes] or [instrument.methods] entries, "
+                    + "so nothing will be augmented");
+        }
+        Log.debug(() -> "build plugin, [instrument.classes]: " + config.classesDescription()
+                + ", [instrument.methods]: " + config.methodsDescription());
     }
 
     @Override

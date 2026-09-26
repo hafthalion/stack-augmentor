@@ -2,6 +2,7 @@ package com.hafnium.stackaugmentor.runtime
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -21,6 +22,8 @@ class AugmentorConfigTest {
         assertEquals("{class}{receiver}.{method}{params}", AugmentorConfig().frameFormat())
         assertEquals("{\$name=\$id}", AugmentorConfig().receiverFormat())
         assertEquals("{\$name=\$id, ...}", AugmentorConfig().paramsFormat())
+        assertFalse(AugmentorConfig().hasInstrumentEntries())
+        assertNull(AugmentorConfig().classEntry("any.pkg.Class"))
     }
 
     @Test
@@ -29,15 +32,14 @@ class AugmentorConfigTest {
             """
             debug = true
 
-            [instrument]
-            annotatedClasses = ["com.hafnium.**", "com.acme.orders.*"]
-
-            [instrument.classIds]
+            [instrument.classes]
+            "com.hafnium.**" = "@"
             "com.thirdparty.Order" = "getOrderNumber()"
             "com.thirdparty.Customer" = "customerId"
 
-            [instrument.methodParams]
+            [instrument.methods]
             "com.thirdparty.OrderService.process" = ["orderId", 2]
+            "com.hafnium.Legacy.*" = "@"
 
             [augment]
             frameFormat = "{class}.{method}{receiver}{params}"
@@ -49,14 +51,19 @@ class AugmentorConfigTest {
         )
         assertEquals(
             AugmentorConfig.builder()
-                .annotatedClasses(listOf("com.hafnium.**", "com.acme.orders.*"))
-                .ids(
+                .classes(
                     mapOf(
+                        "com.hafnium.**" to IdSpec.Annotations(),
                         "com.thirdparty.Order" to IdSpec.MethodSpec("getOrderNumber"),
                         "com.thirdparty.Customer" to IdSpec.FieldSpec("customerId"),
                     ),
                 )
-                .params(mapOf("com.thirdparty.OrderService.process" to listOf(ParamRef.ByName("orderId"), ParamRef.ByIndex(2))))
+                .methods(
+                    mapOf(
+                        "com.thirdparty.OrderService.process" to listOf(ParamRef.ByName("orderId"), ParamRef.ByIndex(2)),
+                        "com.hafnium.Legacy.*" to listOf(ParamRef.Annotations()),
+                    ),
+                )
                 .frameFormat("{class}.{method}{receiver}{params}")
                 .receiverFormat("<\$id>")
                 .paramsFormat("(\$name: \$id; ...)")
@@ -67,38 +74,40 @@ class AugmentorConfigTest {
             config,
         )
         assertEquals(listOf(ParamRef.ByName("orderId"), ParamRef.ByIndex(2)), config.paramRefs("com.thirdparty.OrderService", "process"))
-        assertTrue(config.hasParamEntries("com.thirdparty.OrderService"))
+        assertEquals(listOf(ParamRef.Annotations()), config.paramRefs("com.hafnium.Legacy", "run"))
+        assertTrue(config.hasMethodEntries("com.thirdparty.OrderService"))
+        assertTrue(config.hasInstrumentEntries())
     }
 
     @Test
     fun `dotted keys and inline tables are the same as sections`() {
         val sections = parse(
             """
-            [instrument]
-            annotatedClasses = ["com.acme.**"]
+            [instrument.classes]
+            "com.acme.**" = "@"
             [augment]
             maxIdLength = 20
             """,
         )
-        assertEquals(sections, parse("instrument.annotatedClasses = [\"com.acme.**\"]\naugment.maxIdLength = 20"))
-        assertEquals(sections, parse("instrument = { annotatedClasses = [\"com.acme.**\"] }\naugment = { maxIdLength = 20 }"))
+        assertEquals(sections, parse("instrument.classes.\"com.acme.**\" = \"@\"\naugment.maxIdLength = 20"))
+        assertEquals(sections, parse("instrument = { classes = { \"com.acme.**\" = \"@\" } }\naugment = { maxIdLength = 20 }"))
     }
 
     @Test
     fun `unquoted class names are the same as quoted ones`() {
         val quoted = parse(
             """
-            [instrument.classIds]
+            [instrument.classes]
             "com.acme.Order" = "orderId"
-            [instrument.methodParams]
+            [instrument.methods]
             "com.acme.OrderService.process" = ["order"]
             """,
         )
         val unquoted = parse(
             """
-            [instrument.classIds]
+            [instrument.classes]
             com.acme.Order = "orderId"
-            [instrument.methodParams]
+            [instrument.methods]
             com.acme.OrderService.process = ["order"]
             """,
         )
@@ -106,18 +115,38 @@ class AugmentorConfigTest {
     }
 
     @Test
-    fun `annotatedClasses globs`() {
-        val config = parse("""instrument.annotatedClasses = ["com.hafnium.**", "com.acme.orders.*", "com.acme.Order?"]""")
-        assertTrue(config.honoursAnnotations("com.hafnium.ObjectClass"))
-        assertTrue(config.honoursAnnotations("com.hafnium.deep.pkg.ObjectClass\$Inner"))
-        assertTrue(config.honoursAnnotations("com.acme.orders.Order"))
-        assertFalse(config.honoursAnnotations("com.acme.orders.sub.Order"))
-        assertTrue(config.honoursAnnotations("com.acme.Orders"))
-        assertFalse(config.honoursAnnotations("com.hafniumx.Other"))
-        assertFalse(config.honoursAnnotations("comXhafnium.Other"))
+    fun `class entries and their specificity`() {
+        val config = parse(
+            """
+            [instrument.classes]
+            "com.hafnium.**" = "@"
+            "com.acme.**" = "@"
+            "com.acme.legacy.*" = "getKey()"
+            "com.acme.Order" = "orderId"
+            "com.acme.Order?" = "number"
+            "com.tie.a*" = "first"
+            "com.tie.*b" = "second"
+            """,
+        )
+        val annotations = IdSpec.Annotations()
+        fun spec(className: String) = config.classEntry(className)?.spec()
 
-        // Empty (the default): annotations are honoured in every package.
-        assertTrue(AugmentorConfig().honoursAnnotations("any.pkg.Class"))
+        assertEquals(annotations, spec("com.hafnium.ObjectClass"))
+        assertEquals(annotations, spec("com.hafnium.deep.pkg.ObjectClass\$Inner"))
+        assertNull(spec("com.hafniumx.Other"))
+        assertNull(spec("comXhafnium.Other"))
+        // Longer patterns are more specific: '*' stays within one package segment.
+        assertEquals(IdSpec.MethodSpec("getKey"), spec("com.acme.legacy.Thing"))
+        assertEquals(annotations, spec("com.acme.legacy.sub.Thing"))
+        // An exact name beats every pattern.
+        assertEquals(IdSpec.FieldSpec("orderId"), spec("com.acme.Order"))
+        assertEquals(IdSpec.FieldSpec("number"), spec("com.acme.Orders"))
+        // Equally specific patterns: the alphabetically first key.
+        assertEquals("com.tie.*b", config.classEntry("com.tie.ab")!!.key())
+        assertTrue(config.classEntry("com.tie.ab")!!.isPattern())
+        assertFalse(config.classEntry("com.acme.Order")!!.isPattern())
+
+        assertEquals(annotations, parse("instrument.classes.\"**\" = \"@\"").classEntry("any.pkg.Class")?.spec())
     }
 
     @Test
@@ -135,11 +164,9 @@ class AugmentorConfigTest {
         )
         assertTrue(error("augment.maxIdLength = \"64\"").contains("'augment.maxIdLength' must be an integer"))
         assertTrue(error("augment.maxIdLength = 1.5").contains("'augment.maxIdLength' must be an integer"))
-        assertTrue(error("instrument.annotatedClasses = \"com.acme.**\"").contains("'instrument.annotatedClasses' must be an array of strings"))
-        assertTrue(error("instrument.annotatedClasses = [1, 2]").contains("'instrument.annotatedClasses' must be an array of strings"))
         assertTrue(error("debug = \"yes\"").contains("'debug' must be true or false"))
         assertTrue(error("instrument = \"x\"").contains("'instrument' must be a table"))
-        assertTrue(error("[instrument]\nclassIds = \"x\"").contains("'instrument.classIds' must be a table"))
+        assertTrue(error("[instrument]\nclasses = \"x\"").contains("'instrument.classes' must be a table"))
     }
 
     @Test
@@ -148,7 +175,6 @@ class AugmentorConfigTest {
             "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams",
             error("[augment]\nframe = \"{class}.{method}\""),
         )
-        assertTrue(error("[instrument]\nclasses = []").contains("unknown key 'classes' in [instrument]"))
         assertTrue(error("[other]\nx = 1").contains("unknown key 'other'; allowed: debug, instrument, augment"))
         // Keys of earlier layouts are rejected, not silently ignored.
         for (old in listOf(
@@ -166,65 +192,84 @@ class AugmentorConfigTest {
     }
 
     @Test
-    fun `invalid classIds and methodParams entries`() {
+    fun `keys of the previous instrument layout are rejected`() {
         assertEquals(
-            "test.toml, line 3: must be a field name (e.g. \"orderId\") or a method (e.g. \"getOrderId()\"), was get-id()",
-            error("debug = false\n[instrument.classIds]\n\"com.acme.Order\" = \"get-id()\""),
+            "test.toml, line 2: unknown key 'annotatedClasses' in [instrument]; allowed: classes, methods",
+            error("[instrument]\nannotatedClasses = [\"com.acme.**\"]"),
         )
-        assertTrue(error("[instrument.classIds]\n\"com.acme.Order\" = 5").contains("must be a field name"))
-        assertTrue(error("[instrument.methodParams]\n\"com.acme.Order.process\" = \"order\"").contains("must be an array"))
-        assertTrue(error("[instrument.methodParams]\n\"com.acme.Order.process\" = []").contains("at least one parameter"))
-        assertTrue(error("[instrument.methodParams]\n\"com.acme.Order.process\" = [\"#1\"]").contains("invalid parameter '#1'"))
-        assertTrue(error("[instrument.methodParams]\n\"com.acme.Order.process\" = [-1]").contains("invalid parameter '-1'"))
-        assertTrue(error("[instrument.methodParams]\nOrder = [\"id\"]").contains("[instrument.methodParams] keys must name a class and a method"))
+        assertTrue(error("[instrument.classIds]\n\"com.acme.Order\" = \"id\"").contains("unknown key 'classIds' in [instrument]; allowed: classes, methods"))
+        assertTrue(error("[instrument.methodParams]\n\"com.acme.Order.run\" = \"*\"").contains("unknown key 'methodParams' in [instrument]; allowed: classes, methods"))
     }
 
     @Test
-    fun `method params with wildcards and all parameters`() {
+    fun `invalid classes and methods entries`() {
+        assertEquals(
+            "test.toml, line 3: must be a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\") or \"@\" for the class's annotations, was get-id()",
+            error("debug = false\n[instrument.classes]\n\"com.acme.Order\" = \"get-id()\""),
+        )
+        assertTrue(error("[instrument.classes]\n\"com.acme.Order\" = 5").contains("must be a field name"))
+        assertTrue(error("[instrument.classes]\n\"com.acme.Order\" = \"@id\"").contains("must be a field name"))
+        assertEquals(
+            "test.toml, line 2: [instrument.classes] keys must name a class or a class pattern, e.g. \"com.acme.Order\" or \"com.acme.**\"; " +
+                "allowed are letters, digits, _, \$ and the wildcards * (within a package or name), ** (across packages) and ?",
+            error("[instrument.classes]\n\"com.acme.Ord+er\" = \"@\""),
+        )
+        assertTrue(error("[instrument.methods]\n\"com.acme.Order.process\" = \"order\"").contains("must be an array"))
+        assertTrue(error("[instrument.methods]\n\"com.acme.Order.process\" = []").contains("at least one parameter"))
+        assertTrue(error("[instrument.methods]\n\"com.acme.Order.process\" = [\"#1\"]").contains("invalid parameter '#1'"))
+        assertTrue(error("[instrument.methods]\n\"com.acme.Order.process\" = [-1]").contains("invalid parameter '-1'"))
+        assertTrue(error("[instrument.methods]\n\"com.acme.Order.process\" = [\"@\"]").contains("invalid parameter '@'"))
+        assertTrue(error("[instrument.methods]\nOrder = [\"id\"]").contains("[instrument.methods] keys must name a class and a method"))
+    }
+
+    @Test
+    fun `method entries with wildcards, all parameters and annotations`() {
         val config = parse(
             """
-            [instrument.methodParams]
+            [instrument.methods]
             "com.thirdparty.OrderService.process" = ["order"]
             "com.thirdparty.OrderService.*" = [2]
             "com.thirdparty.Inventory*.*" = "*"
             "com.thirdparty.**.*Repository.find*" = [0]
             "com.acme.Outer${'$'}Inner.ru?" = ["x"]
+            "com.acme.Legacy.*" = "@"
             """,
         )
         val all = listOf(ParamRef.All())
-        assertEquals(all, config.params()["com.thirdparty.Inventory*.*"])
-        // The exact entry first, then the matching wildcard entries in configuration order.
+        assertEquals(all, config.methods()["com.thirdparty.Inventory*.*"])
+        // The exact entry first, then the matching wildcard entries.
         assertEquals(listOf(ParamRef.ByName("order"), ParamRef.ByIndex(2)), config.paramRefs("com.thirdparty.OrderService", "process"))
         assertEquals(listOf(ParamRef.ByIndex(2)), config.paramRefs("com.thirdparty.OrderService", "cancel"))
         assertEquals(all, config.paramRefs("com.thirdparty.InventoryService", "reserve"))
         assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.thirdparty.db.OrderRepository", "findById"))
         assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.thirdparty.db.sql.OrderRepository", "findAll"))
-        // As in annotatedClasses, '.**.' stands for at least one package segment.
+        // '.**.' stands for at least one package segment.
         assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.OrderRepository", "findAll"))
         assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.db.OrderRepository", "save"))
         // '*' stays within one package segment in the class part.
         assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.sub.InventoryService", "reserve"))
         assertEquals(listOf(ParamRef.ByName("x")), config.paramRefs("com.acme.Outer\$Inner", "run"))
         assertEquals(emptyList<ParamRef>(), config.paramRefs("com.acme.Outer\$Inner", "runs"))
+        assertEquals(listOf(ParamRef.Annotations()), config.paramRefs("com.acme.Legacy", "run"))
 
-        assertTrue(config.hasParamEntries("com.thirdparty.InventoryService"))
-        assertTrue(config.hasParamEntries("com.thirdparty.db.OrderRepository"))
-        assertFalse(config.hasParamEntries("com.thirdparty.Customer"))
+        assertTrue(config.hasMethodEntries("com.thirdparty.InventoryService"))
+        assertTrue(config.hasMethodEntries("com.thirdparty.db.OrderRepository"))
+        assertFalse(config.hasMethodEntries("com.thirdparty.Customer"))
         assertTrue(AugmentorConfig.isPattern("com.thirdparty.OrderService.*"))
         assertFalse(AugmentorConfig.isPattern("com.thirdparty.OrderService.process"))
     }
 
     @Test
-    fun `invalid method params and maxParams`() {
-        assertTrue(error("[instrument.methodParams]\n\"com.acme.Order.process\" = \"all\"").contains("or \"*\" for all parameters, was all"))
-        assertTrue(error("[instrument.methodParams]\n\"com.acme.Order.process\" = [\"*\"]").contains("invalid parameter '*'"))
+    fun `invalid method entries and maxParams`() {
+        assertTrue(error("[instrument.methods]\n\"com.acme.Order.process\" = \"all\"").contains("\"*\" for all parameters, or \"@\" for the method's annotations, was all"))
+        assertTrue(error("[instrument.methods]\n\"com.acme.Order.process\" = [\"*\"]").contains("invalid parameter '*'"))
         assertEquals(
-            "test.toml, line 2: [instrument.methodParams] keys must name a class and a method, e.g. \"com.acme.OrderService.process\"; " +
+            "test.toml, line 2: [instrument.methods] keys must name a class and a method, e.g. \"com.acme.OrderService.process\"; " +
                 "allowed are letters, digits, _, \$ and the wildcards * (within a package or name), ** (across packages) and ?",
-            error("[instrument.methodParams]\n\"com.acme.Order+.process\" = \"*\""),
+            error("[instrument.methods]\n\"com.acme.Order+.process\" = \"*\""),
         )
-        assertTrue(error("[instrument.methodParams]\n\"com.acme.Order.\" = \"*\"").contains("keys must name a class and a method"))
-        assertTrue(error("[instrument.methodParams]\n\"com..Order.run\" = \"*\"").contains("keys must name a class and a method"))
+        assertTrue(error("[instrument.methods]\n\"com.acme.Order.\" = \"*\"").contains("keys must name a class and a method"))
+        assertTrue(error("[instrument.methods]\n\"com..Order.run\" = \"*\"").contains("keys must name a class and a method"))
         assertEquals("test.toml, line 2: maxParams must be between 1 and 255, was 0", error("[augment]\nmaxParams = 0"))
         assertTrue(error("augment.maxParams = 256").contains("maxParams must be between 1 and 255, was 256"))
         assertEquals(8, AugmentorConfig().maxParams())

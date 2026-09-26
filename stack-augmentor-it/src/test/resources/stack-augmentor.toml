@@ -1,12 +1,16 @@
-[instrument]
-annotatedClasses = ["com.hafnium.it.fixtures.**"]
-
+[instrument.classes]
+# The fixtures use their annotations
+"com.hafnium.it.fixtures.**" = "@"
+# ... except Overridden, whose exact entry is more specific
+"com.hafnium.it.fixtures.Overridden" = "getId()"
 # Stand-ins for classes you cannot annotate
-[instrument.classIds]
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"
+"com.thirdparty.*Account" = "number"
+# Matches JDK classes, which the agent never instruments
+"java.**" = "@"
 
-[instrument.methodParams]
+[instrument.methods]
 "com.thirdparty.OrderService.process" = ["order", 1]
 # Wildcards: combined with the entry above, and across packages
 "com.thirdparty.OrderService.*" = [2]
@@ -15,7 +19,11 @@ annotatedClasses = ["com.hafnium.it.fixtures.**"]
 # Matches JDK classes, which the agent never instruments
 "java.**.*" = "*"
 # Selects the parameter that is also annotated
+"com.hafnium.it.fixtures.Overridden.failAnnotated" = "@"
 "com.hafnium.it.fixtures.Overlap.op" = ["x", "y"]
+# Parameter annotations of classes that no [instrument.classes] entry matches
+"com.hafnium.it.outside.MethodAnnotationsOutside.run" = "@"
+"com.hafnium.it.outside.ClassParamsViaMethods.*" = "@"
 
 [augment]
 maxIdLength = 20

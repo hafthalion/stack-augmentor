@@ -1,15 +1,17 @@
 # One file for both phases:
 # - [instrument] is read at build time by the ByteBuddy build plugin (see build.gradle.kts);
-# - [augment] and debug are read at runtime, from the classpath (or from -Dstackaugmentor.config=<file>).
+# - [instrument.classes], [augment] and debug are read at runtime, from the classpath
+#   (or from -Dstackaugmentor.config=<file>).
 
 # Print diagnostics to stderr (default: false).
 debug = false
 
-# What gets instrumented, at build time. Only this project's classes are changed, so the
-# [instrument.classIds] and [instrument.methodParams] tables for third-party classes don't apply.
-[instrument]
-# Packages whose @StackTraceId annotations are used. Empty: all packages (default).
-annotatedClasses = ["com.hafnium.**"]
+# What gets instrumented, at build time. Only this project's classes are changed, so entries for
+# third-party classes don't apply.
+[instrument.classes]
+# Classes whose @StackTraceId, @StackTraceParam and @StackTraceParams annotations are used.
+# '*' matches within one package, '**' across packages. Without an "@" entry, no annotations are used.
+"com.hafnium.**" = "@"
 
 # How frames look, at runtime (these are the defaults, see the README).
 [augment]

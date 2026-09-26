@@ -17,3 +17,7 @@ class OrderService {
 class InventoryService {
     fun reserve(sku: String, count: Int): Nothing = throw IllegalStateException("cannot reserve")
 }
+
+open class SavingsAccount(private val number: String) {
+    fun withdraw(): Nothing = throw IllegalStateException("cannot withdraw")
+}

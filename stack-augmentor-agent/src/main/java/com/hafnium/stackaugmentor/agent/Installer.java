@@ -35,7 +35,7 @@ final class Installer {
     }
 
     static void install(Instrumentation instrumentation, AugmentorConfig config, FrameFormat format) {
-        Dispatch.install(new ThrowHandler(new IdResolver(config), format));
+        Dispatch.install(new ThrowHandler(new IdResolver(config, false), format));
 
         // Inlined advice needs neither the Nexus nor Unsafe-based class injection; turning them off avoids
         // the JDK's sun.misc.Unsafe warnings. In the shaded jar these property names are relocated, so they

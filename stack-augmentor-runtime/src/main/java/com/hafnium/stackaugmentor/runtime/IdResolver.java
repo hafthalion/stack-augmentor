@@ -81,8 +81,20 @@ public final class IdResolver {
         }
     };
 
+    /**
+     * Whether a class that no {@code [instrument.classes]} entry matches (nor any of its superclasses) uses its
+     * annotations, as if it had an {@code "@"} entry: for build-time instrumentation, where the build plugin already
+     * chose which classes to instrument.
+     */
+    private final boolean annotationsWithoutEntry;
+
     public IdResolver(AugmentorConfig config) {
+        this(config, false);
+    }
+
+    public IdResolver(AugmentorConfig config, boolean annotationsWithoutEntry) {
         this.config = config;
+        this.annotationsWithoutEntry = annotationsWithoutEntry;
     }
 
     /** The id of the object a frame runs on, or {@code null} if its class has no configured or annotated id source. */
@@ -131,19 +143,22 @@ public final class IdResolver {
         return singleLine.length() > maxIdLength ? singleLine.substring(0, maxIdLength - 1) + "…" : singleLine;
     }
 
+    /**
+     * The deciding {@code [instrument.classes]} entry: that of the first class up the superclass chain that an entry
+     * matches. Its field or method, or with {@code "@"} its annotations, are looked up from that class upwards.
+     */
     private Source findSource(Class<?> type) {
-        // 1. External configuration, which also covers subclasses of a configured class.
         for (Class<?> owner = type; isInHierarchy(owner); owner = owner.getSuperclass()) {
-            IdSpec spec = config.ids().get(owner.getName());
-            if (spec != null) {
-                return sourceFor(owner, spec);
+            AugmentorConfig.ClassEntry entry = config.classEntry(owner.getName());
+            if (entry != null) {
+                return sourceFor(owner, entry);
             }
         }
-        // 2. @StackTraceId on a field, a no-argument method or (Kotlin) a primary constructor property,
-        //    for classes in the instrument.annotatedClasses packages.
-        if (!config.honoursAnnotations(type.getName())) {
-            return null;
-        }
+        return annotationsWithoutEntry ? annotatedSource(type) : null;
+    }
+
+    /** {@code @StackTraceId} on a field, a no-argument method or (Kotlin) a primary constructor property. */
+    private Source annotatedSource(Class<?> type) {
         for (Class<?> owner = type; isInHierarchy(owner); owner = owner.getSuperclass()) {
             for (Field field : owner.getDeclaredFields()) {
                 Annotation annotation = idAnnotation(field);
@@ -174,26 +189,40 @@ public final class IdResolver {
         return null;
     }
 
-    private Source sourceFor(Class<?> owner, IdSpec spec) {
+    private Source sourceFor(Class<?> owner, AugmentorConfig.ClassEntry entry) {
+        String member;
         Source source = null;
-        for (Class<?> type = owner; isInHierarchy(type); type = type.getSuperclass()) {
-            if (spec instanceof IdSpec.MethodSpec) {
-                Method method = noArgumentMethod(type, spec.memberName());
-                if (method != null) {
-                    source = methodSource(method, method.getName());
-                    break;
+        switch (entry.spec()) {
+            case IdSpec.Annotations annotations -> {
+                return annotatedSource(owner);
+            }
+            case IdSpec.MethodSpec spec -> {
+                member = "method " + spec.memberName() + "()";
+                for (Class<?> type = owner; isInHierarchy(type) && source == null; type = type.getSuperclass()) {
+                    Method method = noArgumentMethod(type, spec.memberName());
+                    if (method != null) {
+                        source = methodSource(method, method.getName());
+                    }
                 }
-            } else {
-                Field field = instanceField(type, spec.memberName());
-                if (field != null) {
-                    source = fieldSource(field, field.getName());
-                    break;
+            }
+            case IdSpec.FieldSpec spec -> {
+                member = "field " + spec.memberName();
+                for (Class<?> type = owner; isInHierarchy(type) && source == null; type = type.getSuperclass()) {
+                    Field field = instanceField(type, spec.memberName());
+                    if (field != null) {
+                        source = fieldSource(field, field.getName());
+                    }
                 }
             }
         }
         if (source == null) {
-            String member = spec instanceof IdSpec.MethodSpec ? "method " + spec.memberName() + "()" : "field " + spec.memberName();
-            Log.warn("[instrument.classIds] \"" + owner.getName() + "\": no " + member + " found");
+            String message = "[instrument.classes] \"" + entry.key() + "\": no " + member + " found";
+            if (entry.isPattern()) {
+                // A pattern is not expected to fit every class it matches.
+                Log.debug(() -> message + " in " + owner.getName());
+            } else {
+                Log.warn(message);
+            }
         }
         return source;
     }

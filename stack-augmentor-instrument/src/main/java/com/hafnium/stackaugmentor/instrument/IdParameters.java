@@ -16,19 +16,60 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-/** Finds the id parameters of a method: annotated with {@code @StackTraceId}, or listed in the {@code [instrument.methodParams]} config table. */
+/**
+ * Finds the id parameters of a method: selected by {@code @StackTraceParam} or {@code @StackTraceParams}, where they
+ * are used, or by the {@code [instrument.methods]} config table.
+ */
 public final class IdParameters {
 
     private final AugmentorConfig config;
+    private final ClassEntries classEntries;
 
     public IdParameters(AugmentorConfig config) {
         this.config = config;
+        this.classEntries = new ClassEntries(config);
+    }
+
+    ClassEntries classEntries() {
+        return classEntries;
+    }
+
+    /**
+     * Whether the parameter annotations of this method are used: the type's deciding {@code [instrument.classes]}
+     * entry is {@code "@"}, or an {@code [instrument.methods]} entry with {@code "@"} matches the method.
+     */
+    boolean annotationsUsed(TypeDescription type, MethodDescription method) {
+        return classEntries.annotationsUsed(type) || hasAnnotationsRef(config.paramRefs(type.getName(), method.getInternalName()));
+    }
+
+    private static boolean hasAnnotationsRef(List<ParamRef> refs) {
+        for (ParamRef ref : refs) {
+            if (ref instanceof ParamRef.Annotations) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether the method has parameter annotations: {@code @StackTraceParam}, or {@code @StackTraceParams} on it or its type. */
+    static boolean hasParameterAnnotations(TypeDescription type, MethodDescription method) {
+        if (annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null
+                || (annotation(type.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null && !method.getParameters().isEmpty())) {
+            return true;
+        }
+        for (ParameterDescription parameter : method.getParameters()) {
+            if (annotation(parameter.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAM) != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public List<IdParameter> select(TypeDescription type, MethodDescription method) {
         ParameterList<?> parameters = method.getParameters();
         TreeMap<Integer, String> labels = new TreeMap<>();
-        if (config.honoursAnnotations(type.getName())) {
+        List<ParamRef> refs = config.paramRefs(type.getName(), method.getInternalName());
+        if (classEntries.annotationsUsed(type) || hasAnnotationsRef(refs)) {
             // @StackTraceParams on the method, or on the class declaring it: all parameters.
             if (annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null
                     || annotation(type.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null) {
@@ -46,8 +87,11 @@ public final class IdParameters {
                 labels.put(parameter.getIndex(), label != null ? label : parameter.getName());
             }
         }
-        for (ParamRef ref : config.paramRefs(type.getName(), method.getInternalName())) {
+        for (ParamRef ref : refs) {
             switch (ref) {
+                case ParamRef.Annotations annotations -> {
+                    // Handled above, with the annotations.
+                }
                 case ParamRef.All all -> {
                     for (ParameterDescription parameter : parameters) {
                         labels.putIfAbsent(parameter.getIndex(), parameter.getName());
@@ -75,12 +119,12 @@ public final class IdParameters {
     }
 
     /**
-     * Debug messages for {@code [instrument.methodParams]} entries of this type that match no method or parameter.
+     * Debug messages for {@code [instrument.methods]} entries of this type that match no method or parameter.
      * Entries with wildcards are skipped: they are expected not to fit every class and method they match.
      */
     public List<String> unmatchedEntries(TypeDescription type) {
         List<String> messages = new ArrayList<>();
-        for (Map.Entry<String, List<ParamRef>> params : config.params().entrySet()) {
+        for (Map.Entry<String, List<ParamRef>> params : config.methods().entrySet()) {
             String target = params.getKey();
             if (AugmentorConfig.isPattern(target)) {
                 continue;
@@ -90,7 +134,7 @@ public final class IdParameters {
                 continue;
             }
             String methodName = target.substring(dot + 1);
-            String entry = "[instrument.methodParams] \"" + target + "\"";
+            String entry = "[instrument.methods] \"" + target + "\"";
             List<MethodDescription> methods = new ArrayList<>();
             for (MethodDescription method : type.getDeclaredMethods()) {
                 if (method.isMethod() && method.getInternalName().equals(methodName)) {
@@ -109,6 +153,8 @@ public final class IdParameters {
                 for (ParamRef ref : params.getValue()) {
                     switch (ref) {
                         case ParamRef.All all -> {
+                        }
+                        case ParamRef.Annotations annotations -> {
                         }
                         case ParamRef.ByIndex byIndex -> {
                             if (byIndex.index() >= parameters.size()) {

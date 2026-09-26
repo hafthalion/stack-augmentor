@@ -7,4 +7,9 @@ plugins {
 
 dependencies {
     implementation(project(":stack-augmentor-instrument"))
+
+    testImplementation(project(":stack-augmentor-api"))
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.launcher)
 }

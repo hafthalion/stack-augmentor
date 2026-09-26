@@ -6,26 +6,25 @@ import com.hafnium.stackaugmentor.runtime.Log;
 import net.bytebuddy.description.field.FieldDescription;
 import net.bytebuddy.description.method.MethodDescription;
 import net.bytebuddy.description.method.ParameterDescription;
-import net.bytebuddy.description.type.TypeDefinition;
 import net.bytebuddy.description.type.TypeDescription;
 import net.bytebuddy.matcher.ElementMatcher;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static com.hafnium.stackaugmentor.instrument.ClassEntries.firstInHierarchy;
 import static com.hafnium.stackaugmentor.instrument.IdParameters.annotation;
 
 /** Decides which types and methods get the exit advice. */
 public final class TypeMatching {
 
-    private final AugmentorConfig config;
     private final IdParameters parameters;
+    private final ClassEntries classEntries;
 
     public TypeMatching(AugmentorConfig config, IdParameters parameters) {
-        this.config = config;
         this.parameters = parameters;
+        this.classEntries = parameters.classEntries();
     }
 
     public boolean instrument(TypeDescription type) {
@@ -37,10 +36,10 @@ public final class TypeMatching {
             for (String message : parameters.unmatchedEntries(type)) {
                 Log.debug(() -> message);
             }
-            if (!instrument && !config.honoursAnnotations(type.getName()) && usesAnnotations(type)) {
-                Log.debug(() -> "ignoring @StackTraceId, @StackTraceParam and @StackTraceParams in " + type.getName()
-                        + ": not in instrument.annotatedClasses "
-                        + config.annotatedClasses());
+            String ignored = ignoredAnnotations(type);
+            if (ignored != null) {
+                Log.debug(() -> "ignoring " + ignored + " in " + type.getName()
+                        + ": no \"@\" entry in [instrument.classes] or [instrument.methods] applies");
             }
         }
         return instrument;
@@ -48,12 +47,12 @@ public final class TypeMatching {
 
     /** One line for the debug log: why the type is instrumented, and which methods get which parameter ids. */
     public String describe(TypeDescription type, ElementMatcher<MethodDescription> methods) {
-        TypeDescription configured = firstInHierarchy(type, it -> config.ids().containsKey(it.getName()));
+        ClassEntries.Deciding deciding = classEntries.decide(type);
         String reason;
-        if (configured != null) {
-            reason = "receiver id from [instrument.classIds] \"" + configured.getName() + "\"";
+        if (deciding != null && !deciding.annotations()) {
+            reason = "receiver id from [instrument.classes] \"" + deciding.entry().key() + "\"";
         } else if (receiverRelevant(type)) {
-            reason = "receiver id from @StackTraceId";
+            reason = "receiver id from @StackTraceId (\"" + deciding.entry().key() + "\" = \"@\")";
         } else {
             reason = "parameter ids only";
         }
@@ -85,25 +84,36 @@ public final class TypeMatching {
         return false;
     }
 
-    /** Uses any of the annotations: for the debug message about annotations outside instrument.annotatedClasses. */
-    private boolean usesAnnotations(TypeDescription type) {
-        if (firstInHierarchy(type, TypeMatching::hasAnnotatedMember) != null
-                || annotation(type.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null) {
-            return true;
-        }
+    /**
+     * For the debug log: the annotations of the type that are not used, e.g. {@code @StackTraceId and the parameter
+     * annotations of run, stop}, or {@code null} if there are none.
+     */
+    private String ignoredAnnotations(TypeDescription type) {
+        boolean receiverIgnored = !classEntries.annotationsUsed(type) && firstInHierarchy(type, TypeMatching::hasAnnotatedMember) != null;
+        List<String> methods = new ArrayList<>();
         for (MethodDescription method : type.getDeclaredMethods()) {
-            if (annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null
-                    || hasAnnotatedParameter(method, IdResolver.STACK_TRACE_PARAM)) {
-                return true;
+            if (isCandidate(method) && IdParameters.hasParameterAnnotations(type, method) && !parameters.annotationsUsed(type, method)) {
+                methods.add(method.getInternalName());
             }
         }
-        return false;
+        methods.sort(null);
+        String parameterAnnotations = methods.isEmpty() ? null : "the parameter annotations of " + String.join(", ", methods);
+        if (receiverIgnored) {
+            return parameterAnnotations != null ? "@StackTraceId and " + parameterAnnotations : "@StackTraceId";
+        }
+        return parameterAnnotations;
     }
 
-    /** Configured in {@code [instrument.classIds]}, or annotated (possibly in a superclass) in an {@code instrument.annotatedClasses} package. */
+    /**
+     * The deciding {@code [instrument.classes]} entry names a field or method, or it is {@code "@"} and the class it
+     * matched or one of its superclasses has an {@code @StackTraceId} member.
+     */
     private boolean receiverRelevant(TypeDescription type) {
-        return firstInHierarchy(type, it -> config.ids().containsKey(it.getName())) != null
-                || (config.honoursAnnotations(type.getName()) && firstInHierarchy(type, TypeMatching::hasAnnotatedMember) != null);
+        ClassEntries.Deciding deciding = classEntries.decide(type);
+        if (deciding == null) {
+            return false;
+        }
+        return !deciding.annotations() || firstInHierarchy(deciding.owner(), TypeMatching::hasAnnotatedMember) != null;
     }
 
     private static boolean isCandidate(MethodDescription method) {
@@ -133,28 +143,5 @@ public final class TypeMatching {
             }
         }
         return false;
-    }
-
-    /**
-     * The first of the type and its superclasses that matches, stopping at {@code Object} or at a superclass that
-     * cannot be resolved. Superclasses are only resolved as far as needed.
-     */
-    private static TypeDescription firstInHierarchy(TypeDescription type, Predicate<TypeDescription> predicate) {
-        TypeDefinition current = type;
-        while (current != null) {
-            TypeDescription erasure = current.asErasure();
-            if (erasure.represents(Object.class)) {
-                return null;
-            }
-            if (predicate.test(erasure)) {
-                return erasure;
-            }
-            try {
-                current = current.getSuperClass();
-            } catch (RuntimeException e) {
-                return null;
-            }
-        }
-        return null;
     }
 }

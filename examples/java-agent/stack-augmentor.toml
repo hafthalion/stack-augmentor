@@ -2,22 +2,20 @@
 # instrumented and why, where each id comes from, and config entries or annotations that have no effect.
 debug = false
 
-# What gets instrumented; the agent reads this when classes are loaded.
-[instrument]
-# Packages whose @StackTraceId, @StackTraceParam and @StackTraceParams annotations are used; classes without annotations are not augmented.
-# '*' matches within one package, '**' across packages. Empty: all packages (default).
-annotatedClasses = ["com.hafnium.**"]
+# What gets instrumented; the agent reads this when classes are loaded. In keys, '*' matches within a
+# package or name, '**' across packages, '?' one character.
 
-# Classes you cannot annotate: an order is identified by its getOrderNumber() method,
-# a customer by its customerId field ...
-[instrument.classIds]
+# Receiver ids: "@" uses the classes' @StackTraceId, @StackTraceParam and @StackTraceParams annotations
+# (without an "@" entry, no annotations are used). Classes you cannot annotate name a field or a method():
+# an order is identified by its getOrderNumber() method, a customer by its customerId field.
+[instrument.classes]
+"com.hafnium.**" = "@"
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"
 
-# ... OrderService.process shows its order argument and its second parameter (quantity), and all methods
-# of the Inventory* classes show all their parameters ("*"). In keys, '*' matches within a package or name,
-# '**' across packages, '?' one character.
-[instrument.methodParams]
+# Parameter ids: OrderService.process shows its order argument and its second parameter (quantity), and all
+# methods of the Inventory* classes and of ClassWithoutAnnotation show all their parameters ("*").
+[instrument.methods]
 "com.thirdparty.OrderService.process" = ["order", 1]
 "com.thirdparty.Inventory*.*" = "*"
 "com.hafnium.ClassWithoutAnnotation.*" = "*"
