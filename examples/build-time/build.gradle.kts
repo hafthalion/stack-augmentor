@@ -37,33 +37,9 @@ byteBuddy {
     }
 }
 
-// byteBuddy transforms the Java classes, byteBuddyKotlin the Kotlin classes.
-tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.configureEach {
+tasks.matching { it.name == "byteBuddyKotlin" }.configureEach {
     // Re-instrument when the configuration changes (the task is registered after evaluation).
     inputs.file(stackAugmentorConfig)
-}
-
-// What a Java application instrumented at build time needs at runtime: no Kotlin, no ByteBuddy.
-val javaApplication = configurations.create("javaApplication") {
-    isCanBeConsumed = false
-}
-
-dependencies {
-    javaApplication(project(":stack-augmentor-api"))
-    javaApplication(project(":stack-augmentor-runtime"))
-}
-
-tasks.test {
-    // WithoutKotlinTest runs the instrumented Java class (JavaOrder) in a JVM of its own, with this classpath.
-    // The byteBuddy task's output. (java.classesDirectory is compileJava's output: the classes before instrumentation.)
-    val javaClasses = layout.buildDirectory.dir("classes/java/main")
-    val resources = sourceSets.main.get().output.resourcesDir
-    val runtimeJars = javaApplication
-    inputs.files(runtimeJars).withPropertyName("javaApplication")
-    jvmArgumentProviders.add(CommandLineArgumentProvider {
-        val classpath = listOf(javaClasses.get().asFile, resources!!) + runtimeJars.files
-        listOf("-Dstackaugmentor.example.javaClasspath=${classpath.joinToString(File.pathSeparator) { it.absolutePath }}")
-    })
 }
 
 application {
