@@ -25,21 +25,21 @@ import java.util.List;
  * using {@code @StackTraceId} is instrumented. With the path of a TOML configuration as argument 0, its
  * {@code [instrument] annotatedClasses} limits the packages, and {@code debug} logs what gets instrumented.
  */
-public final class StackAugmentorBuildPlugin implements Plugin {
+public final class StackAugmentorByteBuddyPlugin implements Plugin {
 
     private final TypeMatching matching;
     private final Advice advice;
 
-    public StackAugmentorBuildPlugin() {
+    public StackAugmentorByteBuddyPlugin() {
         this(new AugmentorConfig());
     }
 
     /** @param configFile a TOML configuration; its {@code [instrument]} section applies. */
-    public StackAugmentorBuildPlugin(String configFile) {
+    public StackAugmentorByteBuddyPlugin(String configFile) {
         this(AugmentorConfig.load(Path.of(configFile)));
     }
 
-    private StackAugmentorBuildPlugin(AugmentorConfig config) {
+    private StackAugmentorByteBuddyPlugin(AugmentorConfig config) {
         IdParameters parameters = new IdParameters(config);
         this.matching = new TypeMatching(config, parameters);
         this.advice = ExitAdviceFactory.create(parameters);

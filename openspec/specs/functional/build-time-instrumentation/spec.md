@@ -2,13 +2,13 @@
 
 ## Purpose
 Defines augmentation without a Java agent: the ByteBuddy Gradle plugin applies
-`StackAugmentorBuildPlugin` (`stack-augmentor-build-plugin`) to a project's compiled classes, and the
+`StackAugmentorByteBuddyPlugin` (`stack-augmentor-build-plugin`) to a project's compiled classes, and the
 application only needs `stack-augmentor-runtime` at runtime.
 
 ## Requirements
 
 ### Requirement: Build plugin
-`com.hafnium.stackaugmentor.build.StackAugmentorBuildPlugin` SHALL be a ByteBuddy build plugin that adds
+`com.hafnium.stackaugmentor.build.StackAugmentorByteBuddyPlugin` SHALL be a ByteBuddy build plugin that adds
 the same exit advice as the agent to the project's compiled Java and Kotlin classes that use
 `@StackTraceId`. It SHALL be discoverable through `META-INF/net.bytebuddy/build.plugins`, and then
 SHALL instrument annotated classes in all packages. When it is given the path of a TOML configuration as
