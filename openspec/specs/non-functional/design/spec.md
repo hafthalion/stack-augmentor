@@ -81,9 +81,10 @@ type matching and advice.
 - **THEN** the frame shows the original method name (no renamed or synthetic copies)
 
 ### Requirement: Matching by name
-The agent, build plugin and runtime SHALL recognise `@StackTraceId` by its class name
-(`com.hafnium.stackaugmentor.StackTraceId`), without depending on the API module, and read its `name`
-reflectively.
+The agent, build plugin and runtime SHALL recognise `@StackTraceId`, `@StackTraceParam` and
+`@StackTraceParams` by their class names (`com.hafnium.stackaugmentor.StackTraceId`,
+`com.hafnium.stackaugmentor.StackTraceParam`, `com.hafnium.stackaugmentor.StackTraceParams`), without
+depending on the API module, and read their `name` reflectively where they have one.
 
 #### Scenario: API loaded by an application class loader
 - **GIVEN** the application loads its own copy of `stack-augmentor-api`

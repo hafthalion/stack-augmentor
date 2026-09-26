@@ -10,9 +10,10 @@ application only needs `stack-augmentor-runtime` at runtime.
 ### Requirement: Build plugin
 `com.hafnium.stackaugmentor.build.StackAugmentorByteBuddyPlugin` SHALL be a ByteBuddy build plugin that adds
 the same exit advice as the agent to the project's compiled Java and Kotlin classes that use
-`@StackTraceId`. It SHALL be discoverable through `META-INF/net.bytebuddy/build.plugins`, and then
-SHALL instrument annotated classes in all packages. When it is given the path of a TOML configuration as
-argument 0, it SHALL apply that file's `[instrument] annotatedClasses` and `debug`.
+`@StackTraceId`, `@StackTraceParam` or `@StackTraceParams`. It SHALL be discoverable through
+`META-INF/net.bytebuddy/build.plugins`, and then SHALL instrument annotated classes in all packages. When
+it is given the path of a TOML configuration as argument 0, it SHALL apply that file's
+`[instrument] annotatedClasses` and `debug`.
 
 #### Scenario: Example project
 - **GIVEN** `examples/build-time`, with the ByteBuddy Gradle plugin, the `DECORATE` entry point and the build plugin with its configuration argument
@@ -24,6 +25,11 @@ argument 0, it SHALL apply that file's `[instrument] annotatedClasses` and `debu
 - **GIVEN** `annotatedClasses` in the build plugin's configuration no longer matches the project's packages
 - **WHEN** the project is rebuilt
 - **THEN** its classes are not instrumented, and with `debug = true` the build lists the ignored annotations
+
+#### Scenario: Class-level parameter annotation
+- **GIVEN** a project class annotated only with `@StackTraceParams`
+- **WHEN** the project is built
+- **THEN** its methods with parameters are instrumented and show their parameter ids
 
 ### Requirement: Only the project's own classes
 Build-time instrumentation SHALL change only the classes of the project being built. Libraries SHALL
