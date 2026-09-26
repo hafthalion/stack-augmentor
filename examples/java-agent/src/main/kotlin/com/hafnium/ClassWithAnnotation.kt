@@ -31,7 +31,7 @@ data class ClassWithAnnotation(
 data class ClassWithoutAnnotation(
     val objectId: String
 ) {
-    fun method() {
+    fun method(q: String) {
         throw Exception("An error has occurred")
     }
 }

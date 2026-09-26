@@ -11,7 +11,7 @@ object Main {
         // direct annotation
         printStackTraceOf { ClassWithAnnotation("object-1").method(ObjectParam("object-param-1")) }
         printStackTraceOf { ClassWithAnnotation("object-1").transfer("a", "b", 10) }
-        printStackTraceOf { ClassWithoutAnnotation("object-2").method() }
+        printStackTraceOf { ClassWithoutAnnotation("object-2").method("123") }
 
         // thirdparty classes without annotations
         printStackTraceOf { OrderService().process(Order(4711), 3, "rush") }

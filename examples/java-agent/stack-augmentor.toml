@@ -20,6 +20,7 @@ annotatedClasses = ["com.hafnium.**"]
 [instrument.methodParams]
 "com.thirdparty.OrderService.process" = ["order", 1]
 "com.thirdparty.Inventory*.*" = "*"
+"com.hafnium.ClassWithoutAnnotation.*" = "*"
 
 # How frames look; used at runtime (these are the defaults, see the README).
 [augment]
