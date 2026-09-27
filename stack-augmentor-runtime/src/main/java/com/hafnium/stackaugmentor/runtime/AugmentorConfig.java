@@ -479,9 +479,6 @@ public final class AugmentorConfig {
         }
 
         AugmentorConfig read() {
-            if (toml.contains("instrument")) {
-                throw error(List.of("instrument"), "unknown key 'instrument': its tables are now [augment.classes] and [augment.methods]");
-            }
             checkKeys(List.of(), toml, ROOT_KEYS);
             TomlTable augment = table(AUGMENT);
             if (augment != null) {

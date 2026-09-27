@@ -136,9 +136,8 @@ class FrameFormatTest {
         assertThrows<ConfigException> { rewrite(frameFormat = "\$method.\$class") }
         // A literal dollar before the dot does not make it '.$method'.
         assertThrows<ConfigException> { rewrite(frameFormat = "\$class.\$\$method") }
-        // The earlier brace syntax is rejected with a hint.
-        val old = assertThrows<ConfigException> { rewrite(frameFormat = "{class}{receiver}.{method}{params}") }.message!!
-        assertTrue(old.contains("braces are literal"), old)
+        // Braces are literal, so they do not make a placeholder.
+        assertThrows<ConfigException> { rewrite(frameFormat = "{class}{receiver}.{method}{params}") }
     }
 
     @Test
