@@ -4,6 +4,7 @@ import com.hafnium.stackaugmentor.instrument.ExitAdviceFactory;
 import com.hafnium.stackaugmentor.instrument.IdParameters;
 import com.hafnium.stackaugmentor.instrument.TypeMatching;
 import com.hafnium.stackaugmentor.runtime.AugmentorConfig;
+import com.hafnium.stackaugmentor.runtime.ConfigException;
 import com.hafnium.stackaugmentor.runtime.Log;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.build.Plugin;
@@ -36,7 +37,17 @@ public final class StackAugmentorByteBuddyPlugin implements Plugin {
 
     /** @param configFile a TOML configuration; its {@code [augment.receiver]} and {@code [augment.params]} apply. */
     public StackAugmentorByteBuddyPlugin(String configFile) {
-        this(AugmentorConfig.load(Path.of(configFile)));
+        this(load(configFile));
+    }
+
+    /** The ByteBuddy Gradle plugin reports a failing constructor without its cause, so the reason is printed too. */
+    private static AugmentorConfig load(String configFile) {
+        try {
+            return AugmentorConfig.load(Path.of(configFile));
+        } catch (ConfigException e) {
+            Log.error(e.getMessage());
+            throw e;
+        }
     }
 
     private StackAugmentorByteBuddyPlugin(AugmentorConfig config) {

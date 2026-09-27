@@ -23,6 +23,11 @@ public final class Log {
         System.err.println("[stack-augmentor] WARN " + message);
     }
 
+    /** Always printed: for a failure whose exception a caller might not show. */
+    public static void error(String message) {
+        System.err.println("[stack-augmentor] ERROR " + message);
+    }
+
     /**
      * The message is only built when debugging is on. Creating the supplier may still allocate, so calls on
      * paths that run for every class or every exception check {@link #isDebug()} first.

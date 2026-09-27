@@ -520,7 +520,24 @@ public final class AugmentorConfig {
             if (debug != null) {
                 config.debug(debug);
             }
-            return config.build();
+            AugmentorConfig result = config.build();
+            checkFormats(result);
+            return result;
+        }
+
+        /**
+         * Parses the templates, so that every reader of the file rejects invalid ones when it loads it: also the build
+         * plugin, which does not render frames itself.
+         */
+        private void checkFormats(AugmentorConfig config) {
+            try {
+                FrameFormat.create(config);
+            } catch (ConfigException e) {
+                // FrameFormat's messages start with the template's key, e.g. "paramsFormat must not contain '('".
+                String message = e.getMessage();
+                int space = message.indexOf(' ');
+                throw error(plus(AUGMENT, space > 0 ? message.substring(0, space) : "frameFormat"), message);
+            }
         }
 
         private void checkKeys(List<String> path, TomlTable table, List<String> allowed) {
