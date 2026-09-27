@@ -143,10 +143,15 @@ public final class IdResolver {
         return sanitize(text != null ? text : "null");
     }
 
+    /**
+     * One line, capped at {@code maxIdLength}. Parentheses become braces: IDEs find the file and line of a frame by its
+     * {@code (File.java:12)}, which parentheses in an id, e.g. from a data class's {@code toString()}, would confuse.
+     */
     private String sanitize(String text) {
         String singleLine = text.indexOf('\n') >= 0 || text.indexOf('\r') >= 0 ? LINE_BREAKS.matcher(text).replaceAll(" ") : text;
+        String braced = singleLine.replace('(', '{').replace(')', '}');
         int maxIdLength = config.maxIdLength();
-        return singleLine.length() > maxIdLength ? singleLine.substring(0, maxIdLength - 1) + "…" : singleLine;
+        return braced.length() > maxIdLength ? braced.substring(0, maxIdLength - 1) + "…" : braced;
     }
 
     /**

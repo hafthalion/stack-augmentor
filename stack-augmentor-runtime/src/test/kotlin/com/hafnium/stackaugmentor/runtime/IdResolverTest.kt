@@ -45,6 +45,8 @@ class IdResolverTest {
 
     enum class Color { RED }
 
+    data class Point(val x: Int)
+
     /** All classes of this test are in this package. */
     private val here = IdResolverTest::class.java.packageName + ".**"
     private val annotations = IdSpec.Annotations()
@@ -150,6 +152,12 @@ class IdResolverTest {
     }
 
     @Test
+    fun `parentheses in receiver ids become braces`() {
+        val resolver = resolver(name(Point::class.java) to IdSpec.MethodSpec("toString"))
+        assertEquals(NamedId("toString", "Point{x=1}"), resolver.receiverId(Point(1)))
+    }
+
+    @Test
     fun `failing id source`() {
         assertEquals(NamedId("id", "?"), resolver(here to annotations).receiverId(Throwing()))
     }
@@ -164,5 +172,8 @@ class IdResolverTest {
         assertEquals("Unannotat…", resolver.paramId(Unannotated("c")))
         assertEquals("[1, 2, 3]", resolver.paramId(intArrayOf(1, 2, 3)))
         assertEquals("a b", resolver.paramId("a\r\nb"))
+        // Parentheses, e.g. of a data class's toString(), would confuse IDEs looking for the frame's (File.kt:12).
+        assertEquals("Point{x=1}", resolver.paramId(Point(1)))
+        assertEquals("{{a}}", resolver.paramId("((a))"))
     }
 }
