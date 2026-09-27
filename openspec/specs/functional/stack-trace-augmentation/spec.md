@@ -9,8 +9,8 @@ stack trace are rewritten to show them.
 ### Requirement: Instrumented methods
 The system SHALL add exit advice to methods that are not abstract, native, bridge or synthetic, in these
 cases:
-- instance methods of a class that has a receiver id source (configured, or annotated in an
-  `annotatedClasses` package);
+- instance methods of a class that has a receiver id source (a field or method named by its deciding
+  `[instrument.classes]` entry, or an annotated member when that entry is `"@"`);
 - instance or static methods that have at least one parameter id.
 
 Constructors SHALL NOT be instrumented.
@@ -21,7 +21,7 @@ Constructors SHALL NOT be instrumented.
 - **THEN** its frame is unchanged
 
 #### Scenario: Class with parameter ids only
-- **GIVEN** a third-party class `OrderService` that is only listed in `[instrument.methodParams]`
+- **GIVEN** a third-party class `OrderService` that is only listed in `[instrument.methods]`
 - **WHEN** `process` throws
 - **THEN** the frame shows the parameter ids after the method name and no receiver id
 
