@@ -59,6 +59,24 @@ class FrameFormatTest {
     }
 
     @Test
+    fun `braced placeholders end at the brace`() {
+        val result = rewrite(
+            frameFormat = "\${simpleClass}Impl\$receiver.\${method}X\$params",
+            receiverFormat = "<\${name}s=\$id>",
+            paramsFormat = "(\${name}Id=\${id}, ...)",
+        ).rewrite(element, receiver, listOf(orderId, customer))
+        assertEquals("ObjectClassImpl<objectIds=123>.processX(orderIdId=42, customerId=7)(ObjectClass.java:13)", result.toString())
+    }
+
+    @Test
+    fun `a brace without a dollar is literal`() {
+        val result = rewrite(frameFormat = "{\$class}\$receiver.\$method\$params}").rewrite(element, receiver, listOf(orderId))
+        assertEquals("{com.hafnium.ObjectClass}{objectId=123}.process{orderId=42}}(ObjectClass.java:13)", result.toString())
+        // $$ before a brace is a literal dollar followed by a literal brace.
+        assertEquals("com.hafnium.ObjectClass\${123}", rewrite(receiverFormat = "\$\${\$id}").rewrite(element, receiver, emptyList()).className)
+    }
+
+    @Test
     fun `params format with repetition marker`() {
         assertEquals(
             "process{orderId=42, customer=7}",
@@ -139,6 +157,11 @@ class FrameFormatTest {
         for ((frame, receiver, params) in invalid) {
             assertThrows<ConfigException>("frame=$frame receiver=$receiver params=$params") { rewrite(frame, receiver, params) }
         }
+        for (receiver in listOf("\${nam}", "\${id", "\${}", "\${ id}")) {
+            assertThrows<ConfigException>(receiver) { rewrite(receiverFormat = receiver) }
+        }
+        assertTrue(assertThrows<ConfigException> { rewrite(receiverFormat = "<\${id>") }.message!!.contains("unclosed '\${'"))
+        assertTrue(assertThrows<ConfigException> { rewrite(frameFormat = "\${class}#\${method}") }.message!!.contains(".\$method"))
         val message = assertThrows<ConfigException> { rewrite(receiverFormat = "{\$nam}") }.message!!
         assertTrue(message.contains("unknown placeholder '\$nam'"), message)
     }

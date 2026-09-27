@@ -114,7 +114,7 @@ public final class FrameFormat {
     }
 
     public static FrameFormat create(String frameFormat, String receiverFormat, String paramsFormat, int maxParams) {
-        // The JDK prints declaringClass + "." + methodName, so the template is split at ".$method".
+        // The JDK prints declaringClass + "." + methodName, so the template is split at ".$method" (or ".${method}").
         List<Token> frame = parse(frameFormat, FRAME_PLACEHOLDERS, "frameFormat");
         int method = -1;
         for (int i = 0; i < frame.size(); i++) {
@@ -127,8 +127,8 @@ public final class FrameFormat {
             }
         }
         if (method < 1 || !(frame.get(method - 1) instanceof Token.Literal before) || !before.text().endsWith(".")) {
-            String hint = frameFormat.contains("{method}") ? " (placeholders are written $class, $method, ...; braces are literal)" : "";
-            throw new ConfigException("frameFormat must contain '.$method' exactly once, because the JDK prints "
+            String hint = frameFormat.contains("{method}") && !frameFormat.contains("${method}") ? " (placeholders are written $class, $method, ...; braces are literal)" : "";
+            throw new ConfigException("frameFormat must contain '.$method' (or '.${method}') exactly once, because the JDK prints "
                     + "'<class>.<method>(<file>:<line>)'; was '" + frameFormat + "'" + hint);
         }
         List<Token> declaringClassPart = new ArrayList<>(frame.subList(0, method - 1));
@@ -186,8 +186,9 @@ public final class FrameFormat {
     }
 
     /**
-     * Splits a template into literals and {@code $placeholder}s. Everything else, braces included, is literal;
-     * {@code $$} is a literal {@code $}.
+     * Splits a template into literals and placeholders: {@code $name}, where the name ends at the first character that
+     * is not a letter or digit, or {@code ${name}}. Everything else, braces included, is literal; {@code $$} is a
+     * literal {@code $}.
      */
     private static List<Token> parse(String template, List<String> allowed, String key) {
         List<Token> tokens = new ArrayList<>();
@@ -205,11 +206,22 @@ public final class FrameFormat {
                 i += 2;
                 continue;
             }
-            int end = i + 1;
-            while (end < template.length() && Character.isLetterOrDigit(template.charAt(end))) {
-                end++;
+            String name;
+            int end;
+            if (template.startsWith("${", i)) {
+                int close = template.indexOf('}', i + 2);
+                if (close < 0) {
+                    throw new ConfigException(key + " has an unclosed '${' at position " + i + ": '" + template + "'");
+                }
+                name = template.substring(i + 2, close);
+                end = close + 1;
+            } else {
+                end = i + 1;
+                while (end < template.length() && Character.isLetterOrDigit(template.charAt(end))) {
+                    end++;
+                }
+                name = template.substring(i + 1, end);
             }
-            String name = template.substring(i + 1, end);
             if (!allowed.contains(name)) {
                 String names = allowed.stream().map(it -> "$" + it).collect(Collectors.joining(", "));
                 throw new ConfigException(
