@@ -12,8 +12,16 @@ application only needs `stack-augmentor-runtime` at runtime.
 the same exit advice as the agent to the project's compiled Java and Kotlin classes. When it is given the
 path of a TOML configuration as argument 0, it SHALL apply that file's `[augment.receiver]`,
 `[augment.params]` and `debug`, instrumenting the classes and methods that these tables need, as the agent would with the same
-configuration. It SHALL be discoverable through `META-INF/net.bytebuddy/build.plugins`. Without a
-configuration, it SHALL instrument nothing and SHALL print a warning.
+configuration. An invalid configuration, including an invalid `[augment]` template that only the runtime
+renders, SHALL fail the build, and the reason SHALL be printed as an error, because the ByteBuddy Gradle
+plugin does not show the cause of a failing plugin constructor. It SHALL be discoverable through
+`META-INF/net.bytebuddy/build.plugins`. Without a configuration, it SHALL instrument nothing and SHALL print
+a warning.
+
+#### Scenario: Invalid template
+- **GIVEN** `paramsFormat = "($name=$id, ...)"` on line 14 of the build plugin's configuration
+- **WHEN** the project is built
+- **THEN** the build fails, and `[stack-augmentor] ERROR stack-augmentor.toml, line 14: paramsFormat must not contain '('` … is printed
 
 #### Scenario: Example project
 - **GIVEN** `examples/build-time`, with the ByteBuddy Gradle plugin, the `DECORATE` entry point and the build plugin with its configuration argument, which has `"com.hafnium.**" = "@"` in `[augment.receiver]` and `"com.hafnium.**.*" = "@"` in `[augment.params]`

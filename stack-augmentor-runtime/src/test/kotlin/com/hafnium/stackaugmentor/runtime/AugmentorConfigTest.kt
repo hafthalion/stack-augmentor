@@ -169,6 +169,17 @@ class AugmentorConfigTest {
     }
 
     @Test
+    fun `invalid templates are rejected with their line`() {
+        assertEquals(
+            "test.toml, line 3: paramsFormat must not contain '(' (at position 0), because IDEs find a frame's file by the " +
+                "'(File.java:12)' at its end; use e.g. '{' and '}' or '[' and ']'; was '(\$name; ...)'",
+            error("[augment]\nmaxParams = 3\nparamsFormat = \"(\$name; ...)\""),
+        )
+        assertTrue(error("[augment]\nframeFormat = \"\$class#\$method\"").startsWith("test.toml, line 2: frameFormat must contain"))
+        assertTrue(error("[augment]\n\nreceiverFormat = \"\$nam\"").startsWith("test.toml, line 3: receiverFormat uses unknown placeholder"))
+    }
+
+    @Test
     fun `unknown keys are rejected, in every section`() {
         assertEquals(
             "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams, " +

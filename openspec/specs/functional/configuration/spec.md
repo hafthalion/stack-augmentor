@@ -51,7 +51,8 @@ wildcards SHALL be quoted, as TOML requires.
 
 ### Requirement: Invalid configuration
 The system SHALL reject a configuration with a TOML syntax error, a value of the wrong type, a value out
-of range, an invalid `[augment.receiver]` or `[augment.params]` entry, or an unknown key in any
+of range, an invalid `[augment.receiver]` or `[augment.params]` entry, an invalid `frameFormat`,
+`receiverFormat` or `paramsFormat` (see the frame format specification), or an unknown key in any
 section, including keys in the wrong section (such as `maxIdLength` at the top level). An `[augment.receiver]` entry SHALL
 be invalid when its key contains characters other than identifier characters, `$`, `.`, `*` and `?`, or
 when its value is not a field name, a `method()`, `"@"` or `"-"`. An `[augment.params]` entry SHALL be invalid
