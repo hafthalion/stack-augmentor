@@ -5,8 +5,8 @@ import com.hafnium.stackaugmentor.StackTraceParam
 import com.hafnium.stackaugmentor.StackTraceParams
 import com.thirdparty.SavingsAccount
 
-// No entry matches these classes: their annotations are ignored, unless an [augment.receiver] entry of a
-// superclass applies (for @StackTraceId), or an [augment.params] "@" entry (for the parameter annotations).
+// No [augment.receiver] entry matches these classes, and entries of their superclasses do not apply to them: their
+// @StackTraceId is ignored. Their parameter annotations are ignored, unless an [augment.params] "@" entry applies.
 
 class DerivedOutside : Base() {
     fun fail(): Nothing = throw IllegalStateException("outside")
@@ -32,7 +32,7 @@ class ClassParamsViaMethods {
     fun run(a: Int, b: String): Nothing = throw IllegalStateException("run $a $b")
 }
 
-/** Gets the receiver id of the [augment.receiver] entry of its superclass. */
+/** Its superclass SavingsAccount has an [augment.receiver] entry, which does not apply to it. */
 class PremiumAccount(number: String) : SavingsAccount(number) {
     fun upgrade(): Nothing = throw IllegalStateException("upgrade")
 }

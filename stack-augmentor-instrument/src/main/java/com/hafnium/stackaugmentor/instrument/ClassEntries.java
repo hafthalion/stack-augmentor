@@ -8,8 +8,8 @@ import net.bytebuddy.description.type.TypeDescription;
 import java.util.function.Predicate;
 
 /**
- * Finds the deciding {@code [augment.receiver]} entry of a type: that of the first class up the superclass chain
- * that an entry matches.
+ * Finds the deciding {@code [augment.receiver]} entry of a type: the most specific entry that matches the type's own
+ * name. Entries of superclasses do not apply.
  */
 final class ClassEntries {
 
@@ -39,23 +39,16 @@ final class ClassEntries {
         this.config = config;
     }
 
-    /** The deciding entry, or {@code null} if no entry matches the type or any of its superclasses. */
+    /** The deciding entry, or {@code null} if no entry matches the type. */
     Deciding decide(TypeDescription type) {
         Cached last = cached;
         if (last != null && last.type() == type) {
             return last.deciding();
         }
-        Deciding[] found = new Deciding[1];
-        firstInHierarchy(type, it -> {
-            AugmentorConfig.ClassEntry entry = config.classEntry(it.getName());
-            if (entry != null) {
-                found[0] = new Deciding(it, entry);
-                return true;
-            }
-            return false;
-        });
-        cached = new Cached(type, found[0]);
-        return found[0];
+        AugmentorConfig.ClassEntry entry = config.classEntry(type.getName());
+        Deciding deciding = entry != null ? new Deciding(type, entry) : null;
+        cached = new Cached(type, deciding);
+        return deciding;
     }
 
     /** Whether the type's {@code @StackTraceId} is used: its deciding entry is {@code "@"}. */

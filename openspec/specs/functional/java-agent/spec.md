@@ -28,8 +28,8 @@ packages.
 - **THEN** the JDK frames are unchanged
 
 ### Requirement: Third-party classes
-The agent SHALL instrument classes whose deciding `[augment.receiver]` entry names a field or method
-(including subclasses of the matched classes), and classes with methods selected by `[augment.params]`
+The agent SHALL instrument classes whose deciding `[augment.receiver]` entry names a field or method,
+and classes with methods selected by `[augment.params]`
 entries, in any package and without annotations: whatever either table needs, independently of the other. Both tables SHALL accept class patterns with wildcards.
 Classes in the ignored packages SHALL stay uninstrumented, even when a wildcard entry matches them.
 

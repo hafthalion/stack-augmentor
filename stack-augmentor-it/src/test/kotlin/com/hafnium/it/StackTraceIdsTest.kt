@@ -70,10 +70,10 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `annotations outside the @ entries are ignored, but superclass entries apply`() {
-        // No entry matches DerivedOutside, so the "@" entry of its superclass Base decides.
-        val inherited = assertThrows<IllegalStateException> { DerivedOutside().fail() }
-        assertEquals("com.hafnium.it.outside.DerivedOutside{baseId=b1}", inherited.stackTrace[0].className)
+    fun `annotations outside the @ entries are ignored, also of subclasses of matched classes`() {
+        // No entry matches DerivedOutside; the "@" entry of its superclass Base does not apply to it.
+        val derived = assertThrows<IllegalStateException> { DerivedOutside().fail() }
+        assertEquals("com.hafnium.it.outside.DerivedOutside", derived.stackTrace[0].className)
 
         val withParam = assertThrows<IllegalStateException> { ParamsOnly().withParam(7) }
         assertEquals("com.hafnium.it.outside.ParamsOnly", withParam.stackTrace[0].className)

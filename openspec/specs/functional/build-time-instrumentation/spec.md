@@ -51,7 +51,7 @@ When no agent has installed a handler, `Dispatch` SHALL look up the handler with
 on the first exception that leaves an instrumented method. `stack-augmentor-runtime` SHALL register
 `com.hafnium.stackaugmentor.runtime.ThrowHandler`, whose no-argument constructor reads the runtime
 configuration. The `[augment.receiver]` entries SHALL apply as with the agent: a class that no entry
-matches, nor any of its superclasses, SHALL get no receiver id, even if it is annotated. If creating the handler fails, a warning SHALL be printed and exceptions
+matches SHALL get no receiver id, even if it is annotated or a superclass is matched. If creating the handler fails, a warning SHALL be printed and exceptions
 SHALL keep their original stack traces.
 
 #### Scenario: Tests without an agent

@@ -23,6 +23,10 @@ dependencies {
     testImplementation(project(":stack-augmentor-api"))
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
+    // Generated subclasses, as frameworks create them: InheritanceTest.
+    testImplementation(libs.bytebuddy)
+    testImplementation(libs.spring.core)
+    testImplementation(libs.mockito.core)
     testRuntimeOnly(libs.junit.launcher)
 }
 

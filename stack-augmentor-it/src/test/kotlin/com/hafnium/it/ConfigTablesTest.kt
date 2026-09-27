@@ -25,8 +25,9 @@ class ConfigTablesTest {
     }
 
     @Test
-    fun `an entry of a superclass applies to subclasses`() {
-        assertEquals("com.hafnium.it.outside.PremiumAccount{number=P-1}", frame { PremiumAccount("P-1").upgrade() }.className)
+    fun `an entry of a superclass does not apply to subclasses`() {
+        // "com.thirdparty.*Account" matches SavingsAccount, not com.hafnium.it.outside.PremiumAccount. See InheritanceTest.
+        assertEquals("com.hafnium.it.outside.PremiumAccount", frame { PremiumAccount("P-1").upgrade() }.className)
     }
 
     @Test
