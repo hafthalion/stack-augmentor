@@ -63,9 +63,9 @@ class FrameFormatTest {
         val result = rewrite(
             frameFormat = "\${simpleClass}Impl\$receiver.\${method}X\$params",
             receiverFormat = "<\${name}s=\$id>",
-            paramsFormat = "(\${name}Id=\${id}, ...)",
+            paramsFormat = "[\${name}Id=\${id}, ...]",
         ).rewrite(element, receiver, listOf(orderId, customer))
-        assertEquals("ObjectClassImpl<objectIds=123>.processX(orderIdId=42, customerId=7)(ObjectClass.java:13)", result.toString())
+        assertEquals("ObjectClassImpl<objectIds=123>.processX[orderIdId=42, customerId=7](ObjectClass.java:13)", result.toString())
     }
 
     @Test
@@ -83,8 +83,8 @@ class FrameFormatTest {
             rewrite().rewrite(element, null, listOf(orderId, customer)).methodName,
         )
         assertEquals(
-            "process(orderId: 42; customer: 7)",
-            rewrite(paramsFormat = "(\$name: \$id; ...)").rewrite(element, null, listOf(orderId, customer)).methodName,
+            "process[orderId: 42; customer: 7]",
+            rewrite(paramsFormat = "[\$name: \$id; ...]").rewrite(element, null, listOf(orderId, customer)).methodName,
         )
     }
 
@@ -112,8 +112,8 @@ class FrameFormatTest {
         // The receiver id is not affected.
         assertEquals("com.hafnium.ObjectClass{objectId=123}", two.rewrite(element, receiver, listOf(a, b, c)).className)
 
-        val custom = FrameFormat.create(AugmentorConfig.DEFAULT_FRAME_FORMAT, AugmentorConfig.DEFAULT_RECEIVER_FORMAT, "(\$name: \$id; ...)", 1)
-        assertEquals("process(orderId: 42; …)", custom.rewrite(element, null, listOf(orderId, customer)).methodName)
+        val custom = FrameFormat.create(AugmentorConfig.DEFAULT_FRAME_FORMAT, AugmentorConfig.DEFAULT_RECEIVER_FORMAT, "[\$name: \$id; ...]", 1)
+        assertEquals("process[orderId: 42; …]", custom.rewrite(element, null, listOf(orderId, customer)).methodName)
 
         val repeated = FrameFormat.create(AugmentorConfig.DEFAULT_FRAME_FORMAT, AugmentorConfig.DEFAULT_RECEIVER_FORMAT, "{\$name=\$id}", 1)
         assertEquals("process{orderId=42},…", repeated.rewrite(element, null, listOf(orderId, customer)).methodName)
@@ -138,6 +138,22 @@ class FrameFormatTest {
         assertThrows<ConfigException> { rewrite(frameFormat = "\$class.\$\$method") }
         // Braces are literal, so they do not make a placeholder.
         assertThrows<ConfigException> { rewrite(frameFormat = "{class}{receiver}.{method}{params}") }
+    }
+
+    @Test
+    fun `parentheses are rejected in every template`() {
+        // They would confuse IDEs looking for the frame's (File.java:12).
+        for ((frame, receiver, params) in listOf(
+            Triple("\$class.\$method(\$params)", AugmentorConfig.DEFAULT_RECEIVER_FORMAT, AugmentorConfig.DEFAULT_PARAMS_FORMAT),
+            Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, "(\$id)", AugmentorConfig.DEFAULT_PARAMS_FORMAT),
+            Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, AugmentorConfig.DEFAULT_RECEIVER_FORMAT, "(\$name: \$id; ...)"),
+            Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, AugmentorConfig.DEFAULT_RECEIVER_FORMAT, "{\$name=\$id), ...}"),
+        )) {
+            val message = assertThrows<ConfigException>("frame=$frame receiver=$receiver params=$params") { rewrite(frame, receiver, params) }.message!!
+            assertTrue(message.contains("must not contain '('") || message.contains("must not contain ')'"), message)
+        }
+        val message = assertThrows<ConfigException> { rewrite(paramsFormat = "(\$name: \$id; ...)") }.message!!
+        assertTrue(message.startsWith("paramsFormat must not contain '(' (at position 0)"), message)
     }
 
     @Test

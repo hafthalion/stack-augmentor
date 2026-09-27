@@ -195,6 +195,12 @@ public final class FrameFormat {
         int i = 0;
         while (i < template.length()) {
             char c = template.charAt(i);
+            if (c == '(' || c == ')') {
+                // IDEs find a frame's file and line by the parenthesised "(File.java:12)" that the JDK appends.
+                throw new ConfigException(key + " must not contain '" + c + "' (at position " + i + "), because IDEs find "
+                        + "a frame's file by the '(File.java:12)' at its end; use e.g. '{' and '}' or '[' and ']'; was '"
+                        + template + "'");
+            }
             if (c != '$') {
                 literal.append(c);
                 i++;

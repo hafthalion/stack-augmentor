@@ -44,7 +44,7 @@ class AugmentorConfigTest {
             [augment]
             frameFormat = "${'$'}class.${'$'}method${'$'}receiver${'$'}params"
             receiverFormat = "<${'$'}id>"
-            paramsFormat = "(${'$'}name: ${'$'}id; ...)"
+            paramsFormat = "[${'$'}name: ${'$'}id; ...]"
             maxIdLength = 32
             maxParams = 3
             """,
@@ -66,7 +66,7 @@ class AugmentorConfigTest {
                 )
                 .frameFormat("\$class.\$method\$receiver\$params")
                 .receiverFormat("<\$id>")
-                .paramsFormat("(\$name: \$id; ...)")
+                .paramsFormat("[\$name: \$id; ...]")
                 .maxIdLength(32)
                 .maxParams(3)
                 .debug(true)
