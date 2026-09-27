@@ -18,12 +18,15 @@ import java.util.List;
  * instrumentation no agent does that: {@link Dispatch} creates it through {@code ServiceLoader} with the
  * no-argument constructor, which reads the configuration from {@code -Dstackaugmentor.config} or from
  * {@code stack-augmentor.toml} on the classpath. What gets instrumented was decided at build time; at runtime,
- * {@code [augment]}, {@code debug} and the {@code [instrument.classes]} entries apply, and classes without an entry
- * use their annotations.
+ * {@code [augment]}, {@code debug} and the {@code [instrument.classes]} entries apply, as with the agent: a class
+ * without an entry gets no receiver id, even if it is annotated.
  */
 public final class ThrowHandler implements Dispatch.Handler {
 
     public static final String CLASSPATH_CONFIG = "stack-augmentor.toml";
+
+    static final String NO_RUNTIME_CONFIG = "build-time instrumentation: no " + CLASSPATH_CONFIG + " on the classpath and no -D"
+            + AugmentorConfig.CONFIG_PROPERTY + ", so frames show no receiver ids";
 
     private final IdResolver resolver;
     private final FrameFormat format;
@@ -40,19 +43,12 @@ public final class ThrowHandler implements Dispatch.Handler {
     }
 
     public ThrowHandler(AugmentorConfig config) {
-        this(config, false);
+        this(new IdResolver(config), FrameFormat.create(config));
     }
 
-    /**
-     * For {@code ServiceLoader}: build-time instrumentation. The build plugin already chose which classes to
-     * instrument, so classes without an {@code [instrument.classes]} entry use their annotations.
-     */
+    /** For {@code ServiceLoader}: build-time instrumentation. */
     public ThrowHandler() {
-        this(runtimeConfig(), true);
-    }
-
-    private ThrowHandler(AugmentorConfig config, boolean annotationsWithoutEntry) {
-        this(new IdResolver(config, annotationsWithoutEntry), FrameFormat.create(config));
+        this(runtimeConfig());
     }
 
     @Override
@@ -113,6 +109,7 @@ public final class ThrowHandler implements Dispatch.Handler {
         } else {
             config = new AugmentorConfig();
             source = "none, using the defaults";
+            Log.warn(NO_RUNTIME_CONFIG);
         }
         Log.setDebug(config.debug());
         Log.debug(() -> "build-time instrumentation, configuration: " + source);

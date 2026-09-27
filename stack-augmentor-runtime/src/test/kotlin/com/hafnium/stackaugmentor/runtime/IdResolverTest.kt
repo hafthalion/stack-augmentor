@@ -4,6 +4,7 @@ import com.hafnium.stackaugmentor.StackTraceId
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -54,8 +55,8 @@ class IdResolverTest {
     @AfterEach
     fun restore() = System.setErr(originalErr)
 
-    private fun resolver(vararg classes: Pair<String, IdSpec>, withoutEntry: Boolean = false) =
-        IdResolver(AugmentorConfig.builder().classes(classes.toMap()).maxIdLength(10).build(), withoutEntry)
+    private fun resolver(vararg classes: Pair<String, IdSpec>) =
+        IdResolver(AugmentorConfig.builder().classes(classes.toMap()).maxIdLength(10).build())
 
     private fun name(type: Class<*>) = type.name
 
@@ -119,10 +120,11 @@ class IdResolverTest {
     }
 
     @Test
-    fun `without an entry, fallback mode uses the annotations`() {
-        assertEquals(NamedId("objectId", "a-1"), resolver(withoutEntry = true).receiverId(Annotated()))
-        // Entries still apply.
-        val configured = resolver(name(Annotated::class.java) to IdSpec.FieldSpec("customerId"), withoutEntry = true)
+    fun `annotations need an entry`() {
+        assertNull(resolver().receiverId(Annotated()))
+        assertNotEquals("a-1", resolver().paramId(Annotated()))
+        // An entry that is not "@" ignores the annotations.
+        val configured = resolver(name(Annotated::class.java) to IdSpec.FieldSpec("customerId"))
         assertEquals(NamedId("customerId", "c-1"), configured.receiverId(Annotated()))
     }
 

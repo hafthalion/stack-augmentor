@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
  * receiverFormat = "{$name=$id}"
  * paramsFormat = "{$name=$id, ...}"
  * maxIdLength = 64
- * maxParams = 8
+ * maxParams = 4
  * }</pre>
  *
  * <p>Keys of both tables may use wildcards: {@code *} within one package segment (or name), {@code **} across
@@ -245,21 +245,6 @@ public final class AugmentorConfig {
             }
         }
         return refs != null ? refs : exact;
-    }
-
-    public boolean hasMethodEntries(String className) {
-        String prefix = className + ".";
-        for (String target : methods.keySet()) {
-            if (!isPattern(target) && target.startsWith(prefix)) {
-                return true;
-            }
-        }
-        for (MethodPattern entry : methodPatterns) {
-            if (entry.classPattern().matcher(className).matches()) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** Whether a key of {@code [instrument.classes]} or {@code [instrument.methods]} has wildcards ({@code *} or {@code ?}). */

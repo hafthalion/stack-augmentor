@@ -112,7 +112,7 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 
 After compiling, the ByteBuddy Gradle plugin applies `StackAugmentorByteBuddyPlugin` to the project's classes (Java and Kotlin), choosing classes and methods with the `[instrument.classes]` and `[instrument.methods]` entries of the given configuration, as the agent does (e.g. `"com.acme.**" = "@"`). Without the configuration argument, nothing is instrumented and the build prints a warning. No agent is needed at runtime: the application needs only `stack-augmentor-api` and `stack-augmentor-runtime`, which bring the bridge and tomlj, but neither ByteBuddy nor the Kotlin runtime. Libraries are not changed, so entries for third-party classes don't apply here.
 
-With the configuration in `src/main/resources`, one file serves both phases: the build plugin reads `[instrument]`, and at runtime `[instrument.classes]` (for receiver ids), `[augment]` and `debug` are read from `stack-augmentor.toml` on the classpath (or from `-Dstackaugmentor.config=<file>`). At runtime, a class without a matching `[instrument.classes]` entry uses its annotations, because the build plugin already chose what to instrument; so a missing runtime configuration doesn't lose receiver ids.
+With the configuration in `src/main/resources`, one file serves both phases: the build plugin reads `[instrument]`, and at runtime `[instrument.classes]` (for receiver ids), `[augment]` and `debug` are read from `stack-augmentor.toml` on the classpath (or from `-Dstackaugmentor.config=<file>`). At runtime, the `[instrument.classes]` entries apply as with the agent: a class without a matching entry gets no receiver id, even if it is annotated. Without a runtime configuration, a warning says so, and frames show only the parameter ids chosen at build time.
 
 ## Where ids come from
 
@@ -141,7 +141,7 @@ The parameter annotations count in classes whose deciding `[instrument.classes]`
 "com.acme.Order.*" = "@"
 ```
 
-At most `maxParams` parameter ids (default 8) are shown per frame; if there are more, the list ends with `…`, e.g. `process{a=1, b=2, …}`. The others are not even converted to text.
+At most `maxParams` parameter ids (default 4) are shown per frame; if there are more, the list ends with `…`, e.g. `process{a=1, b=2, …}`. The others are not even converted to text.
 
 The label is the parameter name, or `@StackTraceParam(name = "…")`. That needs the `MethodParameters` attribute (`javac -parameters`, Kotlin `javaParameters = true`); without it, the label is `arg<N>`. An argument whose class has a receiver id source is shown by that id, e.g. `order=4711`. Anything else is shown with `toString()`.
 
@@ -183,7 +183,7 @@ frameFormat = "{class}{receiver}.{method}{params}"
 receiverFormat = "{$name=$id}"
 paramsFormat = "{$name=$id, ...}"
 maxIdLength = 64
-maxParams = 8        # at most this many parameter ids per frame, then "…"
+maxParams = 4        # at most this many parameter ids per frame, then "…"
 ```
 
 Quote class names in `[instrument.classes]` and `[instrument.methods]`. Without quotes, TOML treats each `.` as a nested table; the agent accepts that too, but the quoted form is the clear one. Keys with wildcards must be quoted. Broad wildcards such as `"com.**.*" = "*"` make the agent instrument many classes, which costs time when they are loaded; `debug = true` lists every instrumented class, and the annotations it ignores. A missing field or method is a warning for exact class names, and only a debug message for patterns. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.
