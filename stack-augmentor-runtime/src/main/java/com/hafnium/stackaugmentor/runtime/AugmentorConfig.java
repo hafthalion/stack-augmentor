@@ -52,7 +52,7 @@ public final class AugmentorConfig {
     public static final String DEFAULT_RECEIVER_FORMAT = "{$name=$id}";
     public static final String DEFAULT_PARAMS_FORMAT = "{$name=$id, ...}";
     public static final int DEFAULT_MAX_ID_LENGTH = 64;
-    public static final int DEFAULT_MAX_PARAMS = 8;
+    public static final int DEFAULT_MAX_PARAMS = 4;
     public static final String CONFIG_PROPERTY = "stackaugmentor.config";
 
     /** The value that stands for "use the annotations", in both tables. */

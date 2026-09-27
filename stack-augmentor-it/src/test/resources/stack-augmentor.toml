@@ -27,3 +27,5 @@
 
 [augment]
 maxIdLength = 20
+# Above the default (4), so the six-parameter fixtures show all their parameters
+maxParams = 8

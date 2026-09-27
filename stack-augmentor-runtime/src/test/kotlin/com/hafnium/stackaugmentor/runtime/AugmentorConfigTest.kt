@@ -272,7 +272,7 @@ class AugmentorConfigTest {
         assertTrue(error("[instrument.methods]\n\"com..Order.run\" = \"*\"").contains("keys must name a class and a method"))
         assertEquals("test.toml, line 2: maxParams must be between 1 and 255, was 0", error("[augment]\nmaxParams = 0"))
         assertTrue(error("augment.maxParams = 256").contains("maxParams must be between 1 and 255, was 256"))
-        assertEquals(8, AugmentorConfig().maxParams())
+        assertEquals(4, AugmentorConfig().maxParams())
         assertEquals(1, parse("augment.maxParams = 1").maxParams())
     }
 
