@@ -57,10 +57,13 @@ another class loader is also recognised.
 The system SHALL use the `[augment.receiver]` configuration table to choose the receiver id source of a
 class. A key SHALL be a class name or a class pattern with the globs `*` (within one package segment),
 `**` (across segments) and `?` (one character). A value SHALL be a field name, a no-argument method written
-with `()`, `"@"` for the class's `@StackTraceId`, or `"-"` for none. An entry SHALL apply to the classes it matches and to their
-subclasses: the deciding entry of a class SHALL be found by checking the class, then its superclasses in
-order, and taking the first class that any entry matches. When several entries match that class, the most
-specific SHALL decide: an entry without wildcards beats any pattern, and among patterns, the one with the
+with `()`, `"@"` for the class's `@StackTraceId`, or `"-"` for none. An entry SHALL apply only to the
+classes whose names it matches, not to their subclasses: the deciding entry of an object SHALL be found
+from the name of its runtime class alone. A subclass without an entry of its own, including one generated
+at runtime (a proxy, a mock, an anonymous class or an enum constant with a body), SHALL get no receiver
+id, also in the frames of the methods it inherits from a matched class; a pattern whose glob matches the
+generated class's name does apply to it. When several entries match a class, the most specific SHALL
+decide: an entry without wildcards beats any pattern, and among patterns, the one with the
 most characters other than `*` and `?` wins, with ties broken by the alphabetical order of the keys. A
 configured field or method SHALL be looked up in the matched class and its superclasses, including private
 members.
@@ -86,10 +89,20 @@ members.
 - **WHEN** an exception leaves a method of an `Order`
 - **THEN** that frame shows the receiver id `getId=…`, and `Order`'s `@StackTraceId` is not used
 
-#### Scenario: Entry of a superclass
+#### Scenario: Subclass without an entry
 - **GIVEN** `"com.thirdparty.Order" = "getOrderNumber()"` and a subclass `com.acme.RushOrder` that no entry matches
-- **WHEN** an exception leaves a method of a `RushOrder`
-- **THEN** that frame shows the receiver id `getOrderNumber=…`
+- **WHEN** an exception leaves `Order.ship()`, called on a `RushOrder`
+- **THEN** that frame shows no receiver id
+
+#### Scenario: Subclass with an entry naming an inherited member
+- **GIVEN** `"com.acme.ExpressOrder" = "id"`, where `ExpressOrder` extends `Order`, which declares the field `id`
+- **WHEN** an exception leaves a method of an `ExpressOrder`
+- **THEN** that frame shows the receiver id `id=…`
+
+#### Scenario: Generated subclass
+- **GIVEN** `"com.acme.Order" = "id"` and `"com.acme.patterned.*" = "code"`
+- **WHEN** an exception leaves a method of a Spring CGLIB proxy `com.acme.Order$$SpringCGLIB$$0`, and separately of `com.acme.patterned.Customer$$SpringCGLIB$$0`
+- **THEN** the first frame shows no receiver id, and the second shows `code=…`, because the pattern matches the proxy's name
 
 ### Requirement: Parameter ids
 The system SHALL show the value of a method parameter after the method name when the parameter is
@@ -237,7 +250,7 @@ a `"-"` entry as described under "Ignoring receivers and parameters".
 ### Requirement: Ignoring receivers and parameters
 The value `"-"` SHALL select nothing, in either table, and SHALL affect its own table only. A class whose
 deciding `[augment.receiver]` entry is `"-"` SHALL get no receiver id; the entry decides with the same
-most-specific rule as other entries and applies to subclasses in the same way. When several
+most-specific rule as other entries. When several
 `[augment.params]` entries match a method, they SHALL be ordered from the most specific on (the entry
 without wildcards first, then the patterns with the most characters other than `*` and `?`, ties broken by
 key) and combined up to the first `"-"` entry; that entry and the less specific ones SHALL select nothing.
@@ -271,7 +284,7 @@ them.
 #### Scenario: Subclass of a class with an "@" entry
 - **GIVEN** `"com.hafnium.it.fixtures.**" = "@"`, and `com.hafnium.it.outside.DerivedOutside` extending `com.hafnium.it.fixtures.Base`, which declares `@StackTraceId val baseId = "b1"`
 - **WHEN** an exception leaves a method of `DerivedOutside`
-- **THEN** that frame shows the receiver id `baseId=b1`, because the entry of `Base` applies to its subclasses
+- **THEN** that frame shows no receiver id, because the entry of `Base` does not apply to its subclasses
 
 #### Scenario: Matched class without annotations
 - **GIVEN** a class matched by an `"@"` entry that has no annotations, but overrides `toString()`

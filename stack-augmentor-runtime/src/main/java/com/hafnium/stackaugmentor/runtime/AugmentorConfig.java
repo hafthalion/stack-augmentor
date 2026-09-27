@@ -232,7 +232,7 @@ public final class AugmentorConfig {
     /**
      * The most specific {@code [augment.receiver]} entry that matches exactly this class name, or {@code null}:
      * an entry without wildcards, otherwise the pattern with the most characters other than {@code *} and
-     * {@code ?}, ties broken by key. Superclasses are not looked at; the callers walk the hierarchy.
+     * {@code ?}, ties broken by key. Superclasses are not looked at: entries do not apply to subclasses.
      */
     public ClassEntry classEntry(String className) {
         IdSpec exact = classes.get(className);

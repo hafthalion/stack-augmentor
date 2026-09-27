@@ -92,10 +92,12 @@ class IdResolverTest {
     }
 
     @Test
-    fun `an entry applies to subclasses`() {
-        assertEquals(NamedId("baseId", "b1"), resolver(name(BaseWithId::class.java) to annotations).receiverId(ChildOfBase()))
-        val explicit = resolver(name(BaseWithId::class.java) to IdSpec.FieldSpec("baseId"))
-        assertEquals(NamedId("baseId", "b1"), explicit.receiverId(ChildOfBase()))
+    fun `an entry does not apply to subclasses, but members are found in superclasses`() {
+        assertNull(resolver(name(BaseWithId::class.java) to annotations).receiverId(ChildOfBase()))
+        assertNull(resolver(name(BaseWithId::class.java) to IdSpec.FieldSpec("baseId")).receiverId(ChildOfBase()))
+        // An entry of the subclass itself finds the annotation or the field that the superclass declares.
+        assertEquals(NamedId("baseId", "b1"), resolver(name(ChildOfBase::class.java) to annotations).receiverId(ChildOfBase()))
+        assertEquals(NamedId("baseId", "b1"), resolver(name(ChildOfBase::class.java) to IdSpec.FieldSpec("baseId")).receiverId(ChildOfBase()))
     }
 
     @Test

@@ -121,13 +121,15 @@ With the configuration in `src/main/resources`, one file serves both phases: the
 
 The two kinds of ids are configured independently: `[augment.receiver]` decides the receiver ids, `[augment.params]` the parameter ids. Neither table affects the other. Which classes and methods get instrumented is not configured directly: whatever either table needs is instrumented behind the scenes.
 
-**Receiver id**: the object a frame runs on. It comes from the class's deciding `[augment.receiver]` entry: that of the first class up the superclass chain that an entry matches, so an entry also applies to subclasses. The entry names:
+**Receiver id**: the object a frame runs on. It comes from the deciding `[augment.receiver]` entry of the object's runtime class. An entry applies only to the classes whose names it matches, not to their subclasses. The entry names:
 
 - a field, or a no-argument `method()`, looked up in that class and its superclasses;
 - `"@"`: the `@StackTraceId` on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`; or
 - `"-"`: nothing, so the class gets no receiver id. Its parameter ids are not affected.
 
 When several entries match a class, the most specific one decides: an exact class name beats any pattern, and among patterns the one with the most characters other than `*` and `?` wins. So `"com.acme.Order" = "getId()"` overrides `"com.acme.**" = "@"` for `Order`, and `"com.acme.generated.**" = "-"` takes the generated classes out of `"com.acme.**" = "@"`. A class without a deciding entry, or without the member it names, gets no receiver id.
+
+Subclasses need an entry of their own, but it may name a member that a superclass declares. This includes subclasses generated at runtime: a Spring CGLIB proxy `Order$$SpringCGLIB$$0`, a Hibernate proxy `Order$HibernateProxy$…`, a Mockito mock `Order$MockitoMock$…`, an anonymous subclass, or an enum constant with a body. Such objects show no receiver id, also in the frames of the methods they inherit from a matched class, and as arguments they are shown with `toString()`. A pattern covers the generated classes whose names it matches: `"com.acme.*" = "id"` matches `com.acme.Order$$SpringCGLIB$$0`, since `*` stops only at a `.`. (Mockito's default inline mock maker changes the mocked class itself instead of subclassing it, so its mocks and spies keep their class and its entry.)
 
 The label is the real field or method name (`{objectId=…}`, `{getKey=…}`). `@StackTraceId(name = "…")` sets a different label.
 
@@ -186,8 +188,8 @@ maxParams = 4        # at most this many parameter ids per frame, then "…"
 # Keys may use wildcards: '*' within one package (or name), '**' across packages, '?' one character.
 
 # Receiver ids: "@" for the class's @StackTraceId (without an "@" entry, it is not used), or, for classes you
-# cannot annotate, a field or a no-argument method ending in "()"; "-" for none. An entry applies to
-# subclasses too; the most specific entry wins.
+# cannot annotate, a field or a no-argument method ending in "()"; "-" for none. An entry applies to the
+# classes it matches, not to their subclasses; the most specific entry wins.
 [augment.receiver]
 "com.hafnium.**" = "@"
 "com.hafnium.generated.**" = "-"                     # except these

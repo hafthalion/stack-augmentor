@@ -132,18 +132,14 @@ public final class IdResolver {
     }
 
     /**
-     * The deciding {@code [augment.receiver]} entry: that of the first class up the superclass chain that an entry
-     * matches. Its field or method, or with {@code "@"} its {@code @StackTraceId}, is looked up from that class upwards.
-     * Without a deciding entry, or with {@code "-"}, the class has no id source, even if it is annotated.
+     * The deciding {@code [augment.receiver]} entry: the most specific entry that matches the class's own name; entries
+     * of superclasses do not apply. Its field or method, or with {@code "@"} its {@code @StackTraceId}, is looked up in
+     * the class and its superclasses. Without a deciding entry, or with {@code "-"}, the class has no id source, even
+     * if it is annotated.
      */
     private Source findSource(Class<?> type) {
-        for (Class<?> owner = type; isInHierarchy(owner); owner = owner.getSuperclass()) {
-            AugmentorConfig.ClassEntry entry = config.classEntry(owner.getName());
-            if (entry != null) {
-                return sourceFor(owner, entry);
-            }
-        }
-        return null;
+        AugmentorConfig.ClassEntry entry = config.classEntry(type.getName());
+        return entry != null ? sourceFor(type, entry) : null;
     }
 
     /** {@code @StackTraceId} on a field, a no-argument method or (Kotlin) a primary constructor property. */

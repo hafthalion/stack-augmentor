@@ -17,6 +17,12 @@ maxParams = 8
 "com.thirdparty.*Account" = "number"
 # Matches JDK classes, which the agent never instruments
 "java.**" = "@"
+# Entries do not apply to subclasses (InheritanceTest): only these classes themselves
+"com.hafnium.it.inheritance.Order" = "id"
+"com.hafnium.it.inheritance.ExpressOrder" = "id"
+"com.hafnium.it.inheritance.Priority" = "code"
+# ... while a pattern matches every class whose name fits, generated subclasses in the package included
+"com.hafnium.it.inheritance.patterned.*" = "code"
 
 [augment.params]
 # The fixtures' parameter ids come from their @StackTraceParam and @StackTraceParams
@@ -35,6 +41,7 @@ maxParams = 8
 # Matches JDK classes, which the agent never instruments
 "java.**.*" = "*"
 "com.hafnium.it.fixtures.Overlap.op" = ["x", "y"]
+"com.hafnium.it.inheritance.OrderService.process" = "*"
 # Parameter annotations outside the fixtures
 "com.hafnium.it.outside.MethodAnnotationsOutside.run" = "@"
 "com.hafnium.it.outside.ClassParamsViaMethods.*" = "@"
