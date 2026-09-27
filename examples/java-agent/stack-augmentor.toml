@@ -22,7 +22,7 @@ debug = false
 
 # How frames look; used at runtime (these are the defaults, see the README).
 [augment]
-frameFormat = "{class}{receiver}.{method}{params}"
+frameFormat = "$class$receiver.$method$params"
 receiverFormat = "{$name=$id}"
 paramsFormat = "{$name=$id, ...}"
 # Longer ids are cut off with "…".

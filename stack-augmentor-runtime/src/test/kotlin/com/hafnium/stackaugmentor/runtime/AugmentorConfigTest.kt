@@ -19,7 +19,7 @@ class AugmentorConfigTest {
     @Test
     fun defaults() {
         assertEquals(AugmentorConfig(), parse(""))
-        assertEquals("{class}{receiver}.{method}{params}", AugmentorConfig().frameFormat())
+        assertEquals("\$class\$receiver.\$method\$params", AugmentorConfig().frameFormat())
         assertEquals("{\$name=\$id}", AugmentorConfig().receiverFormat())
         assertEquals("{\$name=\$id, ...}", AugmentorConfig().paramsFormat())
         assertFalse(AugmentorConfig().hasInstrumentEntries())
@@ -42,7 +42,7 @@ class AugmentorConfigTest {
             "com.hafnium.Legacy.*" = "@"
 
             [augment]
-            frameFormat = "{class}.{method}{receiver}{params}"
+            frameFormat = "${'$'}class.${'$'}method${'$'}receiver${'$'}params"
             receiverFormat = "<${'$'}id>"
             paramsFormat = "(${'$'}name: ${'$'}id; ...)"
             maxIdLength = 32
@@ -64,7 +64,7 @@ class AugmentorConfigTest {
                         "com.hafnium.Legacy.*" to listOf(ParamRef.Annotations()),
                     ),
                 )
-                .frameFormat("{class}.{method}{receiver}{params}")
+                .frameFormat("\$class.\$method\$receiver\$params")
                 .receiverFormat("<\$id>")
                 .paramsFormat("(\$name: \$id; ...)")
                 .maxIdLength(32)
@@ -172,7 +172,7 @@ class AugmentorConfigTest {
     fun `unknown keys are rejected, in every section`() {
         assertEquals(
             "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams",
-            error("[augment]\nframe = \"{class}.{method}\""),
+            error("[augment]\nframe = \"\$class.\$method\""),
         )
         assertTrue(error("[other]\nx = 1").contains("unknown key 'other'; allowed: debug, instrument, augment"))
         // Keys of earlier layouts are rejected, not silently ignored.
@@ -180,7 +180,7 @@ class AugmentorConfigTest {
             "augmentAnnotatedClasses = []",
             "include = []",
             "maxIdLength = 64",
-            "frameFormat = \"{class}.{method}\"",
+            "frameFormat = \"\$class.\$method\"",
             "[augmentClassIds]",
             "[augmentMethodParams]",
             "[format]\nmaxIdLength = 64",

@@ -179,7 +179,7 @@ debug = false
 
 # How frames look: read at runtime, in both modes (these are the defaults).
 [augment]
-frameFormat = "{class}{receiver}.{method}{params}"
+frameFormat = "$class$receiver.$method$params"
 receiverFormat = "{$name=$id}"
 paramsFormat = "{$name=$id, ...}"
 maxIdLength = 64
@@ -199,27 +199,28 @@ An invalid configuration stops the JVM (or the build) at startup. The message na
 | `[instrument.classIds]` | `[instrument.classes]` (now also with wildcards) |
 | `[instrument.methodParams]` | `[instrument.methods]` |
 | `@StackTraceId` on a parameter | `@StackTraceParam` (keeping any `name`); the compiler reports every place |
+| `frameFormat` placeholders in braces, e.g. `{class}{receiver}.{method}{params}` | `$` placeholders, e.g. `$class$receiver.$method$params` |
 
-The old keys are rejected with an "unknown key" error. Classes compiled against the old `@StackTraceId` on parameters show no id for such parameters until they are recompiled.
+The old keys are rejected with an "unknown key" error, and a `frameFormat` in braces is rejected because it has no `.$method`. Classes compiled against the old `@StackTraceId` on parameters show no id for such parameters until they are recompiled.
 
 ### Formats
 
 | Template | Placeholders |
 |---|---|
-| `frameFormat` | `{class}`, `{simpleClass}`, `{method}`, `{receiver}`, `{params}` |
+| `frameFormat` | `$class`, `$simpleClass`, `$method`, `$receiver`, `$params` |
 | `receiverFormat` | `$name`, `$id`. Renders empty when the frame has no receiver id. |
 | `paramsFormat` | `$name`, `$id`, and `...` to mark repetition. Renders empty when the method has no parameter ids. |
 
 - **`paramsFormat`** is split as follows. The text before the first placeholder and the text after `...` wrap the list. The part from the first to the last placeholder is repeated for each parameter. The text between the last placeholder and `...` separates the items. So `($name: $id; ...)` renders `(orderId: 42; customer: 7)`.
-- **In `frameFormat`**, placeholders are in braces and `{{` and `}}` are literal braces. **In `receiverFormat` and `paramsFormat`**, placeholders start with `$` and everything else is literal, braces included; `$$` is a literal `$`.
-- **`frameFormat` must contain `.{method}` exactly once**, because the JDK always prints `<class>.<method>(<file>:<line>)`.
+- **In all three templates**, placeholders start with `$` and everything else is literal, braces included; `$$` is a literal `$`. A placeholder name ends at the first character that is not a letter or digit, so `$class$receiver.$method$params` needs no separators.
+- **`frameFormat` must contain `.$method` exactly once**, because the JDK always prints `<class>.<method>(<file>:<line>)`.
 
 Examples:
 
 | Setting | Frame |
 |---|---|
 | defaults | `com.hafnium.ObjectClass{objectId=1}.process{orderId=42}(ObjectClass.java:13)` |
-| `frameFormat = "{class}.{method}{receiver}{params}"` | `com.hafnium.ObjectClass.process{objectId=1}{orderId=42}(ObjectClass.java:13)` |
+| `frameFormat = "$class.$method$receiver$params"` | `com.hafnium.ObjectClass.process{objectId=1}{orderId=42}(ObjectClass.java:13)` |
 | `receiverFormat = "<$id>"` | `com.hafnium.ObjectClass<1>.process{orderId=42}(ObjectClass.java:13)` |
 | `receiverFormat = "[$name=$id]"`, `paramsFormat = "[$name=$id, ...]"` | `com.hafnium.ObjectClass[objectId=1].process[orderId=42](ObjectClass.java:13)` |
 

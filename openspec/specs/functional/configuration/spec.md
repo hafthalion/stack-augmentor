@@ -62,7 +62,7 @@ non-empty array of parameter names and indexes (`"*"` and `"@"` are not allowed 
 - **THEN** it is rejected with `stack-augmentor.toml, line 3: maxIdLength must be between 2 and 10000, was 1`
 
 #### Scenario: Unknown key
-- **GIVEN** `[augment]` with `frame = "{class}.{method}"`
+- **GIVEN** `[augment]` with `frame = "$class.$method"`
 - **WHEN** the configuration is loaded
 - **THEN** it is rejected with a message naming `frame`, the section `[augment]` and the allowed keys
 
