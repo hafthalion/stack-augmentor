@@ -52,13 +52,12 @@ wildcards SHALL be quoted, as TOML requires.
 ### Requirement: Invalid configuration
 The system SHALL reject a configuration with a TOML syntax error, a value of the wrong type, a value out
 of range, an invalid `[augment.classes]` or `[augment.methods]` entry, or an unknown key in any
-section, including keys of earlier layouts (such as `annotatedClasses`, `classIds`, `methodParams`,
-`include`, `fallback`, `maxIdLength` at the top level, or `[format]`). An `[augment.classes]` entry SHALL
+section, including keys in the wrong section (such as `maxIdLength` at the top level). An `[augment.classes]` entry SHALL
 be invalid when its key contains characters other than identifier characters, `$`, `.`, `*` and `?`, or
-when its value is not a field name, a `method()` or `"@"`. An `[augment.methods]` entry SHALL be invalid
+when its value is not a field name, a `method()`, `"@"` or `"-"`. An `[augment.methods]` entry SHALL be invalid
 when its key has no class or no method part, when a part contains characters other than identifier
-characters, `$`, `.` (class part only), `*` and `?`, or when its value is neither `"*"`, `"@"` nor a
-non-empty array of parameter names and indexes (`"*"` and `"@"` are not allowed inside the array). The message SHALL name the file, the key and its line.
+characters, `$`, `.` (class part only), `*` and `?`, or when its value is neither `"*"`, `"@"`, `"-"` nor a
+non-empty array of parameter names and indexes (`"*"`, `"@"` and `"-"` are not allowed inside the array). The message SHALL name the file, the key and its line.
 
 #### Scenario: Value out of range
 - **GIVEN** `[augment]` with `maxIdLength = 1` on line 3 of `stack-augmentor.toml`
@@ -79,11 +78,6 @@ non-empty array of parameter names and indexes (`"*"` and `"@"` are not allowed 
 - **GIVEN** `[augment.methods]` with `"com.acme.Order.process" = "all"`, or `"com.acme.Order+.process" = "*"`, or `[augment]` with `maxParams = 0`
 - **WHEN** the configuration is loaded
 - **THEN** it is rejected with a message naming the key and its line
-
-#### Scenario: Keys of the previous layout
-- **GIVEN** an `[instrument]` section, e.g. `[instrument.classes]`, `[instrument.methods]` or `annotatedClasses = ["com.acme.**"]` in `[instrument]`
-- **WHEN** the configuration is loaded
-- **THEN** it is rejected with a message that its tables are now `[augment.classes]` and `[augment.methods]`
 
 #### Scenario: Invalid class entry
 - **GIVEN** `[augment.classes]` with `"com.acme.Order" = "@id"`, or `"com.acme.Ord+er" = "@"`

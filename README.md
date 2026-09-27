@@ -212,21 +212,6 @@ Quote class names in `[augment.classes]` and `[augment.methods]`. Without quotes
 
 An invalid configuration stops the JVM (or the build) at startup. The message names the key and its line, e.g. `stack-augmentor.toml, line 3: maxIdLength must be between 2 and 10000, was 1`. Unknown keys are rejected, so a typo doesn't go unnoticed.
 
-### Upgrading from earlier versions
-
-| Before | Now |
-|---|---|
-| `[instrument] annotatedClasses = ["com.acme.**"]` | `[augment.classes]` `"com.acme.**" = "@"` for `@StackTraceId`, and `[augment.methods]` `"com.acme.**.*" = "@"` for the parameter annotations (one entry per pattern) |
-| `annotatedClasses` empty or missing (all packages) | `"**" = "@"` and `"**.*" = "@"`: without `"@"` entries, no annotations are used |
-| `[instrument.classes]` | `[augment.classes]`; its `"@"` now enables `@StackTraceId` only |
-| `[instrument.methods]` | `[augment.methods]` |
-| `[instrument.classIds]` | `[augment.classes]` (now also with wildcards) |
-| `[instrument.methodParams]` | `[augment.methods]` |
-| `@StackTraceId` on a parameter | `@StackTraceParam` (keeping any `name`); the compiler reports every place |
-| `frameFormat` placeholders in braces, e.g. `{class}{receiver}.{method}{params}` | `$` placeholders, e.g. `$class$receiver.$method$params` |
-
-The old keys are rejected with an "unknown key" error (for `[instrument]`, naming the new tables), and a `frameFormat` in braces is rejected because it has no `.$method`. Classes compiled against the old `@StackTraceId` on parameters show no id for such parameters until they are recompiled.
-
 ### Formats
 
 | Template | Placeholders |

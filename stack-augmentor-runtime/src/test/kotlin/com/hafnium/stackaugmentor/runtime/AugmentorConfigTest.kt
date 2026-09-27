@@ -176,32 +176,9 @@ class AugmentorConfigTest {
             error("[augment]\nframe = \"\$class.\$method\""),
         )
         assertTrue(error("[other]\nx = 1").contains("unknown key 'other'; allowed: debug, augment"))
-        // Keys of earlier layouts are rejected, not silently ignored.
-        for (old in listOf(
-            "augmentAnnotatedClasses = []",
-            "include = []",
-            "maxIdLength = 64",
-            "frameFormat = \"\$class.\$method\"",
-            "[augmentClassIds]",
-            "[augmentMethodParams]",
-            "[format]\nmaxIdLength = 64",
-            "fallback = \"toString\"",
-        )) {
-            assertTrue(error(old).contains("unknown key"), old)
-        }
-    }
-
-    @Test
-    fun `the previous instrument section is rejected`() {
-        val moved = "unknown key 'instrument': its tables are now [augment.classes] and [augment.methods]"
-        assertEquals("test.toml, line 1: $moved", error("[instrument.classes]\n\"com.acme.Order\" = \"id\""))
-        for (old in listOf(
-            "[instrument.methods]\n\"com.acme.Order.run\" = \"*\"",
-            "[instrument]\nannotatedClasses = [\"com.acme.**\"]",
-            "[instrument.classIds]\n\"com.acme.Order\" = \"id\"",
-        )) {
-            assertTrue(error(old).contains(moved), old)
-        }
+        // Keys in the wrong place are rejected, not silently ignored.
+        assertTrue(error("maxIdLength = 64").contains("unknown key 'maxIdLength'; allowed: debug, augment"))
+        assertTrue(error("[augment.other]\nx = 1").contains("unknown key 'other' in [augment]"))
     }
 
     @Test

@@ -127,9 +127,8 @@ public final class FrameFormat {
             }
         }
         if (method < 1 || !(frame.get(method - 1) instanceof Token.Literal before) || !before.text().endsWith(".")) {
-            String hint = frameFormat.contains("{method}") && !frameFormat.contains("${method}") ? " (placeholders are written $class, $method, ...; braces are literal)" : "";
             throw new ConfigException("frameFormat must contain '.$method' (or '.${method}') exactly once, because the JDK prints "
-                    + "'<class>.<method>(<file>:<line>)'; was '" + frameFormat + "'" + hint);
+                    + "'<class>.<method>(<file>:<line>)'; was '" + frameFormat + "'");
         }
         List<Token> declaringClassPart = new ArrayList<>(frame.subList(0, method - 1));
         String beforeDot = before.text().substring(0, before.text().length() - 1);
