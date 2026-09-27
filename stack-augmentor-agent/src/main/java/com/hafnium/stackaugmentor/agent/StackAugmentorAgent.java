@@ -18,7 +18,7 @@ public final class StackAugmentorAgent {
     private static final AtomicBoolean STARTED = new AtomicBoolean();
 
     static final String NOTHING_CONFIGURED =
-            "the configuration has no [augment.classes] or [augment.methods] entries, so nothing will be augmented";
+            "the configuration has no [augment.receiver] or [augment.params] entries, so nothing will be augmented";
 
     private StackAugmentorAgent() {
     }
@@ -53,8 +53,8 @@ public final class StackAugmentorAgent {
         }
         String location = AugmentorConfig.location(agentArgs);
         Log.debug(() -> "configuration: " + (location != null ? location : "none, using the defaults"));
-        Log.debug(() -> "[augment.classes]: " + config.classesDescription());
-        Log.debug(() -> "[augment.methods]: " + config.methodsDescription());
+        Log.debug(() -> "[augment.receiver]: " + config.classesDescription());
+        Log.debug(() -> "[augment.params]: " + config.methodsDescription());
         Log.debug(() -> "format: " + config.frameFormat() + " / " + config.receiverFormat() + " / " + config.paramsFormat()
                 + ", maxIdLength=" + config.maxIdLength() + ", maxParams=" + config.maxParams());
     }

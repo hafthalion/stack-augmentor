@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
-/** [augment.classes] and [augment.methods] entries; runs with the agent, see src/test/resources/stack-augmentor.toml. */
+/** [augment.receiver] and [augment.params] entries; runs with the agent, see src/test/resources/stack-augmentor.toml. */
 class ConfigTablesTest {
 
     private fun frame(block: () -> Unit): StackTraceElement = assertThrows<IllegalStateException> { block() }.stackTrace[0]
@@ -40,7 +40,7 @@ class ConfigTablesTest {
     fun `a "-" class entry drops the receiver id only`() {
         val frame = frame { Ignored().fail(3) }
         assertEquals("com.hafnium.it.fixtures.ignored.Ignored", frame.className)
-        // The parameter annotations are enabled by [augment.methods], independently.
+        // The parameter annotations are enabled by [augment.params], independently.
         assertEquals("fail{count=3}", frame.methodName)
     }
 

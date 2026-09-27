@@ -10,13 +10,13 @@ application only needs `stack-augmentor-runtime` at runtime.
 ### Requirement: Build plugin
 `com.hafnium.stackaugmentor.build.StackAugmentorByteBuddyPlugin` SHALL be a ByteBuddy build plugin that adds
 the same exit advice as the agent to the project's compiled Java and Kotlin classes. When it is given the
-path of a TOML configuration as argument 0, it SHALL apply that file's `[augment.classes]`,
-`[augment.methods]` and `debug`, instrumenting the classes and methods that these tables need, as the agent would with the same
+path of a TOML configuration as argument 0, it SHALL apply that file's `[augment.receiver]`,
+`[augment.params]` and `debug`, instrumenting the classes and methods that these tables need, as the agent would with the same
 configuration. It SHALL be discoverable through `META-INF/net.bytebuddy/build.plugins`. Without a
 configuration, it SHALL instrument nothing and SHALL print a warning.
 
 #### Scenario: Example project
-- **GIVEN** `examples/build-time`, with the ByteBuddy Gradle plugin, the `DECORATE` entry point and the build plugin with its configuration argument, which has `"com.hafnium.**" = "@"` in `[augment.classes]` and `"com.hafnium.**.*" = "@"` in `[augment.methods]`
+- **GIVEN** `examples/build-time`, with the ByteBuddy Gradle plugin, the `DECORATE` entry point and the build plugin with its configuration argument, which has `"com.hafnium.**" = "@"` in `[augment.receiver]` and `"com.hafnium.**.*" = "@"` in `[augment.params]`
 - **WHEN** the project is built and run without `-javaagent`
 - **THEN** the frames of `ClassWithAnnotation` show `{objectId=object-1}` and `{param=object-param-1}`
 - **AND** the frames of `ClassWithoutAnnotation` are unchanged
@@ -27,7 +27,7 @@ configuration, it SHALL instrument nothing and SHALL print a warning.
 - **THEN** its classes are not instrumented, and with `debug = true` the build lists the ignored annotations
 
 #### Scenario: Class-level parameter annotation
-- **GIVEN** a project class annotated only with `@StackTraceParams`, whose methods an `[augment.methods]` `"@"` entry matches
+- **GIVEN** a project class annotated only with `@StackTraceParams`, whose methods an `[augment.params]` `"@"` entry matches
 - **WHEN** the project is built
 - **THEN** its methods with parameters are instrumented and show their parameter ids
 
@@ -38,11 +38,11 @@ configuration, it SHALL instrument nothing and SHALL print a warning.
 
 ### Requirement: Only the project's own classes
 Build-time instrumentation SHALL change only the classes of the project being built. Libraries SHALL
-NOT be changed, so `[augment.classes]` and `[augment.methods]` entries for third-party classes SHALL
+NOT be changed, so `[augment.receiver]` and `[augment.params]` entries for third-party classes SHALL
 NOT take effect for their methods.
 
 #### Scenario: Library class
-- **GIVEN** a library class listed in `[augment.classes]`
+- **GIVEN** a library class listed in `[augment.receiver]`
 - **WHEN** one of its methods throws in a build-time instrumented application
 - **THEN** its frame is unchanged
 
@@ -50,7 +50,7 @@ NOT take effect for their methods.
 When no agent has installed a handler, `Dispatch` SHALL look up the handler with `ServiceLoader` once,
 on the first exception that leaves an instrumented method. `stack-augmentor-runtime` SHALL register
 `com.hafnium.stackaugmentor.runtime.ThrowHandler`, whose no-argument constructor reads the runtime
-configuration. The `[augment.classes]` entries SHALL apply as with the agent: a class that no entry
+configuration. The `[augment.receiver]` entries SHALL apply as with the agent: a class that no entry
 matches, nor any of its superclasses, SHALL get no receiver id, even if it is annotated. If creating the handler fails, a warning SHALL be printed and exceptions
 SHALL keep their original stack traces.
 
@@ -66,6 +66,6 @@ SHALL keep their original stack traces.
 - **AND** a warning says that there is no runtime configuration, so frames show no receiver ids
 
 #### Scenario: Parameter entry only
-- **GIVEN** `"com.acme.Svc.run" = "*"` in `[augment.methods]`, no `[augment.classes]` entry for `Svc`, and `Svc` with a `@StackTraceId` field
+- **GIVEN** `"com.acme.Svc.run" = "*"` in `[augment.params]`, no `[augment.receiver]` entry for `Svc`, and `Svc` with a `@StackTraceId` field
 - **WHEN** `run` throws in a build-time instrumented application
 - **THEN** the frame shows the parameter ids of `run` and no receiver id

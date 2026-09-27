@@ -17,9 +17,9 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
- * Finds the id parameters of a method: those the {@code [augment.methods]} config table selects, by name, index,
+ * Finds the id parameters of a method: those the {@code [augment.params]} config table selects, by name, index,
  * {@code "*"}, or {@code "@"} for the method's {@code @StackTraceParam} and {@code @StackTraceParams} annotations.
- * {@code [augment.classes]} plays no part.
+ * {@code [augment.receiver]} plays no part.
  */
 public final class IdParameters {
 
@@ -29,7 +29,7 @@ public final class IdParameters {
         this.config = config;
     }
 
-    /** Whether the parameter annotations of this method are used: an {@code [augment.methods]} {@code "@"} entry applies. */
+    /** Whether the parameter annotations of this method are used: an {@code [augment.params]} {@code "@"} entry applies. */
     boolean annotationsUsed(TypeDescription type, MethodDescription method) {
         return hasAnnotationsRef(paramRefs(type, method));
     }
@@ -118,7 +118,7 @@ public final class IdParameters {
     }
 
     /**
-     * Debug messages for {@code [augment.methods]} entries of this type that match no method or parameter.
+     * Debug messages for {@code [augment.params]} entries of this type that match no method or parameter.
      * Entries with wildcards are skipped: they are expected not to fit every class and method they match.
      */
     public List<String> unmatchedEntries(TypeDescription type) {
@@ -133,7 +133,7 @@ public final class IdParameters {
                 continue;
             }
             String methodName = target.substring(dot + 1);
-            String entry = "[augment.methods] \"" + target + "\"";
+            String entry = "[augment.params] \"" + target + "\"";
             List<MethodDescription> methods = new ArrayList<>();
             for (MethodDescription method : type.getDeclaredMethods()) {
                 if (method.isMethod() && method.getInternalName().equals(methodName)) {

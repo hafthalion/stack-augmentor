@@ -12,14 +12,14 @@ maxIdLength = 64
 # At most this many parameter ids per frame; more are shown as "…".
 maxParams = 4
 
-# The two tables below are independent: [augment.classes] decides which receivers get ids,
-# [augment.methods] which parameters. The agent instruments whatever classes and methods they need.
+# The two tables below are independent: [augment.receiver] decides which receivers get ids,
+# [augment.params] which parameters. The agent instruments whatever classes and methods they need.
 # In keys, '*' matches within a package or name, '**' across packages, '?' one character.
 
 # Receiver ids: "@" uses the class's @StackTraceId (without an "@" entry, it is not used). Classes you
 # cannot annotate name a field or a method(): an order is identified by its getOrderNumber() method, a
 # customer by its customerId field.
-[augment.classes]
+[augment.receiver]
 "com.hafnium.**" = "@"
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"
@@ -27,7 +27,7 @@ maxParams = 4
 # Parameter ids: "@" uses the methods' @StackTraceParam and @StackTraceParams annotations. OrderService.process
 # shows its order argument and its second parameter (quantity), and all methods of the Inventory* classes and
 # of ClassWithoutAnnotation show all their parameters ("*").
-[augment.methods]
+[augment.params]
 "com.hafnium.**.*" = "@"
 "com.thirdparty.OrderService.process" = ["order", 1]
 "com.thirdparty.Inventory*.*" = "*"

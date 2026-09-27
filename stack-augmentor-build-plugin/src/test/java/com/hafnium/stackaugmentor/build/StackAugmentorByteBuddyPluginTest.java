@@ -45,14 +45,14 @@ class StackAugmentorByteBuddyPluginTest {
         assertFalse(new StackAugmentorByteBuddyPlugin().matches(annotated()));
 
         String output = err.toString(StandardCharsets.UTF_8);
-        assertTrue(output.contains("WARN build plugin: the configuration has no [augment.classes] or [augment.methods] entries, "
+        assertTrue(output.contains("WARN build plugin: the configuration has no [augment.receiver] or [augment.params] entries, "
                 + "so nothing will be augmented"), output);
     }
 
     @Test
     void anAtEntryEnablesTheAnnotations(@TempDir Path dir) throws IOException {
         Path config = dir.resolve("stack-augmentor.toml");
-        Files.writeString(config, "[augment.classes]\n\"com.hafnium.**\" = \"@\"\n");
+        Files.writeString(config, "[augment.receiver]\n\"com.hafnium.**\" = \"@\"\n");
         assertTrue(new StackAugmentorByteBuddyPlugin(config.toString()).matches(annotated()));
     }
 }

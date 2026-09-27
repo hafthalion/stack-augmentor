@@ -8,14 +8,14 @@ their values are turned into text.
 ## Requirements
 
 ### Requirement: Independent receiver and parameter ids
-`[augment.classes]` SHALL decide the receiver ids and `[augment.methods]` the parameter ids, independently:
+`[augment.receiver]` SHALL decide the receiver ids and `[augment.params]` the parameter ids, independently:
 no value in one table (a member, `"@"`, `"*"` or `"-"`) SHALL change what the other selects. What gets
 instrumented SHALL NOT be configured directly: a class SHALL be instrumented when either table gives it a
 receiver id or a parameter id, and a method when it gets a parameter id or, as an instance method, a
 receiver id.
 
 #### Scenario: Receiver ignored, parameters kept
-- **GIVEN** `"com.acme.**" = "@"` and `"com.acme.generated.**" = "-"` in `[augment.classes]`, `"com.acme.**.*" = "@"` in `[augment.methods]`, and `fun map(@StackTraceParam id: Int)` in the annotated class `com.acme.generated.Mapper`
+- **GIVEN** `"com.acme.**" = "@"` and `"com.acme.generated.**" = "-"` in `[augment.receiver]`, `"com.acme.**.*" = "@"` in `[augment.params]`, and `fun map(@StackTraceParam id: Int)` in the annotated class `com.acme.generated.Mapper`
 - **WHEN** `map(7)` throws
 - **THEN** that frame shows `id=7` and no receiver id
 
@@ -27,7 +27,7 @@ receiver id.
 ### Requirement: Receiver id from an annotated member
 The system SHALL use a non-static field or a non-static, no-argument method annotated with
 `@StackTraceId` (`com.hafnium.stackaugmentor.StackTraceId`) as the receiver id of the objects of a class
-whose deciding `[augment.classes]` entry is `"@"` (see "Annotations in use"). The
+whose deciding `[augment.receiver]` entry is `"@"` (see "Annotations in use"). The
 annotated member SHALL be looked up in the class that the deciding entry matched and in its superclasses.
 In Kotlin, a primary-constructor property whose constructor parameter is annotated SHALL be recognised as
 an annotated field. The annotation SHALL be matched by its class name, so that a copy of the API loaded by
@@ -54,7 +54,7 @@ another class loader is also recognised.
 - **THEN** that frame shows the receiver id `name=c`
 
 ### Requirement: Receiver id from external configuration
-The system SHALL use the `[augment.classes]` configuration table to choose the receiver id source of a
+The system SHALL use the `[augment.receiver]` configuration table to choose the receiver id source of a
 class. A key SHALL be a class name or a class pattern with the globs `*` (within one package segment),
 `**` (across segments) and `?` (one character). A value SHALL be a field name, a no-argument method written
 with `()`, `"@"` for the class's `@StackTraceId`, or `"-"` for none. An entry SHALL apply to the classes it matches and to their
@@ -66,23 +66,23 @@ configured field or method SHALL be looked up in the matched class and its super
 members.
 
 #### Scenario: Configured method of a third-party class
-- **GIVEN** `"com.thirdparty.Order" = "getOrderNumber()"` in `[augment.classes]`
+- **GIVEN** `"com.thirdparty.Order" = "getOrderNumber()"` in `[augment.receiver]`
 - **WHEN** an exception leaves a method of an `Order` with order number 4711
 - **THEN** that frame shows the receiver id `getOrderNumber=4711`
 
 #### Scenario: Configured member does not exist
-- **GIVEN** `"com.thirdparty.Customer" = "nope"` in `[augment.classes]` and no field `nope`
+- **GIVEN** `"com.thirdparty.Customer" = "nope"` in `[augment.receiver]` and no field `nope`
 - **WHEN** the id source of `Customer` is first needed
-- **THEN** a warning `[augment.classes] "com.thirdparty.Customer": no field nope found` is printed
+- **THEN** a warning `[augment.receiver] "com.thirdparty.Customer": no field nope found` is printed
 - **AND** frames of `Customer` show no receiver id
 
 #### Scenario: Wildcard entry with a member
-- **GIVEN** `"com.thirdparty.*Account" = "number"` in `[augment.classes]`
+- **GIVEN** `"com.thirdparty.*Account" = "number"` in `[augment.receiver]`
 - **WHEN** an exception leaves a method of a `com.thirdparty.SavingsAccount` with the field `number = "S-1"`
 - **THEN** that frame shows the receiver id `number=S-1`
 
 #### Scenario: Most specific entry wins
-- **GIVEN** `"com.acme.**" = "@"` and `"com.acme.Order" = "getId()"` in `[augment.classes]`, and `com.acme.Order` with `@StackTraceId val code` and `fun getId()`
+- **GIVEN** `"com.acme.**" = "@"` and `"com.acme.Order" = "getId()"` in `[augment.receiver]`, and `com.acme.Order` with `@StackTraceId val code` and `fun getId()`
 - **WHEN** an exception leaves a method of an `Order`
 - **THEN** that frame shows the receiver id `getId=…`, and `Order`'s `@StackTraceId` is not used
 
@@ -96,34 +96,34 @@ The system SHALL show the value of a method parameter after the method name when
 annotated with `@StackTraceParam` (`com.hafnium.stackaugmentor.StackTraceParam`), when its method or the
 class declaring the method is annotated with `@StackTraceParams`
 (`com.hafnium.stackaugmentor.StackTraceParams`, see "Parameter ids from method- and class-level
-annotations"), in both cases only where an `[augment.methods]` entry `"@"` applies, or when an
-`[augment.methods]` entry selects it by name, index or `"*"` (see "Parameter ids of configured methods").
+annotations"), in both cases only where an `[augment.params]` entry `"@"` applies, or when an
+`[augment.params]` entry selects it by name, index or `"*"` (see "Parameter ids of configured methods").
 This SHALL apply to instance and static methods. A parameter selected more than once SHALL be shown
 once, and parameter ids SHALL be listed in declaration order. `@StackTraceId` on a parameter SHALL NOT
 select it: `@StackTraceId` marks receiver ids only.
 
 #### Scenario: Annotated parameter
-- **GIVEN** `fun objectMethod(@StackTraceParam orderId: Int)`, matched by an `[augment.methods]` `"@"` entry
+- **GIVEN** `fun objectMethod(@StackTraceParam orderId: Int)`, matched by an `[augment.params]` `"@"` entry
 - **WHEN** `objectMethod(42)` throws
 - **THEN** that frame shows the parameter id `orderId=42`
 
 #### Scenario: Configured parameters by name and index
-- **GIVEN** `"com.thirdparty.OrderService.process" = ["order", 1]` in `[augment.methods]` for `process(order: Order, quantity: Int, note: String)`
+- **GIVEN** `"com.thirdparty.OrderService.process" = ["order", 1]` in `[augment.params]` for `process(order: Order, quantity: Int, note: String)`
 - **WHEN** `process(Order(4711), 3, "rush")` throws
 - **THEN** that frame shows `order=4711, quantity=3`
 
 #### Scenario: Static method
-- **GIVEN** a top-level (static) function `staticWithParam(@StackTraceParam code: Int)`, matched by an `[augment.methods]` `"@"` entry
+- **GIVEN** a top-level (static) function `staticWithParam(@StackTraceParam code: Int)`, matched by an `[augment.params]` `"@"` entry
 - **WHEN** `staticWithParam(5)` throws
 - **THEN** that frame shows the parameter id `code=5` and no receiver id
 
 #### Scenario: Selected by an annotation and by the configuration
-- **GIVEN** `fun op(@StackTraceParam x: Int, y: Int)` in class `C`, and `"C.*" = "@"` and `"C.op" = ["x", "y"]` in `[augment.methods]`
+- **GIVEN** `fun op(@StackTraceParam x: Int, y: Int)` in class `C`, and `"C.*" = "@"` and `"C.op" = ["x", "y"]` in `[augment.params]`
 - **WHEN** `op(1, 2)` throws
 - **THEN** that frame shows `x=1, y=2`, each parameter once
 
 #### Scenario: Annotations enabled by a method entry
-- **GIVEN** `fun run(@StackTraceParam code: Int)` in `com.hafnium.it.outside.MethodAnnotationsOutside`, which no `[augment.classes]` entry matches, and `"com.hafnium.it.outside.MethodAnnotationsOutside.run" = "@"` in `[augment.methods]`
+- **GIVEN** `fun run(@StackTraceParam code: Int)` in `com.hafnium.it.outside.MethodAnnotationsOutside`, which no `[augment.receiver]` entry matches, and `"com.hafnium.it.outside.MethodAnnotationsOutside.run" = "@"` in `[augment.params]`
 - **WHEN** `run(7)` throws
 - **THEN** that frame shows `code=7` and no receiver id
 
@@ -182,7 +182,7 @@ throws SHALL be shown as `?`.
 `@StackTraceParams` (on methods and classes only, without attributes) on a method SHALL select all
 parameters of that method. `@StackTraceParams` on a class SHALL select all parameters of every instance and
 static method declared in that class. It SHALL NOT apply to methods of subclasses or nested classes, which
-need their own annotation. Both SHALL only be used where an `[augment.methods]` entry `"@"` applies. Methods without parameters SHALL get no parameter ids. Constructors, synthetic,
+need their own annotation. Both SHALL only be used where an `[augment.params]` entry `"@"` applies. Methods without parameters SHALL get no parameter ids. Constructors, synthetic,
 bridge, abstract and native methods SHALL NOT be instrumented, as for other parameter ids.
 
 #### Scenario: Method-level annotation
@@ -201,11 +201,11 @@ bridge, abstract and native methods SHALL NOT be instrumented, as for other para
 - **THEN** the frame shows no parameter ids for `run`
 
 ### Requirement: Parameter ids of configured methods
-An `[augment.methods]` entry `"<class pattern>.<method pattern>" = <parameters>` SHALL select
+An `[augment.params]` entry `"<class pattern>.<method pattern>" = <parameters>` SHALL select
 parameters of every method whose class name matches the class pattern and whose name matches the method
-pattern, including every overload, whatever the class's `[augment.classes]` entry. Keys SHALL match the
+pattern, including every overload, whatever the class's `[augment.receiver]` entry. Keys SHALL match the
 class that declares the method, not its subclasses. The class pattern
-SHALL use the `[augment.classes]` globs (`*` within one package segment, `**` across segments, `?` one
+SHALL use the `[augment.receiver]` globs (`*` within one package segment, `**` across segments, `?` one
 character). In the method pattern, `*` SHALL match any sequence of characters and `?` one character. A key
 without wildcards SHALL match exactly. `<parameters>` SHALL be an array of parameter names and 0-based
 indexes, the string `"*"` for all parameters, or the string `"@"` for the parameters selected by the method's
@@ -230,41 +230,41 @@ a `"-"` entry as described under "Ignoring receivers and parameters".
 - **THEN** that frame shows `order=4711, note=rush`
 
 #### Scenario: Exact explicit class entry with annotated parameters
-- **GIVEN** `"com.acme.Order" = "getId()"` in `[augment.classes]` and `"com.acme.Order.*" = "@"` in `[augment.methods]`, and `fun ship(@StackTraceParam(name = "to") address: String)` in `Order`
+- **GIVEN** `"com.acme.Order" = "getId()"` in `[augment.receiver]` and `"com.acme.Order.*" = "@"` in `[augment.params]`, and `fun ship(@StackTraceParam(name = "to") address: String)` in `Order`
 - **WHEN** `ship("Main St")` throws
 - **THEN** that frame shows the receiver id `getId=…` and the parameter id `to=Main St`
 
 ### Requirement: Ignoring receivers and parameters
 The value `"-"` SHALL select nothing, in either table, and SHALL affect its own table only. A class whose
-deciding `[augment.classes]` entry is `"-"` SHALL get no receiver id; the entry decides with the same
+deciding `[augment.receiver]` entry is `"-"` SHALL get no receiver id; the entry decides with the same
 most-specific rule as other entries and applies to subclasses in the same way. When several
-`[augment.methods]` entries match a method, they SHALL be ordered from the most specific on (the entry
+`[augment.params]` entries match a method, they SHALL be ordered from the most specific on (the entry
 without wildcards first, then the patterns with the most characters other than `*` and `?`, ties broken by
 key) and combined up to the first `"-"` entry; that entry and the less specific ones SHALL select nothing.
 A configuration whose entries are all `"-"` SHALL count as having no entries.
 
 #### Scenario: No receiver ids in a package under an "@" pattern
-- **GIVEN** `"com.acme.**" = "@"` and `"com.acme.generated.**" = "-"` in `[augment.classes]`, and `com.acme.generated.Mapper` with a `@StackTraceId` field
+- **GIVEN** `"com.acme.**" = "@"` and `"com.acme.generated.**" = "-"` in `[augment.receiver]`, and `com.acme.generated.Mapper` with a `@StackTraceId` field
 - **WHEN** a method of `Mapper` throws
 - **THEN** its frame shows no receiver id
 
 #### Scenario: Ignored methods under a wildcard entry
-- **GIVEN** `"com.thirdparty.Inventory*.*" = "*"`, `"com.thirdparty.InventoryAudit.*" = "-"` and `"com.thirdparty.InventoryAudit.log" = ["reason"]` in `[augment.methods]`
+- **GIVEN** `"com.thirdparty.Inventory*.*" = "*"`, `"com.thirdparty.InventoryAudit.*" = "-"` and `"com.thirdparty.InventoryAudit.log" = ["reason"]` in `[augment.params]`
 - **WHEN** `InventoryAudit.purge("x-1")` throws, and separately `InventoryAudit.log("disk full", 2)` throws
 - **THEN** the first frame is unchanged, and the second frame shows `reason=disk full`
 
 ### Requirement: Annotations in use
 The system SHALL use `@StackTraceId` annotations (on fields and methods) only in classes whose deciding
-`[augment.classes]` entry is `"@"` (see "Receiver id from external configuration"), and
+`[augment.receiver]` entry is `"@"` (see "Receiver id from external configuration"), and
 `@StackTraceParam` annotations (on parameters) and `@StackTraceParams` annotations (on methods and classes)
-only for methods matched by an `[augment.methods]` entry with the value `"@"` (see "Parameter ids of
+only for methods matched by an `[augment.params]` entry with the value `"@"` (see "Parameter ids of
 configured methods"). Without an `"@"` entry, no annotations SHALL be used. A class whose deciding entry
 names a field or method SHALL get its receiver id from that member: its `@StackTraceId` SHALL NOT be used.
 Classes without an annotation or configuration entry SHALL NOT get ids, even when an `"@"` entry matches
 them.
 
 #### Scenario: Annotated class outside the "@" entries
-- **GIVEN** `"com.hafnium.it.fixtures.**" = "@"` in `[augment.classes]` and `"com.hafnium.it.fixtures.**.*" = "@"` in `[augment.methods]` as the only entries
+- **GIVEN** `"com.hafnium.it.fixtures.**" = "@"` in `[augment.receiver]` and `"com.hafnium.it.fixtures.**.*" = "@"` in `[augment.params]` as the only entries
 - **WHEN** an exception leaves a method of a class in `com.hafnium.it.outside` with an annotated parameter, and no annotated superclass
 - **THEN** the frame is unchanged
 
@@ -279,16 +279,16 @@ them.
 - **THEN** the frame is unchanged
 
 #### Scenario: Class-level parameter annotation outside the "@" entries
-- **GIVEN** `"com.hafnium.it.fixtures.**.*" = "@"` in `[augment.methods]` and a class in `com.hafnium.it.outside` annotated with `@StackTraceParams`
+- **GIVEN** `"com.hafnium.it.fixtures.**.*" = "@"` in `[augment.params]` and a class in `com.hafnium.it.outside` annotated with `@StackTraceParams`
 - **WHEN** one of its methods throws
 - **THEN** the frame shows no parameter ids
 
 #### Scenario: Class-level parameter annotation enabled by method entries
-- **GIVEN** `@StackTraceParams class ClassParamsViaMethods` in `com.hafnium.it.outside`, and `"com.hafnium.it.outside.ClassParamsViaMethods.*" = "@"` in `[augment.methods]`
+- **GIVEN** `@StackTraceParams class ClassParamsViaMethods` in `com.hafnium.it.outside`, and `"com.hafnium.it.outside.ClassParamsViaMethods.*" = "@"` in `[augment.params]`
 - **WHEN** `run(1, "x")` throws
 - **THEN** that frame shows all its parameter ids
 
 #### Scenario: No "@" entry
-- **GIVEN** a configuration with only `"com.thirdparty.Order" = "getOrderNumber()"` in `[augment.classes]`
+- **GIVEN** a configuration with only `"com.thirdparty.Order" = "getOrderNumber()"` in `[augment.receiver]`
 - **WHEN** an exception leaves a method of an annotated class in any other package
 - **THEN** the frame is unchanged

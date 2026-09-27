@@ -18,7 +18,7 @@ It works for Java and Kotlin classes. The library is written in Java, so it does
 |---|---|---|
 | How | `-javaagent:stack-augmentor-agent.jar` at startup | The ByteBuddy Gradle plugin changes your compiled classes |
 | Classes | Your classes and libraries | Only the classes of the project being built |
-| `[augment.classes]` / `[augment.methods]` for third-party classes | Yes | No |
+| `[augment.receiver]` / `[augment.params]` for third-party classes | Yes | No |
 | At runtime | The agent jar (self-contained) | `stack-augmentor-runtime` on the classpath (with tomlj; no ByteBuddy, no Kotlin) |
 | Example | `./gradlew :examples:java-agent:run` | `./gradlew :examples:build-time:run` |
 
@@ -61,10 +61,10 @@ Use it in your own application:
 2. Say which classes use their annotations, in `stack-augmentor.toml` (see [Configuration](#configuration)). The receiver ids and the parameter ids are configured separately:
 
    ```toml
-   [augment.classes]      # receiver ids: @StackTraceId
+   [augment.receiver]      # receiver ids: @StackTraceId
    "com.acme.**" = "@"
 
-   [augment.methods]      # parameter ids: @StackTraceParam and @StackTraceParams
+   [augment.params]      # parameter ids: @StackTraceParam and @StackTraceParams
    "com.acme.**.*" = "@"
    ```
 
@@ -74,7 +74,7 @@ Use it in your own application:
    java -javaagent:stack-augmentor-agent-<version>.jar=config=stack-augmentor.toml -jar app.jar
    ```
 
-   `-Dstackaugmentor.config=<path>` works as well. Without a configuration, or without `[augment.classes]` and `[augment.methods]` entries, nothing is augmented, and the agent prints a warning.
+   `-Dstackaugmentor.config=<path>` works as well. Without a configuration, or without `[augment.receiver]` and `[augment.params]` entries, nothing is augmented, and the agent prints a warning.
 
 ## Quick start: build-time instrumentation
 
@@ -113,15 +113,15 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 }
 ```
 
-After compiling, the ByteBuddy Gradle plugin applies `StackAugmentorByteBuddyPlugin` to the project's classes (Java and Kotlin), instrumenting the classes and methods that the `[augment.classes]` and `[augment.methods]` entries of the given configuration need, as the agent does. Without the configuration argument, nothing is instrumented and the build prints a warning. No agent is needed at runtime: the application needs only `stack-augmentor-api` and `stack-augmentor-runtime`, which bring the bridge and tomlj, but neither ByteBuddy nor the Kotlin runtime. Libraries are not changed, so entries for third-party classes don't apply here.
+After compiling, the ByteBuddy Gradle plugin applies `StackAugmentorByteBuddyPlugin` to the project's classes (Java and Kotlin), instrumenting the classes and methods that the `[augment.receiver]` and `[augment.params]` entries of the given configuration need, as the agent does. Without the configuration argument, nothing is instrumented and the build prints a warning. No agent is needed at runtime: the application needs only `stack-augmentor-api` and `stack-augmentor-runtime`, which bring the bridge and tomlj, but neither ByteBuddy nor the Kotlin runtime. Libraries are not changed, so entries for third-party classes don't apply here.
 
-With the configuration in `src/main/resources`, one file serves both phases: the build plugin reads `[augment.classes]` and `[augment.methods]`, and at runtime `[augment]` (with `[augment.classes]`, for receiver ids) and `debug` are read from `stack-augmentor.toml` on the classpath (or from `-Dstackaugmentor.config=<file>`). At runtime, the `[augment.classes]` entries apply as with the agent: a class without a matching entry gets no receiver id, even if it is annotated. Without a runtime configuration, a warning says so, and frames show only the parameter ids chosen at build time.
+With the configuration in `src/main/resources`, one file serves both phases: the build plugin reads `[augment.receiver]` and `[augment.params]`, and at runtime `[augment]` (with `[augment.receiver]`, for receiver ids) and `debug` are read from `stack-augmentor.toml` on the classpath (or from `-Dstackaugmentor.config=<file>`). At runtime, the `[augment.receiver]` entries apply as with the agent: a class without a matching entry gets no receiver id, even if it is annotated. Without a runtime configuration, a warning says so, and frames show only the parameter ids chosen at build time.
 
 ## Where ids come from
 
-The two kinds of ids are configured independently: `[augment.classes]` decides the receiver ids, `[augment.methods]` the parameter ids. Neither table affects the other. Which classes and methods get instrumented is not configured directly: whatever either table needs is instrumented behind the scenes.
+The two kinds of ids are configured independently: `[augment.receiver]` decides the receiver ids, `[augment.params]` the parameter ids. Neither table affects the other. Which classes and methods get instrumented is not configured directly: whatever either table needs is instrumented behind the scenes.
 
-**Receiver id**: the object a frame runs on. It comes from the class's deciding `[augment.classes]` entry: that of the first class up the superclass chain that an entry matches, so an entry also applies to subclasses. The entry names:
+**Receiver id**: the object a frame runs on. It comes from the class's deciding `[augment.receiver]` entry: that of the first class up the superclass chain that an entry matches, so an entry also applies to subclasses. The entry names:
 
 - a field, or a no-argument `method()`, looked up in that class and its superclasses;
 - `"@"`: the `@StackTraceId` on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`; or
@@ -131,7 +131,7 @@ When several entries match a class, the most specific one decides: an exact clas
 
 The label is the real field or method name (`{objectId=…}`, `{getKey=…}`). `@StackTraceId(name = "…")` sets a different label.
 
-**Parameter ids** are shown after the method name, in declaration order. `[augment.methods]` entries `"<class>.<method>"` select them (see [Configuration](#configuration)):
+**Parameter ids** are shown after the method name, in declaration order. `[augment.params]` entries `"<class>.<method>"` select them (see [Configuration](#configuration)):
 - by name or by 0-based index, e.g. `["order", 2]`;
 - `"*"`: all parameters;
 - `"@"`: the parameters the method's annotations select: `@StackTraceParam` on a parameter, `@StackTraceParams` on the method (all its parameters), or `@StackTraceParams` on the class declaring it (all parameters of every method declared in that class; not of subclasses or nested classes);
@@ -140,7 +140,7 @@ The label is the real field or method name (`{objectId=…}`, `{getKey=…}`). `
 The keys match the class that declares the method, not its subclasses. When several entries match a method, they are taken from the most specific on (an exact `"<class>.<method>"` first, then the patterns with the most characters other than `*` and `?`) and combined up to the first `"-"`, which drops the less specific ones:
 
 ```toml
-[augment.methods]
+[augment.params]
 "com.thirdparty.Inventory*.*" = "*"                # all parameters of the Inventory* classes ...
 "com.thirdparty.InventoryAudit.*" = "-"            # ... except InventoryAudit's: more specific ...
 "com.thirdparty.InventoryAudit.log" = ["reason"]   # ... except log's first parameter: exact
@@ -149,11 +149,11 @@ The keys match the class that declares the method, not its subclasses. When seve
 Because the tables are independent, a class can take its receiver id from an explicit entry and still use its parameter annotations, or ignore its receiver and keep its parameters:
 
 ```toml
-[augment.classes]
+[augment.receiver]
 "com.acme.Order" = "getId()"
 "com.acme.generated.**" = "-"      # no receiver ids ...
 
-[augment.methods]
+[augment.params]
 "com.acme.Order.*" = "@"
 "com.acme.**.*" = "@"              # ... but their parameter annotations still count
 ```
@@ -166,7 +166,7 @@ All ids become Strings when they are captured. Line breaks are replaced, the len
 
 ## Configuration
 
-The configuration is a TOML file (ending in `.toml`). `[augment]` sets how frames look, `[augment.classes]` which receivers get ids and `[augment.methods]` which parameters:
+The configuration is a TOML file (ending in `.toml`). `[augment]` sets how frames look, `[augment.receiver]` which receivers get ids and `[augment.params]` which parameters:
 
 ```toml
 # Print diagnostics to stderr: the configuration, which classes and methods get instrumented and why,
@@ -188,7 +188,7 @@ maxParams = 4        # at most this many parameter ids per frame, then "…"
 # Receiver ids: "@" for the class's @StackTraceId (without an "@" entry, it is not used), or, for classes you
 # cannot annotate, a field or a no-argument method ending in "()"; "-" for none. An entry applies to
 # subclasses too; the most specific entry wins.
-[augment.classes]
+[augment.receiver]
 "com.hafnium.**" = "@"
 "com.hafnium.generated.**" = "-"                     # except these
 "com.acme.orders.*" = "@"
@@ -199,7 +199,7 @@ maxParams = 4        # at most this many parameter ids per frame, then "…"
 # Parameter ids: "<class>.<method>" = parameter names and 0-based indexes, "*" for all parameters, "@" for
 # the method's @StackTraceParam and @StackTraceParams annotations, or "-" for none. Entries that match the same
 # method are combined from the most specific on, up to the first "-".
-[augment.methods]
+[augment.params]
 "com.hafnium.**.*" = "@"                             # the annotations of these methods
 "com.acme.orders.*.*" = "@"
 "com.thirdparty.OrderService.process" = ["order", 2]
@@ -208,7 +208,7 @@ maxParams = 4        # at most this many parameter ids per frame, then "…"
 "com.thirdparty.**.AuditRepository.find*" = "-"      # except these
 ```
 
-Quote class names in `[augment.classes]` and `[augment.methods]`. Without quotes, TOML treats each `.` as a nested table; the agent accepts that too, but the quoted form is the clear one. Keys with wildcards must be quoted. Broad wildcards such as `"com.**.*" = "*"` make the agent instrument many classes, which costs time when they are loaded; `debug = true` lists every instrumented class, and the annotations it ignores. A missing field or method is a warning for exact class names, and only a debug message for patterns. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.
+Quote class names in `[augment.receiver]` and `[augment.params]`. Without quotes, TOML treats each `.` as a nested table; the agent accepts that too, but the quoted form is the clear one. Keys with wildcards must be quoted. Broad wildcards such as `"com.**.*" = "*"` make the agent instrument many classes, which costs time when they are loaded; `debug = true` lists every instrumented class, and the annotations it ignores. A missing field or method is a warning for exact class names, and only a debug message for patterns. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.
 
 An invalid configuration stops the JVM (or the build) at startup. The message names the key and its line, e.g. `stack-augmentor.toml, line 3: maxIdLength must be between 2 and 10000, was 1`. Unknown keys are rejected, so a typo doesn't go unnoticed.
 

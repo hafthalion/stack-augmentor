@@ -49,7 +49,7 @@ public final class TypeMatching {
         if (!receiverRelevant(type)) {
             reason = "parameter ids only";
         } else if (!deciding.annotations()) {
-            reason = "receiver id from [augment.classes] \"" + deciding.entry().key() + "\"";
+            reason = "receiver id from [augment.receiver] \"" + deciding.entry().key() + "\"";
         } else {
             reason = "receiver id from @StackTraceId (\"" + deciding.entry().key() + "\" = \"@\")";
         }
@@ -86,8 +86,8 @@ public final class TypeMatching {
         if (!classEntries.annotationsUsed(type) && firstInHierarchy(type, TypeMatching::hasAnnotatedMember) != null) {
             ClassEntries.Deciding deciding = classEntries.decide(type);
             String why = deciding == null
-                    ? "no [augment.classes] entry applies"
-                    : "its [augment.classes] entry \"" + deciding.entry().key() + "\" is not \"@\"";
+                    ? "no [augment.receiver] entry applies"
+                    : "its [augment.receiver] entry \"" + deciding.entry().key() + "\" is not \"@\"";
             Log.debug(() -> "ignoring @StackTraceId in " + type.getName() + ": " + why);
         }
         List<String> methods = new ArrayList<>();
@@ -99,12 +99,12 @@ public final class TypeMatching {
         if (!methods.isEmpty()) {
             methods.sort(null);
             Log.debug(() -> "ignoring the parameter annotations of " + String.join(", ", methods) + " in " + type.getName()
-                    + ": no \"@\" entry in [augment.methods] applies");
+                    + ": no \"@\" entry in [augment.params] applies");
         }
     }
 
     /**
-     * The deciding {@code [augment.classes]} entry names a field or method, or it is {@code "@"} and the class it
+     * The deciding {@code [augment.receiver]} entry names a field or method, or it is {@code "@"} and the class it
      * matched or one of its superclasses has an {@code @StackTraceId} member. Not with {@code "-"}.
      */
     private boolean receiverRelevant(TypeDescription type) {
