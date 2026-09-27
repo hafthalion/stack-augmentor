@@ -11,8 +11,8 @@ import java.util.Arrays;
 import java.util.regex.Pattern;
 
 /**
- * Turns objects into ids. The id source of each class is looked up once and cached. Every id is
- * converted to a String right away, so no references to live objects are kept.
+ * Turns objects into ids: receivers through the id source of a class, looked up once and cached, and arguments
+ * through their text. Every id is converted to a String right away, so no references to live objects are kept.
  */
 public final class IdResolver {
 
@@ -112,16 +112,13 @@ public final class IdResolver {
         return type;
     }
 
-    /** The id of an argument: its class's id source if it has one, otherwise its text. */
+    /**
+     * The id of an argument: its text, from {@code toString()} (arrays with their elements). The receiver id sources
+     * of its class are not used.
+     */
     public String paramId(Object value) {
         if (value == null) {
             return "null";
-        }
-        boolean plain = value instanceof CharSequence || value instanceof Number || value instanceof Boolean
-                || value instanceof Character || value instanceof Enum<?>;
-        Source source = plain ? null : sources.get(value.getClass());
-        if (source != null) {
-            return read(source, value);
         }
         return guarded(() -> {
             if (value.getClass().isArray()) {

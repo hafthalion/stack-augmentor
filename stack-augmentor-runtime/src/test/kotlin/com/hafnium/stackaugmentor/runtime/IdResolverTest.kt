@@ -4,7 +4,6 @@ import com.hafnium.stackaugmentor.StackTraceId
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -135,7 +134,6 @@ class IdResolverTest {
     @Test
     fun `annotations need an entry`() {
         assertNull(resolver().receiverId(Annotated()))
-        assertNotEquals("a-1", resolver().paramId(Annotated()))
         // An entry that is not "@" ignores the annotations.
         val configured = resolver(name(Annotated::class.java) to IdSpec.FieldSpec("customerId"))
         assertEquals(NamedId("customerId", "c-1"), configured.receiverId(Annotated()))
@@ -157,12 +155,13 @@ class IdResolverTest {
     }
 
     @Test
-    fun `parameter values`() {
-        val resolver = resolver(here to annotations)
+    fun `parameter values are their text`() {
+        val resolver = resolver(here to annotations, name(Unannotated::class.java) to IdSpec.FieldSpec("customerId"))
         assertEquals("null", resolver.paramId(null))
         assertEquals("42", resolver.paramId(42))
         assertEquals("RED", resolver.paramId(Color.RED))
-        assertEquals("a-1", resolver.paramId(Annotated()))
+        // Not the receiver id "c" of its entry: toString(), cut at maxIdLength = 10.
+        assertEquals("Unannotat…", resolver.paramId(Unannotated("c")))
         assertEquals("[1, 2, 3]", resolver.paramId(intArrayOf(1, 2, 3)))
         assertEquals("a b", resolver.paramId("a\r\nb"))
     }
