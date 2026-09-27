@@ -178,7 +178,9 @@ names (compiled without `-parameters`), the label SHALL be `arg<N>`.
 Every id SHALL be converted to text when it is captured. `null` SHALL be shown as `null`. Strings, numbers,
 booleans, characters and enums SHALL be shown with `toString()`. Arrays SHALL be shown by their elements.
 Other arguments SHALL be shown with `toString()`, also when their class has a receiver id source:
-`[augment.receiver]` SHALL only apply to receivers. Line breaks SHALL be replaced by a single space, and text longer than
+`[augment.receiver]` SHALL only apply to receivers. Line breaks SHALL be replaced by a single space, and `(`
+and `)` by `{` and `}`, because IDEs find a frame's file and line by the parenthesised `(File.kt:12)` that
+follows the method. Text longer than
 `[augment] maxIdLength` SHALL be cut to `maxIdLength - 1` characters followed by `…`. An id source that
 throws SHALL be shown as `?`.
 
@@ -192,6 +194,11 @@ throws SHALL be shown as `?`.
 - **GIVEN** `maxIdLength = 20`
 - **WHEN** a receiver id is 50 characters long, or contains `line1\nline2`
 - **THEN** the frame shows the first 19 characters followed by `…`, or `line1 line2`
+
+#### Scenario: Parentheses in an id
+- **GIVEN** `fun draw(@StackTraceParam point: Point)`, where `Point` is a Kotlin `data class Point(val x: Int)`
+- **WHEN** `draw(Point(1))` throws
+- **THEN** the frame shows `point=Point{x=1}`, so that the frame still ends with its `(File.kt:12)`
 
 #### Scenario: Failing id source
 - **GIVEN** `@StackTraceId fun id(): String` that throws
