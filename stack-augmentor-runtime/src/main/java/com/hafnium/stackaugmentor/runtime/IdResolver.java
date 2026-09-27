@@ -134,7 +134,7 @@ public final class IdResolver {
     /**
      * The deciding {@code [instrument.classes]} entry: that of the first class up the superclass chain that an entry
      * matches. Its field or method, or with {@code "@"} its annotations, are looked up from that class upwards.
-     * Without a deciding entry the class has no id source, even if it is annotated.
+     * Without a deciding entry, or with {@code "-"}, the class has no id source, even if it is annotated.
      */
     private Source findSource(Class<?> type) {
         for (Class<?> owner = type; isInHierarchy(owner); owner = owner.getSuperclass()) {
@@ -184,6 +184,9 @@ public final class IdResolver {
         switch (entry.spec()) {
             case IdSpec.Annotations annotations -> {
                 return annotatedSource(owner);
+            }
+            case IdSpec.Excluded excluded -> {
+                return null;
             }
             case IdSpec.MethodSpec spec -> {
                 member = "method " + spec.memberName() + "()";

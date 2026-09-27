@@ -18,6 +18,12 @@ class InventoryService {
     fun reserve(sku: String, count: Int): Nothing = throw IllegalStateException("cannot reserve")
 }
 
+class InventoryAudit {
+    fun purge(sku: String): Nothing = throw IllegalStateException("cannot purge")
+
+    fun log(reason: String, level: Int): Nothing = throw IllegalStateException("cannot log")
+}
+
 open class SavingsAccount(private val number: String) {
     fun withdraw(): Nothing = throw IllegalStateException("cannot withdraw")
 }

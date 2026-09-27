@@ -1,9 +1,12 @@
 package com.hafnium.it
 
 import com.hafnium.it.fixtures.Overridden
+import com.hafnium.it.fixtures.ignored.Ignored
 import com.hafnium.it.outside.ClassParamsViaMethods
 import com.hafnium.it.outside.MethodAnnotationsOutside
 import com.hafnium.it.outside.PremiumAccount
+import com.thirdparty.InventoryAudit
+import com.thirdparty.InventoryService
 import com.thirdparty.SavingsAccount
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -31,6 +34,20 @@ class ConfigTablesTest {
         val frame = frame { Overridden().fail(1) }
         assertEquals("com.hafnium.it.fixtures.Overridden{getId=o-1}", frame.className)
         assertEquals("fail", frame.methodName)
+    }
+
+    @Test
+    fun `a "-" class entry ignores the class`() {
+        val frame = frame { Ignored().fail(3) }
+        assertEquals("com.hafnium.it.fixtures.ignored.Ignored", frame.className)
+        assertEquals("fail", frame.methodName)
+    }
+
+    @Test
+    fun `a "-" method entry ignores the less specific entries`() {
+        assertEquals("purge", frame { InventoryAudit().purge("x-1") }.methodName)
+        assertEquals("log{reason=disk full}", frame { InventoryAudit().log("disk full", 2) }.methodName)
+        assertEquals("reserve{sku=x-1, count=2}", frame { InventoryService().reserve("x-1", 2) }.methodName)
     }
 
     @Test

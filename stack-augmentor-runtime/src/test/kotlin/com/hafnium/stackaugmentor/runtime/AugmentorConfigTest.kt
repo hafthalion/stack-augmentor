@@ -203,7 +203,7 @@ class AugmentorConfigTest {
     @Test
     fun `invalid classes and methods entries`() {
         assertEquals(
-            "test.toml, line 3: must be a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\") or \"@\" for the class's annotations, was get-id()",
+            "test.toml, line 3: must be a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), \"@\" for the class's annotations or \"-\" to ignore the class, was get-id()",
             error("debug = false\n[instrument.classes]\n\"com.acme.Order\" = \"get-id()\""),
         )
         assertTrue(error("[instrument.classes]\n\"com.acme.Order\" = 5").contains("must be a field name"))
@@ -256,8 +256,53 @@ class AugmentorConfigTest {
     }
 
     @Test
+    fun `"-" entries ignore less specific entries`() {
+        val config = parse(
+            """
+            [instrument.classes]
+            "com.acme.**" = "@"
+            "com.acme.generated.**" = "-"
+            "com.acme.generated.Keep" = "id"
+
+            [instrument.methods]
+            "com.thirdparty.**.*Service.*" = "*"
+            "com.thirdparty.audit.AuditService.*" = "-"
+            "com.thirdparty.audit.AuditService.log" = ["reason"]
+            "com.thirdparty.billing.BillingService.refund" = "-"
+            "com.acme.**.*" = [0]
+            "com.acme.generated.Gen.run" = [1]
+            """,
+        )
+        // [instrument.classes]: the most specific entry decides, "-" included.
+        assertEquals(IdSpec.Annotations(), config.classEntry("com.acme.Order").spec())
+        assertEquals(IdSpec.Excluded(), config.classEntry("com.acme.generated.Gen").spec())
+        assertEquals(IdSpec.FieldSpec("id"), config.classEntry("com.acme.generated.Keep").spec())
+
+        // [instrument.methods]: entries are combined from the most specific on, up to the first "-".
+        val all = listOf(ParamRef.All())
+        assertEquals(all, config.paramRefs("com.thirdparty.billing.BillingService", "charge"))
+        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.billing.BillingService", "refund"))
+        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.audit.AuditService", "purge"))
+        assertEquals(listOf(ParamRef.ByName("reason")), config.paramRefs("com.thirdparty.audit.AuditService", "log"))
+
+        // A "-" class entry counts as "<key>.*" = "-" in [instrument.methods].
+        val gen = config.classEntry("com.acme.generated.Gen")
+        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.generated.Gen", "stop"))
+        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.acme.generated.Gen", "stop", gen))
+        assertEquals(listOf(ParamRef.ByIndex(1)), config.paramRefs("com.acme.generated.Gen", "run", gen))
+        // It is the deciding entry, so it also applies to subclasses in other packages.
+        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.acme.web.GenController", "stop", gen))
+
+        assertTrue(config.classesDescription().contains("com.acme.generated.**=-"), config.classesDescription())
+        assertTrue(config.methodsDescription().contains("com.thirdparty.audit.AuditService.*[-]"), config.methodsDescription())
+        assertTrue(config.hasInstrumentEntries())
+        val onlyExcluded = parse("[instrument.classes]\n\"com.acme.**\" = \"-\"\n[instrument.methods]\n\"com.acme.A.b\" = \"-\"")
+        assertFalse(onlyExcluded.hasInstrumentEntries())
+    }
+
+    @Test
     fun `invalid method entries and maxParams`() {
-        assertTrue(error("[instrument.methods]\n\"com.acme.Order.process\" = \"all\"").contains("\"*\" for all parameters, or \"@\" for the method's annotations, was all"))
+        assertTrue(error("[instrument.methods]\n\"com.acme.Order.process\" = \"all\"").contains("\"*\" for all parameters, \"@\" for the method's annotations, or \"-\" for none, was all"))
         assertTrue(error("[instrument.methods]\n\"com.acme.Order.process\" = [\"*\"]").contains("invalid parameter '*'"))
         assertEquals(
             "test.toml, line 2: [instrument.methods] keys must name a class and a method, e.g. \"com.acme.OrderService.process\"; " +

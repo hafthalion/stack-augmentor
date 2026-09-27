@@ -129,6 +129,16 @@ class IdResolverTest {
     }
 
     @Test
+    fun `a "-" entry ignores the class, without a warning`() {
+        val err = ByteArrayOutputStream()
+        System.setErr(PrintStream(err, true, Charsets.UTF_8))
+        val resolver = resolver(here to annotations, name(Annotated::class.java) to IdSpec.Excluded())
+        assertNull(resolver.receiverId(Annotated()))
+        assertEquals(NamedId("key", "k-2"), resolver.receiverId(ByMethod()))
+        assertFalse(err.toString(Charsets.UTF_8).contains("WARN"), err.toString(Charsets.UTF_8))
+    }
+
+    @Test
     fun `failing id source`() {
         assertEquals(NamedId("id", "?"), resolver(here to annotations).receiverId(Throwing()))
     }

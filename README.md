@@ -119,9 +119,10 @@ With the configuration in `src/main/resources`, one file serves both phases: the
 **Receiver id**: the object a frame runs on. It comes from the class's deciding `[instrument.classes]` entry: that of the first class up the superclass chain that an entry matches, so an entry also applies to subclasses. The entry names:
 
 - a field, or a no-argument `method()`, looked up in that class and its superclasses; or
-- `"@"`: the `@StackTraceId` on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`.
+- `"@"`: the `@StackTraceId` on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`; or
+- `"-"`: nothing. The class is ignored: no receiver id, no annotations, and no parameters from `[instrument.methods]` entries less specific than this one (see below).
 
-When several entries match a class, the most specific one decides: an exact class name beats any pattern, and among patterns the one with the most characters other than `*` and `?` wins. So `"com.acme.Order" = "getId()"` overrides `"com.acme.**" = "@"` for `Order`. A class without a deciding entry, or without the member it names, gets no receiver id.
+When several entries match a class, the most specific one decides: an exact class name beats any pattern, and among patterns the one with the most characters other than `*` and `?` wins. So `"com.acme.Order" = "getId()"` overrides `"com.acme.**" = "@"` for `Order`, and `"com.acme.generated.**" = "-"` takes the generated classes out of `"com.acme.**" = "@"`. A class without a deciding entry, or without the member it names, gets no receiver id.
 
 The label is the real field or method name (`{objectId=…}`, `{getKey=…}`). `@StackTraceId(name = "…")` sets a different label.
 
@@ -130,6 +131,16 @@ The label is the real field or method name (`{objectId=…}`, `{getKey=…}`). `
 - its method is annotated with `@StackTraceParams` (all parameters of that method);
 - its class is annotated with `@StackTraceParams` (all parameters of every method declared in that class; not of subclasses or nested classes);
 - or an `[instrument.methods]` entry selects it, by name, by 0-based index, or with `"*"` for all parameters (see [Configuration](#configuration)).
+
+When several `[instrument.methods]` entries match a method, they are taken from the most specific on (an exact `"<class>.<method>"` first, then the patterns with the most characters other than `*` and `?`) and combined up to the first `"-"`, which drops the less specific ones. A `"-"` class entry counts here as `"<its key>.*" = "-"`, so only a more specific method entry still selects parameters of an ignored class. For example:
+
+```toml
+[instrument.classes]
+"com.acme.generated.**" = "-"
+[instrument.methods]
+"com.acme.**.*" = "*"                      # ignored for com.acme.generated classes: less specific
+"com.acme.generated.Mapper.map" = [0]      # applies: more specific than the "-" class entry
+```
 
 The parameter annotations count in classes whose deciding `[instrument.classes]` entry is `"@"`, and in methods matched by an `[instrument.methods]` entry with the value `"@"`. The latter lets a class take its receiver id from an explicit entry and still use its parameter annotations:
 
@@ -161,20 +172,24 @@ debug = false
 
 # Receiver ids: "@" for the classes' @StackTraceId, @StackTraceParam and @StackTraceParams annotations
 # (without an "@" entry, no annotations are used), or, for classes you cannot annotate, a field or a
-# no-argument method ending in "()". An entry applies to subclasses too; the most specific entry wins.
+# no-argument method ending in "()"; "-" ignores the class. An entry applies to subclasses too; the most
+# specific entry wins.
 [instrument.classes]
 "com.hafnium.**" = "@"
+"com.hafnium.generated.**" = "-"                     # except these
 "com.acme.orders.*" = "@"
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"
 "com.thirdparty.**.*Account" = "number"
 
-# Parameter ids: "<class>.<method>" = parameter names and 0-based indexes, "*" for all parameters, or "@" for
-# the method's @StackTraceParam and @StackTraceParams annotations. Entries that match the same method are combined.
+# Parameter ids: "<class>.<method>" = parameter names and 0-based indexes, "*" for all parameters, "@" for
+# the method's @StackTraceParam and @StackTraceParams annotations, or "-" for none. Entries that match the same
+# method are combined from the most specific on, up to the first "-".
 [instrument.methods]
 "com.thirdparty.OrderService.process" = ["order", 2]
 "com.thirdparty.InventoryService.*" = "*"             # all methods of a class
 "com.thirdparty.**.*Repository.find*" = [0]          # across packages
+"com.thirdparty.**.AuditRepository.find*" = "-"      # except these
 "com.acme.legacy.Order.*" = "@"                      # annotations of methods whose class has no "@" entry
 
 # How frames look: read at runtime, in both modes (these are the defaults).

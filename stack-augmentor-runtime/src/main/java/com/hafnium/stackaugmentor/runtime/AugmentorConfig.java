@@ -27,13 +27,15 @@ import java.util.stream.Collectors;
  * <pre>{@code
  * debug = false
  *
- * [instrument.classes]           # receiver ids: a field, a "method()", or "@" for the class's annotations
+ * [instrument.classes]           # receiver ids: a field, a "method()", "@" for the class's annotations, "-" to ignore
  * "com.hafnium.**" = "@"
+ * "com.hafnium.generated.**" = "-"
  * "com.thirdparty.Order" = "getOrderNumber()"
  *
- * [instrument.methods]           # parameter ids: names and indexes, "*" for all, "@" for the annotations
+ * [instrument.methods]           # parameter ids: names and indexes, "*" for all, "@" for the annotations, "-" for none
  * "com.thirdparty.OrderService.process" = ["order", 2]
  * "com.thirdparty.**.*Repository.find*" = "*"
+ * "com.thirdparty.**.AuditRepository.*" = "-"
  *
  * [augment]                      # how frames look: at runtime, in both modes
  * frameFormat = "$class$receiver.$method$params"
@@ -44,7 +46,8 @@ import java.util.stream.Collectors;
  * }</pre>
  *
  * <p>Keys of both tables may use wildcards: {@code *} within one package segment (or name), {@code **} across
- * segments, {@code ?} one character. Immutable. Equality covers the configured values only.
+ * segments, {@code ?} one character. Where entries overlap, the most specific decides, see {@link #classEntry} and
+ * {@link #paramRefs(String, String, ClassEntry)}. Immutable. Equality covers the configured values only.
  */
 public final class AugmentorConfig {
 
@@ -57,6 +60,9 @@ public final class AugmentorConfig {
 
     /** The value that stands for "use the annotations", in both tables. */
     public static final String ANNOTATIONS = "@";
+
+    /** The value that stands for "ignore", in both tables. */
+    public static final String EXCLUDED = "-";
 
     private static final Pattern IDENTIFIER = Pattern.compile("[\\p{L}_$][\\p{L}\\p{N}_$]*");
 
@@ -85,7 +91,20 @@ public final class AugmentorConfig {
     private final List<ClassPattern> classPatterns;
 
     /** An {@code [instrument.methods]} entry with wildcards, matched against every class and method. */
-    private record MethodPattern(Pattern classPattern, Pattern methodPattern, List<ParamRef> refs) {
+    private record MethodPattern(String key, Pattern classPattern, Pattern methodPattern, List<ParamRef> refs) {
+    }
+
+    /**
+     * An {@code [instrument.methods]} entry that matches a method, or the exclusion that a {@code "-"} entry of
+     * {@code [instrument.classes]} implies.
+     */
+    private record MethodMatch(String key, boolean exact, boolean implied, List<ParamRef> refs) {
+
+        static final Comparator<MethodMatch> MOST_SPECIFIC_FIRST = Comparator
+                .comparing((MethodMatch it) -> !it.exact())
+                .thenComparing(Comparator.comparingInt((MethodMatch it) -> specificity(it.key())).reversed())
+                .thenComparing(MethodMatch::implied)
+                .thenComparing(MethodMatch::key);
     }
 
     private final List<MethodPattern> methodPatterns;
@@ -130,7 +149,8 @@ public final class AugmentorConfig {
         this.methods.forEach((target, refs) -> {
             if (isPattern(target)) {
                 int dot = target.lastIndexOf('.');
-                methodPatterns.add(new MethodPattern(globToRegex(target.substring(0, dot)), globToRegex(target.substring(dot + 1)), refs));
+                methodPatterns.add(new MethodPattern(target, globToRegex(target.substring(0, dot)), globToRegex(target.substring(dot + 1)),
+                        refs));
             }
         });
         this.methodPatterns = List.copyOf(methodPatterns);
@@ -182,6 +202,7 @@ public final class AugmentorConfig {
                     case IdSpec.Annotations annotations -> ANNOTATIONS;
                     case IdSpec.MethodSpec method -> method.memberName() + "()";
                     case IdSpec.FieldSpec field -> field.memberName();
+                    case IdSpec.Excluded excluded -> EXCLUDED;
                 })
                 .collect(Collectors.joining(", "));
         return text.isEmpty() ? "none" : text;
@@ -196,15 +217,17 @@ public final class AugmentorConfig {
                             case ParamRef.ByIndex byIndex -> "#" + byIndex.index();
                             case ParamRef.All all -> "*";
                             case ParamRef.Annotations annotations -> ANNOTATIONS;
+                            case ParamRef.Excluded excluded -> EXCLUDED;
                         })
                         .collect(Collectors.joining(", ", "[", "]")))
                 .collect(Collectors.joining(", "));
         return text.isEmpty() ? "none" : text;
     }
 
-    /** Whether anything can be augmented: without class or method entries, nothing is. */
+    /** Whether anything can be augmented: without class or method entries other than {@code "-"}, nothing is. */
     public boolean hasInstrumentEntries() {
-        return !classes.isEmpty() || !methods.isEmpty();
+        return classes.values().stream().anyMatch(spec -> !(spec instanceof IdSpec.Excluded))
+                || methods.values().stream().anyMatch(refs -> !refs.contains(new ParamRef.Excluded()));
     }
 
     /**
@@ -225,26 +248,48 @@ public final class AugmentorConfig {
         return null;
     }
 
-    /**
-     * The parameters selected for a method by {@code [instrument.methods]}: the entry without wildcards for
-     * exactly this class and method, then every entry with wildcards that matches. Parameters selected more than
-     * once are shown once, in declaration order, so the order of this list does not matter.
-     */
+    /** {@link #paramRefs(String, String, ClassEntry)} for a class without a deciding {@code [instrument.classes]} entry. */
     public List<ParamRef> paramRefs(String className, String methodName) {
-        List<ParamRef> exact = methods.getOrDefault(className + "." + methodName, List.of());
-        if (methodPatterns.isEmpty()) {
-            return exact;
+        return paramRefs(className, methodName, null);
+    }
+
+    /**
+     * The parameters selected for a method by {@code [instrument.methods]}. The matching entries are taken from the
+     * most specific on: the entry without wildcards for exactly this class and method, then the patterns with the
+     * most characters other than {@code *} and {@code ?}, ties broken by key. They are combined up to the first
+     * {@code "-"} entry, which ignores the less specific ones. A {@code "-"} deciding entry of the class in
+     * {@code [instrument.classes]} counts as the pattern {@code "<its key>.*" = "-"}. Parameters selected more than
+     * once are shown once, in declaration order, so the order of this list does not matter.
+     *
+     * @param deciding the class's deciding {@code [instrument.classes]} entry, or {@code null}
+     */
+    public List<ParamRef> paramRefs(String className, String methodName, ClassEntry deciding) {
+        List<ParamRef> exact = methods.get(className + "." + methodName);
+        boolean classExcluded = deciding != null && deciding.spec() instanceof IdSpec.Excluded;
+        if (methodPatterns.isEmpty() && !classExcluded) {
+            return exact != null && !exact.contains(new ParamRef.Excluded()) ? exact : List.of();
         }
-        List<ParamRef> refs = null;
+        List<MethodMatch> matches = new ArrayList<>();
+        if (exact != null) {
+            matches.add(new MethodMatch(className + "." + methodName, true, false, exact));
+        }
         for (MethodPattern entry : methodPatterns) {
             if (entry.classPattern().matcher(className).matches() && entry.methodPattern().matcher(methodName).matches()) {
-                if (refs == null) {
-                    refs = new ArrayList<>(exact);
-                }
-                refs.addAll(entry.refs());
+                matches.add(new MethodMatch(entry.key(), false, false, entry.refs()));
             }
         }
-        return refs != null ? refs : exact;
+        if (classExcluded) {
+            matches.add(new MethodMatch(deciding.key() + ".*", false, true, List.of(new ParamRef.Excluded())));
+        }
+        matches.sort(MethodMatch.MOST_SPECIFIC_FIRST);
+        List<ParamRef> refs = new ArrayList<>();
+        for (MethodMatch match : matches) {
+            if (match.refs().contains(new ParamRef.Excluded())) {
+                break;
+            }
+            refs.addAll(match.refs());
+        }
+        return refs;
     }
 
     /** Whether a key of {@code [instrument.classes]} or {@code [instrument.methods]} has wildcards ({@code *} or {@code ?}). */
@@ -571,9 +616,12 @@ public final class AugmentorConfig {
             if (ANNOTATIONS.equals(value)) {
                 return new IdSpec.Annotations();
             }
+            if (EXCLUDED.equals(value)) {
+                return new IdSpec.Excluded();
+            }
             if (!(value instanceof String text) || !IDENTIFIER.matcher(removeCallSuffix(text)).matches()) {
-                throw error(path, "must be a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\") or \"@\" for the "
-                        + "class's annotations, was " + value);
+                throw error(path, "must be a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), \"@\" for the "
+                        + "class's annotations or \"-\" to ignore the class, was " + value);
             }
             String name = removeCallSuffix(text);
             return text.endsWith("()") ? new IdSpec.MethodSpec(name) : new IdSpec.FieldSpec(name);
@@ -590,9 +638,12 @@ public final class AugmentorConfig {
             if (ANNOTATIONS.equals(value)) {
                 return List.of(new ParamRef.Annotations());
             }
+            if (EXCLUDED.equals(value)) {
+                return List.of(new ParamRef.Excluded());
+            }
             if (!(value instanceof TomlArray array)) {
                 throw error(path, "must be an array of parameter names and indexes, e.g. [\"order\", 2], \"*\" for all parameters, "
-                        + "or \"@\" for the method's annotations, was " + value);
+                        + "\"@\" for the method's annotations, or \"-\" for none, was " + value);
             }
             if (array.size() == 0) {
                 throw error(path, "must list at least one parameter");

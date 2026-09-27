@@ -38,8 +38,11 @@ public final class TypeMatching {
             }
             String ignored = ignoredAnnotations(type);
             if (ignored != null) {
-                Log.debug(() -> "ignoring " + ignored + " in " + type.getName()
-                        + ": no \"@\" entry in [instrument.classes] or [instrument.methods] applies");
+                ClassEntries.Deciding deciding = classEntries.decide(type);
+                String why = deciding != null && deciding.excluded()
+                        ? "[instrument.classes] \"" + deciding.entry().key() + "\" = \"-\" ignores the class"
+                        : "no \"@\" entry in [instrument.classes] or [instrument.methods] applies";
+                Log.debug(() -> "ignoring " + ignored + " in " + type.getName() + ": " + why);
             }
         }
         return instrument;
@@ -49,7 +52,9 @@ public final class TypeMatching {
     public String describe(TypeDescription type, ElementMatcher<MethodDescription> methods) {
         ClassEntries.Deciding deciding = classEntries.decide(type);
         String reason;
-        if (deciding != null && !deciding.annotations()) {
+        if (deciding != null && deciding.excluded()) {
+            reason = "parameter ids only, the receiver is ignored by [instrument.classes] \"" + deciding.entry().key() + "\" = \"-\"";
+        } else if (deciding != null && !deciding.annotations()) {
             reason = "receiver id from [instrument.classes] \"" + deciding.entry().key() + "\"";
         } else if (receiverRelevant(type)) {
             reason = "receiver id from @StackTraceId (\"" + deciding.entry().key() + "\" = \"@\")";
@@ -106,11 +111,11 @@ public final class TypeMatching {
 
     /**
      * The deciding {@code [instrument.classes]} entry names a field or method, or it is {@code "@"} and the class it
-     * matched or one of its superclasses has an {@code @StackTraceId} member.
+     * matched or one of its superclasses has an {@code @StackTraceId} member. Not with {@code "-"}.
      */
     private boolean receiverRelevant(TypeDescription type) {
         ClassEntries.Deciding deciding = classEntries.decide(type);
-        if (deciding == null) {
+        if (deciding == null || deciding.excluded()) {
             return false;
         }
         return !deciding.annotations() || firstInHierarchy(deciding.owner(), TypeMatching::hasAnnotatedMember) != null;

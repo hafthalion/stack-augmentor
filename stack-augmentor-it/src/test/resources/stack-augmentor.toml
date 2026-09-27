@@ -3,6 +3,8 @@
 "com.hafnium.it.fixtures.**" = "@"
 # ... except Overridden, whose exact entry is more specific
 "com.hafnium.it.fixtures.Overridden" = "getId()"
+# ... and except the ignored ones: the more specific "-" pattern wins
+"com.hafnium.it.fixtures.ignored.**" = "-"
 # Stand-ins for classes you cannot annotate
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"
@@ -15,6 +17,9 @@
 # Wildcards: combined with the entry above, and across packages
 "com.thirdparty.OrderService.*" = [2]
 "com.thirdparty.Inventory*.*" = "*"
+# ... except for InventoryAudit, whose more specific "-" entry wins, except for log, whose exact entry wins
+"com.thirdparty.InventoryAudit.*" = "-"
+"com.thirdparty.InventoryAudit.log" = ["reason"]
 "com.thirdparty.**.*Repository.find*" = [0]
 # Matches JDK classes, which the agent never instruments
 "java.**.*" = "*"
