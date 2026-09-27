@@ -58,12 +58,14 @@ The system SHALL use the `[augment.receiver]` configuration table to choose the 
 class. A key SHALL be a class name or a class pattern with the globs `*` (within one package segment),
 `**` (across segments) and `?` (one character). A value SHALL be a field name, a no-argument method written
 with `()`, `"@"` for the class's `@StackTraceId`, or `"-"` for none. An entry SHALL apply only to the
-classes whose names it matches, not to their subclasses: the deciding entry of an object SHALL be found
-from the name of its runtime class alone. A subclass without an entry of its own, including one generated
-at runtime (a proxy, a mock, an anonymous class or an enum constant with a body), SHALL get no receiver
-id, also in the frames of the methods it inherits from a matched class; a pattern whose glob matches the
-generated class's name does apply to it. When several entries match a class, the most specific SHALL
-decide: an entry without wildcards beats any pattern, and among patterns, the one with the
+classes whose names it matches, not to their subclasses. The receiver id of a frame SHALL come from the
+deciding entry of the class that declares the frame's method, read from the object the method runs on,
+whatever the object's runtime class: a subclass, including one generated at runtime (a proxy, a mock, an
+anonymous class or an enum constant with a body), SHALL show the id of its superclass's entry in the frames
+of the methods it inherits. The methods that a subclass declares SHALL only get a receiver id from an entry
+that matches the subclass, which a pattern whose glob matches a generated class's name does. For a method
+declared outside the object's superclass chain, e.g. a default method of an interface, the object's
+runtime class SHALL decide. When several entries match a class, the most specific SHALL decide: an entry without wildcards beats any pattern, and among patterns, the one with the
 most characters other than `*` and `?` wins, with ties broken by the alphabetical order of the keys. A
 configured field or method SHALL be looked up in the matched class and its superclasses, including private
 members.
@@ -91,18 +93,23 @@ members.
 
 #### Scenario: Subclass without an entry
 - **GIVEN** `"com.thirdparty.Order" = "getOrderNumber()"` and a subclass `com.acme.RushOrder` that no entry matches
-- **WHEN** an exception leaves `Order.ship()`, called on a `RushOrder`
-- **THEN** that frame shows no receiver id
+- **WHEN** an exception leaves `Order.ship()`, called on a `RushOrder`, and separately `RushOrder.expedite()`
+- **THEN** the first frame shows the receiver id `getOrderNumber=…`, and the second frame is unchanged
+
+#### Scenario: Subclass with an entry of its own
+- **GIVEN** `"com.acme.Order" = "id"` and `"com.acme.TrackedOrder" = "tracking"`, where `TrackedOrder` extends `Order`
+- **WHEN** an exception leaves `Order.ship()`, called on a `TrackedOrder`, and separately `TrackedOrder.track()`
+- **THEN** the first frame shows `id=…`, and the second `tracking=…`
 
 #### Scenario: Subclass with an entry naming an inherited member
 - **GIVEN** `"com.acme.ExpressOrder" = "id"`, where `ExpressOrder` extends `Order`, which declares the field `id`
-- **WHEN** an exception leaves a method of an `ExpressOrder`
+- **WHEN** an exception leaves a method that `ExpressOrder` declares
 - **THEN** that frame shows the receiver id `id=…`
 
 #### Scenario: Generated subclass
-- **GIVEN** `"com.acme.Order" = "id"` and `"com.acme.patterned.*" = "code"`
-- **WHEN** an exception leaves a method of a Spring CGLIB proxy `com.acme.Order$$SpringCGLIB$$0`, and separately of `com.acme.patterned.Customer$$SpringCGLIB$$0`
-- **THEN** the first frame shows no receiver id, and the second shows `code=…`, because the pattern matches the proxy's name
+- **GIVEN** `"com.acme.Order" = "id"`, and a Spring CGLIB proxy `com.acme.Order$$SpringCGLIB$$0` that calls the real methods
+- **WHEN** an exception leaves `Order.ship()`, called on the proxy
+- **THEN** that frame shows `id=…`, and the frame of the proxy's own override is unchanged
 
 ### Requirement: Parameter ids
 The system SHALL show the value of a method parameter after the method name when the parameter is
@@ -284,7 +291,7 @@ them.
 #### Scenario: Subclass of a class with an "@" entry
 - **GIVEN** `"com.hafnium.it.fixtures.**" = "@"`, and `com.hafnium.it.outside.DerivedOutside` extending `com.hafnium.it.fixtures.Base`, which declares `@StackTraceId val baseId = "b1"`
 - **WHEN** an exception leaves a method of `DerivedOutside`
-- **THEN** that frame shows no receiver id, because the entry of `Base` does not apply to its subclasses
+- **THEN** that frame shows no receiver id: `DerivedOutside` declares `fail()`, and the entry of `Base` does not apply to its subclasses
 
 #### Scenario: Matched class without annotations
 - **GIVEN** a class matched by an `"@"` entry that has no annotations, but overrides `toString()`

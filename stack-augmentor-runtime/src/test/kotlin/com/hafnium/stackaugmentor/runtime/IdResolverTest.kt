@@ -101,6 +101,17 @@ class IdResolverTest {
     }
 
     @Test
+    fun `the class declaring the method decides, read from the object`() {
+        val resolver = resolver(name(BaseWithId::class.java) to IdSpec.FieldSpec("baseId"))
+        // A method that BaseWithId declares, running on a ChildOfBase: the entry of BaseWithId applies.
+        assertEquals(NamedId("baseId", "b1"), resolver.receiverId(ChildOfBase(), name(BaseWithId::class.java)))
+        // A method that ChildOfBase declares: it has no entry.
+        assertNull(resolver.receiverId(ChildOfBase(), name(ChildOfBase::class.java)))
+        // A declaring class outside the superclass chain, e.g. an interface with a default method: the runtime class.
+        assertNull(resolver.receiverId(ChildOfBase(), "com.acme.SomeInterface"))
+    }
+
+    @Test
     fun `no id source means no receiver id`() {
         assertNull(resolver(here to annotations).receiverId(Unannotated("c")))
         assertNull(resolver(here to annotations).receiverId(Any()))

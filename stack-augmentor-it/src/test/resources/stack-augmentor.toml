@@ -17,9 +17,10 @@ maxParams = 8
 "com.thirdparty.*Account" = "number"
 # Matches JDK classes, which the agent never instruments
 "java.**" = "@"
-# Entries do not apply to subclasses (InheritanceTest): only these classes themselves
+# Entries do not apply to subclasses (InheritanceTest): a frame uses the entry of the class declaring its method
 "com.hafnium.it.inheritance.Order" = "id"
 "com.hafnium.it.inheritance.ExpressOrder" = "id"
+"com.hafnium.it.inheritance.TrackedOrder" = "tracking"
 "com.hafnium.it.inheritance.Priority" = "code"
 # ... while a pattern matches every class whose name fits, generated subclasses in the package included
 "com.hafnium.it.inheritance.patterned.*" = "code"
