@@ -1,7 +1,7 @@
 # One file for both phases:
-# - [augment.classes] and [augment.methods] are read at build time by the ByteBuddy build plugin (see
+# - [augment.receiver] and [augment.params] are read at build time by the ByteBuddy build plugin (see
 #   build.gradle.kts), which instruments the classes and methods they need;
-# - [augment], [augment.classes] and debug are read at runtime, from the classpath
+# - [augment], [augment.receiver] and debug are read at runtime, from the classpath
 #   (or from -Dstackaugmentor.config=<file>).
 
 # Print diagnostics to stderr (default: false).
@@ -21,10 +21,10 @@ maxParams = 4
 # '*' matches within one package, '**' across packages.
 
 # Receiver ids: classes whose @StackTraceId is used. Without an "@" entry, it is not used.
-[augment.classes]
+[augment.receiver]
 "com.hafnium.**" = "@"
 
 # Parameter ids, independently of the receivers: methods whose @StackTraceParam and @StackTraceParams
 # annotations are used.
-[augment.methods]
+[augment.params]
 "com.hafnium.**.*" = "@"

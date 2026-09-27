@@ -186,7 +186,7 @@ class ParameterSelectionTest {
                 .build());
         List<String> messages = exact.unmatchedEntries(type(Service.class));
         assertEquals(2, messages.size(), messages.toString());
-        assertTrue(messages.stream().anyMatch(it -> it.contains("[augment.methods]")), messages.toString());
+        assertTrue(messages.stream().anyMatch(it -> it.contains("[augment.params]")), messages.toString());
         assertTrue(messages.stream().anyMatch(it -> it.contains("no parameter 'missing' in process(String order, int quantity, String note)")),
                 messages.toString());
         assertTrue(messages.stream().anyMatch(it -> it.contains("has no method 'nope'")), messages.toString());
@@ -209,10 +209,10 @@ class ParameterSelectionTest {
         assertTrue(matching.instrument(type(Explicit.class)));
 
         String output = err.toString(StandardCharsets.UTF_8);
-        String reason = ": no \"@\" entry in [augment.methods] applies";
+        String reason = ": no \"@\" entry in [augment.params] applies";
         assertTrue(output.contains("ignoring the parameter annotations of release, reserve in " + ClassLevel.class.getName() + reason), output);
         assertTrue(output.contains("ignoring the parameter annotations of move in " + MethodLevel.class.getName() + reason), output);
-        assertTrue(output.contains("ignoring @StackTraceId in " + explicit + ": its [augment.classes] entry \"" + explicit + "\" is not \"@\""),
+        assertTrue(output.contains("ignoring @StackTraceId in " + explicit + ": its [augment.receiver] entry \"" + explicit + "\" is not \"@\""),
                 output);
         // failAnnotated is enabled by its method entry.
         assertTrue(output.contains("ignoring the parameter annotations of fail in " + explicit + reason), output);
@@ -241,7 +241,7 @@ class ParameterSelectionTest {
         assertEquals(List.of("why"), labels(parameters, Explicit.class, "failAnnotated"));
         assertTrue(matching.instrument(type(Explicit.class)));
         assertTrue(matching.describe(type(Explicit.class), matching.methods(type(Explicit.class))).contains("(parameter ids only)"));
-        assertTrue(err.toString(StandardCharsets.UTF_8).contains("ignoring @StackTraceId in " + explicit + ": its [augment.classes] entry \""
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("ignoring @StackTraceId in " + explicit + ": its [augment.receiver] entry \""
                 + explicit + "\" is not \"@\""), err.toString(StandardCharsets.UTF_8));
         // The "@" class entry uses @StackTraceId only: the "*" method entry labels the parameters by name.
         assertEquals(List.of("item", "count"), labels(parameters, MethodLevel.class, "move"));

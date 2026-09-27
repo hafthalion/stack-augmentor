@@ -10,7 +10,7 @@ context: |
   Modules: api, instrument-bridge, runtime, instrument, agent, build-plugin, it (integration tests with
   the agent), examples/java-agent, examples/build-time.
   Configuration: stack-augmentor.toml with debug and [augment], which holds the formats and the
-  independent [augment.classes] (receiver ids) and [augment.methods] (parameter ids) tables.
+  independent [augment.receiver] (receiver ids) and [augment.params] (parameter ids) tables.
   Specs: functional capabilities under specs/functional/, non-functional requirements under
   specs/non-functional/.
 

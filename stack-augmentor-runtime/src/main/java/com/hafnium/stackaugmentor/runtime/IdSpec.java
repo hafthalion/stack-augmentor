@@ -1,6 +1,6 @@
 package com.hafnium.stackaugmentor.runtime;
 
-/** The receiver id source an {@code [augment.classes]} entry names. */
+/** The receiver id source an {@code [augment.receiver]} entry names. */
 public sealed interface IdSpec {
 
     record FieldSpec(String memberName) implements IdSpec {
@@ -9,7 +9,7 @@ public sealed interface IdSpec {
     record MethodSpec(String memberName) implements IdSpec {
     }
 
-    /** {@code "@"}: the {@code @StackTraceId} of the class. The parameter annotations are {@code [augment.methods]}'s. */
+    /** {@code "@"}: the {@code @StackTraceId} of the class. The parameter annotations are {@code [augment.params]}'s. */
     record Annotations() implements IdSpec {
     }
 

@@ -8,7 +8,7 @@ import net.bytebuddy.description.type.TypeDescription;
 import java.util.function.Predicate;
 
 /**
- * Finds the deciding {@code [augment.classes]} entry of a type: that of the first class up the superclass chain
+ * Finds the deciding {@code [augment.receiver]} entry of a type: that of the first class up the superclass chain
  * that an entry matches.
  */
 final class ClassEntries {

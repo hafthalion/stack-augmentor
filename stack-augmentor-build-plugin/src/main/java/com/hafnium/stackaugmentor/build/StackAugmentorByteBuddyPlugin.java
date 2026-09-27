@@ -20,7 +20,7 @@ import java.nio.file.Path;
  * Only the project's classes are changed; libraries are left alone.
  * At runtime, the application needs {@code stack-augmentor-runtime} on its classpath.
  *
- * <p>Argument 0 is the path of a TOML configuration: its {@code [augment.classes]} and {@code [augment.methods]}
+ * <p>Argument 0 is the path of a TOML configuration: its {@code [augment.receiver]} and {@code [augment.params]}
  * entries decide which receivers and parameters get ids, and the classes and methods that need the advice for that
  * are instrumented, as with the agent; {@code debug} logs what gets instrumented. Without
  * it (e.g. when discovered through {@code META-INF/net.bytebuddy/build.plugins}), nothing is instrumented.
@@ -34,7 +34,7 @@ public final class StackAugmentorByteBuddyPlugin implements Plugin {
         this(new AugmentorConfig());
     }
 
-    /** @param configFile a TOML configuration; its {@code [augment.classes]} and {@code [augment.methods]} apply. */
+    /** @param configFile a TOML configuration; its {@code [augment.receiver]} and {@code [augment.params]} apply. */
     public StackAugmentorByteBuddyPlugin(String configFile) {
         this(AugmentorConfig.load(Path.of(configFile)));
     }
@@ -45,11 +45,11 @@ public final class StackAugmentorByteBuddyPlugin implements Plugin {
         this.advice = ExitAdviceFactory.create(parameters);
         Log.setDebug(config.debug());
         if (!config.hasAugmentEntries()) {
-            Log.warn("build plugin: the configuration has no [augment.classes] or [augment.methods] entries, "
+            Log.warn("build plugin: the configuration has no [augment.receiver] or [augment.params] entries, "
                     + "so nothing will be augmented");
         }
-        Log.debug(() -> "build plugin, [augment.classes]: " + config.classesDescription()
-                + ", [augment.methods]: " + config.methodsDescription());
+        Log.debug(() -> "build plugin, [augment.receiver]: " + config.classesDescription()
+                + ", [augment.params]: " + config.methodsDescription());
     }
 
     @Override

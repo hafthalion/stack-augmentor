@@ -34,19 +34,19 @@ import java.util.stream.Collectors;
  * maxIdLength = 64
  * maxParams = 4
  *
- * [augment.classes]           # receiver ids: a field, a "method()", "@" for @StackTraceId, "-" for none
+ * [augment.receiver]           # receiver ids: a field, a "method()", "@" for @StackTraceId, "-" for none
  * "com.hafnium.**" = "@"
  * "com.hafnium.generated.**" = "-"
  * "com.thirdparty.Order" = "getOrderNumber()"
  *
- * [augment.methods]           # parameter ids: names and indexes, "*" for all, "@" for the annotations, "-" for none
+ * [augment.params]           # parameter ids: names and indexes, "*" for all, "@" for the annotations, "-" for none
  * "com.hafnium.**.*" = "@"
  * "com.thirdparty.OrderService.process" = ["order", 2]
  * "com.thirdparty.**.*Repository.find*" = "*"
  * "com.thirdparty.**.AuditRepository.*" = "-"
  * }</pre>
  *
- * <p>The two tables are independent: {@code [augment.classes]} decides the receiver ids, {@code [augment.methods]} the
+ * <p>The two tables are independent: {@code [augment.receiver]} decides the receiver ids, {@code [augment.params]} the
  * parameter ids. Which methods get instrumented follows from both. Keys may use wildcards: {@code *} within one
  * package segment (or name), {@code **} across segments, {@code ?} one character. Where entries of one table overlap,
  * the most specific decides, see {@link #classEntry} and {@link #paramRefs}. Immutable. Equality covers the
@@ -78,7 +78,7 @@ public final class AugmentorConfig {
     private final int maxParams;
     private final boolean debug;
 
-    /** An {@code [augment.classes]} entry: the key as written, and the id source it names. */
+    /** An {@code [augment.receiver]} entry: the key as written, and the id source it names. */
     public record ClassEntry(String key, IdSpec spec) {
 
         /** Whether the key has wildcards. */
@@ -90,14 +90,14 @@ public final class AugmentorConfig {
     private record ClassPattern(Pattern pattern, ClassEntry entry) {
     }
 
-    /** The {@code [augment.classes]} entries with wildcards, most specific first. */
+    /** The {@code [augment.receiver]} entries with wildcards, most specific first. */
     private final List<ClassPattern> classPatterns;
 
-    /** An {@code [augment.methods]} entry with wildcards, matched against every class and method. */
+    /** An {@code [augment.params]} entry with wildcards, matched against every class and method. */
     private record MethodPattern(String key, Pattern classPattern, Pattern methodPattern, List<ParamRef> refs) {
     }
 
-    /** An {@code [augment.methods]} entry that matches a method. */
+    /** An {@code [augment.params]} entry that matches a method. */
     private record MethodMatch(String key, boolean exact, List<ParamRef> refs) {
 
         static final Comparator<MethodMatch> MOST_SPECIFIC_FIRST = Comparator
@@ -115,9 +115,9 @@ public final class AugmentorConfig {
     }
 
     /**
-     * @param classes   receiver id sources by class name or class pattern: the {@code [augment.classes]} table
+     * @param classes   receiver id sources by class name or class pattern: the {@code [augment.receiver]} table
      * @param methods   parameter ids by {@code "<class>.<method>"}, possibly with wildcards: the
-     *                  {@code [augment.methods]} table
+     *                  {@code [augment.params]} table
      * @param maxParams the most parameter ids shown per frame
      */
     public AugmentorConfig(Map<String, IdSpec> classes, Map<String, List<ParamRef>> methods,
@@ -159,12 +159,12 @@ public final class AugmentorConfig {
         return new Builder();
     }
 
-    /** Receiver id sources by class name or class pattern: the {@code [augment.classes]} table. */
+    /** Receiver id sources by class name or class pattern: the {@code [augment.receiver]} table. */
     public Map<String, IdSpec> classes() {
         return classes;
     }
 
-    /** Parameter ids by {@code "<class>.<method>"}, possibly with wildcards: the {@code [augment.methods]} table. */
+    /** Parameter ids by {@code "<class>.<method>"}, possibly with wildcards: the {@code [augment.params]} table. */
     public Map<String, List<ParamRef>> methods() {
         return methods;
     }
@@ -194,7 +194,7 @@ public final class AugmentorConfig {
         return debug;
     }
 
-    /** The {@code [augment.classes]} entries for the debug log, e.g. {@code com.acme.**=@, com.acme.Order=getId()}. */
+    /** The {@code [augment.receiver]} entries for the debug log, e.g. {@code com.acme.**=@, com.acme.Order=getId()}. */
     public String classesDescription() {
         String text = classes.entrySet().stream()
                 .map(entry -> entry.getKey() + "=" + switch (entry.getValue()) {
@@ -207,7 +207,7 @@ public final class AugmentorConfig {
         return text.isEmpty() ? "none" : text;
     }
 
-    /** The {@code [augment.methods]} entries for the debug log, e.g. {@code com.acme.Order.process[order, #2]}. */
+    /** The {@code [augment.params]} entries for the debug log, e.g. {@code com.acme.Order.process[order, #2]}. */
     public String methodsDescription() {
         String text = methods.entrySet().stream()
                 .map(entry -> entry.getKey() + entry.getValue().stream()
@@ -230,7 +230,7 @@ public final class AugmentorConfig {
     }
 
     /**
-     * The most specific {@code [augment.classes]} entry that matches exactly this class name, or {@code null}:
+     * The most specific {@code [augment.receiver]} entry that matches exactly this class name, or {@code null}:
      * an entry without wildcards, otherwise the pattern with the most characters other than {@code *} and
      * {@code ?}, ties broken by key. Superclasses are not looked at; the callers walk the hierarchy.
      */
@@ -248,10 +248,10 @@ public final class AugmentorConfig {
     }
 
     /**
-     * The parameters selected for a method by {@code [augment.methods]}. The matching entries are taken from the
+     * The parameters selected for a method by {@code [augment.params]}. The matching entries are taken from the
      * most specific on: the entry without wildcards for exactly this class and method, then the patterns with the
      * most characters other than {@code *} and {@code ?}, ties broken by key. They are combined up to the first
-     * {@code "-"} entry, which ignores the less specific ones. {@code [augment.classes]} plays no part. Parameters
+     * {@code "-"} entry, which ignores the less specific ones. {@code [augment.receiver]} plays no part. Parameters
      * selected more than once are shown once, in declaration order, so the order of this list does not matter.
      */
     public List<ParamRef> paramRefs(String className, String methodName) {
@@ -279,7 +279,7 @@ public final class AugmentorConfig {
         return refs;
     }
 
-    /** Whether a key of {@code [augment.classes]} or {@code [augment.methods]} has wildcards ({@code *} or {@code ?}). */
+    /** Whether a key of {@code [augment.receiver]} or {@code [augment.params]} has wildcards ({@code *} or {@code ?}). */
     public static boolean isPattern(String key) {
         return key.indexOf('*') >= 0 || key.indexOf('?') >= 0;
     }
@@ -457,12 +457,12 @@ public final class AugmentorConfig {
     private static final class ConfigReader {
 
         private static final List<String> AUGMENT = List.of("augment");
-        private static final List<String> CLASSES = List.of("augment", "classes");
-        private static final List<String> METHODS = List.of("augment", "methods");
+        private static final List<String> CLASSES = List.of("augment", "receiver");
+        private static final List<String> METHODS = List.of("augment", "params");
 
         private static final List<String> ROOT_KEYS = List.of("debug", "augment");
         private static final List<String> AUGMENT_KEYS = List.of("frameFormat", "receiverFormat", "paramsFormat", "maxIdLength",
-                "maxParams", "classes", "methods");
+                "maxParams", "receiver", "params");
 
         /** A class name or class pattern: dotted segments of identifier characters and wildcards. */
         private static final Pattern CLASS_PART = Pattern.compile("[\\p{L}\\p{N}_$*?]+(\\.[\\p{L}\\p{N}_$*?]+)*");
@@ -551,7 +551,7 @@ public final class AugmentorConfig {
         }
 
         /**
-         * The entries of the {@code [augment.classes]} or {@code [augment.methods]} table, with their full key
+         * The entries of the {@code [augment.receiver]} or {@code [augment.params]} table, with their full key
          * paths. Key paths make quoted ({@code "com.acme.Order"}) and unquoted ({@code com.acme.Order}, i.e. nested
          * tables) class names equivalent.
          */

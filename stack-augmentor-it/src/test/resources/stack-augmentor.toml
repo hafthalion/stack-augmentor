@@ -3,8 +3,8 @@ maxIdLength = 20
 # Above the default (4), so the six-parameter fixtures show all their parameters
 maxParams = 8
 
-# The two tables are independent: [augment.classes] for the receiver ids, [augment.methods] for the parameter ids.
-[augment.classes]
+# The two tables are independent: [augment.receiver] for the receiver ids, [augment.params] for the parameter ids.
+[augment.receiver]
 # The fixtures' receiver ids come from their @StackTraceId
 "com.hafnium.it.fixtures.**" = "@"
 # ... except Overridden, whose exact entry is more specific
@@ -18,7 +18,7 @@ maxParams = 8
 # Matches JDK classes, which the agent never instruments
 "java.**" = "@"
 
-[augment.methods]
+[augment.params]
 # The fixtures' parameter ids come from their @StackTraceParam and @StackTraceParams
 "com.hafnium.it.fixtures.**.*" = "@"
 # ... except Overridden's, except for failAnnotated, whose exact entry is more specific

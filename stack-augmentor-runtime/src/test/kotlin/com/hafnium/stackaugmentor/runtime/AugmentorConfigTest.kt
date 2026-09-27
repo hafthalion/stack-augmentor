@@ -32,12 +32,12 @@ class AugmentorConfigTest {
             """
             debug = true
 
-            [augment.classes]
+            [augment.receiver]
             "com.hafnium.**" = "@"
             "com.thirdparty.Order" = "getOrderNumber()"
             "com.thirdparty.Customer" = "customerId"
 
-            [augment.methods]
+            [augment.params]
             "com.thirdparty.OrderService.process" = ["orderId", 2]
             "com.hafnium.Legacy.*" = "@"
 
@@ -82,31 +82,31 @@ class AugmentorConfigTest {
     fun `dotted keys and inline tables are the same as sections`() {
         val sections = parse(
             """
-            [augment.classes]
+            [augment.receiver]
             "com.acme.**" = "@"
             [augment]
             maxIdLength = 20
             """,
         )
-        assertEquals(sections, parse("augment.classes.\"com.acme.**\" = \"@\"\naugment.maxIdLength = 20"))
-        assertEquals(sections, parse("augment = { classes = { \"com.acme.**\" = \"@\" }, maxIdLength = 20 }"))
+        assertEquals(sections, parse("augment.receiver.\"com.acme.**\" = \"@\"\naugment.maxIdLength = 20"))
+        assertEquals(sections, parse("augment = { receiver = { \"com.acme.**\" = \"@\" }, maxIdLength = 20 }"))
     }
 
     @Test
     fun `unquoted class names are the same as quoted ones`() {
         val quoted = parse(
             """
-            [augment.classes]
+            [augment.receiver]
             "com.acme.Order" = "orderId"
-            [augment.methods]
+            [augment.params]
             "com.acme.OrderService.process" = ["order"]
             """,
         )
         val unquoted = parse(
             """
-            [augment.classes]
+            [augment.receiver]
             com.acme.Order = "orderId"
-            [augment.methods]
+            [augment.params]
             com.acme.OrderService.process = ["order"]
             """,
         )
@@ -117,7 +117,7 @@ class AugmentorConfigTest {
     fun `class entries and their specificity`() {
         val config = parse(
             """
-            [augment.classes]
+            [augment.receiver]
             "com.hafnium.**" = "@"
             "com.acme.**" = "@"
             "com.acme.legacy.*" = "getKey()"
@@ -145,7 +145,7 @@ class AugmentorConfigTest {
         assertTrue(config.classEntry("com.tie.ab")!!.isPattern())
         assertFalse(config.classEntry("com.acme.Order")!!.isPattern())
 
-        assertEquals(annotations, parse("augment.classes.\"**\" = \"@\"").classEntry("any.pkg.Class")?.spec())
+        assertEquals(annotations, parse("augment.receiver.\"**\" = \"@\"").classEntry("any.pkg.Class")?.spec())
     }
 
     @Test
@@ -165,14 +165,14 @@ class AugmentorConfigTest {
         assertTrue(error("augment.maxIdLength = 1.5").contains("'augment.maxIdLength' must be an integer"))
         assertTrue(error("debug = \"yes\"").contains("'debug' must be true or false"))
         assertTrue(error("augment = \"x\"").contains("'augment' must be a table"))
-        assertTrue(error("[augment]\nclasses = \"x\"").contains("'augment.classes' must be a table"))
+        assertTrue(error("[augment]\nreceiver = \"x\"").contains("'augment.receiver' must be a table"))
     }
 
     @Test
     fun `unknown keys are rejected, in every section`() {
         assertEquals(
             "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams, " +
-                "classes, methods",
+                "receiver, params",
             error("[augment]\nframe = \"\$class.\$method\""),
         )
         assertTrue(error("[other]\nx = 1").contains("unknown key 'other'; allowed: debug, augment"))
@@ -185,28 +185,28 @@ class AugmentorConfigTest {
     fun `invalid classes and methods entries`() {
         assertEquals(
             "test.toml, line 3: must be a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), \"@\" for its @StackTraceId, or \"-\" for no receiver id, was get-id()",
-            error("debug = false\n[augment.classes]\n\"com.acme.Order\" = \"get-id()\""),
+            error("debug = false\n[augment.receiver]\n\"com.acme.Order\" = \"get-id()\""),
         )
-        assertTrue(error("[augment.classes]\n\"com.acme.Order\" = 5").contains("must be a field name"))
-        assertTrue(error("[augment.classes]\n\"com.acme.Order\" = \"@id\"").contains("must be a field name"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.Order\" = 5").contains("must be a field name"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.Order\" = \"@id\"").contains("must be a field name"))
         assertEquals(
-            "test.toml, line 2: [augment.classes] keys must name a class or a class pattern, e.g. \"com.acme.Order\" or \"com.acme.**\"; " +
+            "test.toml, line 2: [augment.receiver] keys must name a class or a class pattern, e.g. \"com.acme.Order\" or \"com.acme.**\"; " +
                 "allowed are letters, digits, _, \$ and the wildcards * (within a package or name), ** (across packages) and ?",
-            error("[augment.classes]\n\"com.acme.Ord+er\" = \"@\""),
+            error("[augment.receiver]\n\"com.acme.Ord+er\" = \"@\""),
         )
-        assertTrue(error("[augment.methods]\n\"com.acme.Order.process\" = \"order\"").contains("must be an array"))
-        assertTrue(error("[augment.methods]\n\"com.acme.Order.process\" = []").contains("at least one parameter"))
-        assertTrue(error("[augment.methods]\n\"com.acme.Order.process\" = [\"#1\"]").contains("invalid parameter '#1'"))
-        assertTrue(error("[augment.methods]\n\"com.acme.Order.process\" = [-1]").contains("invalid parameter '-1'"))
-        assertTrue(error("[augment.methods]\n\"com.acme.Order.process\" = [\"@\"]").contains("invalid parameter '@'"))
-        assertTrue(error("[augment.methods]\nOrder = [\"id\"]").contains("[augment.methods] keys must name a class and a method"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"order\"").contains("must be an array"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = []").contains("at least one parameter"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"#1\"]").contains("invalid parameter '#1'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [-1]").contains("invalid parameter '-1'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"@\"]").contains("invalid parameter '@'"))
+        assertTrue(error("[augment.params]\nOrder = [\"id\"]").contains("[augment.params] keys must name a class and a method"))
     }
 
     @Test
     fun `method entries with wildcards, all parameters and annotations`() {
         val config = parse(
             """
-            [augment.methods]
+            [augment.params]
             "com.thirdparty.OrderService.process" = ["order"]
             "com.thirdparty.OrderService.*" = [2]
             "com.thirdparty.Inventory*.*" = "*"
@@ -240,12 +240,12 @@ class AugmentorConfigTest {
     fun `"-" entries ignore less specific entries of their table`() {
         val config = parse(
             """
-            [augment.classes]
+            [augment.receiver]
             "com.acme.**" = "@"
             "com.acme.generated.**" = "-"
             "com.acme.generated.Keep" = "id"
 
-            [augment.methods]
+            [augment.params]
             "com.thirdparty.**.*Service.*" = "*"
             "com.thirdparty.audit.AuditService.*" = "-"
             "com.thirdparty.audit.AuditService.log" = ["reason"]
@@ -254,12 +254,12 @@ class AugmentorConfigTest {
             "com.acme.generated.Gen.run" = [1]
             """,
         )
-        // [augment.classes]: the most specific entry decides, "-" included.
+        // [augment.receiver]: the most specific entry decides, "-" included.
         assertEquals(IdSpec.Annotations(), config.classEntry("com.acme.Order").spec())
         assertEquals(IdSpec.Excluded(), config.classEntry("com.acme.generated.Gen").spec())
         assertEquals(IdSpec.FieldSpec("id"), config.classEntry("com.acme.generated.Keep").spec())
 
-        // [augment.methods]: entries are combined from the most specific on, up to the first "-".
+        // [augment.params]: entries are combined from the most specific on, up to the first "-".
         val all = listOf(ParamRef.All())
         assertEquals(all, config.paramRefs("com.thirdparty.billing.BillingService", "charge"))
         assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.billing.BillingService", "refund"))
@@ -273,21 +273,21 @@ class AugmentorConfigTest {
         assertTrue(config.classesDescription().contains("com.acme.generated.**=-"), config.classesDescription())
         assertTrue(config.methodsDescription().contains("com.thirdparty.audit.AuditService.*[-]"), config.methodsDescription())
         assertTrue(config.hasAugmentEntries())
-        val onlyExcluded = parse("[augment.classes]\n\"com.acme.**\" = \"-\"\n[augment.methods]\n\"com.acme.A.b\" = \"-\"")
+        val onlyExcluded = parse("[augment.receiver]\n\"com.acme.**\" = \"-\"\n[augment.params]\n\"com.acme.A.b\" = \"-\"")
         assertFalse(onlyExcluded.hasAugmentEntries())
     }
 
     @Test
     fun `invalid method entries and maxParams`() {
-        assertTrue(error("[augment.methods]\n\"com.acme.Order.process\" = \"all\"").contains("\"*\" for all parameters, \"@\" for the method's annotations, or \"-\" for none, was all"))
-        assertTrue(error("[augment.methods]\n\"com.acme.Order.process\" = [\"*\"]").contains("invalid parameter '*'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"all\"").contains("\"*\" for all parameters, \"@\" for the method's annotations, or \"-\" for none, was all"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"*\"]").contains("invalid parameter '*'"))
         assertEquals(
-            "test.toml, line 2: [augment.methods] keys must name a class and a method, e.g. \"com.acme.OrderService.process\"; " +
+            "test.toml, line 2: [augment.params] keys must name a class and a method, e.g. \"com.acme.OrderService.process\"; " +
                 "allowed are letters, digits, _, \$ and the wildcards * (within a package or name), ** (across packages) and ?",
-            error("[augment.methods]\n\"com.acme.Order+.process\" = \"*\""),
+            error("[augment.params]\n\"com.acme.Order+.process\" = \"*\""),
         )
-        assertTrue(error("[augment.methods]\n\"com.acme.Order.\" = \"*\"").contains("keys must name a class and a method"))
-        assertTrue(error("[augment.methods]\n\"com..Order.run\" = \"*\"").contains("keys must name a class and a method"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.\" = \"*\"").contains("keys must name a class and a method"))
+        assertTrue(error("[augment.params]\n\"com..Order.run\" = \"*\"").contains("keys must name a class and a method"))
         assertEquals("test.toml, line 2: maxParams must be between 1 and 255, was 0", error("[augment]\nmaxParams = 0"))
         assertTrue(error("augment.maxParams = 256").contains("maxParams must be between 1 and 255, was 256"))
         assertEquals(4, AugmentorConfig().maxParams())
