@@ -54,9 +54,9 @@ and `...` separates the items. Without `...`, the whole template SHALL be repeat
 A template that renders no ids SHALL render as empty text.
 
 #### Scenario: Custom parameter list
-- **GIVEN** `paramsFormat = "($name: $id; ...)"`
+- **GIVEN** `paramsFormat = "[$name: $id; ...]"`
 - **WHEN** a frame has the parameter ids `orderId=42` and `customer=7`
-- **THEN** the method part reads `process(orderId: 42; customer: 7)`
+- **THEN** the method part reads `process[orderId: 42; customer: 7]`
 
 #### Scenario: Value only
 - **GIVEN** `receiverFormat = "<$id>"`
@@ -66,7 +66,14 @@ A template that renders no ids SHALL render as empty text.
 ### Requirement: Template validation
 The system SHALL reject, when the configuration is loaded, a template with an unknown placeholder (for
 example `$klass`, `$line`, `$idx`, `${nam}` or a lone `$`), an unclosed `${`, a
-`paramsFormat` without `$name` or `$id`, and a `paramsFormat` with placeholders after `...`.
+`paramsFormat` without `$name` or `$id`, a `paramsFormat` with placeholders after `...`, and any template
+containing `(` or `)`: IDEs find a frame's file and line by the parenthesised `(File.java:12)` that the JDK
+appends, which parentheses in the frame's class or method part would confuse.
+
+#### Scenario: Parentheses in a template
+- **GIVEN** `paramsFormat = "($name: $id; ...)"`
+- **WHEN** the configuration is loaded
+- **THEN** it is rejected with a message that `paramsFormat` must not contain `(`
 
 #### Scenario: Unknown placeholder
 - **GIVEN** `receiverFormat = "{$nam}"`
@@ -90,6 +97,6 @@ rendered, so changing it SHALL NOT require re-instrumenting classes. The receive
 - **THEN** the method part reads `process{a=1, b=2}`, without `…`
 
 #### Scenario: Custom parameter list
-- **GIVEN** `maxParams = 1` and `paramsFormat = "($name: $id; ...)"`
+- **GIVEN** `maxParams = 1` and `paramsFormat = "[$name: $id; ...]"`
 - **WHEN** a frame has the parameter ids `orderId=42` and `customer=7`
-- **THEN** the method part reads `process(orderId: 42; …)`
+- **THEN** the method part reads `process[orderId: 42; …]`
