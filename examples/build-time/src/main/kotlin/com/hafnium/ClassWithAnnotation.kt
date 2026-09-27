@@ -4,9 +4,7 @@ import com.hafnium.stackaugmentor.StackTraceId
 import com.hafnium.stackaugmentor.StackTraceParam
 
 /** An argument is shown with its toString(). */
-class ObjectParam(private val name: String) {
-    override fun toString() = name
-}
+data class ObjectParam(private val name: String)
 
 data class ClassWithAnnotation(
     @StackTraceId
