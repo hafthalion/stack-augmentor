@@ -9,10 +9,10 @@ configurations are reported.
 ### Requirement: File format and structure
 The configuration SHALL be a TOML file ending in `.toml`, with these keys:
 - `debug` (boolean, default `false`);
-- `[instrument]`: `[instrument.classes]` (class name or class pattern → field name, `method()`, or `"@"`
-  for the class's annotations) and `[instrument.methods]` (`"<class pattern>.<method pattern>"` → array of
-  parameter names and 0-based indexes, `"*"` for all parameters, or `"@"` for the method's parameter
-  annotations). Both default to empty;
+- `[instrument]`: `[instrument.classes]` (class name or class pattern → field name, `method()`, `"@"`
+  for the class's annotations, or `"-"` to ignore the class) and `[instrument.methods]`
+  (`"<class pattern>.<method pattern>"` → array of parameter names and 0-based indexes, `"*"` for all
+  parameters, `"@"` for the method's parameter annotations, or `"-"` for none). Both default to empty;
 - `[augment]`: `frameFormat`, `receiverFormat`, `paramsFormat` (strings), `maxIdLength` (integer
   between 2 and 10000, default 64) and `maxParams` (integer between 1 and 255, default 4).
 

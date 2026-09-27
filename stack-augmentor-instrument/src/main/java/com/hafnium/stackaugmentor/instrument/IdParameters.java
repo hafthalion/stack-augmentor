@@ -36,10 +36,15 @@ public final class IdParameters {
 
     /**
      * Whether the parameter annotations of this method are used: the type's deciding {@code [instrument.classes]}
-     * entry is {@code "@"}, or an {@code [instrument.methods]} entry with {@code "@"} matches the method.
+     * entry is {@code "@"}, or an {@code [instrument.methods]} entry with {@code "@"} applies to the method.
      */
     boolean annotationsUsed(TypeDescription type, MethodDescription method) {
-        return classEntries.annotationsUsed(type) || hasAnnotationsRef(config.paramRefs(type.getName(), method.getInternalName()));
+        return classEntries.annotationsUsed(type) || hasAnnotationsRef(paramRefs(type, method));
+    }
+
+    /** The {@code [instrument.methods]} selection for the method, taking a {@code "-"} class entry into account. */
+    private List<ParamRef> paramRefs(TypeDescription type, MethodDescription method) {
+        return config.paramRefs(type.getName(), method.getInternalName(), classEntries.entry(type));
     }
 
     private static boolean hasAnnotationsRef(List<ParamRef> refs) {
@@ -68,7 +73,7 @@ public final class IdParameters {
     public List<IdParameter> select(TypeDescription type, MethodDescription method) {
         ParameterList<?> parameters = method.getParameters();
         TreeMap<Integer, String> labels = new TreeMap<>();
-        List<ParamRef> refs = config.paramRefs(type.getName(), method.getInternalName());
+        List<ParamRef> refs = paramRefs(type, method);
         if (classEntries.annotationsUsed(type) || hasAnnotationsRef(refs)) {
             // @StackTraceParams on the method, or on the class declaring it: all parameters.
             if (annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null
@@ -91,6 +96,9 @@ public final class IdParameters {
             switch (ref) {
                 case ParamRef.Annotations annotations -> {
                     // Handled above, with the annotations.
+                }
+                case ParamRef.Excluded excluded -> {
+                    // paramRefs stops at "-".
                 }
                 case ParamRef.All all -> {
                     for (ParameterDescription parameter : parameters) {
@@ -155,6 +163,8 @@ public final class IdParameters {
                         case ParamRef.All all -> {
                         }
                         case ParamRef.Annotations annotations -> {
+                        }
+                        case ParamRef.Excluded excluded -> {
                         }
                         case ParamRef.ByIndex byIndex -> {
                             if (byIndex.index() >= parameters.size()) {

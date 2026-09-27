@@ -12,4 +12,11 @@ public sealed interface IdSpec {
     /** {@code "@"}: the class's {@code @StackTraceId}, {@code @StackTraceParam} and {@code @StackTraceParams} annotations. */
     record Annotations() implements IdSpec {
     }
+
+    /**
+     * {@code "-"}: the class is ignored: no receiver id, no annotations, and its methods are excluded from
+     * {@code [instrument.methods]} entries that are less specific than this entry.
+     */
+    record Excluded() implements IdSpec {
+    }
 }

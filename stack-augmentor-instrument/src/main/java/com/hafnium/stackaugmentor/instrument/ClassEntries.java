@@ -20,6 +20,11 @@ final class ClassEntries {
         boolean annotations() {
             return entry.spec() instanceof IdSpec.Annotations;
         }
+
+        /** {@code "-"}: the class is ignored. */
+        boolean excluded() {
+            return entry.spec() instanceof IdSpec.Excluded;
+        }
     }
 
     private record Cached(TypeDescription type, Deciding deciding) {
@@ -51,6 +56,12 @@ final class ClassEntries {
         });
         cached = new Cached(type, found[0]);
         return found[0];
+    }
+
+    /** The deciding entry itself, or {@code null}. */
+    AugmentorConfig.ClassEntry entry(TypeDescription type) {
+        Deciding deciding = decide(type);
+        return deciding != null ? deciding.entry() : null;
     }
 
     /** Whether the type's annotations are used: its deciding entry is {@code "@"}. */

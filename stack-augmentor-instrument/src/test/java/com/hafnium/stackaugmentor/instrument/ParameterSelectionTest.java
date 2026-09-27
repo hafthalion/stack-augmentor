@@ -206,4 +206,42 @@ class ParameterSelectionTest {
         // failAnnotated is enabled by its method entry.
         assertTrue(output.contains("ignoring @StackTraceId and the parameter annotations of fail in " + explicit + reason), output);
     }
+
+    @Test
+    void excludedClassesAndMethods() {
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        System.setErr(new PrintStream(err, true, StandardCharsets.UTF_8));
+        Log.setDebug(true);
+        String service = Service.class.getName();
+        String explicit = Explicit.class.getName();
+        AugmentorConfig config = AugmentorConfig.builder()
+                .classes(Map.of(HERE, ANNOTATIONS, ClassLevel.class.getName(), new IdSpec.Excluded(), explicit, new IdSpec.Excluded()))
+                .methods(Map.of(
+                        HERE.replace(".**", ".*") + ".*", List.of(new ParamRef.All()),
+                        service + ".*", List.of(new ParamRef.Excluded()),
+                        service + ".process", List.of(new ParamRef.ByName("note")),
+                        explicit + ".failAnnotated", List.of(new ParamRef.Annotations())))
+                .build();
+        IdParameters parameters = new IdParameters(config);
+        TypeMatching matching = new TypeMatching(config, parameters);
+
+        // The exact "-" class entry beats the "@" pattern, and the pattern in [instrument.methods] as well.
+        assertEquals(List.of(), labels(parameters, ClassLevel.class, "reserve"));
+        assertFalse(matching.instrument(type(ClassLevel.class)));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("ignoring the parameter annotations of release, reserve in "
+                + ClassLevel.class.getName() + ": [instrument.classes] \"" + ClassLevel.class.getName() + "\" = \"-\" ignores the class"),
+                err.toString(StandardCharsets.UTF_8));
+        // Other classes of the package still use their annotations and the "*" pattern.
+        assertEquals(List.of("sku", "count"), labels(parameters, MethodLevel.class, "move"));
+        assertEquals(List.of("item"), labels(parameters, MethodLevel.class, "plain"));
+        // A "-" method entry beats the less specific pattern; the exact entry beats the "-".
+        assertEquals(List.of("note"), labels(parameters, Service.class, "process"));
+        // A more specific method entry beats the "-" class entry: no receiver id, but its parameters.
+        assertEquals(List.of(), labels(parameters, Explicit.class, "fail"));
+        assertEquals(List.of("why"), labels(parameters, Explicit.class, "failAnnotated"));
+        assertTrue(matching.instrument(type(Explicit.class)));
+        assertTrue(matching.describe(type(Explicit.class), matching.methods(type(Explicit.class)))
+                .contains("parameter ids only, the receiver is ignored by [instrument.classes]"));
+        assertFalse(matching.methods(type(Explicit.class)).matches(method(Explicit.class, "fail")));
+    }
 }

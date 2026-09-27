@@ -193,7 +193,8 @@ without wildcards SHALL match exactly. `<parameters>` SHALL be an array of param
 indexes, the string `"*"` for all parameters, or the string `"@"` for the parameters selected by the method's
 annotations: `@StackTraceParam` on its parameters, and `@StackTraceParams` on the method or on the class that
 declares it. Names and indexes that a matched method does not have
-SHALL be skipped. When several entries match one method, the parameters they select SHALL be combined.
+SHALL be skipped. When several entries match one method, the parameters they select SHALL be combined, up to
+a `"-"` entry as described under "Ignoring classes and methods".
 
 #### Scenario: All methods and parameters of a class
 - **GIVEN** `"com.thirdparty.InventoryService.*" = "*"`
@@ -214,6 +215,32 @@ SHALL be skipped. When several entries match one method, the parameters they sel
 - **GIVEN** `"com.acme.Order" = "getId()"` in `[instrument.classes]` and `"com.acme.Order.*" = "@"` in `[instrument.methods]`, and `fun ship(@StackTraceParam(name = "to") address: String)` in `Order`
 - **WHEN** `ship("Main St")` throws
 - **THEN** that frame shows the receiver id `getId=…` and the parameter id `to=Main St`
+
+### Requirement: Ignoring classes and methods
+The value `"-"` SHALL ignore what its entry matches, in both tables. A class whose deciding
+`[instrument.classes]` entry is `"-"` SHALL get no receiver id and SHALL NOT use its annotations; the entry
+decides with the same most-specific rule as other entries and applies to subclasses in the same way. When
+several `[instrument.methods]` entries match a method, they SHALL be ordered from the most specific on (the
+entry without wildcards first, then the patterns with the most characters other than `*` and `?`, ties
+broken by key) and combined up to the first `"-"` entry; that entry and the less specific ones SHALL select
+nothing. A `"-"` deciding class entry `"<key>" = "-"` SHALL count as the `[instrument.methods]` pattern
+`"<key>.*" = "-"`, so only a more specific method entry still selects parameters of the ignored class. A
+configuration whose entries are all `"-"` SHALL count as having no entries.
+
+#### Scenario: Ignored package under an "@" pattern
+- **GIVEN** `"com.acme.**" = "@"` and `"com.acme.generated.**" = "-"` in `[instrument.classes]`, and an annotated `com.acme.generated.Mapper`
+- **WHEN** a method of `Mapper` throws
+- **THEN** its frame is unchanged
+
+#### Scenario: Ignored methods under a wildcard entry
+- **GIVEN** `"com.thirdparty.Inventory*.*" = "*"`, `"com.thirdparty.InventoryAudit.*" = "-"` and `"com.thirdparty.InventoryAudit.log" = ["reason"]` in `[instrument.methods]`
+- **WHEN** `InventoryAudit.purge("x-1")` throws, and separately `InventoryAudit.log("disk full", 2)` throws
+- **THEN** the first frame is unchanged, and the second frame shows `reason=disk full`
+
+#### Scenario: Ignored class with a more specific method entry
+- **GIVEN** `"com.acme.generated.**" = "-"` in `[instrument.classes]`, and `"com.acme.**.*" = "*"` and `"com.acme.generated.Mapper.map" = [0]` in `[instrument.methods]`
+- **WHEN** `Mapper.map(dto)` throws, and separately `Mapper.copy(dto)` throws
+- **THEN** the first frame shows the first parameter and no receiver id, and the second frame is unchanged
 
 ### Requirement: Classes whose annotations are used
 The system SHALL use `@StackTraceId` annotations (on fields and methods), `@StackTraceParam` annotations
