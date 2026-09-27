@@ -75,7 +75,7 @@ public final class ThrowHandler implements Dispatch.Handler {
         }
         cursors.set(thrown, index + 1);
 
-        NamedId receiverId = self != null ? resolver.receiverId(self) : null;
+        NamedId receiverId = self != null ? resolver.receiverId(self, owner) : null;
         List<NamedId> paramIds = new ArrayList<>();
         int omitted = 0;
         if (paramValues != null && paramNames != null) {

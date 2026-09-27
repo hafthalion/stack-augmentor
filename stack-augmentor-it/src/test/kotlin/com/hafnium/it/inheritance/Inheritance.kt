@@ -1,8 +1,8 @@
 package com.hafnium.it.inheritance
 
-// Receiver ids by inheritance, see InheritanceTest. Only the classes named here have [augment.receiver] entries:
-// "com.hafnium.it.inheritance.Order" = "id", "...ExpressOrder" = "id" and "...Priority" = "code". The classes are
-// open, so that proxies and mocks can subclass them.
+// Receiver ids by inheritance, see InheritanceTest. Only these classes have [augment.receiver] entries:
+// "com.hafnium.it.inheritance.Order" = "id", "...ExpressOrder" = "id", "...TrackedOrder" = "tracking" and
+// "...Priority" = "code". The classes are open, so that proxies and mocks can subclass them.
 
 open class Order(private val id: String) {
     open fun ship(): Nothing = throw IllegalStateException("cannot ship $id")
@@ -16,7 +16,14 @@ class RushOrder(id: String) : Order(id) {
 }
 
 /** An entry of its own, naming the field that Order declares. */
-class ExpressOrder(id: String) : Order(id)
+class ExpressOrder(id: String) : Order(id) {
+    fun express(): Nothing = throw IllegalStateException("cannot express")
+}
+
+/** An entry of its own, naming a different field. */
+class TrackedOrder(id: String, private val tracking: String) : Order(id) {
+    fun track(): Nothing = throw IllegalStateException("cannot track $tracking")
+}
 
 enum class Priority(private val code: String) {
     LOW("l"),

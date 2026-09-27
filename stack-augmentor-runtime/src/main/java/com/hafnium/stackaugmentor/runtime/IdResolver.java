@@ -85,10 +85,31 @@ public final class IdResolver {
         this.config = config;
     }
 
-    /** The id of the object a frame runs on, or {@code null} if its class has no configured or annotated id source. */
+    /** {@link #receiverId(Object, String)} for a method that the object's own class declares. */
     public NamedId receiverId(Object target) {
-        Source source = sources.get(target.getClass());
+        return receiverId(target, target.getClass().getName());
+    }
+
+    /**
+     * The id of the object a frame runs on, or {@code null} if there is no id source. The id source is that of the
+     * class declaring the frame's method, not of the object's runtime class: a subclass, e.g. a proxy or a mock, shows
+     * the id of the class whose method it runs. Its member is read from the object.
+     *
+     * @param declaringClass the name of the class that declares the method
+     */
+    public NamedId receiverId(Object target, String declaringClass) {
+        Source source = sources.get(declaringClass(target.getClass(), declaringClass));
         return source != null ? new NamedId(source.name(), read(source, target)) : null;
+    }
+
+    /** The class named {@code name} among the type and its superclasses; the type itself for e.g. an interface's method. */
+    private static Class<?> declaringClass(Class<?> type, String name) {
+        for (Class<?> candidate = type; candidate != null; candidate = candidate.getSuperclass()) {
+            if (candidate.getName().equals(name)) {
+                return candidate;
+            }
+        }
+        return type;
     }
 
     /** The id of an argument: its class's id source if it has one, otherwise its text. */
