@@ -20,8 +20,9 @@ import java.nio.file.Path;
  * Only the project's classes are changed; libraries are left alone.
  * At runtime, the application needs {@code stack-augmentor-runtime} on its classpath.
  *
- * <p>Argument 0 is the path of a TOML configuration: its {@code [instrument.classes]} and {@code [instrument.methods]}
- * entries choose the classes and methods, as with the agent, and {@code debug} logs what gets instrumented. Without
+ * <p>Argument 0 is the path of a TOML configuration: its {@code [augment.classes]} and {@code [augment.methods]}
+ * entries decide which receivers and parameters get ids, and the classes and methods that need the advice for that
+ * are instrumented, as with the agent; {@code debug} logs what gets instrumented. Without
  * it (e.g. when discovered through {@code META-INF/net.bytebuddy/build.plugins}), nothing is instrumented.
  */
 public final class StackAugmentorByteBuddyPlugin implements Plugin {
@@ -33,7 +34,7 @@ public final class StackAugmentorByteBuddyPlugin implements Plugin {
         this(new AugmentorConfig());
     }
 
-    /** @param configFile a TOML configuration; its {@code [instrument]} section applies. */
+    /** @param configFile a TOML configuration; its {@code [augment.classes]} and {@code [augment.methods]} apply. */
     public StackAugmentorByteBuddyPlugin(String configFile) {
         this(AugmentorConfig.load(Path.of(configFile)));
     }
@@ -43,12 +44,12 @@ public final class StackAugmentorByteBuddyPlugin implements Plugin {
         this.matching = new TypeMatching(config, parameters);
         this.advice = ExitAdviceFactory.create(parameters);
         Log.setDebug(config.debug());
-        if (!config.hasInstrumentEntries()) {
-            Log.warn("build plugin: the configuration has no [instrument.classes] or [instrument.methods] entries, "
+        if (!config.hasAugmentEntries()) {
+            Log.warn("build plugin: the configuration has no [augment.classes] or [augment.methods] entries, "
                     + "so nothing will be augmented");
         }
-        Log.debug(() -> "build plugin, [instrument.classes]: " + config.classesDescription()
-                + ", [instrument.methods]: " + config.methodsDescription());
+        Log.debug(() -> "build plugin, [augment.classes]: " + config.classesDescription()
+                + ", [augment.methods]: " + config.methodsDescription());
     }
 
     @Override

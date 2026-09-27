@@ -17,34 +17,25 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
- * Finds the id parameters of a method: selected by {@code @StackTraceParam} or {@code @StackTraceParams}, where they
- * are used, or by the {@code [instrument.methods]} config table.
+ * Finds the id parameters of a method: those the {@code [augment.methods]} config table selects, by name, index,
+ * {@code "*"}, or {@code "@"} for the method's {@code @StackTraceParam} and {@code @StackTraceParams} annotations.
+ * {@code [augment.classes]} plays no part.
  */
 public final class IdParameters {
 
     private final AugmentorConfig config;
-    private final ClassEntries classEntries;
 
     public IdParameters(AugmentorConfig config) {
         this.config = config;
-        this.classEntries = new ClassEntries(config);
     }
 
-    ClassEntries classEntries() {
-        return classEntries;
-    }
-
-    /**
-     * Whether the parameter annotations of this method are used: the type's deciding {@code [instrument.classes]}
-     * entry is {@code "@"}, or an {@code [instrument.methods]} entry with {@code "@"} applies to the method.
-     */
+    /** Whether the parameter annotations of this method are used: an {@code [augment.methods]} {@code "@"} entry applies. */
     boolean annotationsUsed(TypeDescription type, MethodDescription method) {
-        return classEntries.annotationsUsed(type) || hasAnnotationsRef(paramRefs(type, method));
+        return hasAnnotationsRef(paramRefs(type, method));
     }
 
-    /** The {@code [instrument.methods]} selection for the method, taking a {@code "-"} class entry into account. */
     private List<ParamRef> paramRefs(TypeDescription type, MethodDescription method) {
-        return config.paramRefs(type.getName(), method.getInternalName(), classEntries.entry(type));
+        return config.paramRefs(type.getName(), method.getInternalName());
     }
 
     private static boolean hasAnnotationsRef(List<ParamRef> refs) {
@@ -74,7 +65,7 @@ public final class IdParameters {
         ParameterList<?> parameters = method.getParameters();
         TreeMap<Integer, String> labels = new TreeMap<>();
         List<ParamRef> refs = paramRefs(type, method);
-        if (classEntries.annotationsUsed(type) || hasAnnotationsRef(refs)) {
+        if (hasAnnotationsRef(refs)) {
             // @StackTraceParams on the method, or on the class declaring it: all parameters.
             if (annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null
                     || annotation(type.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null) {
@@ -127,7 +118,7 @@ public final class IdParameters {
     }
 
     /**
-     * Debug messages for {@code [instrument.methods]} entries of this type that match no method or parameter.
+     * Debug messages for {@code [augment.methods]} entries of this type that match no method or parameter.
      * Entries with wildcards are skipped: they are expected not to fit every class and method they match.
      */
     public List<String> unmatchedEntries(TypeDescription type) {
@@ -142,7 +133,7 @@ public final class IdParameters {
                 continue;
             }
             String methodName = target.substring(dot + 1);
-            String entry = "[instrument.methods] \"" + target + "\"";
+            String entry = "[augment.methods] \"" + target + "\"";
             List<MethodDescription> methods = new ArrayList<>();
             for (MethodDescription method : type.getDeclaredMethods()) {
                 if (method.isMethod() && method.getInternalName().equals(methodName)) {

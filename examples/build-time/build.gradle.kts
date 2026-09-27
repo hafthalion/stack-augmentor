@@ -24,7 +24,8 @@ dependencies {
     testRuntimeOnly(libs.junit.launcher)
 }
 
-// One configuration for both phases: [instrument] is read here at build time, [augment] from the classpath at runtime.
+// One configuration for both phases: [augment.classes] and [augment.methods] are read here at build time,
+// [augment] and [augment.classes] from the classpath at runtime.
 val stackAugmentorConfig = layout.projectDirectory.file("src/main/resources/stack-augmentor.toml")
 
 byteBuddy {

@@ -99,9 +99,16 @@ class ParameterSelectionTest {
         return AugmentorConfig.builder().classes(classes).build();
     }
 
+    private static AugmentorConfig methods(Map<String, List<ParamRef>> methods) {
+        return AugmentorConfig.builder().methods(methods).build();
+    }
+
+    /** All methods of the classes in this package. */
+    private static final String HERE_METHODS = HERE + ".*";
+
     @Test
     void methodAndClassLevelAnnotations() {
-        IdParameters parameters = new IdParameters(classes(Map.of(HERE, ANNOTATIONS)));
+        IdParameters parameters = new IdParameters(methods(Map.of(HERE_METHODS, List.of(new ParamRef.Annotations()))));
         assertEquals(List.of("sku", "count"), labels(parameters, MethodLevel.class, "move"));
         assertEquals(List.of(), labels(parameters, MethodLevel.class, "plain"));
         assertEquals(List.of("sku", "count"), labels(parameters, ClassLevel.class, "reserve"));
@@ -113,7 +120,9 @@ class ParameterSelectionTest {
 
     @Test
     void annotationsWithoutAnAtEntryAreIgnored() {
-        for (AugmentorConfig config : List.of(new AugmentorConfig(), classes(Map.of("com.acme.**", ANNOTATIONS)))) {
+        // An "@" class entry is for @StackTraceId only: the tables are independent.
+        for (AugmentorConfig config : List.of(new AugmentorConfig(), classes(Map.of(HERE, ANNOTATIONS)),
+                methods(Map.of("com.acme.**.*", List.of(new ParamRef.Annotations()))))) {
             IdParameters parameters = new IdParameters(config);
             assertEquals(List.of(), labels(parameters, ClassLevel.class, "reserve"));
             assertEquals(List.of(), labels(parameters, MethodLevel.class, "move"));
@@ -177,7 +186,7 @@ class ParameterSelectionTest {
                 .build());
         List<String> messages = exact.unmatchedEntries(type(Service.class));
         assertEquals(2, messages.size(), messages.toString());
-        assertTrue(messages.stream().anyMatch(it -> it.contains("[instrument.methods]")), messages.toString());
+        assertTrue(messages.stream().anyMatch(it -> it.contains("[augment.methods]")), messages.toString());
         assertTrue(messages.stream().anyMatch(it -> it.contains("no parameter 'missing' in process(String order, int quantity, String note)")),
                 messages.toString());
         assertTrue(messages.stream().anyMatch(it -> it.contains("has no method 'nope'")), messages.toString());
@@ -200,24 +209,26 @@ class ParameterSelectionTest {
         assertTrue(matching.instrument(type(Explicit.class)));
 
         String output = err.toString(StandardCharsets.UTF_8);
-        String reason = ": no \"@\" entry in [instrument.classes] or [instrument.methods] applies";
+        String reason = ": no \"@\" entry in [augment.methods] applies";
         assertTrue(output.contains("ignoring the parameter annotations of release, reserve in " + ClassLevel.class.getName() + reason), output);
         assertTrue(output.contains("ignoring the parameter annotations of move in " + MethodLevel.class.getName() + reason), output);
+        assertTrue(output.contains("ignoring @StackTraceId in " + explicit + ": its [augment.classes] entry \"" + explicit + "\" is not \"@\""),
+                output);
         // failAnnotated is enabled by its method entry.
-        assertTrue(output.contains("ignoring @StackTraceId and the parameter annotations of fail in " + explicit + reason), output);
+        assertTrue(output.contains("ignoring the parameter annotations of fail in " + explicit + reason), output);
     }
 
     @Test
-    void excludedClassesAndMethods() {
+    void excludedClassesAndMethodsAreIndependent() {
         ByteArrayOutputStream err = new ByteArrayOutputStream();
         System.setErr(new PrintStream(err, true, StandardCharsets.UTF_8));
         Log.setDebug(true);
         String service = Service.class.getName();
         String explicit = Explicit.class.getName();
         AugmentorConfig config = AugmentorConfig.builder()
-                .classes(Map.of(HERE, ANNOTATIONS, ClassLevel.class.getName(), new IdSpec.Excluded(), explicit, new IdSpec.Excluded()))
+                .classes(Map.of(HERE, ANNOTATIONS, explicit, new IdSpec.Excluded()))
                 .methods(Map.of(
-                        HERE.replace(".**", ".*") + ".*", List.of(new ParamRef.All()),
+                        HERE_METHODS, List.of(new ParamRef.All()),
                         service + ".*", List.of(new ParamRef.Excluded()),
                         service + ".process", List.of(new ParamRef.ByName("note")),
                         explicit + ".failAnnotated", List.of(new ParamRef.Annotations())))
@@ -225,23 +236,16 @@ class ParameterSelectionTest {
         IdParameters parameters = new IdParameters(config);
         TypeMatching matching = new TypeMatching(config, parameters);
 
-        // The exact "-" class entry beats the "@" pattern, and the pattern in [instrument.methods] as well.
-        assertEquals(List.of(), labels(parameters, ClassLevel.class, "reserve"));
-        assertFalse(matching.instrument(type(ClassLevel.class)));
-        assertTrue(err.toString(StandardCharsets.UTF_8).contains("ignoring the parameter annotations of release, reserve in "
-                + ClassLevel.class.getName() + ": [instrument.classes] \"" + ClassLevel.class.getName() + "\" = \"-\" ignores the class"),
-                err.toString(StandardCharsets.UTF_8));
-        // Other classes of the package still use their annotations and the "*" pattern.
-        assertEquals(List.of("sku", "count"), labels(parameters, MethodLevel.class, "move"));
-        assertEquals(List.of("item"), labels(parameters, MethodLevel.class, "plain"));
-        // A "-" method entry beats the less specific pattern; the exact entry beats the "-".
-        assertEquals(List.of("note"), labels(parameters, Service.class, "process"));
-        // A more specific method entry beats the "-" class entry: no receiver id, but its parameters.
-        assertEquals(List.of(), labels(parameters, Explicit.class, "fail"));
+        // The "-" class entry drops Explicit's receiver id, not its parameters.
+        assertEquals(List.of("x"), labels(parameters, Explicit.class, "fail"));
         assertEquals(List.of("why"), labels(parameters, Explicit.class, "failAnnotated"));
         assertTrue(matching.instrument(type(Explicit.class)));
-        assertTrue(matching.describe(type(Explicit.class), matching.methods(type(Explicit.class)))
-                .contains("parameter ids only, the receiver is ignored by [instrument.classes]"));
-        assertFalse(matching.methods(type(Explicit.class)).matches(method(Explicit.class, "fail")));
+        assertTrue(matching.describe(type(Explicit.class), matching.methods(type(Explicit.class))).contains("(parameter ids only)"));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("ignoring @StackTraceId in " + explicit + ": its [augment.classes] entry \""
+                + explicit + "\" is not \"@\""), err.toString(StandardCharsets.UTF_8));
+        // The "@" class entry uses @StackTraceId only: the "*" method entry labels the parameters by name.
+        assertEquals(List.of("item", "count"), labels(parameters, MethodLevel.class, "move"));
+        // A "-" method entry beats the less specific pattern; the exact entry beats the "-".
+        assertEquals(List.of("note"), labels(parameters, Service.class, "process"));
     }
 }

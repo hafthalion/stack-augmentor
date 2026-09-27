@@ -18,7 +18,7 @@ It works for Java and Kotlin classes. The library is written in Java, so it does
 |---|---|---|
 | How | `-javaagent:stack-augmentor-agent.jar` at startup | The ByteBuddy Gradle plugin changes your compiled classes |
 | Classes | Your classes and libraries | Only the classes of the project being built |
-| `[instrument.classes]` / `[instrument.methods]` for third-party classes | Yes | No |
+| `[augment.classes]` / `[augment.methods]` for third-party classes | Yes | No |
 | At runtime | The agent jar (self-contained) | `stack-augmentor-runtime` on the classpath (with tomlj; no ByteBuddy, no Kotlin) |
 | Example | `./gradlew :examples:java-agent:run` | `./gradlew :examples:build-time:run` |
 
@@ -58,11 +58,14 @@ Use it in your own application:
    }
    ```
 
-2. Say which classes use their annotations, in `stack-augmentor.toml` (see [Configuration](#configuration)):
+2. Say which classes use their annotations, in `stack-augmentor.toml` (see [Configuration](#configuration)). The receiver ids and the parameter ids are configured separately:
 
    ```toml
-   [instrument.classes]
+   [augment.classes]      # receiver ids: @StackTraceId
    "com.acme.**" = "@"
+
+   [augment.methods]      # parameter ids: @StackTraceParam and @StackTraceParams
+   "com.acme.**.*" = "@"
    ```
 
 3. Start the JVM with the agent (`./gradlew :stack-augmentor-agent:shadowJar` builds it):
@@ -71,7 +74,7 @@ Use it in your own application:
    java -javaagent:stack-augmentor-agent-<version>.jar=config=stack-augmentor.toml -jar app.jar
    ```
 
-   `-Dstackaugmentor.config=<path>` works as well. Without a configuration, or without `[instrument.classes]` and `[instrument.methods]` entries, nothing is augmented, and the agent prints a warning.
+   `-Dstackaugmentor.config=<path>` works as well. Without a configuration, or without `[augment.classes]` and `[augment.methods]` entries, nothing is augmented, and the agent prints a warning.
 
 ## Quick start: build-time instrumentation
 
@@ -100,7 +103,7 @@ byteBuddy {
     entryPoint = EntryPoint.Default.DECORATE   // only add advice, keep the methods as they are
     transformation {
         pluginName = "com.hafnium.stackaugmentor.build.StackAugmentorByteBuddyPlugin"
-        argument { value = stackAugmentorConfig.asFile.absolutePath }   // required: its [instrument] section
+        argument { value = stackAugmentorConfig.asFile.absolutePath }   // required: its [augment.*] tables
     }
 }
 
@@ -110,46 +113,49 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 }
 ```
 
-After compiling, the ByteBuddy Gradle plugin applies `StackAugmentorByteBuddyPlugin` to the project's classes (Java and Kotlin), choosing classes and methods with the `[instrument.classes]` and `[instrument.methods]` entries of the given configuration, as the agent does (e.g. `"com.acme.**" = "@"`). Without the configuration argument, nothing is instrumented and the build prints a warning. No agent is needed at runtime: the application needs only `stack-augmentor-api` and `stack-augmentor-runtime`, which bring the bridge and tomlj, but neither ByteBuddy nor the Kotlin runtime. Libraries are not changed, so entries for third-party classes don't apply here.
+After compiling, the ByteBuddy Gradle plugin applies `StackAugmentorByteBuddyPlugin` to the project's classes (Java and Kotlin), instrumenting the classes and methods that the `[augment.classes]` and `[augment.methods]` entries of the given configuration need, as the agent does. Without the configuration argument, nothing is instrumented and the build prints a warning. No agent is needed at runtime: the application needs only `stack-augmentor-api` and `stack-augmentor-runtime`, which bring the bridge and tomlj, but neither ByteBuddy nor the Kotlin runtime. Libraries are not changed, so entries for third-party classes don't apply here.
 
-With the configuration in `src/main/resources`, one file serves both phases: the build plugin reads `[instrument]`, and at runtime `[instrument.classes]` (for receiver ids), `[augment]` and `debug` are read from `stack-augmentor.toml` on the classpath (or from `-Dstackaugmentor.config=<file>`). At runtime, the `[instrument.classes]` entries apply as with the agent: a class without a matching entry gets no receiver id, even if it is annotated. Without a runtime configuration, a warning says so, and frames show only the parameter ids chosen at build time.
+With the configuration in `src/main/resources`, one file serves both phases: the build plugin reads `[augment.classes]` and `[augment.methods]`, and at runtime `[augment]` (with `[augment.classes]`, for receiver ids) and `debug` are read from `stack-augmentor.toml` on the classpath (or from `-Dstackaugmentor.config=<file>`). At runtime, the `[augment.classes]` entries apply as with the agent: a class without a matching entry gets no receiver id, even if it is annotated. Without a runtime configuration, a warning says so, and frames show only the parameter ids chosen at build time.
 
 ## Where ids come from
 
-**Receiver id**: the object a frame runs on. It comes from the class's deciding `[instrument.classes]` entry: that of the first class up the superclass chain that an entry matches, so an entry also applies to subclasses. The entry names:
+The two kinds of ids are configured independently: `[augment.classes]` decides the receiver ids, `[augment.methods]` the parameter ids. Neither table affects the other. Which classes and methods get instrumented is not configured directly: whatever either table needs is instrumented behind the scenes.
 
-- a field, or a no-argument `method()`, looked up in that class and its superclasses; or
+**Receiver id**: the object a frame runs on. It comes from the class's deciding `[augment.classes]` entry: that of the first class up the superclass chain that an entry matches, so an entry also applies to subclasses. The entry names:
+
+- a field, or a no-argument `method()`, looked up in that class and its superclasses;
 - `"@"`: the `@StackTraceId` on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`; or
-- `"-"`: nothing. The class is ignored: no receiver id, no annotations, and no parameters from `[instrument.methods]` entries less specific than this one (see below).
+- `"-"`: nothing, so the class gets no receiver id. Its parameter ids are not affected.
 
 When several entries match a class, the most specific one decides: an exact class name beats any pattern, and among patterns the one with the most characters other than `*` and `?` wins. So `"com.acme.Order" = "getId()"` overrides `"com.acme.**" = "@"` for `Order`, and `"com.acme.generated.**" = "-"` takes the generated classes out of `"com.acme.**" = "@"`. A class without a deciding entry, or without the member it names, gets no receiver id.
 
 The label is the real field or method name (`{objectId=…}`, `{getKey=…}`). `@StackTraceId(name = "…")` sets a different label.
 
-**Parameter ids** are shown after the method name, in declaration order. A parameter becomes an id when:
-- it is annotated with `@StackTraceParam`;
-- its method is annotated with `@StackTraceParams` (all parameters of that method);
-- its class is annotated with `@StackTraceParams` (all parameters of every method declared in that class; not of subclasses or nested classes);
-- or an `[instrument.methods]` entry selects it, by name, by 0-based index, or with `"*"` for all parameters (see [Configuration](#configuration)).
+**Parameter ids** are shown after the method name, in declaration order. `[augment.methods]` entries `"<class>.<method>"` select them (see [Configuration](#configuration)):
+- by name or by 0-based index, e.g. `["order", 2]`;
+- `"*"`: all parameters;
+- `"@"`: the parameters the method's annotations select: `@StackTraceParam` on a parameter, `@StackTraceParams` on the method (all its parameters), or `@StackTraceParams` on the class declaring it (all parameters of every method declared in that class; not of subclasses or nested classes);
+- `"-"`: none.
 
-When several `[instrument.methods]` entries match a method, they are taken from the most specific on (an exact `"<class>.<method>"` first, then the patterns with the most characters other than `*` and `?`) and combined up to the first `"-"`, which drops the less specific ones. A `"-"` class entry counts here as `"<its key>.*" = "-"`, so only a more specific method entry still selects parameters of an ignored class. For example:
+The keys match the class that declares the method, not its subclasses. When several entries match a method, they are taken from the most specific on (an exact `"<class>.<method>"` first, then the patterns with the most characters other than `*` and `?`) and combined up to the first `"-"`, which drops the less specific ones:
 
 ```toml
-[instrument.classes]
-"com.acme.generated.**" = "-"
-[instrument.methods]
-"com.acme.**.*" = "*"                      # ignored for com.acme.generated classes: less specific
-"com.acme.generated.Mapper.map" = [0]      # applies: more specific than the "-" class entry
+[augment.methods]
+"com.thirdparty.Inventory*.*" = "*"                # all parameters of the Inventory* classes ...
+"com.thirdparty.InventoryAudit.*" = "-"            # ... except InventoryAudit's: more specific ...
+"com.thirdparty.InventoryAudit.log" = ["reason"]   # ... except log's first parameter: exact
 ```
 
-The parameter annotations count in classes whose deciding `[instrument.classes]` entry is `"@"`, and in methods matched by an `[instrument.methods]` entry with the value `"@"`. The latter lets a class take its receiver id from an explicit entry and still use its parameter annotations:
+Because the tables are independent, a class can take its receiver id from an explicit entry and still use its parameter annotations, or ignore its receiver and keep its parameters:
 
 ```toml
-[instrument.classes]
+[augment.classes]
 "com.acme.Order" = "getId()"
+"com.acme.generated.**" = "-"      # no receiver ids ...
 
-[instrument.methods]
+[augment.methods]
 "com.acme.Order.*" = "@"
+"com.acme.**.*" = "@"              # ... but their parameter annotations still count
 ```
 
 At most `maxParams` parameter ids (default 4) are shown per frame; if there are more, the list ends with `…`, e.g. `process{a=1, b=2, …}`. The others are not even converted to text.
@@ -160,21 +166,29 @@ All ids become Strings when they are captured. Line breaks are replaced, the len
 
 ## Configuration
 
-The configuration is a TOML file (ending in `.toml`). `[instrument]` decides what gets instrumented, `[augment]` how frames look:
+The configuration is a TOML file (ending in `.toml`). `[augment]` sets how frames look, `[augment.classes]` which receivers get ids and `[augment.methods]` which parameters:
 
 ```toml
 # Print diagnostics to stderr: the configuration, which classes and methods get instrumented and why,
 # where each id comes from, and config entries or annotations that have no effect.
 debug = false
 
-# What gets instrumented: read by the agent when classes load, or by the build plugin at build time.
+# How frames look: read at runtime, in both modes (these are the defaults).
+[augment]
+frameFormat = "$class$receiver.$method$params"
+receiverFormat = "{$name=$id}"
+paramsFormat = "{$name=$id, ...}"
+maxIdLength = 64
+maxParams = 4        # at most this many parameter ids per frame, then "…"
+
+# Which receivers and parameters get ids: two independent tables. Read by the agent when classes load, or by
+# the build plugin at build time, which instrument whatever classes and methods they need.
 # Keys may use wildcards: '*' within one package (or name), '**' across packages, '?' one character.
 
-# Receiver ids: "@" for the classes' @StackTraceId, @StackTraceParam and @StackTraceParams annotations
-# (without an "@" entry, no annotations are used), or, for classes you cannot annotate, a field or a
-# no-argument method ending in "()"; "-" ignores the class. An entry applies to subclasses too; the most
-# specific entry wins.
-[instrument.classes]
+# Receiver ids: "@" for the class's @StackTraceId (without an "@" entry, it is not used), or, for classes you
+# cannot annotate, a field or a no-argument method ending in "()"; "-" for none. An entry applies to
+# subclasses too; the most specific entry wins.
+[augment.classes]
 "com.hafnium.**" = "@"
 "com.hafnium.generated.**" = "-"                     # except these
 "com.acme.orders.*" = "@"
@@ -185,23 +199,16 @@ debug = false
 # Parameter ids: "<class>.<method>" = parameter names and 0-based indexes, "*" for all parameters, "@" for
 # the method's @StackTraceParam and @StackTraceParams annotations, or "-" for none. Entries that match the same
 # method are combined from the most specific on, up to the first "-".
-[instrument.methods]
+[augment.methods]
+"com.hafnium.**.*" = "@"                             # the annotations of these methods
+"com.acme.orders.*.*" = "@"
 "com.thirdparty.OrderService.process" = ["order", 2]
 "com.thirdparty.InventoryService.*" = "*"             # all methods of a class
 "com.thirdparty.**.*Repository.find*" = [0]          # across packages
 "com.thirdparty.**.AuditRepository.find*" = "-"      # except these
-"com.acme.legacy.Order.*" = "@"                      # annotations of methods whose class has no "@" entry
-
-# How frames look: read at runtime, in both modes (these are the defaults).
-[augment]
-frameFormat = "$class$receiver.$method$params"
-receiverFormat = "{$name=$id}"
-paramsFormat = "{$name=$id, ...}"
-maxIdLength = 64
-maxParams = 4        # at most this many parameter ids per frame, then "…"
 ```
 
-Quote class names in `[instrument.classes]` and `[instrument.methods]`. Without quotes, TOML treats each `.` as a nested table; the agent accepts that too, but the quoted form is the clear one. Keys with wildcards must be quoted. Broad wildcards such as `"com.**.*" = "*"` make the agent instrument many classes, which costs time when they are loaded; `debug = true` lists every instrumented class, and the annotations it ignores. A missing field or method is a warning for exact class names, and only a debug message for patterns. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.
+Quote class names in `[augment.classes]` and `[augment.methods]`. Without quotes, TOML treats each `.` as a nested table; the agent accepts that too, but the quoted form is the clear one. Keys with wildcards must be quoted. Broad wildcards such as `"com.**.*" = "*"` make the agent instrument many classes, which costs time when they are loaded; `debug = true` lists every instrumented class, and the annotations it ignores. A missing field or method is a warning for exact class names, and only a debug message for patterns. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.
 
 An invalid configuration stops the JVM (or the build) at startup. The message names the key and its line, e.g. `stack-augmentor.toml, line 3: maxIdLength must be between 2 and 10000, was 1`. Unknown keys are rejected, so a typo doesn't go unnoticed.
 
@@ -209,14 +216,16 @@ An invalid configuration stops the JVM (or the build) at startup. The message na
 
 | Before | Now |
 |---|---|
-| `[instrument] annotatedClasses = ["com.acme.**"]` | `[instrument.classes]` `"com.acme.**" = "@"` (one entry per pattern) |
-| `annotatedClasses` empty or missing (all packages) | `"**" = "@"`: without an `"@"` entry, no annotations are used |
-| `[instrument.classIds]` | `[instrument.classes]` (now also with wildcards) |
-| `[instrument.methodParams]` | `[instrument.methods]` |
+| `[instrument] annotatedClasses = ["com.acme.**"]` | `[augment.classes]` `"com.acme.**" = "@"` for `@StackTraceId`, and `[augment.methods]` `"com.acme.**.*" = "@"` for the parameter annotations (one entry per pattern) |
+| `annotatedClasses` empty or missing (all packages) | `"**" = "@"` and `"**.*" = "@"`: without `"@"` entries, no annotations are used |
+| `[instrument.classes]` | `[augment.classes]`; its `"@"` now enables `@StackTraceId` only |
+| `[instrument.methods]` | `[augment.methods]` |
+| `[instrument.classIds]` | `[augment.classes]` (now also with wildcards) |
+| `[instrument.methodParams]` | `[augment.methods]` |
 | `@StackTraceId` on a parameter | `@StackTraceParam` (keeping any `name`); the compiler reports every place |
 | `frameFormat` placeholders in braces, e.g. `{class}{receiver}.{method}{params}` | `$` placeholders, e.g. `$class$receiver.$method$params` |
 
-The old keys are rejected with an "unknown key" error, and a `frameFormat` in braces is rejected because it has no `.$method`. Classes compiled against the old `@StackTraceId` on parameters show no id for such parameters until they are recompiled.
+The old keys are rejected with an "unknown key" error (for `[instrument]`, naming the new tables), and a `frameFormat` in braces is rejected because it has no `.$method`. Classes compiled against the old `@StackTraceId` on parameters show no id for such parameters until they are recompiled.
 
 ### Formats
 

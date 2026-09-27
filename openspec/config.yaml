@@ -9,7 +9,8 @@ context: |
   tests, Java 25, Gradle 9 (Kotlin DSL, version catalog), ByteBuddy, tomlj, JUnit 6.
   Modules: api, instrument-bridge, runtime, instrument, agent, build-plugin, it (integration tests with
   the agent), examples/java-agent, examples/build-time.
-  Configuration: stack-augmentor.toml with debug, [instrument] and [augment].
+  Configuration: stack-augmentor.toml with debug and [augment], which holds the formats and the
+  independent [augment.classes] (receiver ids) and [augment.methods] (parameter ids) tables.
   Specs: functional capabilities under specs/functional/, non-functional requirements under
   specs/non-functional/.
 

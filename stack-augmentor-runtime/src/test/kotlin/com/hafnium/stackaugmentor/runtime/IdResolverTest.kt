@@ -114,7 +114,7 @@ class IdResolverTest {
 
         assertNull(resolver(name(Unannotated::class.java) to IdSpec.FieldSpec("nope")).receiverId(Unannotated("c")))
         assertTrue(
-            err.toString(Charsets.UTF_8).contains("WARN [instrument.classes] \"${name(Unannotated::class.java)}\": no field nope found"),
+            err.toString(Charsets.UTF_8).contains("WARN [augment.classes] \"${name(Unannotated::class.java)}\": no field nope found"),
             err.toString(Charsets.UTF_8),
         )
     }

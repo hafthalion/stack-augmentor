@@ -1,9 +1,15 @@
-[instrument.classes]
-# The fixtures use their annotations
+[augment]
+maxIdLength = 20
+# Above the default (4), so the six-parameter fixtures show all their parameters
+maxParams = 8
+
+# The two tables are independent: [augment.classes] for the receiver ids, [augment.methods] for the parameter ids.
+[augment.classes]
+# The fixtures' receiver ids come from their @StackTraceId
 "com.hafnium.it.fixtures.**" = "@"
 # ... except Overridden, whose exact entry is more specific
 "com.hafnium.it.fixtures.Overridden" = "getId()"
-# ... and except the ignored ones: the more specific "-" pattern wins
+# ... and except the ignored ones: no receiver id, the more specific "-" pattern wins (parameter ids are not affected)
 "com.hafnium.it.fixtures.ignored.**" = "-"
 # Stand-ins for classes you cannot annotate
 "com.thirdparty.Order" = "getOrderNumber()"
@@ -12,7 +18,12 @@
 # Matches JDK classes, which the agent never instruments
 "java.**" = "@"
 
-[instrument.methods]
+[augment.methods]
+# The fixtures' parameter ids come from their @StackTraceParam and @StackTraceParams
+"com.hafnium.it.fixtures.**.*" = "@"
+# ... except Overridden's, except for failAnnotated, whose exact entry is more specific
+"com.hafnium.it.fixtures.Overridden.*" = "-"
+"com.hafnium.it.fixtures.Overridden.failAnnotated" = "@"
 "com.thirdparty.OrderService.process" = ["order", 1]
 # Wildcards: combined with the entry above, and across packages
 "com.thirdparty.OrderService.*" = [2]
@@ -23,14 +34,7 @@
 "com.thirdparty.**.*Repository.find*" = [0]
 # Matches JDK classes, which the agent never instruments
 "java.**.*" = "*"
-# Selects the parameter that is also annotated
-"com.hafnium.it.fixtures.Overridden.failAnnotated" = "@"
 "com.hafnium.it.fixtures.Overlap.op" = ["x", "y"]
-# Parameter annotations of classes that no [instrument.classes] entry matches
+# Parameter annotations outside the fixtures
 "com.hafnium.it.outside.MethodAnnotationsOutside.run" = "@"
 "com.hafnium.it.outside.ClassParamsViaMethods.*" = "@"
-
-[augment]
-maxIdLength = 20
-# Above the default (4), so the six-parameter fixtures show all their parameters
-maxParams = 8

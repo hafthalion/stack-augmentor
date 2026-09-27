@@ -132,8 +132,8 @@ public final class IdResolver {
     }
 
     /**
-     * The deciding {@code [instrument.classes]} entry: that of the first class up the superclass chain that an entry
-     * matches. Its field or method, or with {@code "@"} its annotations, are looked up from that class upwards.
+     * The deciding {@code [augment.classes]} entry: that of the first class up the superclass chain that an entry
+     * matches. Its field or method, or with {@code "@"} its {@code @StackTraceId}, is looked up from that class upwards.
      * Without a deciding entry, or with {@code "-"}, the class has no id source, even if it is annotated.
      */
     private Source findSource(Class<?> type) {
@@ -208,7 +208,7 @@ public final class IdResolver {
             }
         }
         if (source == null) {
-            String message = "[instrument.classes] \"" + entry.key() + "\": no " + member + " found";
+            String message = "[augment.classes] \"" + entry.key() + "\": no " + member + " found";
             if (entry.isPattern()) {
                 // A pattern is not expected to fit every class it matches.
                 Log.debug(() -> message + " in " + owner.getName());

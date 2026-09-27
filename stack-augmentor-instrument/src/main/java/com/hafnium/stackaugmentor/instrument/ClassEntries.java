@@ -8,7 +8,7 @@ import net.bytebuddy.description.type.TypeDescription;
 import java.util.function.Predicate;
 
 /**
- * Finds the deciding {@code [instrument.classes]} entry of a type: that of the first class up the superclass chain
+ * Finds the deciding {@code [augment.classes]} entry of a type: that of the first class up the superclass chain
  * that an entry matches.
  */
 final class ClassEntries {
@@ -16,12 +16,12 @@ final class ClassEntries {
     /** The deciding entry, and the class it matched. */
     record Deciding(TypeDescription owner, AugmentorConfig.ClassEntry entry) {
 
-        /** {@code "@"}: the class's annotations are used. */
+        /** {@code "@"}: the class's {@code @StackTraceId} is used. */
         boolean annotations() {
             return entry.spec() instanceof IdSpec.Annotations;
         }
 
-        /** {@code "-"}: the class is ignored. */
+        /** {@code "-"}: no receiver id. */
         boolean excluded() {
             return entry.spec() instanceof IdSpec.Excluded;
         }
@@ -58,13 +58,7 @@ final class ClassEntries {
         return found[0];
     }
 
-    /** The deciding entry itself, or {@code null}. */
-    AugmentorConfig.ClassEntry entry(TypeDescription type) {
-        Deciding deciding = decide(type);
-        return deciding != null ? deciding.entry() : null;
-    }
-
-    /** Whether the type's annotations are used: its deciding entry is {@code "@"}. */
+    /** Whether the type's {@code @StackTraceId} is used: its deciding entry is {@code "@"}. */
     boolean annotationsUsed(TypeDescription type) {
         Deciding deciding = decide(type);
         return deciding != null && deciding.annotations();

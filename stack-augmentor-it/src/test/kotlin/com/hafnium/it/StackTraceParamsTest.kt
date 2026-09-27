@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
-/** @StackTraceParams, wildcard [instrument.methods] entries and maxParams; runs with the agent, see build.gradle.kts. */
+/** @StackTraceParams, wildcard [augment.methods] entries and maxParams; runs with the agent, see build.gradle.kts. */
 class StackTraceParamsTest {
 
     private fun Throwable.method(index: Int = 0): String = stackTrace[index].methodName

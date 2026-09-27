@@ -45,7 +45,7 @@ the runtime configuration, which is often missing, so today it honours annotatio
   - `annotatedClasses`, `annotatedClassPatterns` and `honoursAnnotations` are removed, and so are the
     matching `Builder` setters, which become `classes(...)` and `methods(...)`;
   - `hasParamEntries` becomes `hasMethodEntries`;
-  - new `hasInstrumentEntries()` (`!classes.isEmpty() || !methods.isEmpty()`) for the warning.
+  - new `hasAugmentEntries()` (`!classes.isEmpty() || !methods.isEmpty()`) for the warning.
 - New `public record ClassEntry(String key, IdSpec spec)` with `isPattern()`, and
   `ClassEntry classEntry(String className)`:
   - an exact map hit wins;
@@ -93,7 +93,7 @@ where `"@"` competes with explicit values by specificity, which needs one ordere
 
 ### 3. Warnings for an empty instrument configuration
 `StackAugmentorAgent.start` (after loading) and the `StackAugmentorByteBuddyPlugin` constructor warn when
-`!config.hasInstrumentEntries()`: `the configuration has no [instrument.classes] or [instrument.methods]
+`!config.hasAugmentEntries()`: `the configuration has no [instrument.classes] or [instrument.methods]
 entries, so nothing will be augmented`. For the build plugin, this includes the no-argument constructor.
 The runtime handler doesn't warn, because it doesn't decide what gets instrumented.
 
@@ -116,7 +116,7 @@ time) would still show.
 ### 6. Tests and examples
 - **Runtime unit tests**:
   - `AugmentorConfigTest`: the new keys, `"@"` in both tables (`["@"]` rejected), class patterns,
-    specificity and ties, old keys rejected, `hasInstrumentEntries`.
+    specificity and ties, old keys rejected, `hasAugmentEntries`.
   - `IdResolverTest`: the helper builds `classes` entries; add cases for the `"@"` gate, the superclass
     chain, most-specific-wins, a pattern with a missing member (no warning), and fallback mode.
   - New `ThrowHandlerTest`: the no-argument handler without a classpath configuration shows the annotated

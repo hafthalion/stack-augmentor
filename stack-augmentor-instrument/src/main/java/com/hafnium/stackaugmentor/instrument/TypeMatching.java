@@ -24,26 +24,20 @@ public final class TypeMatching {
 
     public TypeMatching(AugmentorConfig config, IdParameters parameters) {
         this.parameters = parameters;
-        this.classEntries = parameters.classEntries();
+        this.classEntries = new ClassEntries(config);
     }
 
     public boolean instrument(TypeDescription type) {
         if (type.isAnnotation()) {
             return false;
         }
+        // The receiver ids and the parameter ids are configured independently; either one needs the advice.
         boolean instrument = receiverRelevant(type) || hasIdParameters(type);
         if (Log.isDebug()) {
             for (String message : parameters.unmatchedEntries(type)) {
                 Log.debug(() -> message);
             }
-            String ignored = ignoredAnnotations(type);
-            if (ignored != null) {
-                ClassEntries.Deciding deciding = classEntries.decide(type);
-                String why = deciding != null && deciding.excluded()
-                        ? "[instrument.classes] \"" + deciding.entry().key() + "\" = \"-\" ignores the class"
-                        : "no \"@\" entry in [instrument.classes] or [instrument.methods] applies";
-                Log.debug(() -> "ignoring " + ignored + " in " + type.getName() + ": " + why);
-            }
+            logIgnoredAnnotations(type);
         }
         return instrument;
     }
@@ -52,14 +46,12 @@ public final class TypeMatching {
     public String describe(TypeDescription type, ElementMatcher<MethodDescription> methods) {
         ClassEntries.Deciding deciding = classEntries.decide(type);
         String reason;
-        if (deciding != null && deciding.excluded()) {
-            reason = "parameter ids only, the receiver is ignored by [instrument.classes] \"" + deciding.entry().key() + "\" = \"-\"";
-        } else if (deciding != null && !deciding.annotations()) {
-            reason = "receiver id from [instrument.classes] \"" + deciding.entry().key() + "\"";
-        } else if (receiverRelevant(type)) {
-            reason = "receiver id from @StackTraceId (\"" + deciding.entry().key() + "\" = \"@\")";
-        } else {
+        if (!receiverRelevant(type)) {
             reason = "parameter ids only";
+        } else if (!deciding.annotations()) {
+            reason = "receiver id from [augment.classes] \"" + deciding.entry().key() + "\"";
+        } else {
+            reason = "receiver id from @StackTraceId (\"" + deciding.entry().key() + "\" = \"@\")";
         }
         List<String> instrumented = new ArrayList<>();
         for (MethodDescription method : type.getDeclaredMethods()) {
@@ -89,28 +81,30 @@ public final class TypeMatching {
         return false;
     }
 
-    /**
-     * For the debug log: the annotations of the type that are not used, e.g. {@code @StackTraceId and the parameter
-     * annotations of run, stop}, or {@code null} if there are none.
-     */
-    private String ignoredAnnotations(TypeDescription type) {
-        boolean receiverIgnored = !classEntries.annotationsUsed(type) && firstInHierarchy(type, TypeMatching::hasAnnotatedMember) != null;
+    /** For the debug log: the annotations of the type that are not used, and which table would enable them. */
+    private void logIgnoredAnnotations(TypeDescription type) {
+        if (!classEntries.annotationsUsed(type) && firstInHierarchy(type, TypeMatching::hasAnnotatedMember) != null) {
+            ClassEntries.Deciding deciding = classEntries.decide(type);
+            String why = deciding == null
+                    ? "no [augment.classes] entry applies"
+                    : "its [augment.classes] entry \"" + deciding.entry().key() + "\" is not \"@\"";
+            Log.debug(() -> "ignoring @StackTraceId in " + type.getName() + ": " + why);
+        }
         List<String> methods = new ArrayList<>();
         for (MethodDescription method : type.getDeclaredMethods()) {
             if (isCandidate(method) && IdParameters.hasParameterAnnotations(type, method) && !parameters.annotationsUsed(type, method)) {
                 methods.add(method.getInternalName());
             }
         }
-        methods.sort(null);
-        String parameterAnnotations = methods.isEmpty() ? null : "the parameter annotations of " + String.join(", ", methods);
-        if (receiverIgnored) {
-            return parameterAnnotations != null ? "@StackTraceId and " + parameterAnnotations : "@StackTraceId";
+        if (!methods.isEmpty()) {
+            methods.sort(null);
+            Log.debug(() -> "ignoring the parameter annotations of " + String.join(", ", methods) + " in " + type.getName()
+                    + ": no \"@\" entry in [augment.methods] applies");
         }
-        return parameterAnnotations;
     }
 
     /**
-     * The deciding {@code [instrument.classes]} entry names a field or method, or it is {@code "@"} and the class it
+     * The deciding {@code [augment.classes]} entry names a field or method, or it is {@code "@"} and the class it
      * matched or one of its superclasses has an {@code @StackTraceId} member. Not with {@code "-"}.
      */
     private boolean receiverRelevant(TypeDescription type) {
