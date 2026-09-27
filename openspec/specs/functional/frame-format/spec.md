@@ -23,8 +23,9 @@ name, each in braces. The defaults SHALL be `frameFormat = "$class$receiver.$met
 
 ### Requirement: Frame template
 `frameFormat` SHALL support the placeholders `$class`, `$simpleClass`, `$method`, `$receiver` and
-`$params`. All other text, braces included, SHALL be literal, and `$$` SHALL be a literal `$`. A placeholder
-name SHALL end at the first character that is not a letter or digit. It SHALL contain `.$method` exactly once,
+`$params`. A placeholder name SHALL end at the first character that is not a letter or digit; the braced form,
+e.g. `${method}`, SHALL be the same placeholder, with the name ending at the `}`. All other text, including a
+brace without a `$` before it, SHALL be literal, and `$$` SHALL be a literal `$`. It SHALL contain `.$method` (or `.${method}`) exactly once,
 because the JDK always prints `<class>.<method>(<file>:<line>)`: the part before that `.` becomes the
 frame's class, the rest its method.
 
@@ -33,6 +34,11 @@ frame's class, the rest its method.
 - **WHEN** a frame with both ids is rendered
 - **THEN** it reads `com.hafnium.ObjectClass.process{objectId=123}{orderId=42}(ObjectClass.java:13)`
 
+#### Scenario: Braced placeholder followed by letters
+- **GIVEN** `frameFormat = "$class$receiver.${method}X$params"`
+- **WHEN** a frame without ids is rendered
+- **THEN** it reads `com.hafnium.ObjectClass.processX(ObjectClass.java:13)`, while `$methodX` would be rejected as an unknown placeholder
+
 #### Scenario: Missing .$method
 - **GIVEN** `frameFormat = "$class#$method"`
 - **WHEN** the configuration is loaded
@@ -40,7 +46,8 @@ frame's class, the rest its method.
 
 ### Requirement: Receiver and parameter templates
 `receiverFormat` and `paramsFormat` SHALL support the placeholders `$name` and `$id`. All other text,
-braces included, SHALL be literal, and `$$` SHALL be a literal `$`. In `paramsFormat`, `...` SHALL mark
+braces included, SHALL be literal, and `$$` SHALL be a literal `$`; as in `frameFormat`, `${name}` and `${id}` are
+the braced forms. In `paramsFormat`, `...` SHALL mark
 repetition: the text before the first placeholder and after `...` wraps the list, the text from the
 first to the last placeholder is repeated for each parameter, and the text between the last placeholder
 and `...` separates the items. Without `...`, the whole template SHALL be repeated and joined with `,`.
@@ -58,7 +65,7 @@ A template that renders no ids SHALL render as empty text.
 
 ### Requirement: Template validation
 The system SHALL reject, when the configuration is loaded, a template with an unknown placeholder (for
-example `$klass`, `$line`, `$idx` or a lone `$`), a
+example `$klass`, `$line`, `$idx`, `${nam}` or a lone `$`), an unclosed `${`, a
 `paramsFormat` without `$name` or `$id`, and a `paramsFormat` with placeholders after `...`.
 
 #### Scenario: Unknown placeholder
