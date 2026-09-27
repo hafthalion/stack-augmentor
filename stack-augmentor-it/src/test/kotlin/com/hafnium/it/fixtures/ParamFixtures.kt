@@ -28,7 +28,7 @@ class DerivedInventory : Inventory() {
     fun run(x: Int): Nothing = throw IllegalStateException("run $x")
 }
 
-/** Also listed in [instrument.methods] with both parameters: each is shown once. */
+/** Also listed in [augment.methods] with both parameters: each is shown once. */
 class Overlap {
     fun op(@StackTraceParam x: Int, y: Int): Nothing = throw IllegalStateException("op")
 }
@@ -53,8 +53,9 @@ class Wide {
 }
 
 /**
- * Matched by the "@" entry of the fixtures, but its exact entry "getId()" is more specific: its annotations are
- * not used, except the parameter annotations of failAnnotated, which has an [instrument.methods] "@" entry.
+ * Matched by the "@" entries of the fixtures, but more specific entries decide: its receiver id comes from
+ * "getId()", and its parameter annotations are ignored ("-"), except those of failAnnotated, whose exact
+ * [augment.methods] "@" entry is more specific still.
  */
 class Overridden {
     @StackTraceId

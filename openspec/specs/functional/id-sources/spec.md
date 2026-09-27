@@ -7,10 +7,27 @@ their values are turned into text.
 
 ## Requirements
 
+### Requirement: Independent receiver and parameter ids
+`[augment.classes]` SHALL decide the receiver ids and `[augment.methods]` the parameter ids, independently:
+no value in one table (a member, `"@"`, `"*"` or `"-"`) SHALL change what the other selects. What gets
+instrumented SHALL NOT be configured directly: a class SHALL be instrumented when either table gives it a
+receiver id or a parameter id, and a method when it gets a parameter id or, as an instance method, a
+receiver id.
+
+#### Scenario: Receiver ignored, parameters kept
+- **GIVEN** `"com.acme.**" = "@"` and `"com.acme.generated.**" = "-"` in `[augment.classes]`, `"com.acme.**.*" = "@"` in `[augment.methods]`, and `fun map(@StackTraceParam id: Int)` in the annotated class `com.acme.generated.Mapper`
+- **WHEN** `map(7)` throws
+- **THEN** that frame shows `id=7` and no receiver id
+
+#### Scenario: Receiver id only
+- **GIVEN** `"com.acme.**" = "@"` as the only entry, and a class `com.acme.Order` with `@StackTraceId val code` and `fun ship(@StackTraceParam to: String)`
+- **WHEN** `ship("Main St")` throws
+- **THEN** that frame shows the receiver id `code=…` and no parameter ids
+
 ### Requirement: Receiver id from an annotated member
 The system SHALL use a non-static field or a non-static, no-argument method annotated with
 `@StackTraceId` (`com.hafnium.stackaugmentor.StackTraceId`) as the receiver id of the objects of a class
-whose deciding `[instrument.classes]` entry is `"@"` (see "Classes whose annotations are used"). The
+whose deciding `[augment.classes]` entry is `"@"` (see "Annotations in use"). The
 annotated member SHALL be looked up in the class that the deciding entry matched and in its superclasses.
 In Kotlin, a primary-constructor property whose constructor parameter is annotated SHALL be recognised as
 an annotated field. The annotation SHALL be matched by its class name, so that a copy of the API loaded by
@@ -37,10 +54,10 @@ another class loader is also recognised.
 - **THEN** that frame shows the receiver id `name=c`
 
 ### Requirement: Receiver id from external configuration
-The system SHALL use the `[instrument.classes]` configuration table to choose the receiver id source of a
+The system SHALL use the `[augment.classes]` configuration table to choose the receiver id source of a
 class. A key SHALL be a class name or a class pattern with the globs `*` (within one package segment),
 `**` (across segments) and `?` (one character). A value SHALL be a field name, a no-argument method written
-with `()`, or `"@"` for the class's annotations. An entry SHALL apply to the classes it matches and to their
+with `()`, `"@"` for the class's `@StackTraceId`, or `"-"` for none. An entry SHALL apply to the classes it matches and to their
 subclasses: the deciding entry of a class SHALL be found by checking the class, then its superclasses in
 order, and taking the first class that any entry matches. When several entries match that class, the most
 specific SHALL decide: an entry without wildcards beats any pattern, and among patterns, the one with the
@@ -49,23 +66,23 @@ configured field or method SHALL be looked up in the matched class and its super
 members.
 
 #### Scenario: Configured method of a third-party class
-- **GIVEN** `"com.thirdparty.Order" = "getOrderNumber()"` in `[instrument.classes]`
+- **GIVEN** `"com.thirdparty.Order" = "getOrderNumber()"` in `[augment.classes]`
 - **WHEN** an exception leaves a method of an `Order` with order number 4711
 - **THEN** that frame shows the receiver id `getOrderNumber=4711`
 
 #### Scenario: Configured member does not exist
-- **GIVEN** `"com.thirdparty.Customer" = "nope"` in `[instrument.classes]` and no field `nope`
+- **GIVEN** `"com.thirdparty.Customer" = "nope"` in `[augment.classes]` and no field `nope`
 - **WHEN** the id source of `Customer` is first needed
-- **THEN** a warning `[instrument.classes] "com.thirdparty.Customer": no field nope found` is printed
+- **THEN** a warning `[augment.classes] "com.thirdparty.Customer": no field nope found` is printed
 - **AND** frames of `Customer` show no receiver id
 
 #### Scenario: Wildcard entry with a member
-- **GIVEN** `"com.thirdparty.*Account" = "number"` in `[instrument.classes]`
+- **GIVEN** `"com.thirdparty.*Account" = "number"` in `[augment.classes]`
 - **WHEN** an exception leaves a method of a `com.thirdparty.SavingsAccount` with the field `number = "S-1"`
 - **THEN** that frame shows the receiver id `number=S-1`
 
 #### Scenario: Most specific entry wins
-- **GIVEN** `"com.acme.**" = "@"` and `"com.acme.Order" = "getId()"` in `[instrument.classes]`, and `com.acme.Order` with `@StackTraceId val code` and `fun getId()`
+- **GIVEN** `"com.acme.**" = "@"` and `"com.acme.Order" = "getId()"` in `[augment.classes]`, and `com.acme.Order` with `@StackTraceId val code` and `fun getId()`
 - **WHEN** an exception leaves a method of an `Order`
 - **THEN** that frame shows the receiver id `getId=…`, and `Order`'s `@StackTraceId` is not used
 
@@ -79,34 +96,34 @@ The system SHALL show the value of a method parameter after the method name when
 annotated with `@StackTraceParam` (`com.hafnium.stackaugmentor.StackTraceParam`), when its method or the
 class declaring the method is annotated with `@StackTraceParams`
 (`com.hafnium.stackaugmentor.StackTraceParams`, see "Parameter ids from method- and class-level
-annotations"), or when an `[instrument.methods]` entry selects it (see "Parameter ids of configured
-methods"). The annotations SHALL only be used in classes whose deciding `[instrument.classes]` entry is
-`"@"`, and in methods matched by an `[instrument.methods]` entry with the value `"@"`. This SHALL apply to instance and static methods. A parameter selected more than once SHALL be shown
+annotations"), in both cases only where an `[augment.methods]` entry `"@"` applies, or when an
+`[augment.methods]` entry selects it by name, index or `"*"` (see "Parameter ids of configured methods").
+This SHALL apply to instance and static methods. A parameter selected more than once SHALL be shown
 once, and parameter ids SHALL be listed in declaration order. `@StackTraceId` on a parameter SHALL NOT
 select it: `@StackTraceId` marks receiver ids only.
 
 #### Scenario: Annotated parameter
-- **GIVEN** `fun objectMethod(@StackTraceParam orderId: Int)` in a class matched by an `"@"` entry
+- **GIVEN** `fun objectMethod(@StackTraceParam orderId: Int)`, matched by an `[augment.methods]` `"@"` entry
 - **WHEN** `objectMethod(42)` throws
 - **THEN** that frame shows the parameter id `orderId=42`
 
 #### Scenario: Configured parameters by name and index
-- **GIVEN** `"com.thirdparty.OrderService.process" = ["order", 1]` in `[instrument.methods]` for `process(order: Order, quantity: Int, note: String)`
+- **GIVEN** `"com.thirdparty.OrderService.process" = ["order", 1]` in `[augment.methods]` for `process(order: Order, quantity: Int, note: String)`
 - **WHEN** `process(Order(4711), 3, "rush")` throws
 - **THEN** that frame shows `order=4711, quantity=3`
 
 #### Scenario: Static method
-- **GIVEN** a top-level (static) function `staticWithParam(@StackTraceParam code: Int)` in a class matched by an `"@"` entry
+- **GIVEN** a top-level (static) function `staticWithParam(@StackTraceParam code: Int)`, matched by an `[augment.methods]` `"@"` entry
 - **WHEN** `staticWithParam(5)` throws
 - **THEN** that frame shows the parameter id `code=5` and no receiver id
 
 #### Scenario: Selected by an annotation and by the configuration
-- **GIVEN** `fun op(@StackTraceParam x: Int, y: Int)` in class `C` matched by an `"@"` entry, and `"C.op" = ["x", "y"]` in `[instrument.methods]`
+- **GIVEN** `fun op(@StackTraceParam x: Int, y: Int)` in class `C`, and `"C.*" = "@"` and `"C.op" = ["x", "y"]` in `[augment.methods]`
 - **WHEN** `op(1, 2)` throws
 - **THEN** that frame shows `x=1, y=2`, each parameter once
 
 #### Scenario: Annotations enabled by a method entry
-- **GIVEN** `fun run(@StackTraceParam code: Int)` in `com.hafnium.it.outside.MethodAnnotationsOutside`, which no `[instrument.classes]` entry matches, and `"com.hafnium.it.outside.MethodAnnotationsOutside.run" = "@"` in `[instrument.methods]`
+- **GIVEN** `fun run(@StackTraceParam code: Int)` in `com.hafnium.it.outside.MethodAnnotationsOutside`, which no `[augment.classes]` entry matches, and `"com.hafnium.it.outside.MethodAnnotationsOutside.run" = "@"` in `[augment.methods]`
 - **WHEN** `run(7)` throws
 - **THEN** that frame shows `code=7` and no receiver id
 
@@ -165,7 +182,7 @@ throws SHALL be shown as `?`.
 `@StackTraceParams` (on methods and classes only, without attributes) on a method SHALL select all
 parameters of that method. `@StackTraceParams` on a class SHALL select all parameters of every instance and
 static method declared in that class. It SHALL NOT apply to methods of subclasses or nested classes, which
-need their own annotation. Methods without parameters SHALL get no parameter ids. Constructors, synthetic,
+need their own annotation. Both SHALL only be used where an `[augment.methods]` entry `"@"` applies. Methods without parameters SHALL get no parameter ids. Constructors, synthetic,
 bridge, abstract and native methods SHALL NOT be instrumented, as for other parameter ids.
 
 #### Scenario: Method-level annotation
@@ -184,17 +201,18 @@ bridge, abstract and native methods SHALL NOT be instrumented, as for other para
 - **THEN** the frame shows no parameter ids for `run`
 
 ### Requirement: Parameter ids of configured methods
-An `[instrument.methods]` entry `"<class pattern>.<method pattern>" = <parameters>` SHALL select
+An `[augment.methods]` entry `"<class pattern>.<method pattern>" = <parameters>` SHALL select
 parameters of every method whose class name matches the class pattern and whose name matches the method
-pattern, including every overload, whatever the class's `[instrument.classes]` entry. The class pattern
-SHALL use the `[instrument.classes]` globs (`*` within one package segment, `**` across segments, `?` one
+pattern, including every overload, whatever the class's `[augment.classes]` entry. Keys SHALL match the
+class that declares the method, not its subclasses. The class pattern
+SHALL use the `[augment.classes]` globs (`*` within one package segment, `**` across segments, `?` one
 character). In the method pattern, `*` SHALL match any sequence of characters and `?` one character. A key
 without wildcards SHALL match exactly. `<parameters>` SHALL be an array of parameter names and 0-based
 indexes, the string `"*"` for all parameters, or the string `"@"` for the parameters selected by the method's
 annotations: `@StackTraceParam` on its parameters, and `@StackTraceParams` on the method or on the class that
 declares it. Names and indexes that a matched method does not have
 SHALL be skipped. When several entries match one method, the parameters they select SHALL be combined, up to
-a `"-"` entry as described under "Ignoring classes and methods".
+a `"-"` entry as described under "Ignoring receivers and parameters".
 
 #### Scenario: All methods and parameters of a class
 - **GIVEN** `"com.thirdparty.InventoryService.*" = "*"`
@@ -212,49 +230,41 @@ a `"-"` entry as described under "Ignoring classes and methods".
 - **THEN** that frame shows `order=4711, note=rush`
 
 #### Scenario: Exact explicit class entry with annotated parameters
-- **GIVEN** `"com.acme.Order" = "getId()"` in `[instrument.classes]` and `"com.acme.Order.*" = "@"` in `[instrument.methods]`, and `fun ship(@StackTraceParam(name = "to") address: String)` in `Order`
+- **GIVEN** `"com.acme.Order" = "getId()"` in `[augment.classes]` and `"com.acme.Order.*" = "@"` in `[augment.methods]`, and `fun ship(@StackTraceParam(name = "to") address: String)` in `Order`
 - **WHEN** `ship("Main St")` throws
 - **THEN** that frame shows the receiver id `getId=…` and the parameter id `to=Main St`
 
-### Requirement: Ignoring classes and methods
-The value `"-"` SHALL ignore what its entry matches, in both tables. A class whose deciding
-`[instrument.classes]` entry is `"-"` SHALL get no receiver id and SHALL NOT use its annotations; the entry
-decides with the same most-specific rule as other entries and applies to subclasses in the same way. When
-several `[instrument.methods]` entries match a method, they SHALL be ordered from the most specific on (the
-entry without wildcards first, then the patterns with the most characters other than `*` and `?`, ties
-broken by key) and combined up to the first `"-"` entry; that entry and the less specific ones SHALL select
-nothing. A `"-"` deciding class entry `"<key>" = "-"` SHALL count as the `[instrument.methods]` pattern
-`"<key>.*" = "-"`, so only a more specific method entry still selects parameters of the ignored class. A
-configuration whose entries are all `"-"` SHALL count as having no entries.
+### Requirement: Ignoring receivers and parameters
+The value `"-"` SHALL select nothing, in either table, and SHALL affect its own table only. A class whose
+deciding `[augment.classes]` entry is `"-"` SHALL get no receiver id; the entry decides with the same
+most-specific rule as other entries and applies to subclasses in the same way. When several
+`[augment.methods]` entries match a method, they SHALL be ordered from the most specific on (the entry
+without wildcards first, then the patterns with the most characters other than `*` and `?`, ties broken by
+key) and combined up to the first `"-"` entry; that entry and the less specific ones SHALL select nothing.
+A configuration whose entries are all `"-"` SHALL count as having no entries.
 
-#### Scenario: Ignored package under an "@" pattern
-- **GIVEN** `"com.acme.**" = "@"` and `"com.acme.generated.**" = "-"` in `[instrument.classes]`, and an annotated `com.acme.generated.Mapper`
+#### Scenario: No receiver ids in a package under an "@" pattern
+- **GIVEN** `"com.acme.**" = "@"` and `"com.acme.generated.**" = "-"` in `[augment.classes]`, and `com.acme.generated.Mapper` with a `@StackTraceId` field
 - **WHEN** a method of `Mapper` throws
-- **THEN** its frame is unchanged
+- **THEN** its frame shows no receiver id
 
 #### Scenario: Ignored methods under a wildcard entry
-- **GIVEN** `"com.thirdparty.Inventory*.*" = "*"`, `"com.thirdparty.InventoryAudit.*" = "-"` and `"com.thirdparty.InventoryAudit.log" = ["reason"]` in `[instrument.methods]`
+- **GIVEN** `"com.thirdparty.Inventory*.*" = "*"`, `"com.thirdparty.InventoryAudit.*" = "-"` and `"com.thirdparty.InventoryAudit.log" = ["reason"]` in `[augment.methods]`
 - **WHEN** `InventoryAudit.purge("x-1")` throws, and separately `InventoryAudit.log("disk full", 2)` throws
 - **THEN** the first frame is unchanged, and the second frame shows `reason=disk full`
 
-#### Scenario: Ignored class with a more specific method entry
-- **GIVEN** `"com.acme.generated.**" = "-"` in `[instrument.classes]`, and `"com.acme.**.*" = "*"` and `"com.acme.generated.Mapper.map" = [0]` in `[instrument.methods]`
-- **WHEN** `Mapper.map(dto)` throws, and separately `Mapper.copy(dto)` throws
-- **THEN** the first frame shows the first parameter and no receiver id, and the second frame is unchanged
-
-### Requirement: Classes whose annotations are used
-The system SHALL use `@StackTraceId` annotations (on fields and methods), `@StackTraceParam` annotations
-(on parameters) and `@StackTraceParams` annotations (on methods and classes) only in classes whose
-deciding `[instrument.classes]` entry is `"@"` (see "Receiver id from external configuration"). In addition,
-`@StackTraceParam` and `@StackTraceParams` SHALL be used for methods matched by an `[instrument.methods]`
-entry with the value `"@"` (see "Parameter ids of configured methods"). Without an `"@"` entry in either
-table, no annotations SHALL be used. A class whose deciding entry names a field or method SHALL get its
-receiver id from that member: its `@StackTraceId` SHALL NOT be used, and its parameter annotations only for
-methods matched by an `"@"` method entry. Classes without an annotation or
-configuration entry SHALL NOT get ids, even when an `"@"` entry matches them.
+### Requirement: Annotations in use
+The system SHALL use `@StackTraceId` annotations (on fields and methods) only in classes whose deciding
+`[augment.classes]` entry is `"@"` (see "Receiver id from external configuration"), and
+`@StackTraceParam` annotations (on parameters) and `@StackTraceParams` annotations (on methods and classes)
+only for methods matched by an `[augment.methods]` entry with the value `"@"` (see "Parameter ids of
+configured methods"). Without an `"@"` entry, no annotations SHALL be used. A class whose deciding entry
+names a field or method SHALL get its receiver id from that member: its `@StackTraceId` SHALL NOT be used.
+Classes without an annotation or configuration entry SHALL NOT get ids, even when an `"@"` entry matches
+them.
 
 #### Scenario: Annotated class outside the "@" entries
-- **GIVEN** `"com.hafnium.it.fixtures.**" = "@"` as the only `[instrument.classes]` entry
+- **GIVEN** `"com.hafnium.it.fixtures.**" = "@"` in `[augment.classes]` and `"com.hafnium.it.fixtures.**.*" = "@"` in `[augment.methods]` as the only entries
 - **WHEN** an exception leaves a method of a class in `com.hafnium.it.outside` with an annotated parameter, and no annotated superclass
 - **THEN** the frame is unchanged
 
@@ -269,16 +279,16 @@ configuration entry SHALL NOT get ids, even when an `"@"` entry matches them.
 - **THEN** the frame is unchanged
 
 #### Scenario: Class-level parameter annotation outside the "@" entries
-- **GIVEN** `"com.hafnium.it.fixtures.**" = "@"` and a class in `com.hafnium.it.outside` annotated with `@StackTraceParams`
+- **GIVEN** `"com.hafnium.it.fixtures.**.*" = "@"` in `[augment.methods]` and a class in `com.hafnium.it.outside` annotated with `@StackTraceParams`
 - **WHEN** one of its methods throws
 - **THEN** the frame shows no parameter ids
 
 #### Scenario: Class-level parameter annotation enabled by method entries
-- **GIVEN** `@StackTraceParams class ClassParamsViaMethods` in `com.hafnium.it.outside`, and `"com.hafnium.it.outside.ClassParamsViaMethods.*" = "@"` in `[instrument.methods]`
+- **GIVEN** `@StackTraceParams class ClassParamsViaMethods` in `com.hafnium.it.outside`, and `"com.hafnium.it.outside.ClassParamsViaMethods.*" = "@"` in `[augment.methods]`
 - **WHEN** `run(1, "x")` throws
 - **THEN** that frame shows all its parameter ids
 
 #### Scenario: No "@" entry
-- **GIVEN** a configuration with only `"com.thirdparty.Order" = "getOrderNumber()"` in `[instrument.classes]`
+- **GIVEN** a configuration with only `"com.thirdparty.Order" = "getOrderNumber()"` in `[augment.classes]`
 - **WHEN** an exception leaves a method of an annotated class in any other package
 - **THEN** the frame is unchanged

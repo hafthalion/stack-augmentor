@@ -27,27 +27,30 @@ import java.util.stream.Collectors;
  * <pre>{@code
  * debug = false
  *
- * [instrument.classes]           # receiver ids: a field, a "method()", "@" for the class's annotations, "-" to ignore
- * "com.hafnium.**" = "@"
- * "com.hafnium.generated.**" = "-"
- * "com.thirdparty.Order" = "getOrderNumber()"
- *
- * [instrument.methods]           # parameter ids: names and indexes, "*" for all, "@" for the annotations, "-" for none
- * "com.thirdparty.OrderService.process" = ["order", 2]
- * "com.thirdparty.**.*Repository.find*" = "*"
- * "com.thirdparty.**.AuditRepository.*" = "-"
- *
- * [augment]                      # how frames look: at runtime, in both modes
+ * [augment]                   # how frames look
  * frameFormat = "$class$receiver.$method$params"
  * receiverFormat = "{$name=$id}"
  * paramsFormat = "{$name=$id, ...}"
  * maxIdLength = 64
  * maxParams = 4
+ *
+ * [augment.classes]           # receiver ids: a field, a "method()", "@" for @StackTraceId, "-" for none
+ * "com.hafnium.**" = "@"
+ * "com.hafnium.generated.**" = "-"
+ * "com.thirdparty.Order" = "getOrderNumber()"
+ *
+ * [augment.methods]           # parameter ids: names and indexes, "*" for all, "@" for the annotations, "-" for none
+ * "com.hafnium.**.*" = "@"
+ * "com.thirdparty.OrderService.process" = ["order", 2]
+ * "com.thirdparty.**.*Repository.find*" = "*"
+ * "com.thirdparty.**.AuditRepository.*" = "-"
  * }</pre>
  *
- * <p>Keys of both tables may use wildcards: {@code *} within one package segment (or name), {@code **} across
- * segments, {@code ?} one character. Where entries overlap, the most specific decides, see {@link #classEntry} and
- * {@link #paramRefs(String, String, ClassEntry)}. Immutable. Equality covers the configured values only.
+ * <p>The two tables are independent: {@code [augment.classes]} decides the receiver ids, {@code [augment.methods]} the
+ * parameter ids. Which methods get instrumented follows from both. Keys may use wildcards: {@code *} within one
+ * package segment (or name), {@code **} across segments, {@code ?} one character. Where entries of one table overlap,
+ * the most specific decides, see {@link #classEntry} and {@link #paramRefs}. Immutable. Equality covers the
+ * configured values only.
  */
 public final class AugmentorConfig {
 
@@ -75,7 +78,7 @@ public final class AugmentorConfig {
     private final int maxParams;
     private final boolean debug;
 
-    /** An {@code [instrument.classes]} entry: the key as written, and the id source it names. */
+    /** An {@code [augment.classes]} entry: the key as written, and the id source it names. */
     public record ClassEntry(String key, IdSpec spec) {
 
         /** Whether the key has wildcards. */
@@ -87,23 +90,19 @@ public final class AugmentorConfig {
     private record ClassPattern(Pattern pattern, ClassEntry entry) {
     }
 
-    /** The {@code [instrument.classes]} entries with wildcards, most specific first. */
+    /** The {@code [augment.classes]} entries with wildcards, most specific first. */
     private final List<ClassPattern> classPatterns;
 
-    /** An {@code [instrument.methods]} entry with wildcards, matched against every class and method. */
+    /** An {@code [augment.methods]} entry with wildcards, matched against every class and method. */
     private record MethodPattern(String key, Pattern classPattern, Pattern methodPattern, List<ParamRef> refs) {
     }
 
-    /**
-     * An {@code [instrument.methods]} entry that matches a method, or the exclusion that a {@code "-"} entry of
-     * {@code [instrument.classes]} implies.
-     */
-    private record MethodMatch(String key, boolean exact, boolean implied, List<ParamRef> refs) {
+    /** An {@code [augment.methods]} entry that matches a method. */
+    private record MethodMatch(String key, boolean exact, List<ParamRef> refs) {
 
         static final Comparator<MethodMatch> MOST_SPECIFIC_FIRST = Comparator
                 .comparing((MethodMatch it) -> !it.exact())
                 .thenComparing(Comparator.comparingInt((MethodMatch it) -> specificity(it.key())).reversed())
-                .thenComparing(MethodMatch::implied)
                 .thenComparing(MethodMatch::key);
     }
 
@@ -116,9 +115,9 @@ public final class AugmentorConfig {
     }
 
     /**
-     * @param classes   receiver id sources by class name or class pattern: the {@code [instrument.classes]} table
+     * @param classes   receiver id sources by class name or class pattern: the {@code [augment.classes]} table
      * @param methods   parameter ids by {@code "<class>.<method>"}, possibly with wildcards: the
-     *                  {@code [instrument.methods]} table
+     *                  {@code [augment.methods]} table
      * @param maxParams the most parameter ids shown per frame
      */
     public AugmentorConfig(Map<String, IdSpec> classes, Map<String, List<ParamRef>> methods,
@@ -160,12 +159,12 @@ public final class AugmentorConfig {
         return new Builder();
     }
 
-    /** Receiver id sources by class name or class pattern: the {@code [instrument.classes]} table. */
+    /** Receiver id sources by class name or class pattern: the {@code [augment.classes]} table. */
     public Map<String, IdSpec> classes() {
         return classes;
     }
 
-    /** Parameter ids by {@code "<class>.<method>"}, possibly with wildcards: the {@code [instrument.methods]} table. */
+    /** Parameter ids by {@code "<class>.<method>"}, possibly with wildcards: the {@code [augment.methods]} table. */
     public Map<String, List<ParamRef>> methods() {
         return methods;
     }
@@ -195,7 +194,7 @@ public final class AugmentorConfig {
         return debug;
     }
 
-    /** The {@code [instrument.classes]} entries for the debug log, e.g. {@code com.acme.**=@, com.acme.Order=getId()}. */
+    /** The {@code [augment.classes]} entries for the debug log, e.g. {@code com.acme.**=@, com.acme.Order=getId()}. */
     public String classesDescription() {
         String text = classes.entrySet().stream()
                 .map(entry -> entry.getKey() + "=" + switch (entry.getValue()) {
@@ -208,7 +207,7 @@ public final class AugmentorConfig {
         return text.isEmpty() ? "none" : text;
     }
 
-    /** The {@code [instrument.methods]} entries for the debug log, e.g. {@code com.acme.Order.process[order, #2]}. */
+    /** The {@code [augment.methods]} entries for the debug log, e.g. {@code com.acme.Order.process[order, #2]}. */
     public String methodsDescription() {
         String text = methods.entrySet().stream()
                 .map(entry -> entry.getKey() + entry.getValue().stream()
@@ -225,13 +224,13 @@ public final class AugmentorConfig {
     }
 
     /** Whether anything can be augmented: without class or method entries other than {@code "-"}, nothing is. */
-    public boolean hasInstrumentEntries() {
+    public boolean hasAugmentEntries() {
         return classes.values().stream().anyMatch(spec -> !(spec instanceof IdSpec.Excluded))
                 || methods.values().stream().anyMatch(refs -> !refs.contains(new ParamRef.Excluded()));
     }
 
     /**
-     * The most specific {@code [instrument.classes]} entry that matches exactly this class name, or {@code null}:
+     * The most specific {@code [augment.classes]} entry that matches exactly this class name, or {@code null}:
      * an entry without wildcards, otherwise the pattern with the most characters other than {@code *} and
      * {@code ?}, ties broken by key. Superclasses are not looked at; the callers walk the hierarchy.
      */
@@ -248,38 +247,26 @@ public final class AugmentorConfig {
         return null;
     }
 
-    /** {@link #paramRefs(String, String, ClassEntry)} for a class without a deciding {@code [instrument.classes]} entry. */
-    public List<ParamRef> paramRefs(String className, String methodName) {
-        return paramRefs(className, methodName, null);
-    }
-
     /**
-     * The parameters selected for a method by {@code [instrument.methods]}. The matching entries are taken from the
+     * The parameters selected for a method by {@code [augment.methods]}. The matching entries are taken from the
      * most specific on: the entry without wildcards for exactly this class and method, then the patterns with the
      * most characters other than {@code *} and {@code ?}, ties broken by key. They are combined up to the first
-     * {@code "-"} entry, which ignores the less specific ones. A {@code "-"} deciding entry of the class in
-     * {@code [instrument.classes]} counts as the pattern {@code "<its key>.*" = "-"}. Parameters selected more than
-     * once are shown once, in declaration order, so the order of this list does not matter.
-     *
-     * @param deciding the class's deciding {@code [instrument.classes]} entry, or {@code null}
+     * {@code "-"} entry, which ignores the less specific ones. {@code [augment.classes]} plays no part. Parameters
+     * selected more than once are shown once, in declaration order, so the order of this list does not matter.
      */
-    public List<ParamRef> paramRefs(String className, String methodName, ClassEntry deciding) {
+    public List<ParamRef> paramRefs(String className, String methodName) {
         List<ParamRef> exact = methods.get(className + "." + methodName);
-        boolean classExcluded = deciding != null && deciding.spec() instanceof IdSpec.Excluded;
-        if (methodPatterns.isEmpty() && !classExcluded) {
+        if (methodPatterns.isEmpty()) {
             return exact != null && !exact.contains(new ParamRef.Excluded()) ? exact : List.of();
         }
         List<MethodMatch> matches = new ArrayList<>();
         if (exact != null) {
-            matches.add(new MethodMatch(className + "." + methodName, true, false, exact));
+            matches.add(new MethodMatch(className + "." + methodName, true, exact));
         }
         for (MethodPattern entry : methodPatterns) {
             if (entry.classPattern().matcher(className).matches() && entry.methodPattern().matcher(methodName).matches()) {
-                matches.add(new MethodMatch(entry.key(), false, false, entry.refs()));
+                matches.add(new MethodMatch(entry.key(), false, entry.refs()));
             }
-        }
-        if (classExcluded) {
-            matches.add(new MethodMatch(deciding.key() + ".*", false, true, List.of(new ParamRef.Excluded())));
         }
         matches.sort(MethodMatch.MOST_SPECIFIC_FIRST);
         List<ParamRef> refs = new ArrayList<>();
@@ -292,7 +279,7 @@ public final class AugmentorConfig {
         return refs;
     }
 
-    /** Whether a key of {@code [instrument.classes]} or {@code [instrument.methods]} has wildcards ({@code *} or {@code ?}). */
+    /** Whether a key of {@code [augment.classes]} or {@code [augment.methods]} has wildcards ({@code *} or {@code ?}). */
     public static boolean isPattern(String key) {
         return key.indexOf('*') >= 0 || key.indexOf('?') >= 0;
     }
@@ -469,15 +456,13 @@ public final class AugmentorConfig {
     /** Maps the parsed TOML onto {@link AugmentorConfig}; errors name the key and its line. */
     private static final class ConfigReader {
 
-        private static final List<String> INSTRUMENT = List.of("instrument");
         private static final List<String> AUGMENT = List.of("augment");
-        private static final List<String> CLASSES = List.of("instrument", "classes");
-        private static final List<String> METHODS = List.of("instrument", "methods");
+        private static final List<String> CLASSES = List.of("augment", "classes");
+        private static final List<String> METHODS = List.of("augment", "methods");
 
-        private static final List<String> ROOT_KEYS = List.of("debug", "instrument", "augment");
-        private static final List<String> INSTRUMENT_KEYS = List.of("classes", "methods");
+        private static final List<String> ROOT_KEYS = List.of("debug", "augment");
         private static final List<String> AUGMENT_KEYS = List.of("frameFormat", "receiverFormat", "paramsFormat", "maxIdLength",
-                "maxParams");
+                "maxParams", "classes", "methods");
 
         /** A class name or class pattern: dotted segments of identifier characters and wildcards. */
         private static final Pattern CLASS_PART = Pattern.compile("[\\p{L}\\p{N}_$*?]+(\\.[\\p{L}\\p{N}_$*?]+)*");
@@ -494,11 +479,10 @@ public final class AugmentorConfig {
         }
 
         AugmentorConfig read() {
-            checkKeys(List.of(), toml, ROOT_KEYS);
-            TomlTable instrument = table(INSTRUMENT);
-            if (instrument != null) {
-                checkKeys(INSTRUMENT, instrument, INSTRUMENT_KEYS);
+            if (toml.contains("instrument")) {
+                throw error(List.of("instrument"), "unknown key 'instrument': its tables are now [augment.classes] and [augment.methods]");
             }
+            checkKeys(List.of(), toml, ROOT_KEYS);
             TomlTable augment = table(AUGMENT);
             if (augment != null) {
                 checkKeys(AUGMENT, augment, AUGMENT_KEYS);
@@ -570,7 +554,7 @@ public final class AugmentorConfig {
         }
 
         /**
-         * The entries of the {@code [instrument.classes]} or {@code [instrument.methods]} table, with their full key
+         * The entries of the {@code [augment.classes]} or {@code [augment.methods]} table, with their full key
          * paths. Key paths make quoted ({@code "com.acme.Order"}) and unquoted ({@code com.acme.Order}, i.e. nested
          * tables) class names equivalent.
          */
@@ -620,8 +604,8 @@ public final class AugmentorConfig {
                 return new IdSpec.Excluded();
             }
             if (!(value instanceof String text) || !IDENTIFIER.matcher(removeCallSuffix(text)).matches()) {
-                throw error(path, "must be a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), \"@\" for the "
-                        + "class's annotations or \"-\" to ignore the class, was " + value);
+                throw error(path, "must be a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), \"@\" for its "
+                        + "@StackTraceId, or \"-\" for no receiver id, was " + value);
             }
             String name = removeCallSuffix(text);
             return text.endsWith("()") ? new IdSpec.MethodSpec(name) : new IdSpec.FieldSpec(name);

@@ -52,7 +52,7 @@ class WithoutKotlinTest {
 
     @Test
     fun `agent augments a Java application without the Kotlin runtime`(@TempDir dir: Path) {
-        val result = run(config(dir, "debug = true\n[instrument.classes]\n\"com.hafnium.it.fixtures.**\" = \"@\"\n"))
+        val result = run(config(dir, "debug = true\n[augment.classes]\n\"com.hafnium.it.fixtures.**\" = \"@\"\n[augment.methods]\n\"com.hafnium.it.fixtures.**.*\" = \"@\"\n"))
         assertEquals(0, result.exitCode, result.output)
         assertTrue(result.output.contains("at com.hafnium.it.fixtures.JavaFixture{key=java-1}.run{arg0=42}(JavaFixture.java:"), result.output)
         // Debug output exercises the logging, configuration and matching code paths as well.
@@ -67,7 +67,7 @@ class WithoutKotlinTest {
         assertEquals(0, result.exitCode, result.output)
         assertTrue(
             result.output.contains(
-                "[stack-augmentor] WARN the configuration has no [instrument.classes] or [instrument.methods] entries, " +
+                "[stack-augmentor] WARN the configuration has no [augment.classes] or [augment.methods] entries, " +
                     "so nothing will be augmented",
             ),
             result.output,
