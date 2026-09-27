@@ -13,7 +13,7 @@ class BuildTimeInstrumentationTest {
         assertEquals("com.hafnium.ClassWithAnnotation{objectId=object-1}", e.stackTrace[0].className)
         assertEquals("error", e.stackTrace[0].methodName)
         assertEquals("com.hafnium.ClassWithAnnotation{objectId=object-1}", e.stackTrace[1].className)
-        assertEquals("method{param=object-param-1}", e.stackTrace[1].methodName)
+        assertEquals("method{param=ObjectParam{name=object-param-1}}", e.stackTrace[1].methodName)
     }
 
     @Test
