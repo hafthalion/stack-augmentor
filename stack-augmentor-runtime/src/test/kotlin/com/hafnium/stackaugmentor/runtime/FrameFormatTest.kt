@@ -36,13 +36,13 @@ class FrameFormatTest {
 
     @Test
     fun `ids after the method`() {
-        val result = rewrite(frameFormat = "{class}.{method}{receiver}{params}").rewrite(element, receiver, listOf(orderId))
+        val result = rewrite(frameFormat = "\$class.\$method\$receiver\$params").rewrite(element, receiver, listOf(orderId))
         assertEquals("com.hafnium.ObjectClass.process{objectId=123}{orderId=42}(ObjectClass.java:13)", result.toString())
     }
 
     @Test
     fun `value only and simple class name`() {
-        val result = rewrite(frameFormat = "{simpleClass}{receiver}.{method}", receiverFormat = "<\$id>").rewrite(element, receiver, listOf(orderId))
+        val result = rewrite(frameFormat = "\$simpleClass\$receiver.\$method", receiverFormat = "<\$id>").rewrite(element, receiver, listOf(orderId))
         assertEquals("ObjectClass<123>.process(ObjectClass.java:13)", result.toString())
     }
 
@@ -50,6 +50,12 @@ class FrameFormatTest {
     fun `brackets instead of braces`() {
         val result = rewrite(receiverFormat = "[\$name=\$id]", paramsFormat = "[\$name=\$id, ...]").rewrite(element, receiver, listOf(orderId, customer))
         assertEquals("com.hafnium.ObjectClass[objectId=123].process[orderId=42, customer=7](ObjectClass.java:13)", result.toString())
+    }
+
+    @Test
+    fun `braces and dollars are literal in the frame format`() {
+        val result = rewrite(frameFormat = "{\$\$\$simpleClass}\$receiver.\$method{\$params}").rewrite(element, receiver, listOf(orderId))
+        assertEquals("{\$ObjectClass}{objectId=123}.process{{orderId=42}}(ObjectClass.java:13)", result.toString())
     }
 
     @Test
@@ -106,18 +112,24 @@ class FrameFormatTest {
 
     @Test
     fun `frame format needs dot method`() {
-        val error = assertThrows<ConfigException> { rewrite(frameFormat = "{class}#{method}") }
-        assertEquals(true, error.message!!.contains(".{method}"))
-        assertThrows<ConfigException> { rewrite(frameFormat = "{class}.{method}.{method}") }
+        val error = assertThrows<ConfigException> { rewrite(frameFormat = "\$class#\$method") }
+        assertTrue(error.message!!.contains(".\$method"), error.message)
+        assertThrows<ConfigException> { rewrite(frameFormat = "\$class.\$method.\$method") }
+        assertThrows<ConfigException> { rewrite(frameFormat = "\$method.\$class") }
+        // A literal dollar before the dot does not make it '.$method'.
+        assertThrows<ConfigException> { rewrite(frameFormat = "\$class.\$\$method") }
+        // The earlier brace syntax is rejected with a hint.
+        val old = assertThrows<ConfigException> { rewrite(frameFormat = "{class}{receiver}.{method}{params}") }.message!!
+        assertTrue(old.contains("braces are literal"), old)
     }
 
     @Test
     fun `invalid templates are rejected`() {
         val invalid = listOf(
-            Triple("{klass}.{method}", AugmentorConfig.DEFAULT_RECEIVER_FORMAT, AugmentorConfig.DEFAULT_PARAMS_FORMAT),
-            Triple("{class}{receiver.{method}", AugmentorConfig.DEFAULT_RECEIVER_FORMAT, AugmentorConfig.DEFAULT_PARAMS_FORMAT),
-            // {file} and {line} are not placeholders: the JDK always prints the location itself.
-            Triple("{class}.{method}{line}", AugmentorConfig.DEFAULT_RECEIVER_FORMAT, AugmentorConfig.DEFAULT_PARAMS_FORMAT),
+            Triple("\$klass.\$method", AugmentorConfig.DEFAULT_RECEIVER_FORMAT, AugmentorConfig.DEFAULT_PARAMS_FORMAT),
+            Triple("\$class\$receiver.\$method\$", AugmentorConfig.DEFAULT_RECEIVER_FORMAT, AugmentorConfig.DEFAULT_PARAMS_FORMAT),
+            // $file and $line are not placeholders: the JDK always prints the location itself.
+            Triple("\$class.\$method\$line", AugmentorConfig.DEFAULT_RECEIVER_FORMAT, AugmentorConfig.DEFAULT_PARAMS_FORMAT),
             Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, "{\$method}", AugmentorConfig.DEFAULT_PARAMS_FORMAT),
             Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, "\$idx", AugmentorConfig.DEFAULT_PARAMS_FORMAT),
             Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, "cost \$", AugmentorConfig.DEFAULT_PARAMS_FORMAT),

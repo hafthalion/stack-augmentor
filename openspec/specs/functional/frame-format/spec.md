@@ -8,7 +8,7 @@ Defines how the ids are laid out in a stack trace frame, through the `frameForma
 
 ### Requirement: Default layout
 By default, the receiver id SHALL follow the class name and the parameter ids SHALL follow the method
-name, each in braces. The defaults SHALL be `frameFormat = "{class}{receiver}.{method}{params}"`,
+name, each in braces. The defaults SHALL be `frameFormat = "$class$receiver.$method$params"`,
 `receiverFormat = "{$name=$id}"` and `paramsFormat = "{$name=$id, ...}"`.
 
 #### Scenario: Receiver and parameter ids
@@ -22,20 +22,21 @@ name, each in braces. The defaults SHALL be `frameFormat = "{class}{receiver}.{m
 - **THEN** the receiver group is empty, e.g. `com.thirdparty.OrderService.process{order=4711, quantity=3}(OrderService.kt:14)`
 
 ### Requirement: Frame template
-`frameFormat` SHALL support the placeholders `{class}`, `{simpleClass}`, `{method}`, `{receiver}` and
-`{params}`, and SHALL treat `{{` and `}}` as literal braces. It SHALL contain `.{method}` exactly once,
+`frameFormat` SHALL support the placeholders `$class`, `$simpleClass`, `$method`, `$receiver` and
+`$params`. All other text, braces included, SHALL be literal, and `$$` SHALL be a literal `$`. A placeholder
+name SHALL end at the first character that is not a letter or digit. It SHALL contain `.$method` exactly once,
 because the JDK always prints `<class>.<method>(<file>:<line>)`: the part before that `.` becomes the
 frame's class, the rest its method.
 
 #### Scenario: Ids after the method
-- **GIVEN** `frameFormat = "{class}.{method}{receiver}{params}"`
+- **GIVEN** `frameFormat = "$class.$method$receiver$params"`
 - **WHEN** a frame with both ids is rendered
 - **THEN** it reads `com.hafnium.ObjectClass.process{objectId=123}{orderId=42}(ObjectClass.java:13)`
 
-#### Scenario: Missing .{method}
-- **GIVEN** `frameFormat = "{class}#{method}"`
+#### Scenario: Missing .$method
+- **GIVEN** `frameFormat = "$class#$method"`
 - **WHEN** the configuration is loaded
-- **THEN** it is rejected with a message that `frameFormat` must contain `.{method}` exactly once
+- **THEN** it is rejected with a message that `frameFormat` must contain `.$method` exactly once
 
 ### Requirement: Receiver and parameter templates
 `receiverFormat` and `paramsFormat` SHALL support the placeholders `$name` and `$id`. All other text,
@@ -57,7 +58,7 @@ A template that renders no ids SHALL render as empty text.
 
 ### Requirement: Template validation
 The system SHALL reject, when the configuration is loaded, a template with an unknown placeholder (for
-example `{klass}`, `{line}`, `$idx` or a lone `$`), an unclosed or unmatched brace in `frameFormat`, a
+example `$klass`, `$line`, `$idx` or a lone `$`), a
 `paramsFormat` without `$name` or `$id`, and a `paramsFormat` with placeholders after `...`.
 
 #### Scenario: Unknown placeholder

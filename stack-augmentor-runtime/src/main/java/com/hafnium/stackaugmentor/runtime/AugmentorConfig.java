@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  * "com.thirdparty.**.*Repository.find*" = "*"
  *
  * [augment]                      # how frames look: at runtime, in both modes
- * frameFormat = "{class}{receiver}.{method}{params}"
+ * frameFormat = "$class$receiver.$method$params"
  * receiverFormat = "{$name=$id}"
  * paramsFormat = "{$name=$id, ...}"
  * maxIdLength = 64
@@ -48,7 +48,7 @@ import java.util.stream.Collectors;
  */
 public final class AugmentorConfig {
 
-    public static final String DEFAULT_FRAME_FORMAT = "{class}{receiver}.{method}{params}";
+    public static final String DEFAULT_FRAME_FORMAT = "$class$receiver.$method$params";
     public static final String DEFAULT_RECEIVER_FORMAT = "{$name=$id}";
     public static final String DEFAULT_PARAMS_FORMAT = "{$name=$id, ...}";
     public static final int DEFAULT_MAX_ID_LENGTH = 64;

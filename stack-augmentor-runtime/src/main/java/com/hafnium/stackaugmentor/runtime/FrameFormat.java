@@ -114,28 +114,42 @@ public final class FrameFormat {
     }
 
     public static FrameFormat create(String frameFormat, String receiverFormat, String paramsFormat, int maxParams) {
-        // The JDK prints declaringClass + "." + methodName, so the template is split at ".{method}".
-        int split = frameFormat.indexOf(".{method}");
-        if (split < 0 || frameFormat.indexOf("{method}") != split + 1 || frameFormat.lastIndexOf("{method}") != split + 1) {
-            throw new ConfigException(
-                    "frameFormat must contain '.{method}' exactly once, "
-                            + "because the JDK prints '<class>.<method>(<file>:<line>)'; was '" + frameFormat + "'");
+        // The JDK prints declaringClass + "." + methodName, so the template is split at ".$method".
+        List<Token> frame = parse(frameFormat, FRAME_PLACEHOLDERS, "frameFormat");
+        int method = -1;
+        for (int i = 0; i < frame.size(); i++) {
+            if (frame.get(i) instanceof Token.Placeholder placeholder && placeholder.name().equals("method")) {
+                if (method >= 0) {
+                    method = -1;
+                    break;
+                }
+                method = i;
+            }
         }
-        List<Token> declaringClassPart = parse(frameFormat.substring(0, split), FRAME_PLACEHOLDERS, "frameFormat");
-        List<Token> methodPart = parse(frameFormat.substring(split + 1), FRAME_PLACEHOLDERS, "frameFormat");
-        List<Token> receiver = parseIdTemplate(receiverFormat, "receiverFormat");
-        return new FrameFormat(declaringClassPart, methodPart, receiver, parseParams(paramsFormat), maxParams);
+        if (method < 1 || !(frame.get(method - 1) instanceof Token.Literal before) || !before.text().endsWith(".")) {
+            String hint = frameFormat.contains("{method}") ? " (placeholders are written $class, $method, ...; braces are literal)" : "";
+            throw new ConfigException("frameFormat must contain '.$method' exactly once, because the JDK prints "
+                    + "'<class>.<method>(<file>:<line>)'; was '" + frameFormat + "'" + hint);
+        }
+        List<Token> declaringClassPart = new ArrayList<>(frame.subList(0, method - 1));
+        String beforeDot = before.text().substring(0, before.text().length() - 1);
+        if (!beforeDot.isEmpty()) {
+            declaringClassPart.add(new Token.Literal(beforeDot));
+        }
+        List<Token> methodPart = List.copyOf(frame.subList(method, frame.size()));
+        List<Token> receiver = parse(receiverFormat, ID_PLACEHOLDERS, "receiverFormat");
+        return new FrameFormat(List.copyOf(declaringClassPart), methodPart, receiver, parseParams(paramsFormat), maxParams);
     }
 
     private static ParamsTemplate parseParams(String template) {
         int repeat = template.lastIndexOf(REPEAT);
         if (repeat < 0) {
-            List<Token> item = parseIdTemplate(template, "paramsFormat");
+            List<Token> item = parse(template, ID_PLACEHOLDERS, "paramsFormat");
             requirePlaceholder(item, template);
             return new ParamsTemplate("", item, DEFAULT_SEPARATOR, "");
         }
-        List<Token> head = parseIdTemplate(template.substring(0, repeat), "paramsFormat");
-        List<Token> tail = parseIdTemplate(template.substring(repeat + REPEAT.length()), "paramsFormat");
+        List<Token> head = parse(template.substring(0, repeat), ID_PLACEHOLDERS, "paramsFormat");
+        List<Token> tail = parse(template.substring(repeat + REPEAT.length()), ID_PLACEHOLDERS, "paramsFormat");
         requirePlaceholder(head, template);
         if (tail.stream().anyMatch(token -> token instanceof Token.Placeholder)) {
             throw new ConfigException("paramsFormat must not have placeholders after '" + REPEAT + "'; was '" + template + "'");
@@ -172,10 +186,10 @@ public final class FrameFormat {
     }
 
     /**
-     * Splits a receiver or parameter template into literals and the placeholders {@code $name} and {@code $id}.
-     * Everything else, braces included, is literal; {@code $$} is a literal {@code $}.
+     * Splits a template into literals and {@code $placeholder}s. Everything else, braces included, is literal;
+     * {@code $$} is a literal {@code $}.
      */
-    private static List<Token> parseIdTemplate(String template, String key) {
+    private static List<Token> parse(String template, List<String> allowed, String key) {
         List<Token> tokens = new ArrayList<>();
         StringBuilder literal = new StringBuilder();
         int i = 0;
@@ -196,52 +210,15 @@ public final class FrameFormat {
                 end++;
             }
             String name = template.substring(i + 1, end);
-            if (!ID_PLACEHOLDERS.contains(name)) {
+            if (!allowed.contains(name)) {
+                String names = allowed.stream().map(it -> "$" + it).collect(Collectors.joining(", "));
                 throw new ConfigException(
                         key + " uses unknown placeholder '$" + name + "' at position " + i
-                                + "; allowed: $name, $id (write $$ for a literal $)");
+                                + "; allowed: " + names + " (write $$ for a literal $)");
             }
             flush(literal, tokens);
             tokens.add(new Token.Placeholder(name));
             i = end;
-        }
-        flush(literal, tokens);
-        return tokens;
-    }
-
-    /** Splits the frame template into literals and {@code {placeholder}}s; doubled braces are literal braces. */
-    private static List<Token> parse(String template, List<String> allowed, String key) {
-        List<Token> tokens = new ArrayList<>();
-        StringBuilder literal = new StringBuilder();
-        int i = 0;
-        while (i < template.length()) {
-            char c = template.charAt(i);
-            if (c == '{' && template.startsWith("{{", i)) {
-                literal.append('{');
-                i++;
-            } else if (c == '}' && template.startsWith("}}", i)) {
-                literal.append('}');
-                i++;
-            } else if (c == '{') {
-                int end = template.indexOf('}', i);
-                if (end < 0) {
-                    throw new ConfigException(key + " has an unclosed '{' at position " + i + ": '" + template + "'");
-                }
-                String name = template.substring(i + 1, end);
-                if (!allowed.contains(name)) {
-                    String names = allowed.stream().map(it -> "{" + it + "}").collect(Collectors.joining(", "));
-                    throw new ConfigException(key + " uses unknown placeholder {" + name + "}; allowed: " + names);
-                }
-                flush(literal, tokens);
-                tokens.add(new Token.Placeholder(name));
-                i = end;
-            } else if (c == '}') {
-                throw new ConfigException(
-                        key + " has an unmatched '}' at position " + i + " (write '}}' for a literal brace): '" + template + "'");
-            } else {
-                literal.append(c);
-            }
-            i++;
         }
         flush(literal, tokens);
         return tokens;
