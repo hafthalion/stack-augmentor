@@ -106,7 +106,7 @@ the configuration SHALL be taken from the `stackaugmentor.config` system propert
 What gets instrumented SHALL NOT be configured directly: the agent, when classes are loaded, and the build
 plugin, at build time, SHALL instrument the classes and methods that `[augment.receiver]` and
 `[augment.params]` need. The formats in `[augment]` and `debug` SHALL be read at runtime in both modes, and
-so SHALL `[augment.receiver]`, to find the receiver id sources of instrumented classes and of arguments. One
+so SHALL `[augment.receiver]`, to find the receiver id sources of instrumented classes. One
 file SHALL be usable for both phases of build-time instrumentation.
 
 #### Scenario: One file for build-time instrumentation

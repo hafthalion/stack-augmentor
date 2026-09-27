@@ -147,10 +147,9 @@ class InheritanceTest {
     }
 
     @Test
-    fun `arguments of a subclass show their text`() {
-        // An argument has no declaring class: its runtime class decides, and RushOrder has no entry.
-        assertEquals("process{order=o-3}", frame { OrderService().process(Order("o-3")) }.methodName)
+    fun `arguments show their text, whatever their class's entry`() {
+        assertEquals("process{order=Order#o-3}", frame { OrderService().process(Order("o-3")) }.methodName)
         assertEquals("process{order=Order#r-3}", frame { OrderService().process(RushOrder("r-3")) }.methodName)
-        assertEquals("process{order=e-3}", frame { OrderService().process(ExpressOrder("e-3")) }.methodName)
+        assertEquals("process{order=Order#e-3}", frame { OrderService().process(ExpressOrder("e-3")) }.methodName)
     }
 }

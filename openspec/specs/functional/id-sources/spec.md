@@ -129,8 +129,8 @@ select it: `@StackTraceId` marks receiver ids only.
 
 #### Scenario: Configured parameters by name and index
 - **GIVEN** `"com.thirdparty.OrderService.process" = ["order", 1]` in `[augment.params]` for `process(order: Order, quantity: Int, note: String)`
-- **WHEN** `process(Order(4711), 3, "rush")` throws
-- **THEN** that frame shows `order=4711, quantity=3`
+- **WHEN** `process(Order(4711), 3, "rush")` throws, where `Order.toString()` returns `Order#4711`
+- **THEN** that frame shows `order=Order#4711, quantity=3`
 
 #### Scenario: Static method
 - **GIVEN** a top-level (static) function `staticWithParam(@StackTraceParam code: Int)`, matched by an `[augment.params]` `"@"` entry
@@ -176,16 +176,16 @@ names (compiled without `-parameters`), the label SHALL be `arg<N>`.
 
 ### Requirement: Id values as text
 Every id SHALL be converted to text when it is captured. `null` SHALL be shown as `null`. Strings, numbers,
-booleans, characters and enums SHALL be shown with `toString()`. An argument whose class has a receiver
-id source SHALL be shown by that id. Arrays SHALL be shown by their elements. Other arguments SHALL be
-shown with `toString()`. Line breaks SHALL be replaced by a single space, and text longer than
+booleans, characters and enums SHALL be shown with `toString()`. Arrays SHALL be shown by their elements.
+Other arguments SHALL be shown with `toString()`, also when their class has a receiver id source:
+`[augment.receiver]` SHALL only apply to receivers. Line breaks SHALL be replaced by a single space, and text longer than
 `[augment] maxIdLength` SHALL be cut to `maxIdLength - 1` characters followed by `…`. An id source that
 throws SHALL be shown as `?`.
 
 #### Scenario: Object argument with an id source
-- **GIVEN** `fun ship(@StackTraceParam order: Order?)` and `Order` identified by `getOrderNumber()`
-- **WHEN** `ship(Order(4711))` throws
-- **THEN** the frame shows `order=4711`
+- **GIVEN** `fun ship(@StackTraceParam order: Order?)`, and `"com.thirdparty.Order" = "getOrderNumber()"` in `[augment.receiver]`
+- **WHEN** `ship(Order(4711))` throws, where `Order.toString()` returns `Order#4711`
+- **THEN** the frame shows `order=Order#4711`, not the receiver id `4711`
 - **AND** `ship(null)` shows `order=null`
 
 #### Scenario: Long and multi-line ids
@@ -246,8 +246,8 @@ a `"-"` entry as described under "Ignoring receivers and parameters".
 
 #### Scenario: Overlapping entries
 - **GIVEN** `"com.thirdparty.OrderService.process" = ["order"]` and `"com.thirdparty.OrderService.*" = [2]`
-- **WHEN** `process(Order(4711), 3, "rush")` throws
-- **THEN** that frame shows `order=4711, note=rush`
+- **WHEN** `process(Order(4711), 3, "rush")` throws, where `Order.toString()` returns `Order#4711`
+- **THEN** that frame shows `order=Order#4711, note=rush`
 
 #### Scenario: Exact explicit class entry with annotated parameters
 - **GIVEN** `"com.acme.Order" = "getId()"` in `[augment.receiver]` and `"com.acme.Order.*" = "@"` in `[augment.params]`, and `fun ship(@StackTraceParam(name = "to") address: String)` in `Order`

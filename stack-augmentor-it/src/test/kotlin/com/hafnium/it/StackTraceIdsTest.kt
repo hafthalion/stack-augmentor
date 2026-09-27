@@ -87,10 +87,11 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `object parameter uses the id source of its class`() {
+    fun `object parameter is shown with toString(), not with the id source of its class`() {
         val e = assertThrows<IllegalStateException> { Shipping().ship(Order(4711)) }
         assertEquals("com.hafnium.it.fixtures.Shipping{id=ship}", e.stackTrace[0].className)
-        assertEquals("ship{order=4711}", e.stackTrace[0].methodName)
+        // Order has the entry "getOrderNumber()", but no toString(): Object.toString(), cut at maxIdLength = 20.
+        assertEquals("ship{order=com.thirdparty.Orde…}", e.stackTrace[0].methodName)
     }
 
     @Test
@@ -126,7 +127,7 @@ class StackTraceIdsTest {
         val service = assertThrows<IllegalStateException> { OrderService().process(Order(4711), 3, "rush") }
         assertEquals("com.thirdparty.OrderService", service.stackTrace[0].className)
         // "process" selects order and #1; the wildcard entry "com.thirdparty.OrderService.*" adds #2.
-        assertEquals("process{order=4711, quantity=3, note=rush}", service.stackTrace[0].methodName)
+        assertEquals("process{order=com.thirdparty.Orde…, quantity=3, note=rush}", service.stackTrace[0].methodName)
 
         val customer = assertThrows<IllegalStateException> { Customer("c-9").rename() }
         assertEquals("com.thirdparty.Customer{customerId=c-9}", customer.stackTrace[0].className)

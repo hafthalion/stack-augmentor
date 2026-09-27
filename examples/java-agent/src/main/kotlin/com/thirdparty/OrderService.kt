@@ -4,6 +4,9 @@ package com.thirdparty
 
 class Order(private val orderNumber: Long) {
     fun getOrderNumber(): Long = orderNumber
+
+    /** Shown when an order is an argument. */
+    override fun toString() = "Order#$orderNumber"
 }
 
 class Customer(private val customerId: String) {

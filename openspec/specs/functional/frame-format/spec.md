@@ -19,7 +19,7 @@ name, each in braces. The defaults SHALL be `frameFormat = "$class$receiver.$met
 #### Scenario: Missing groups
 - **GIVEN** the default formats
 - **WHEN** a frame has parameter ids but no receiver id
-- **THEN** the receiver group is empty, e.g. `com.thirdparty.OrderService.process{order=4711, quantity=3}(OrderService.kt:14)`
+- **THEN** the receiver group is empty, e.g. `com.thirdparty.OrderService.process{order=Order#4711, quantity=3}(OrderService.kt:14)`
 
 ### Requirement: Frame template
 `frameFormat` SHALL support the placeholders `$class`, `$simpleClass`, `$method`, `$receiver` and
