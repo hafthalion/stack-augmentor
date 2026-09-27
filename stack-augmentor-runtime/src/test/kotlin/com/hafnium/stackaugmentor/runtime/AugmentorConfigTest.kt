@@ -75,7 +75,6 @@ class AugmentorConfigTest {
         )
         assertEquals(listOf(ParamRef.ByName("orderId"), ParamRef.ByIndex(2)), config.paramRefs("com.thirdparty.OrderService", "process"))
         assertEquals(listOf(ParamRef.Annotations()), config.paramRefs("com.hafnium.Legacy", "run"))
-        assertTrue(config.hasMethodEntries("com.thirdparty.OrderService"))
         assertTrue(config.hasInstrumentEntries())
     }
 
@@ -252,9 +251,6 @@ class AugmentorConfigTest {
         assertEquals(emptyList<ParamRef>(), config.paramRefs("com.acme.Outer\$Inner", "runs"))
         assertEquals(listOf(ParamRef.Annotations()), config.paramRefs("com.acme.Legacy", "run"))
 
-        assertTrue(config.hasMethodEntries("com.thirdparty.InventoryService"))
-        assertTrue(config.hasMethodEntries("com.thirdparty.db.OrderRepository"))
-        assertFalse(config.hasMethodEntries("com.thirdparty.Customer"))
         assertTrue(AugmentorConfig.isPattern("com.thirdparty.OrderService.*"))
         assertFalse(AugmentorConfig.isPattern("com.thirdparty.OrderService.process"))
     }

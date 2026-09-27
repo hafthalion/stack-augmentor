@@ -81,20 +81,8 @@ public final class IdResolver {
         }
     };
 
-    /**
-     * Whether a class that no {@code [instrument.classes]} entry matches (nor any of its superclasses) uses its
-     * annotations, as if it had an {@code "@"} entry: for build-time instrumentation, where the build plugin already
-     * chose which classes to instrument.
-     */
-    private final boolean annotationsWithoutEntry;
-
     public IdResolver(AugmentorConfig config) {
-        this(config, false);
-    }
-
-    public IdResolver(AugmentorConfig config, boolean annotationsWithoutEntry) {
         this.config = config;
-        this.annotationsWithoutEntry = annotationsWithoutEntry;
     }
 
     /** The id of the object a frame runs on, or {@code null} if its class has no configured or annotated id source. */
@@ -146,6 +134,7 @@ public final class IdResolver {
     /**
      * The deciding {@code [instrument.classes]} entry: that of the first class up the superclass chain that an entry
      * matches. Its field or method, or with {@code "@"} its annotations, are looked up from that class upwards.
+     * Without a deciding entry the class has no id source, even if it is annotated.
      */
     private Source findSource(Class<?> type) {
         for (Class<?> owner = type; isInHierarchy(owner); owner = owner.getSuperclass()) {
@@ -154,7 +143,7 @@ public final class IdResolver {
                 return sourceFor(owner, entry);
             }
         }
-        return annotationsWithoutEntry ? annotatedSource(type) : null;
+        return null;
     }
 
     /** {@code @StackTraceId} on a field, a no-argument method or (Kotlin) a primary constructor property. */

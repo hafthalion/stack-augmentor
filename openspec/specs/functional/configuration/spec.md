@@ -14,7 +14,7 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
   parameter names and 0-based indexes, `"*"` for all parameters, or `"@"` for the method's parameter
   annotations). Both default to empty;
 - `[augment]`: `frameFormat`, `receiverFormat`, `paramsFormat` (strings), `maxIdLength` (integer
-  between 2 and 10000, default 64) and `maxParams` (integer between 1 and 255, default 8).
+  between 2 and 10000, default 64) and `maxParams` (integer between 1 and 255, default 4).
 
 Sections, dotted keys (`augment.maxIdLength = 32`) and inline tables SHALL be equivalent. Quoted and
 unquoted class names in `[instrument.classes]` and `[instrument.methods]` SHALL be equivalent; keys with

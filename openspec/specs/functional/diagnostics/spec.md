@@ -11,6 +11,7 @@ The system SHALL always print a warning to standard error, prefixed `[stack-augm
 - when a member named by an `[instrument.classes]` entry without wildcards does not exist;
 - when an id source cannot be made accessible;
 - when the runtime handler cannot be created;
+- when the build-time runtime handler finds no configuration, so frames show no receiver ids;
 - when the agent or the build plugin starts with a configuration that has no `[instrument.classes]` and no
   `[instrument.methods]` entries, so nothing will be augmented.
 

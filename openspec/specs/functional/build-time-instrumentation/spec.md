@@ -50,9 +50,8 @@ NOT take effect for their methods.
 When no agent has installed a handler, `Dispatch` SHALL look up the handler with `ServiceLoader` once,
 on the first exception that leaves an instrumented method. `stack-augmentor-runtime` SHALL register
 `com.hafnium.stackaugmentor.runtime.ThrowHandler`, whose no-argument constructor reads the runtime
-configuration. Because the build plugin already chose which classes to instrument, this handler SHALL treat
-a class that no `[instrument.classes]` entry matches as if it had an `"@"` entry. Entries that do match
-SHALL apply as with the agent. If creating the handler fails, a warning SHALL be printed and exceptions
+configuration. The `[instrument.classes]` entries SHALL apply as with the agent: a class that no entry
+matches, nor any of its superclasses, SHALL get no receiver id, even if it is annotated. If creating the handler fails, a warning SHALL be printed and exceptions
 SHALL keep their original stack traces.
 
 #### Scenario: Tests without an agent
@@ -63,4 +62,10 @@ SHALL keep their original stack traces.
 #### Scenario: No runtime configuration
 - **GIVEN** a class with `@StackTraceId`, instrumented at build time, and no `stack-augmentor.toml` on the runtime classpath
 - **WHEN** one of its methods throws
-- **THEN** the frame shows its receiver id
+- **THEN** the frame shows no receiver id
+- **AND** a warning says that there is no runtime configuration, so frames show no receiver ids
+
+#### Scenario: Parameter entry only
+- **GIVEN** `"com.acme.Svc.run" = "*"` in `[instrument.methods]`, no `[instrument.classes]` entry for `Svc`, and `Svc` with a `@StackTraceId` field
+- **WHEN** `run` throws in a build-time instrumented application
+- **THEN** the frame shows the parameter ids of `run` and no receiver id
