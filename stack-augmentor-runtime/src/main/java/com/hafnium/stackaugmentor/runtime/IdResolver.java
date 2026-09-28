@@ -117,20 +117,23 @@ public final class IdResolver {
      * of its class are not used.
      */
     public String paramId(Object value) {
+        return guarded(() -> text(value));
+    }
+
+    /** A receiver id is shown like an argument, e.g. an array with its elements. */
+    private String read(Source source, Object target) {
+        return guarded(() -> text(source.read(target)));
+    }
+
+    private static String text(Object value) {
         if (value == null) {
             return "null";
         }
-        return guarded(() -> {
-            if (value.getClass().isArray()) {
-                String text = Arrays.deepToString(new Object[] {value});
-                return text.substring(1, text.length() - 1);
-            }
-            return value.toString();
-        });
-    }
-
-    private String read(Source source, Object target) {
-        return guarded(() -> String.valueOf(source.read(target)));
+        if (value.getClass().isArray()) {
+            String text = Arrays.deepToString(new Object[] {value});
+            return text.substring(1, text.length() - 1);
+        }
+        return value.toString();
     }
 
     private String guarded(TextSupplier block) {
