@@ -1,5 +1,6 @@
 package com.hafnium.it
 
+import com.hafnium.it.inheritance.Box
 import com.hafnium.it.inheritance.Crate
 import com.hafnium.it.inheritance.DiscontinuedOrder
 import com.hafnium.it.inheritance.ExpressOrder
@@ -318,6 +319,12 @@ class InheritanceTest {
             val trace = trace("Pallet(\"x1\").track()", Pallet("x1"), "track") { it.track() }
             assertEquals("com.hafnium.it.inheritance.Tracked{label=pallet-x1}", trace[0].className)
             assertEquals("com.hafnium.it.inheritance.Pallet", trace[1].className)
+        }
+
+        @Test
+        fun `an interface entry naming a Kotlin property reads it through its getter`() {
+            val trace = trace("Box(\"B-7\").recode()", Box("B-7"), "recode") { it.recode() }
+            assertEquals("com.hafnium.it.inheritance.Coded{trackingCode=B-7}", trace[0].className)
         }
 
         @Test

@@ -47,6 +47,17 @@ class IdResolverTest {
 
     data class Point(val x: Int)
 
+    /** Kotlin properties without a backing field: only their getters exist. */
+    class Computed {
+        val total get() = "t-${1 + 1}"
+        val isActive get() = true
+    }
+
+    class ParenLabel {
+        @StackTraceId(name = "id(x)\nmore")
+        val id = "7"
+    }
+
     class WithArrayId {
         @StackTraceId
         val codes = intArrayOf(1, 2)
@@ -133,7 +144,7 @@ class IdResolverTest {
 
         assertNull(resolver(name(Unannotated::class.java) to IdSpec.FieldSpec("nope")).receiverId(Unannotated("c")))
         assertTrue(
-            err.toString(Charsets.UTF_8).contains("WARN [augment.receiver] \"${name(Unannotated::class.java)}\": no field nope found"),
+            err.toString(Charsets.UTF_8).contains("WARN [augment.receiver] \"${name(Unannotated::class.java)}\": no field or property nope found"),
             err.toString(Charsets.UTF_8),
         )
     }
@@ -154,6 +165,20 @@ class IdResolverTest {
         assertNull(resolver.receiverId(Annotated()))
         assertEquals(NamedId("key", "k-2"), resolver.receiverId(ByMethod()))
         assertFalse(err.toString(Charsets.UTF_8).contains("WARN"), err.toString(Charsets.UTF_8))
+    }
+
+    @Test
+    fun `a name without a field uses the property's getter`() {
+        assertEquals(NamedId("total", "t-2"), resolver(name(Computed::class.java) to IdSpec.FieldSpec("total")).receiverId(Computed()))
+        assertEquals(NamedId("isActive", "true"), resolver(name(Computed::class.java) to IdSpec.FieldSpec("isActive")).receiverId(Computed()))
+        assertEquals("getId", IdResolver.propertyGetter("id"))
+        assertEquals("isActive", IdResolver.propertyGetter("isActive"))
+        assertEquals("getIsland", IdResolver.propertyGetter("island"))
+    }
+
+    @Test
+    fun `labels from the annotation are on one line, with braces instead of parentheses`() {
+        assertEquals(NamedId("id{x} more", "7"), resolver(here to annotations).receiverId(ParenLabel()))
     }
 
     @Test

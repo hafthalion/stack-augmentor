@@ -2,11 +2,9 @@ package com.hafnium.stackaugmentor.runtime;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -166,8 +164,7 @@ public final class IdResolver {
      * {@code (File.java:12)}, which parentheses in an id, e.g. from a data class's {@code toString()}, would confuse.
      */
     private String sanitize(String text) {
-        String singleLine = text.indexOf('\n') >= 0 || text.indexOf('\r') >= 0 ? LINE_BREAKS.matcher(text).replaceAll(" ") : text;
-        String braced = singleLine.replace('(', '{').replace(')', '}');
+        String braced = oneLineBraced(text);
         int maxIdLength = config.maxIdLength();
         return braced.length() > maxIdLength ? braced.substring(0, maxIdLength - 1) + "…" : braced;
     }
@@ -183,31 +180,28 @@ public final class IdResolver {
         return entry != null ? sourceFor(type, entry) : null;
     }
 
-    /** {@code @StackTraceId} on a field, a no-argument method or (Kotlin) a primary constructor property. */
+    /**
+     * {@code @StackTraceId} on a field or a no-argument method; a Kotlin property annotated in the primary constructor
+     * has it on its field. A member that cannot be made accessible is skipped.
+     */
     private Source annotatedSource(Class<?> type) {
         for (Class<?> owner : lookupOrder(type)) {
             for (Field field : owner.getDeclaredFields()) {
                 Annotation annotation = idAnnotation(field);
                 if (!Modifier.isStatic(field.getModifiers()) && annotation != null) {
-                    return fieldSource(field, label(annotation, field.getName()));
+                    Source source = fieldSource(field, label(annotation, field.getName()));
+                    if (source != null) {
+                        return source;
+                    }
                 }
             }
             for (Method method : owner.getDeclaredMethods()) {
                 Annotation annotation = idAnnotation(method);
                 if (!Modifier.isStatic(method.getModifiers()) && method.getParameterCount() == 0 && !method.isSynthetic()
                         && annotation != null) {
-                    return methodSource(method, label(annotation, method.getName()));
-                }
-            }
-            for (Constructor<?> constructor : owner.getDeclaredConstructors()) {
-                for (Parameter parameter : constructor.getParameters()) {
-                    Annotation annotation = idAnnotation(parameter);
-                    if (annotation == null || !parameter.isNamePresent()) {
-                        continue;
-                    }
-                    Field field = instanceField(owner, parameter.getName());
-                    if (field != null) {
-                        return fieldSource(field, label(annotation, field.getName()));
+                    Source source = methodSource(method, label(annotation, method.getName()));
+                    if (source != null) {
+                        return source;
                     }
                 }
             }
@@ -236,12 +230,23 @@ public final class IdResolver {
                 }
             }
             case IdSpec.FieldSpec spec -> {
-                member = "field " + spec.memberName();
+                member = "field or property " + spec.memberName();
                 for (Class<?> type : lookupOrder(owner)) {
                     Field field = instanceField(type, spec.memberName());
                     if (field != null) {
                         source = fieldSource(field, field.getName());
                         break;
+                    }
+                }
+                // Without a field, e.g. in an interface or for a Kotlin property without a backing field: its getter.
+                if (source == null) {
+                    String getter = propertyGetter(spec.memberName());
+                    for (Class<?> type : lookupOrder(owner)) {
+                        Method method = noArgumentMethod(type, getter);
+                        if (method != null) {
+                            source = methodSource(method, spec.memberName());
+                            break;
+                        }
                     }
                 }
             }
@@ -256,6 +261,12 @@ public final class IdResolver {
             }
         }
         return source;
+    }
+
+    /** The JVM name of a Kotlin property's getter: {@code id} has {@code getId()}, {@code isActive} has {@code isActive()}. */
+    static String propertyGetter(String property) {
+        boolean isPrefixed = property.length() > 2 && property.startsWith("is") && !Character.isLowerCase(property.charAt(2));
+        return isPrefixed ? property : "get" + Character.toUpperCase(property.charAt(0)) + property.substring(1);
     }
 
     private static Field instanceField(Class<?> type, String name) {
@@ -324,14 +335,20 @@ public final class IdResolver {
         return null;
     }
 
-    /** The annotation's {@code name} if set, otherwise {@code defaultLabel}. */
+    /** Text on one line and with braces instead of parentheses: ids, and labels from an annotation's {@code name}. */
+    public static String oneLineBraced(String text) {
+        String singleLine = text.indexOf('\n') >= 0 || text.indexOf('\r') >= 0 ? LINE_BREAKS.matcher(text).replaceAll(" ") : text;
+        return singleLine.replace('(', '{').replace(')', '}');
+    }
+
+    /** The annotation's {@code name} if set, cleaned by {@link #oneLineBraced}, otherwise {@code defaultLabel}. */
     public static String label(Annotation annotation, String defaultLabel) {
         if (annotation == null) {
             return defaultLabel;
         }
         try {
             if (annotation.annotationType().getMethod("name").invoke(annotation) instanceof String name && !name.isEmpty()) {
-                return name;
+                return oneLineBraced(name);
             }
         } catch (ReflectiveOperationException e) {
             // no usable name: use the default

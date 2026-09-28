@@ -89,6 +89,16 @@ interface Tracked : Labeled {
     fun track(): Nothing = throw IllegalStateException("cannot track ${label()}")
 }
 
+/** Entry "trackingCode": a Kotlin property of an interface, which only has a getter. */
+interface Coded {
+    val trackingCode: String
+
+    fun recode(): Nothing = throw IllegalStateException("cannot recode $trackingCode")
+}
+
+/** No entry: implements Coded. */
+class Box(override val trackingCode: String) : Coded
+
 /** Entry "code": implements Labeled and Sealable. Kotlin adds a bridge method for each default method it inherits. */
 class Parcel(private val code: String) : Labeled, Sealable {
     override fun label() = "parcel-$code"

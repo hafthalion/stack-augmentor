@@ -192,7 +192,7 @@ public final class IdParameters {
     private static String annotationLabel(AnnotationDescription annotation) {
         try {
             String name = annotation.getValue("name").resolve(String.class);
-            return name.isEmpty() ? null : name;
+            return name.isEmpty() ? null : IdResolver.oneLineBraced(name);
         } catch (RuntimeException e) {
             return null;
         }

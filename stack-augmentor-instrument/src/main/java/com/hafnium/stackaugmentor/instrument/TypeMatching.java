@@ -5,7 +5,6 @@ import com.hafnium.stackaugmentor.runtime.IdResolver;
 import com.hafnium.stackaugmentor.runtime.Log;
 import net.bytebuddy.description.field.FieldDescription;
 import net.bytebuddy.description.method.MethodDescription;
-import net.bytebuddy.description.method.ParameterDescription;
 import net.bytebuddy.description.type.TypeDescription;
 import net.bytebuddy.matcher.ElementMatcher;
 
@@ -141,7 +140,7 @@ public final class TypeMatching {
         return method.isMethod() && !method.isAbstract() && !method.isNative() && !method.isBridge() && !method.isSynthetic();
     }
 
-    /** Has a receiver id source: a field, a method or (Kotlin) a primary-constructor property with {@code @StackTraceId}. */
+    /** Has a receiver id source: a field or a method with {@code @StackTraceId}, as Kotlin properties have on their field. */
     private static boolean hasAnnotatedMember(TypeDescription type) {
         for (FieldDescription field : type.getDeclaredFields()) {
             if (!field.isStatic() && annotation(field.getDeclaredAnnotations(), IdResolver.STACK_TRACE_ID) != null) {
@@ -149,17 +148,7 @@ public final class TypeMatching {
             }
         }
         for (MethodDescription method : type.getDeclaredMethods()) {
-            if ((method.isMethod() && !method.isStatic() && annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_ID) != null)
-                    || (method.isConstructor() && hasAnnotatedParameter(method, IdResolver.STACK_TRACE_ID))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean hasAnnotatedParameter(MethodDescription method, String annotationName) {
-        for (ParameterDescription parameter : method.getParameters()) {
-            if (annotation(parameter.getDeclaredAnnotations(), annotationName) != null) {
+            if (method.isMethod() && !method.isStatic() && annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_ID) != null) {
                 return true;
             }
         }
