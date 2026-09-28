@@ -21,7 +21,7 @@ a warning.
 #### Scenario: Invalid template
 - **GIVEN** `paramsFormat = "($name=$id, ...)"` on line 14 of the build plugin's configuration
 - **WHEN** the project is built
-- **THEN** the build fails, and `[stack-augmentor] ERROR stack-augmentor.toml, line 14: paramsFormat must not contain '('` … is printed
+- **THEN** the build fails, and `[stack-augmentor] ERROR build plugin: stack-augmentor.toml, line 14: paramsFormat must not contain '('` … is printed
 
 #### Scenario: Example project
 - **GIVEN** `examples/build-time`, with the ByteBuddy Gradle plugin, the `DECORATE` entry point and the build plugin with its configuration argument, which has `"com.hafnium.**" = "@"` in `[augment.receiver]` and `"com.hafnium.**.*" = "@"` in `[augment.params]`
@@ -47,7 +47,9 @@ a warning.
 ### Requirement: Only the project's own classes
 Build-time instrumentation SHALL change only the classes of the project being built. Libraries SHALL
 NOT be changed, so `[augment.receiver]` and `[augment.params]` entries for third-party classes SHALL
-NOT take effect for their methods.
+NOT take effect for their methods. The build plugin SHALL leave the same types alone as the agent (see
+"Instrumenting at class load" in the Java agent specification): synthetic types and the types in the ignored
+packages, even when an entry matches them.
 
 #### Scenario: Library class
 - **GIVEN** a library class listed in `[augment.receiver]`
@@ -59,8 +61,9 @@ When no agent has installed a handler, `Dispatch` SHALL look up the handler with
 on the first exception that leaves an instrumented method. `stack-augmentor-runtime` SHALL register
 `com.hafnium.stackaugmentor.runtime.ThrowHandler`, whose no-argument constructor reads the runtime
 configuration. The `[augment.receiver]` entries SHALL apply as with the agent: a class that no entry
-matches SHALL get no receiver id, even if it is annotated or a superclass is matched. If creating the handler fails, a warning SHALL be printed and exceptions
-SHALL keep their original stack traces.
+matches SHALL get no receiver id, even if it is annotated or a superclass is matched. If creating the handler fails, a warning with the reason SHALL be printed and
+exceptions SHALL keep their original stack traces; an invalid runtime configuration SHALL be printed as an error
+with the file, the key and the line (see the diagnostics specification).
 
 #### Scenario: Tests without an agent
 - **GIVEN** the build-time example's tests, which run without `-javaagent`

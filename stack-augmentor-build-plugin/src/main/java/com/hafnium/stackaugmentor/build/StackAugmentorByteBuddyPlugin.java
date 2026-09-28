@@ -4,8 +4,8 @@ import com.hafnium.stackaugmentor.instrument.ExitAdviceFactory;
 import com.hafnium.stackaugmentor.instrument.IdParameters;
 import com.hafnium.stackaugmentor.instrument.TypeMatching;
 import com.hafnium.stackaugmentor.runtime.AugmentorConfig;
-import com.hafnium.stackaugmentor.runtime.ConfigException;
 import com.hafnium.stackaugmentor.runtime.Log;
+import com.hafnium.stackaugmentor.runtime.Startup;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.build.Plugin;
 import net.bytebuddy.description.method.MethodDescription;
@@ -32,40 +32,27 @@ public final class StackAugmentorByteBuddyPlugin implements Plugin {
     private final Advice advice;
 
     public StackAugmentorByteBuddyPlugin() {
-        this(new AugmentorConfig());
+        this(new AugmentorConfig(), "none, using the defaults");
     }
 
     /** @param configFile a TOML configuration; its {@code [augment.receiver]} and {@code [augment.params]} apply. */
     public StackAugmentorByteBuddyPlugin(String configFile) {
-        this(load(configFile));
+        // The ByteBuddy Gradle plugin reports a failing constructor without its cause, so Startup prints the reason too.
+        this(Startup.load(Startup.BUILD_PLUGIN, () -> AugmentorConfig.load(Path.of(configFile))), configFile);
     }
 
-    /** The ByteBuddy Gradle plugin reports a failing constructor without its cause, so the reason is printed too. */
-    private static AugmentorConfig load(String configFile) {
-        try {
-            return AugmentorConfig.load(Path.of(configFile));
-        } catch (ConfigException e) {
-            Log.error(e.getMessage());
-            throw e;
-        }
-    }
-
-    private StackAugmentorByteBuddyPlugin(AugmentorConfig config) {
+    private StackAugmentorByteBuddyPlugin(AugmentorConfig config, String location) {
+        Startup.configure(Startup.BUILD_PLUGIN, location, config);
+        Startup.warnIfNothingConfigured(Startup.BUILD_PLUGIN, config);
         IdParameters parameters = new IdParameters(config);
         this.matching = new TypeMatching(config, parameters);
         this.advice = ExitAdviceFactory.create(parameters);
-        Log.setDebug(config.debug());
-        if (!config.hasAugmentEntries()) {
-            Log.warn("build plugin: the configuration has no [augment.receiver] or [augment.params] entries, "
-                    + "so nothing will be augmented");
-        }
-        Log.debug(() -> "build plugin, [augment.receiver]: " + config.classesDescription()
-                + ", [augment.params]: " + config.methodsDescription());
     }
 
     @Override
     public boolean matches(TypeDescription target) {
-        return matching.instrument(target);
+        // The same types are left alone as by the agent.
+        return !TypeMatching.IGNORED.matches(target) && matching.instrument(target);
     }
 
     @Override

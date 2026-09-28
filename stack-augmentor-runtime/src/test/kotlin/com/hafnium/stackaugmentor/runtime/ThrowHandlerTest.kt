@@ -3,10 +3,14 @@ package com.hafnium.stackaugmentor.runtime
 import com.hafnium.stackaugmentor.StackTraceId
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
+import java.nio.file.Files
+import java.nio.file.Path
 
 /** This module has no stack-augmentor.toml on its test classpath, so ThrowHandler() uses the defaults. */
 class ThrowHandlerTest {
@@ -38,7 +42,28 @@ class ThrowHandlerTest {
             System.setErr(originalErr)
         }
         assertEquals(Annotated::class.java.name, thrown.stackTrace[0].className)
-        assertTrue(err.toString(Charsets.UTF_8).contains("WARN " + ThrowHandler.NO_RUNTIME_CONFIG), err.toString(Charsets.UTF_8))
+        assertTrue(err.toString(Charsets.UTF_8).contains("WARN runtime: " + ThrowHandler.NO_RUNTIME_CONFIG), err.toString(Charsets.UTF_8))
+    }
+
+    @Test
+    fun `an invalid runtime configuration is reported with its file, key and line`(@TempDir dir: Path) {
+        val config = dir.resolve("stack-augmentor.toml")
+        Files.writeString(config, "[augment]\nmaxIdLength = 1\n")
+        val originalErr = System.err
+        val err = ByteArrayOutputStream()
+        System.setErr(PrintStream(err, true, Charsets.UTF_8))
+        System.setProperty(AugmentorConfig.CONFIG_PROPERTY, config.toString())
+        try {
+            assertThrows(ConfigException::class.java) { ThrowHandler() }
+        } finally {
+            System.clearProperty(AugmentorConfig.CONFIG_PROPERTY)
+            System.setErr(originalErr)
+        }
+        val output = err.toString(Charsets.UTF_8)
+        assertTrue(
+            output.contains("[stack-augmentor] ERROR runtime: stack-augmentor.toml, line 2: maxIdLength must be between 2 and 10000, was 1"),
+            output,
+        )
     }
 
     @Test

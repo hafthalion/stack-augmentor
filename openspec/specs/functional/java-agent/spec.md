@@ -20,7 +20,8 @@ jar SHALL be self-contained.
 The agent SHALL instrument classes when they are loaded, and classes already loaded by retransformation.
 It SHALL ignore synthetic classes, classes loaded by the bootstrap class loader, and classes in the
 `java`, `javax`, `jdk`, `sun`, `com.sun`, `kotlin`, `net.bytebuddy` and `com.hafnium.stackaugmentor`
-packages.
+packages. The build plugin SHALL share this list of ignored types, except for the class loader, which it does not
+know.
 
 #### Scenario: JDK classes
 - **GIVEN** an exception thrown inside a JDK method
