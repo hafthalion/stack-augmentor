@@ -3,6 +3,7 @@ package com.hafnium.stackaugmentor.runtime;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
+import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -197,8 +198,8 @@ public final class IdResolver {
             }
             for (Method method : owner.getDeclaredMethods()) {
                 Annotation annotation = idAnnotation(method);
-                if (!Modifier.isStatic(method.getModifiers()) && method.getParameterCount() == 0 && !method.isSynthetic()
-                        && annotation != null) {
+                if (annotation != null
+                        && isUsableIdMethod(Modifier.isStatic(method.getModifiers()), method.getParameterCount(), method.isSynthetic())) {
                     Source source = methodSource(method, label(annotation, method.getName()));
                     if (source != null) {
                         return source;
@@ -211,7 +212,7 @@ public final class IdResolver {
 
     private Source sourceFor(Class<?> owner, AugmentorConfig.ClassEntry entry) {
         String member;
-        Source source = null;
+        Lookup lookup = new Lookup();
         switch (entry.spec()) {
             case IdSpec.Annotations annotations -> {
                 return annotatedSource(owner);
@@ -222,9 +223,7 @@ public final class IdResolver {
             case IdSpec.MethodSpec spec -> {
                 member = "method " + spec.memberName() + "()";
                 for (Class<?> type : methodLookupOrder(owner)) {
-                    Method method = noArgumentMethod(type, spec.memberName());
-                    if (method != null) {
-                        source = methodSource(method, method.getName());
+                    if (lookup.method(noArgumentMethod(type, spec.memberName()), spec.memberName())) {
                         break;
                     }
                 }
@@ -232,34 +231,76 @@ public final class IdResolver {
             case IdSpec.FieldSpec spec -> {
                 member = "field or property " + spec.memberName();
                 for (Class<?> type : lookupOrder(owner)) {
-                    Field field = instanceField(type, spec.memberName());
-                    if (field != null) {
-                        source = fieldSource(field, field.getName());
+                    if (lookup.field(instanceField(type, spec.memberName()), spec.memberName())) {
                         break;
                     }
                 }
-                // Without a field, e.g. in an interface or for a Kotlin property without a backing field: its getter.
-                if (source == null) {
+                // Without a usable field, e.g. in an interface, for a Kotlin property without a backing field, or for a
+                // field that cannot be made accessible: its getter.
+                if (lookup.source == null) {
                     String getter = propertyGetter(spec.memberName());
                     for (Class<?> type : methodLookupOrder(owner)) {
-                        Method method = noArgumentMethod(type, getter);
-                        if (method != null) {
-                            source = methodSource(method, spec.memberName());
+                        if (lookup.method(noArgumentMethod(type, getter), spec.memberName())) {
                             break;
                         }
                     }
                 }
             }
         }
-        if (source == null) {
-            if (!entry.isPattern()) {
+        if (lookup.source == null) {
+            if (lookup.inaccessible != null) {
+                // The configured member exists, so this is a problem whether the entry is a pattern or not.
+                Log.warn("[augment.receiver] \"" + entry.key() + "\": cannot access " + lookup.inaccessible);
+            } else if (!entry.isPattern()) {
                 Log.warn(missingMember(entry, member));
             } else if (Log.isDebug()) {
                 // A pattern is not expected to fit every class it matches.
                 Log.debug(() -> missingMember(entry, member) + " in " + owner.getName());
             }
         }
-        return source;
+        return lookup.source;
+    }
+
+    /**
+     * The search for a configured member: the first accessible one found becomes the source. The first one found that
+     * cannot be made accessible is remembered, so that a lookup that finds nothing else reports it instead of a missing
+     * member.
+     */
+    private static final class Lookup {
+        Source source;
+        Member inaccessible;
+
+        /** Whether the search is over: {@code field} exists and is accessible. */
+        boolean field(Field field, String name) {
+            if (field == null) {
+                return false;
+            }
+            if (field.trySetAccessible()) {
+                source = new FieldSource(field, name);
+                return true;
+            }
+            remember(field);
+            return false;
+        }
+
+        /** Whether the search is over: {@code method} exists and is accessible. */
+        boolean method(Method method, String name) {
+            if (method == null) {
+                return false;
+            }
+            if (method.trySetAccessible()) {
+                source = new MethodSource(method, name);
+                return true;
+            }
+            remember(method);
+            return false;
+        }
+
+        private void remember(Member member) {
+            if (inaccessible == null) {
+                inaccessible = member;
+            }
+        }
     }
 
     private static String missingMember(AugmentorConfig.ClassEntry entry, String member) {
@@ -350,6 +391,15 @@ public final class IdResolver {
             }
         }
         return order;
+    }
+
+    /**
+     * Whether an {@code @StackTraceId} method can give ids: an instance method without parameters that the compiler
+     * did not generate. The build-time and agent type matching use the same rule, so that a class whose only annotated
+     * method takes arguments is not instrumented.
+     */
+    public static boolean isUsableIdMethod(boolean isStatic, int parameterCount, boolean isSynthetic) {
+        return !isStatic && parameterCount == 0 && !isSynthetic;
     }
 
     public static Annotation idAnnotation(AnnotatedElement element) {

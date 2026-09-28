@@ -163,7 +163,10 @@ public final class TypeMatching {
         return method.isMethod() && !method.isAbstract() && !method.isNative() && !method.isBridge() && !method.isSynthetic();
     }
 
-    /** Has a receiver id source: a field or a method with {@code @StackTraceId}, as Kotlin properties have on their field. */
+    /**
+     * Has a receiver id source: a field or a usable method ({@link IdResolver#isUsableIdMethod}) with
+     * {@code @StackTraceId}, as Kotlin properties have on their field.
+     */
     private static boolean hasAnnotatedMember(TypeDescription type) {
         for (FieldDescription field : type.getDeclaredFields()) {
             if (!field.isStatic() && annotation(field.getDeclaredAnnotations(), IdResolver.STACK_TRACE_ID) != null) {
@@ -171,7 +174,8 @@ public final class TypeMatching {
             }
         }
         for (MethodDescription method : type.getDeclaredMethods()) {
-            if (method.isMethod() && !method.isStatic() && annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_ID) != null) {
+            if (method.isMethod() && IdResolver.isUsableIdMethod(method.isStatic(), method.getParameters().size(), method.isSynthetic())
+                    && annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_ID) != null) {
                 return true;
             }
         }

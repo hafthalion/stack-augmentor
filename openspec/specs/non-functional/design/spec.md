@@ -53,12 +53,19 @@ re-entrant calls, and any `Throwable` from the handler SHALL be swallowed.
 The agent SHALL embed the bridge jar as a resource, copy it to a new file in the temporary directory that
 only the JVM's user can read, delete that file when the JVM exits, and append it with
 `Instrumentation.appendToBootstrapClassLoaderSearch` before any bridge class is referenced. It SHALL add
-read edges from instrumented modules to the bridge.
+read edges from instrumented modules to the bridge. Because Windows cannot delete a jar that the bootstrap
+class loader still holds open, the agent SHALL first delete the bridge copies in the temporary directory that are
+older than its own JVM, and leave any it cannot delete, such as one in use or one of another user.
 
 #### Scenario: Several users on one machine
 - **GIVEN** another user's JVM has started with the agent on the same machine
 - **WHEN** the agent starts
 - **THEN** it writes and uses its own bridge copy, never a file another user created
+
+#### Scenario: Copies left by earlier runs
+- **GIVEN** bridge copies that earlier JVMs of the same user could not delete when they exited, e.g. on Windows
+- **WHEN** the agent starts
+- **THEN** it deletes them, and keeps the copy of a JVM that is still running where the system does not allow deleting it
 
 ### Requirement: Agent transformation strategy
 The agent SHALL instrument with ByteBuddy's `AgentBuilder` using `disableClassFormatChanges`, the

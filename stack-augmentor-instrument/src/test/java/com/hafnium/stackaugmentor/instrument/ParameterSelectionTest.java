@@ -72,6 +72,27 @@ class ParameterSelectionTest {
         }
     }
 
+    /** Its only @StackTraceId method takes an argument, so it can never give an id. */
+    static class UnusableId {
+        @StackTraceId
+        String idFor(int version) {
+            return "v" + version;
+        }
+
+        void run() {
+        }
+    }
+
+    static class UsableId {
+        @StackTraceId
+        String id() {
+            return "u";
+        }
+
+        void run() {
+        }
+    }
+
     private static final String HERE = ParameterSelectionTest.class.getPackageName() + ".**";
     private static final IdSpec ANNOTATIONS = new IdSpec.Annotations();
 
@@ -247,5 +268,14 @@ class ParameterSelectionTest {
         assertEquals(List.of("item", "count"), labels(parameters, MethodLevel.class, "move"));
         // A "-" method entry beats the less specific pattern; the exact entry beats the "-".
         assertEquals(List.of("note"), labels(parameters, Service.class, "process"));
+    }
+
+    @Test
+    void onlyUsableIdMethodsGetAClassInstrumented() {
+        AugmentorConfig config = classes(Map.of(HERE, ANNOTATIONS));
+        TypeMatching matching = new TypeMatching(config, new IdParameters(config));
+
+        assertFalse(matching.instrument(type(UnusableId.class)));
+        assertTrue(matching.instrument(type(UsableId.class)));
     }
 }

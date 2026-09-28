@@ -175,9 +175,18 @@ public final class ThrowHandler implements Dispatch.Handler {
         return config;
     }
 
+    /**
+     * The runtime jar's class loader, then the context class loader of the thread that first throws: in an application
+     * server or a fat jar, the runtime jar can sit in a parent loader that does not see the application's resources.
+     */
     private static URL classpathConfig() {
-        ClassLoader loader = ThrowHandler.class.getClassLoader();
-        return loader != null ? loader.getResource(CLASSPATH_CONFIG) : null;
+        ClassLoader own = ThrowHandler.class.getClassLoader();
+        URL resource = own != null ? own.getResource(CLASSPATH_CONFIG) : null;
+        ClassLoader context = Thread.currentThread().getContextClassLoader();
+        if (resource == null && context != null && context != own) {
+            resource = context.getResource(CLASSPATH_CONFIG);
+        }
+        return resource;
     }
 
     private static String read(URL resource) {

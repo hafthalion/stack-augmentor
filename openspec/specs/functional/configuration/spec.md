@@ -14,7 +14,7 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
   - `[augment.receiver]` (class name or class pattern → field name, `method()`, `"@"` for the class's
     `@StackTraceId`, or `"-"` for no receiver id), which decides the receiver ids;
   - `[augment.params]` (`"<class pattern>.<method pattern>"` → array of parameter names and 0-based
-    indexes, `"*"` for all parameters, `"@"` for the method's parameter annotations, or `"-"` for none),
+    indexes from 0 to 255, the JVM's maximum number of parameters, `"*"` for all parameters, `"@"` for the method's parameter annotations, or `"-"` for none),
     which decides the parameter ids.
 
   Both tables default to empty. They SHALL be independent: no value in one table SHALL change what the
@@ -22,12 +22,19 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
 
 Sections, dotted keys (`augment.maxIdLength = 32`) and inline tables SHALL be equivalent. Quoted and
 unquoted class names in `[augment.receiver]` and `[augment.params]` SHALL be equivalent; keys with
-wildcards SHALL be quoted, as TOML requires.
+wildcards SHALL be quoted, as TOML requires. Two entries of one table whose keys name the same class or
+method this way SHALL be rejected, naming the key and the lines of both entries, rather than one silently
+replacing the other.
 
 #### Scenario: Full configuration
 - **GIVEN** a file with `debug`, `[augment.receiver]`, `[augment.params]` and `[augment]` entries
 - **WHEN** it is loaded
 - **THEN** every value is available with its declared type
+
+#### Scenario: Class configured twice
+- **GIVEN** `"com.acme.Order" = "a"` on line 2 and `com.acme.Order = "b"` on line 3 of `[augment.receiver]` in `stack-augmentor.toml`
+- **WHEN** it is loaded
+- **THEN** it is rejected with `stack-augmentor.toml, line 3: 'com.acme.Order' is configured twice; it is already configured on line 2 (quoted and unquoted keys name the same class)`
 
 #### Scenario: Empty file
 - **GIVEN** an empty configuration file
@@ -90,8 +97,16 @@ With the Java agent, the configuration SHALL be taken from the agent arguments (
 `<path>`), otherwise from the `stackaugmentor.config` system property, otherwise the defaults apply. With
 build-time instrumentation, the build plugin SHALL read the file passed as its argument, and at runtime
 the configuration SHALL be taken from the `stackaugmentor.config` system property, otherwise from
-`stack-augmentor.toml` on the classpath, otherwise the defaults apply. The defaults contain no
+`stack-augmentor.toml` on the classpath, otherwise the defaults apply. The classpath resource SHALL be looked
+up through the runtime jar's class loader, and when that loader does not find it, through the context class
+loader of the thread that creates the handler, i.e. the thread of the first exception: in an application
+server or a fat jar, the runtime jar can be loaded by a parent of the application's class loader. The defaults contain no
 `[augment.receiver]` or `[augment.params]` entries, so the agent with the defaults augments nothing.
+
+#### Scenario: Configuration visible only to the application's class loader
+- **GIVEN** a build-time instrumented application whose `stack-augmentor.toml` is visible to the context class loader of the throwing thread, but not to the class loader of `stack-augmentor-runtime`
+- **WHEN** the first exception leaves an instrumented method
+- **THEN** the runtime handler uses that `stack-augmentor.toml`
 
 #### Scenario: Agent without configuration
 - **GIVEN** `-javaagent:stack-augmentor-agent.jar` without arguments and without the system property

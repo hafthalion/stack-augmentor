@@ -114,6 +114,19 @@ class AugmentorConfigTest {
     }
 
     @Test
+    fun `a class or method configured twice is rejected with both lines`() {
+        assertEquals(
+            "test.toml, line 3: 'com.acme.Order' is configured twice; it is already configured on line 2 " +
+                "(quoted and unquoted keys name the same class)",
+            error("[augment.receiver]\n\"com.acme.Order\" = \"a\"\ncom.acme.Order = \"b\""),
+        )
+        assertTrue(
+            error("[augment.params]\ncom.acme.OrderService.process = [0]\n\"com.acme.OrderService.process\" = [1]")
+                .contains("'com.acme.OrderService.process' is configured twice; it is already configured on line 2"),
+        )
+    }
+
+    @Test
     fun `class entries and their specificity`() {
         val config = parse(
             """
@@ -292,6 +305,12 @@ class AugmentorConfigTest {
     fun `invalid method entries and maxParams`() {
         assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"all\"").contains("\"*\" for all parameters, \"@\" for the method's annotations, or \"-\" for none, was all"))
         assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"*\"]").contains("invalid parameter '*'"))
+        // The JVM allows at most 255 parameters.
+        assertEquals(listOf(ParamRef.ByIndex(255)), parse("augment.params.\"com.acme.Order.process\" = [255]").methods()["com.acme.Order.process"])
+        assertTrue(
+            error("[augment.params]\n\"com.acme.Order.process\" = [256]")
+                .contains("invalid parameter '256': use a parameter name or a 0-based index from 0 to 255"),
+        )
         assertEquals(
             "test.toml, line 2: [augment.params] keys must name a class and a method, e.g. \"com.acme.OrderService.process\"; " +
                 "allowed are letters, digits, _, \$ and the wildcards * (within a package or name), ** (across packages) and ?",

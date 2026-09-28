@@ -27,7 +27,10 @@ the file, the key and the line, also when the exception carrying it is thrown on
 ### Requirement: Warnings
 The system SHALL always print a warning to standard error, prefixed `[stack-augmentor] WARN`:
 - when a member named by an `[augment.receiver]` entry without wildcards does not exist;
-- when an id source cannot be made accessible;
+- when the member named by an `[augment.receiver]` entry exists but cannot be made accessible, and no
+  accessible field or getter of that name replaces it; this warning, which names the member, SHALL replace the
+  missing-member warning, also for an entry with wildcards;
+- when an annotated id source cannot be made accessible;
 - when the runtime handler cannot be created, with the reason;
 - when the build-time runtime handler finds no configuration, so frames show no receiver ids;
 - when the agent or the build plugin starts with a configuration that has no `[augment.receiver]` and no
