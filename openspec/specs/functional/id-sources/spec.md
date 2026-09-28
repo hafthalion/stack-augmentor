@@ -198,26 +198,19 @@ select it: `@StackTraceId` marks receiver ids only.
 ### Requirement: Labels
 The label of a receiver id SHALL be the real name of the field or method that supplies it, and the label
 of a parameter id SHALL be the parameter name compiled into the class file, however the parameter is
-selected. `@StackTraceId(name = "…")` SHALL override the label of a receiver id; like ids, a label from `name`
-SHALL be kept on one line, and its parentheses SHALL be replaced with braces. Parameter labels SHALL NOT be
-overridden: `@StackTraceParam` has no attributes. When a class has no parameter names (compiled without
+selected. Labels SHALL NOT be overridden: `@StackTraceId` and `@StackTraceParam` have no attributes. When a class has no parameter names (compiled without
 `-parameters`), the label SHALL be `arg<N>`, so Java classes SHOULD be compiled with `javac -parameters` (Kotlin
 with `javaParameters = true`).
 
-#### Scenario: Name override
-- **GIVEN** `@StackTraceId(name = "user") val login = "bob"`
+#### Scenario: Receiver label
+- **GIVEN** `@StackTraceId val login = "bob"`
 - **WHEN** an exception leaves a method of that class
-- **THEN** the frame shows `user=bob`
+- **THEN** the frame shows `login=bob`
 
 #### Scenario: Parameter label
 - **GIVEN** `@StackTraceParams fun move(@StackTraceParam item: String, count: Int)`, compiled with parameter names
 - **WHEN** `move("x-1", 2)` throws
 - **THEN** the frame shows `item=x-1, count=2`, each parameter once
-
-#### Scenario: Parentheses in a name override
-- **GIVEN** `@StackTraceId(name = "id(x)") val id = "7"`
-- **WHEN** an exception leaves a method of that class
-- **THEN** the frame shows `id{x}=7`
 
 #### Scenario: No parameter names
 - **GIVEN** a Java class compiled without `-parameters` and `run(@StackTraceParam int value)`

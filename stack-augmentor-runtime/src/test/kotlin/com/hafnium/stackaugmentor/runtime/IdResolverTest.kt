@@ -21,7 +21,7 @@ class IdResolverTest {
     }
 
     class ByMethod {
-        @StackTraceId(name = "key")
+        @StackTraceId
         fun computeKey() = "k-${1 + 1}"
     }
 
@@ -53,11 +53,6 @@ class IdResolverTest {
         val isActive get() = true
     }
 
-    class ParenLabel {
-        @StackTraceId(name = "id(x)\nmore")
-        val id = "7"
-    }
-
     class WithArrayId {
         @StackTraceId
         val codes = intArrayOf(1, 2)
@@ -81,7 +76,7 @@ class IdResolverTest {
     fun `annotated field, method and constructor property`() {
         val resolver = resolver(here to annotations)
         assertEquals(NamedId("objectId", "a-1"), resolver.receiverId(Annotated()))
-        assertEquals(NamedId("key", "k-2"), resolver.receiverId(ByMethod()))
+        assertEquals(NamedId("computeKey", "k-2"), resolver.receiverId(ByMethod()))
         assertEquals(NamedId("code", "X"), resolver.receiverId(ConstructorProperty("X")))
     }
 
@@ -179,7 +174,7 @@ class IdResolverTest {
         System.setErr(PrintStream(err, true, Charsets.UTF_8))
         val resolver = resolver(here to annotations, name(Annotated::class.java) to IdSpec.Excluded())
         assertNull(resolver.receiverId(Annotated()))
-        assertEquals(NamedId("key", "k-2"), resolver.receiverId(ByMethod()))
+        assertEquals(NamedId("computeKey", "k-2"), resolver.receiverId(ByMethod()))
         assertFalse(err.toString(Charsets.UTF_8).contains("WARN"), err.toString(Charsets.UTF_8))
     }
 
@@ -190,11 +185,6 @@ class IdResolverTest {
         assertEquals("getId", IdResolver.propertyGetter("id"))
         assertEquals("isActive", IdResolver.propertyGetter("isActive"))
         assertEquals("getIsland", IdResolver.propertyGetter("island"))
-    }
-
-    @Test
-    fun `labels from the annotation are on one line, with braces instead of parentheses`() {
-        assertEquals(NamedId("id{x} more", "7"), resolver(here to annotations).receiverId(ParenLabel()))
     }
 
     @Test

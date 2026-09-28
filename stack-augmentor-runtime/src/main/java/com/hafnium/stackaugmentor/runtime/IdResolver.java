@@ -188,19 +188,17 @@ public final class IdResolver {
     private Source annotatedSource(Class<?> type) {
         for (Class<?> owner : lookupOrder(type)) {
             for (Field field : owner.getDeclaredFields()) {
-                Annotation annotation = idAnnotation(field);
-                if (!Modifier.isStatic(field.getModifiers()) && annotation != null) {
-                    Source source = fieldSource(field, label(annotation, field.getName()));
+                if (!Modifier.isStatic(field.getModifiers()) && idAnnotation(field) != null) {
+                    Source source = fieldSource(field, field.getName());
                     if (source != null) {
                         return source;
                     }
                 }
             }
             for (Method method : owner.getDeclaredMethods()) {
-                Annotation annotation = idAnnotation(method);
-                if (annotation != null
+                if (idAnnotation(method) != null
                         && isUsableIdMethod(Modifier.isStatic(method.getModifiers()), method.getParameterCount(), method.isSynthetic())) {
-                    Source source = methodSource(method, label(annotation, method.getName()));
+                    Source source = methodSource(method, method.getName());
                     if (source != null) {
                         return source;
                     }
@@ -411,24 +409,9 @@ public final class IdResolver {
         return null;
     }
 
-    /** Text on one line and with braces instead of parentheses: ids, and labels from an annotation's {@code name}. */
-    public static String oneLineBraced(String text) {
+    /** Text on one line and with braces instead of parentheses, as ids are shown. */
+    private static String oneLineBraced(String text) {
         String singleLine = text.indexOf('\n') >= 0 || text.indexOf('\r') >= 0 ? LINE_BREAKS.matcher(text).replaceAll(" ") : text;
         return singleLine.replace('(', '{').replace(')', '}');
-    }
-
-    /** The annotation's {@code name} if set, cleaned by {@link #oneLineBraced}, otherwise {@code defaultLabel}. */
-    public static String label(Annotation annotation, String defaultLabel) {
-        if (annotation == null) {
-            return defaultLabel;
-        }
-        try {
-            if (annotation.annotationType().getMethod("name").invoke(annotation) instanceof String name && !name.isEmpty()) {
-                return oneLineBraced(name);
-            }
-        } catch (ReflectiveOperationException e) {
-            // no usable name: use the default
-        }
-        return defaultLabel;
     }
 }
