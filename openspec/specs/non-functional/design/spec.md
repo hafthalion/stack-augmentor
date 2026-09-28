@@ -50,22 +50,36 @@ re-entrant calls, and any `Throwable` from the handler SHALL be swallowed.
 - **THEN** `Dispatch.onThrow` returns immediately
 
 ### Requirement: Bridge on the bootstrap class path
-The agent SHALL embed the bridge jar as a resource, copy it to a new file in the temporary directory that
-only the JVM's user can read, delete that file when the JVM exits, and append it with
+The agent SHALL embed the bridge jar as a resource and append it with
 `Instrumentation.appendToBootstrapClassLoaderSearch` before any bridge class is referenced. It SHALL add
-read edges from instrumented modules to the bridge. Because Windows cannot delete a jar that the bootstrap
-class loader still holds open, the agent SHALL first delete the bridge copies in the temporary directory that are
-older than its own JVM, and leave any it cannot delete, such as one in use or one of another user.
+read edges from instrumented modules to the bridge. The jar file SHALL be named after the SHA-256 hash of its
+content and kept in a directory `stack-augmentor-<user>` of the temporary directory. Where the file system has
+POSIX permissions, the agent SHALL create that directory accessible by its owner only, and SHALL refuse an
+existing one that is a link, belongs to another user or is accessible by others. When the directory cannot be
+used, the agent SHALL print a warning and use a copy of its own, readable by its user only. The agent SHALL use an existing
+jar whose content has the hash, and otherwise write it to a new file in that directory and move it into place.
+It SHALL NOT delete the jar: the JVMs of the user share it, and the bootstrap class loader keeps it open until
+the JVM exits, which on Windows prevents deleting it.
 
 #### Scenario: Several users on one machine
 - **GIVEN** another user's JVM has started with the agent on the same machine
 - **WHEN** the agent starts
-- **THEN** it writes and uses its own bridge copy, never a file another user created
+- **THEN** it writes and uses the bridge jar in its own user's directory, never a file another user created
 
-#### Scenario: Copies left by earlier runs
-- **GIVEN** bridge copies that earlier JVMs of the same user could not delete when they exited, e.g. on Windows
+#### Scenario: Later runs of the same user
+- **GIVEN** an earlier JVM of the same user wrote the bridge jar of the same agent version
 - **WHEN** the agent starts
-- **THEN** it deletes them, and keeps the copy of a JVM that is still running where the system does not allow deleting it
+- **THEN** it uses that jar without writing it again, and no bridge copies pile up in the temporary directory
+
+#### Scenario: Damaged bridge jar
+- **GIVEN** the bridge jar in the user's directory whose content no longer matches its hash
+- **WHEN** the agent starts
+- **THEN** it replaces the jar with the embedded one
+
+#### Scenario: Directory prepared by another user
+- **GIVEN** a directory `stack-augmentor-<user>` in the temporary directory that another user created, or that others can write to
+- **WHEN** the agent starts
+- **THEN** it warns that it cannot use the shared bridge jar, and uses a copy of its own
 
 ### Requirement: Agent transformation strategy
 The agent SHALL instrument with ByteBuddy's `AgentBuilder` using `disableClassFormatChanges`, the
