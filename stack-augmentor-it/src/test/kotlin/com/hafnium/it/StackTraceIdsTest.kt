@@ -13,7 +13,9 @@ import com.hafnium.it.fixtures.Node
 import com.hafnium.it.fixtures.NoTrace
 import com.hafnium.it.fixtures.NoTraceException
 import com.hafnium.it.fixtures.ObjectClass
+import com.hafnium.it.fixtures.ParenLabels
 import com.hafnium.it.fixtures.Plain
+import com.hafnium.it.fixtures.Relay
 import com.hafnium.it.fixtures.Renamed
 import com.hafnium.it.fixtures.Shipping
 import com.hafnium.it.fixtures.WithToString
@@ -179,6 +181,23 @@ class StackTraceIdsTest {
         assertEquals("walk{depth=1}", e.stackTrace[1].methodName)
         assertEquals("com.hafnium.it.fixtures.Node{name=a}", e.stackTrace[2].className)
         assertEquals("walk{depth=0}", e.stackTrace[2].methodName)
+    }
+
+    @Test
+    fun `an exception created by the caller does not give the callee's ids to the caller's frame`() {
+        val e = assertThrows<IllegalStateException> { Relay("a", Relay("b", null)).pass(0, null) }
+        assertEquals("created by a", e.message)
+        // The only pass frame is a's, where the exception was created; b threw it, but its frame is not in the trace.
+        assertEquals("com.hafnium.it.fixtures.Relay{name=a}", e.stackTrace[0].className)
+        assertEquals("pass{depth=0}", e.stackTrace[0].methodName)
+        assertEquals(1, e.stackTrace.count { it.methodName.startsWith("pass") })
+    }
+
+    @Test
+    fun `labels are kept free of parentheses`() {
+        val e = assertThrows<IllegalStateException> { ParenLabels().fail(5) }
+        assertEquals("com.hafnium.it.fixtures.ParenLabels{id{x}=7}", e.stackTrace[0].className)
+        assertEquals("fail{n{1}=5}", e.stackTrace[0].methodName)
     }
 
     @Test

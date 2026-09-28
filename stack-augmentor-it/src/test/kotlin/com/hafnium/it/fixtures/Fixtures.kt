@@ -42,6 +42,22 @@ class Node(@StackTraceId val name: String, private val next: Node?) {
     }
 }
 
+/** Creates an exception and passes it to the next relay, which throws it: the next relay's frame is not in the trace. */
+class Relay(@StackTraceId val name: String, private val next: Relay?) {
+    fun pass(@StackTraceParam depth: Int, error: IllegalStateException?) {
+        if (next == null) throw error!!
+        next.pass(depth + 1, IllegalStateException("created by $name"))
+    }
+}
+
+/** Labels with parentheses, which would confuse IDEs looking for "(File.kt:12)". */
+class ParenLabels {
+    @StackTraceId(name = "id(x)")
+    val id = "7"
+
+    fun fail(@StackTraceParam(name = "n(1)") value: Int): Nothing = throw IllegalStateException("fail $value")
+}
+
 class ManyParams {
     @StackTraceId
     val id = "many"

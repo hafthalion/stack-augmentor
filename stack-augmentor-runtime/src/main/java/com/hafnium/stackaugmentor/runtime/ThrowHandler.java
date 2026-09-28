@@ -8,6 +8,7 @@ import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -27,6 +28,11 @@ public final class ThrowHandler implements Dispatch.Handler {
 
     static final String NO_RUNTIME_CONFIG = "build-time instrumentation: no " + CLASSPATH_CONFIG + " on the classpath and no -D"
             + AugmentorConfig.CONFIG_PROPERTY + ", so frames show no receiver ids";
+
+    /** Reflection frames are part of stack traces, so the walker shows them too. */
+    private static final StackWalker WALKER = StackWalker.getInstance(StackWalker.Option.SHOW_REFLECT_FRAMES);
+
+    private static final String DISPATCH = Dispatch.class.getName();
 
     private final IdResolver resolver;
     private final FrameFormat format;
@@ -58,11 +64,17 @@ public final class ThrowHandler implements Dispatch.Handler {
             return;
         }
         Integer cursor = cursors.get(thrown);
+        Caller caller = null;
         int index = -1;
         for (int i = cursor != null ? cursor : 0; i < trace.length; i++) {
             if (trace[i].getClassName().equals(owner) && trace[i].getMethodName().equals(method)) {
-                index = i;
-                break;
+                if (caller == null) {
+                    caller = caller();
+                }
+                if (caller.calledFrom(trace, i)) {
+                    index = i;
+                    break;
+                }
             }
         }
         if (index < 0) {
@@ -92,6 +104,54 @@ public final class ThrowHandler implements Dispatch.Handler {
 
         trace[index] = format.rewrite(trace[index], receiverId, paramIds, omitted);
         thrown.setStackTrace(trace); // no effect if the throwable's stack trace is not writable
+    }
+
+    /**
+     * The frame below the exiting method on the current thread, to tell that method's frame apart from other frames of
+     * the same method: the exception may have been created outside it, e.g. by its caller in a recursion, and then the
+     * trace has no frame for this call.
+     */
+    private record Caller(boolean known, String className, String methodName, int lineNumber) {
+
+        static final Caller UNKNOWN = new Caller(false, null, null, -1);
+        static final Caller NONE = new Caller(true, null, null, -1);
+
+        /** Whether {@code trace[index]} is the frame of the exiting method: the frame below it is its caller's. */
+        boolean calledFrom(StackTraceElement[] trace, int index) {
+            if (!known) {
+                return true;
+            }
+            if (index + 1 >= trace.length) {
+                // The bottom of the trace: the exiting method has no caller, or the trace was cut at its maximum depth.
+                return true;
+            }
+            StackTraceElement below = trace[index + 1];
+            return below.getClassName().equals(className) && below.getMethodName().equals(methodName)
+                    && below.getLineNumber() == lineNumber;
+        }
+    }
+
+    /**
+     * The caller of the exiting method, which is below {@link Dispatch#onThrow} and that method. {@link Caller#UNKNOWN}
+     * when this handler was not called through {@link Dispatch}, e.g. in a test.
+     */
+    private static Caller caller() {
+        return WALKER.walk(frames -> {
+            Iterator<StackWalker.StackFrame> iterator = frames.iterator();
+            while (iterator.hasNext()) {
+                if (iterator.next().getClassName().equals(DISPATCH)) {
+                    if (iterator.hasNext()) {
+                        iterator.next(); // the exiting method
+                    }
+                    if (!iterator.hasNext()) {
+                        return Caller.NONE;
+                    }
+                    StackWalker.StackFrame frame = iterator.next();
+                    return new Caller(true, frame.getClassName(), frame.getMethodName(), frame.getLineNumber());
+                }
+            }
+            return Caller.UNKNOWN;
+        });
     }
 
     /** The configuration for build-time instrumentation: the system property, then the classpath, then the defaults. */
