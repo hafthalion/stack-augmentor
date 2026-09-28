@@ -123,7 +123,7 @@ The two kinds of ids are configured independently: `[augment.receiver]` decides 
 
 **Receiver id**: the object a frame runs on. It comes from the deciding `[augment.receiver]` entry of the class that declares the frame's method, and is read from the object. An entry applies only to the classes whose names it matches, not to their subclasses. The entry names:
 
-- a field, or a no-argument `method()`, looked up in that class and its superclasses (for an interface: in it and the interfaces it extends); a name without a field, such as a Kotlin property of an interface, uses the property's getter (`code` reads `getCode()`);
+- a field, or a no-argument `method()`, looked up in that class and its superclasses (for an interface: in it and the interfaces it extends); a method or getter is also found as a default method of an implemented interface; a name without a field, such as a Kotlin property of an interface, uses the property's getter (`code` reads `getCode()`);
 - `"@"`: the `@StackTraceId` on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`; or
 - `"-"`: nothing, so the class gets no receiver id. Its parameter ids are not affected.
 

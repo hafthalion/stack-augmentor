@@ -211,4 +211,15 @@ class IdResolverTest {
         assertEquals("Point{x=1}", resolver.paramId(Point(1)))
         assertEquals("{{a}}", resolver.paramId("((a))"))
     }
+
+    @Test
+    fun `a configured getter is found as a default method of an implemented interface`() {
+        val order = JavaDefaults.Order::class.java.name
+        assertEquals(NamedId("getId", "id-7"), resolver(order to IdSpec.MethodSpec("getId")).receiverId(JavaDefaults.Order()))
+        // A property name without a field reads the getter.
+        assertEquals(NamedId("id", "id-7"), resolver(order to IdSpec.FieldSpec("id")).receiverId(JavaDefaults.Order()))
+        // Also through a superclass that implements the interface.
+        val rush = JavaDefaults.RushOrder::class.java.name
+        assertEquals(NamedId("getId", "id-7"), resolver(rush to IdSpec.MethodSpec("getId")).receiverId(JavaDefaults.RushOrder()))
+    }
 }
