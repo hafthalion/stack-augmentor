@@ -21,6 +21,8 @@ The work done when an exception leaves an instrumented method SHALL be limited t
 copy and one search of its stack trace from the last handled frame, one walk of the current thread's stack
 to find the exiting method's caller when a frame of the same class and method is found, the id lookups for
 the frame, and one `setStackTrace`. The id source of each class SHALL be looked up once and cached.
+An exception that leaves N instrumented frames therefore costs O(N × trace length); the JVM caps the trace
+length (`-XX:MaxJavaStackTraceDepth`, 1024 by default). The README SHALL state this cost with measured numbers.
 
 #### Scenario: Repeated exceptions of one class
 - **GIVEN** a class whose id source is an annotated field
