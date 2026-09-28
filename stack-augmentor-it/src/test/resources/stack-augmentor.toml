@@ -29,6 +29,7 @@ maxParams = 8
 "com.hafnium.it.inheritance.Labeled" = "label()"
 "com.hafnium.it.inheritance.Parcel" = "code"
 "com.hafnium.it.inheritance.Tracked" = "label()"
+"com.hafnium.it.inheritance.Coded" = "trackingCode"
 "com.hafnium.it.inheritance.JavaLabeled" = "label()"
 "com.hafnium.it.inheritance.JavaParcel" = "code"
 "com.hafnium.it.inheritance.ParcelRepository" = "name"

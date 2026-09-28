@@ -29,8 +29,9 @@ The system SHALL use a non-static field or a non-static, no-argument method anno
 `@StackTraceId` (`com.hafnium.stackaugmentor.StackTraceId`) as the receiver id of the objects of a class
 whose deciding `[augment.receiver]` entry is `"@"` (see "Annotations in use"). The
 annotated member SHALL be looked up in the class that the deciding entry matched and in its superclasses.
-In Kotlin, a primary-constructor property whose constructor parameter is annotated SHALL be recognised as
-an annotated field. The annotation SHALL be matched by its class name, so that a copy of the API loaded by
+In Kotlin, a property annotated in the primary constructor has the annotation on its field, because
+`@StackTraceId` does not target parameters. A member that cannot be made accessible SHALL be skipped with a
+warning, and the lookup SHALL continue with the next annotated member. The annotation SHALL be matched by its class name, so that a copy of the API loaded by
 another class loader is also recognised.
 
 #### Scenario: Annotated field
@@ -71,7 +72,9 @@ inherits, SHALL NOT be instrumented, so their frames are unchanged. When several
 most characters other than `*` and `?` wins, with ties broken by the alphabetical order of the keys. A
 configured field or method SHALL be looked up in the matched class and its superclasses, including private
 members; for an interface, in the interface and the interfaces it extends, where an abstract method is
-called on the object.
+called on the object. When no field of a configured name exists, as in an interface or for a Kotlin
+property without a backing field, the property's getter SHALL be used (`getName()`, or `isName()` for a
+name starting with `is`), with the configured name as the label.
 
 #### Scenario: Configured method of a third-party class
 - **GIVEN** `"com.thirdparty.Order" = "getOrderNumber()"` in `[augment.receiver]`
@@ -81,8 +84,13 @@ called on the object.
 #### Scenario: Configured member does not exist
 - **GIVEN** `"com.thirdparty.Customer" = "nope"` in `[augment.receiver]` and no field `nope`
 - **WHEN** the id source of `Customer` is first needed
-- **THEN** a warning `[augment.receiver] "com.thirdparty.Customer": no field nope found` is printed
+- **THEN** a warning `[augment.receiver] "com.thirdparty.Customer": no field or property nope found` is printed
 - **AND** frames of `Customer` show no receiver id
+
+#### Scenario: Kotlin interface property
+- **GIVEN** `"com.acme.Tracked" = "trackingCode"`, where the Kotlin interface `Tracked` declares `val trackingCode: String` and has a default method `track()`
+- **WHEN** an exception leaves `Tracked.track()`, called on an object whose `trackingCode` is `T-9`
+- **THEN** that frame shows the receiver id `trackingCode=T-9`, read through `getTrackingCode()`
 
 #### Scenario: Wildcard entry with a member
 - **GIVEN** `"com.thirdparty.*Account" = "number"` in `[augment.receiver]`
@@ -170,7 +178,8 @@ select it: `@StackTraceId` marks receiver ids only.
 The label of a receiver id SHALL be the real name of the field or method that supplies it, and the label
 of a parameter id SHALL be the parameter name. `@StackTraceId(name = "…")` SHALL override the label of a
 receiver id, and `@StackTraceParam(name = "…")` SHALL override the label of that parameter id, also when
-the parameter is selected by `@StackTraceParams` or by the configuration. When a class has no parameter
+the parameter is selected by `@StackTraceParams` or by the configuration. Like ids, a label from `name`
+SHALL be kept on one line, and its parentheses SHALL be replaced with braces. When a class has no parameter
 names (compiled without `-parameters`), the label SHALL be `arg<N>`.
 
 #### Scenario: Name override
@@ -187,6 +196,11 @@ names (compiled without `-parameters`), the label SHALL be `arg<N>`.
 - **GIVEN** `@StackTraceParams fun move(@StackTraceParam(name = "sku") item: String, count: Int)`
 - **WHEN** `move("x-1", 2)` throws
 - **THEN** the frame shows `sku=x-1, count=2`
+
+#### Scenario: Parentheses in a name override
+- **GIVEN** `@StackTraceId(name = "id(x)") val id = "7"`
+- **WHEN** an exception leaves a method of that class
+- **THEN** the frame shows `id{x}=7`
 
 #### Scenario: No parameter names
 - **GIVEN** a Java class compiled without `-parameters` and `run(@StackTraceParam int value)`
