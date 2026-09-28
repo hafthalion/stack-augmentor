@@ -22,6 +22,13 @@ maxParams = 8
 "com.hafnium.it.inheritance.ExpressOrder" = "id"
 "com.hafnium.it.inheritance.TrackedOrder" = "tracking"
 "com.hafnium.it.inheritance.Priority" = "code"
+"com.hafnium.it.inheritance.GiftOrder" = "note"
+"com.hafnium.it.inheritance.DiscontinuedOrder" = "-"
+"com.hafnium.it.inheritance.Invoice" = "number"
+"com.hafnium.it.inheritance.Shipment" = "id"
+"com.hafnium.it.inheritance.Labeled" = "label()"
+"com.hafnium.it.inheritance.Parcel" = "code"
+"com.hafnium.it.inheritance.Repository" = "name"
 # ... while a pattern matches every class whose name fits, generated subclasses in the package included
 "com.hafnium.it.inheritance.patterned.*" = "code"
 
