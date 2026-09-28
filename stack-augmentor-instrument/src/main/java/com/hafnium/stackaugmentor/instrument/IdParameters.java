@@ -73,14 +73,11 @@ public final class IdParameters {
                     labels.put(parameter.getIndex(), parameter.getName());
                 }
             }
-            // @StackTraceParam: this parameter, with its label.
+            // @StackTraceParam: this parameter.
             for (ParameterDescription parameter : parameters) {
-                AnnotationDescription annotation = annotation(parameter.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAM);
-                if (annotation == null) {
-                    continue;
+                if (annotation(parameter.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAM) != null) {
+                    labels.put(parameter.getIndex(), parameter.getName());
                 }
-                String label = annotationLabel(annotation);
-                labels.put(parameter.getIndex(), label != null ? label : parameter.getName());
             }
         }
         for (ParamRef ref : refs) {
@@ -109,7 +106,8 @@ public final class IdParameters {
                 }
             }
         }
-        // Without the MethodParameters attribute, ByteBuddy names parameters arg0, arg1, ...
+        // The label is the compiled parameter name; without the MethodParameters attribute (javac without -parameters),
+        // ByteBuddy names parameters arg0, arg1, ...
         List<IdParameter> selected = new ArrayList<>(labels.size());
         for (Map.Entry<Integer, String> label : labels.entrySet()) {
             selected.add(new IdParameter(parameters.get(label.getKey()), label.getValue()));
@@ -187,15 +185,6 @@ public final class IdParameters {
             }
         }
         return null;
-    }
-
-    private static String annotationLabel(AnnotationDescription annotation) {
-        try {
-            String name = annotation.getValue("name").resolve(String.class);
-            return name.isEmpty() ? null : IdResolver.oneLineBraced(name);
-        } catch (RuntimeException e) {
-            return null;
-        }
     }
 
     /** The annotation with this class name, matched by name because the application may load its own copy of the API. */

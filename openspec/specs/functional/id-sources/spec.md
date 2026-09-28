@@ -82,9 +82,9 @@ name starting with `is`), with the configured name as the label.
 - **THEN** that frame shows the receiver id `getOrderNumber=4711`
 
 #### Scenario: Configured member does not exist
-- **GIVEN** `"com.thirdparty.Customer" = "nope"` in `[augment.receiver]` and no field `nope`
+- **GIVEN** `"com.thirdparty.Customer" = "customerNo"` in `[augment.receiver]`, a misspelling: `Customer` has a field `customerId`, but no field and no getter for `customerNo`
 - **WHEN** the id source of `Customer` is first needed
-- **THEN** a warning `[augment.receiver] "com.thirdparty.Customer": no field or property nope found` is printed
+- **THEN** a warning `[augment.receiver] "com.thirdparty.Customer": no field or property customerNo found` is printed
 - **AND** frames of `Customer` show no receiver id
 
 #### Scenario: Kotlin interface property
@@ -176,26 +176,22 @@ select it: `@StackTraceId` marks receiver ids only.
 
 ### Requirement: Labels
 The label of a receiver id SHALL be the real name of the field or method that supplies it, and the label
-of a parameter id SHALL be the parameter name. `@StackTraceId(name = "…")` SHALL override the label of a
-receiver id, and `@StackTraceParam(name = "…")` SHALL override the label of that parameter id, also when
-the parameter is selected by `@StackTraceParams` or by the configuration. Like ids, a label from `name`
-SHALL be kept on one line, and its parentheses SHALL be replaced with braces. When a class has no parameter
-names (compiled without `-parameters`), the label SHALL be `arg<N>`.
+of a parameter id SHALL be the parameter name compiled into the class file, however the parameter is
+selected. `@StackTraceId(name = "…")` SHALL override the label of a receiver id; like ids, a label from `name`
+SHALL be kept on one line, and its parentheses SHALL be replaced with braces. Parameter labels SHALL NOT be
+overridden: `@StackTraceParam` has no attributes. When a class has no parameter names (compiled without
+`-parameters`), the label SHALL be `arg<N>`, so Java classes SHOULD be compiled with `javac -parameters` (Kotlin
+with `javaParameters = true`).
 
 #### Scenario: Name override
 - **GIVEN** `@StackTraceId(name = "user") val login = "bob"`
 - **WHEN** an exception leaves a method of that class
 - **THEN** the frame shows `user=bob`
 
-#### Scenario: Parameter name override
-- **GIVEN** `named(@StackTraceParam(name = "count") int value)`
-- **WHEN** `named(6)` throws
-- **THEN** the frame shows `count=6`
-
-#### Scenario: Name override under a method-level annotation
-- **GIVEN** `@StackTraceParams fun move(@StackTraceParam(name = "sku") item: String, count: Int)`
+#### Scenario: Parameter label
+- **GIVEN** `@StackTraceParams fun move(@StackTraceParam item: String, count: Int)`, compiled with parameter names
 - **WHEN** `move("x-1", 2)` throws
-- **THEN** the frame shows `sku=x-1, count=2`
+- **THEN** the frame shows `item=x-1, count=2`, each parameter once
 
 #### Scenario: Parentheses in a name override
 - **GIVEN** `@StackTraceId(name = "id(x)") val id = "7"`
@@ -295,7 +291,7 @@ a `"-"` entry as described under "Ignoring receivers and parameters".
 - **THEN** that frame shows `order=Order#4711, note=rush`
 
 #### Scenario: Exact explicit class entry with annotated parameters
-- **GIVEN** `"com.acme.Order" = "getId()"` in `[augment.receiver]` and `"com.acme.Order.*" = "@"` in `[augment.params]`, and `fun ship(@StackTraceParam(name = "to") address: String)` in `Order`
+- **GIVEN** `"com.acme.Order" = "getId()"` in `[augment.receiver]` and `"com.acme.Order.*" = "@"` in `[augment.params]`, and `fun ship(@StackTraceParam to: String)` in `Order`
 - **WHEN** `ship("Main St")` throws
 - **THEN** that frame shows the receiver id `getId=…` and the parameter id `to=Main St`
 

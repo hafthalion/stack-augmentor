@@ -1,6 +1,6 @@
 @echo off
 rem Runs the demo (examples\java-agent) with the stack augmentor agent attached, the same way an
-rem application would: java -javaagent:<agent jar>=config=<properties> -cp <classpath> <main class>
+rem application would: java -javaagent:<agent jar>=config=<stack-augmentor.toml> -cp <classpath> <main class>
 rem
 rem Builds everything first (including the tests), plus the demo's lib folder.
 rem Extra arguments are passed to the JVM, e.g.  run.bat -Xshare:off

@@ -36,9 +36,9 @@ The system SHALL always print a warning to standard error, prefixed `[stack-augm
 A member missing for an entry with wildcards SHALL only be reported as a debug message.
 
 #### Scenario: Missing configured member
-- **GIVEN** `"com.thirdparty.Customer" = "nope"` and `debug = false`
+- **GIVEN** `"com.thirdparty.Customer" = "customerNo"`, a misspelling: `Customer` has a field `customerId`, but no field and no getter for `customerNo`; and `debug = false`
 - **WHEN** the id source of `Customer` is first needed
-- **THEN** `[stack-augmentor] WARN [augment.receiver] "com.thirdparty.Customer": no field nope found` is printed
+- **THEN** `[stack-augmentor] WARN [augment.receiver] "com.thirdparty.Customer": no field or property customerNo found` is printed
 
 #### Scenario: Missing member for a wildcard entry
 - **GIVEN** `"com.thirdparty.*" = "getId()"`, `debug = false`, and `com.thirdparty.Customer` without `getId()`

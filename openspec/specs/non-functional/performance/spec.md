@@ -18,8 +18,9 @@ SHALL only be created when an exception leaves the method.
 
 ### Requirement: Bounded cost on exceptions
 The work done when an exception leaves an instrumented method SHALL be limited to that exception: one
-search of its stack trace from the last handled frame, the id lookups for the frame, and one
-`setStackTrace`. The id source of each class SHALL be looked up once and cached.
+copy and one search of its stack trace from the last handled frame, one walk of the current thread's stack
+to find the exiting method's caller when a frame of the same class and method is found, the id lookups for
+the frame, and one `setStackTrace`. The id source of each class SHALL be looked up once and cached.
 
 #### Scenario: Repeated exceptions of one class
 - **GIVEN** a class whose id source is an annotated field

@@ -140,9 +140,6 @@ class StackTraceIdsTest {
         val e = assertThrows<IllegalStateException> { JavaFixture().run(5) }
         assertEquals("com.hafnium.it.fixtures.JavaFixture{key=java-1}", e.stackTrace[0].className)
         assertEquals("run{arg0=5}", e.stackTrace[0].methodName)
-
-        val named = assertThrows<IllegalStateException> { JavaFixture().named(6) }
-        assertEquals("named{count=6}", named.stackTrace[0].methodName)
     }
 
     @Test
@@ -197,7 +194,7 @@ class StackTraceIdsTest {
     fun `labels are kept free of parentheses`() {
         val e = assertThrows<IllegalStateException> { ParenLabels().fail(5) }
         assertEquals("com.hafnium.it.fixtures.ParenLabels{id{x}=7}", e.stackTrace[0].className)
-        assertEquals("fail{n{1}=5}", e.stackTrace[0].methodName)
+        assertEquals("fail{value=5}", e.stackTrace[0].methodName)
     }
 
     @Test

@@ -18,7 +18,8 @@ run on Java 25.
 ### Requirement: Java and Kotlin classes
 Instrumentation SHALL work for classes compiled from Java and from Kotlin, including Kotlin top-level
 functions, primary-constructor properties and data classes, and Java classes compiled with or without
-`-parameters`.
+`-parameters`. Parameter ids are labelled with the compiled parameter names, so Java code SHOULD be compiled with
+`javac -parameters`; without it, the labels are `arg<N>`.
 
 #### Scenario: Java class without parameter names
 - **GIVEN** a Java class compiled without `-parameters`

@@ -12,8 +12,4 @@ public class JavaFixture {
     public void run(@StackTraceParam int value) {
         throw new IllegalStateException("value " + value);
     }
-
-    public void named(@StackTraceParam(name = "count") int value) {
-        throw new IllegalStateException("value " + value);
-    }
 }

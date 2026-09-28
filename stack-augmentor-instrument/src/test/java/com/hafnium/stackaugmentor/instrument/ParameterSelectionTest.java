@@ -27,7 +27,7 @@ class ParameterSelectionTest {
 
     static class MethodLevel {
         @StackTraceParams
-        void move(@StackTraceParam(name = "sku") String item, int count) {
+        void move(@StackTraceParam String item, int count) {
         }
 
         void plain(String item) {
@@ -68,7 +68,7 @@ class ParameterSelectionTest {
         void fail(@StackTraceParam int x) {
         }
 
-        void failAnnotated(@StackTraceParam(name = "why") int y) {
+        void failAnnotated(@StackTraceParam int y) {
         }
     }
 
@@ -109,7 +109,7 @@ class ParameterSelectionTest {
     @Test
     void methodAndClassLevelAnnotations() {
         IdParameters parameters = new IdParameters(methods(Map.of(HERE_METHODS, List.of(new ParamRef.Annotations()))));
-        assertEquals(List.of("sku", "count"), labels(parameters, MethodLevel.class, "move"));
+        assertEquals(List.of("item", "count"), labels(parameters, MethodLevel.class, "move"));
         assertEquals(List.of(), labels(parameters, MethodLevel.class, "plain"));
         assertEquals(List.of("sku", "count"), labels(parameters, ClassLevel.class, "reserve"));
         assertEquals(List.of("sku"), labels(parameters, ClassLevel.class, "release"));
@@ -143,7 +143,7 @@ class ParameterSelectionTest {
                 .methods(Map.of(explicit + ".failAnnot*", List.of(new ParamRef.Annotations())))
                 .build());
         assertEquals(List.of(), labels(withMethods, Explicit.class, "fail"));
-        assertEquals(List.of("why"), labels(withMethods, Explicit.class, "failAnnotated"));
+        assertEquals(List.of("y"), labels(withMethods, Explicit.class, "failAnnotated"));
 
         // A class-level @StackTraceParams, enabled by method entries alone.
         IdParameters classLevel = new IdParameters(AugmentorConfig.builder()
@@ -238,7 +238,7 @@ class ParameterSelectionTest {
 
         // The "-" class entry drops Explicit's receiver id, not its parameters.
         assertEquals(List.of("x"), labels(parameters, Explicit.class, "fail"));
-        assertEquals(List.of("why"), labels(parameters, Explicit.class, "failAnnotated"));
+        assertEquals(List.of("y"), labels(parameters, Explicit.class, "failAnnotated"));
         assertTrue(matching.instrument(type(Explicit.class)));
         assertTrue(matching.describe(type(Explicit.class), matching.methods(type(Explicit.class))).contains("(parameter ids only)"));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("ignoring @StackTraceId in " + explicit + ": its [augment.receiver] entry \""
