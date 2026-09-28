@@ -221,7 +221,7 @@ public final class IdResolver {
             }
             case IdSpec.MethodSpec spec -> {
                 member = "method " + spec.memberName() + "()";
-                for (Class<?> type : lookupOrder(owner)) {
+                for (Class<?> type : methodLookupOrder(owner)) {
                     Method method = noArgumentMethod(type, spec.memberName());
                     if (method != null) {
                         source = methodSource(method, method.getName());
@@ -241,7 +241,7 @@ public final class IdResolver {
                 // Without a field, e.g. in an interface or for a Kotlin property without a backing field: its getter.
                 if (source == null) {
                     String getter = propertyGetter(spec.memberName());
-                    for (Class<?> type : lookupOrder(owner)) {
+                    for (Class<?> type : methodLookupOrder(owner)) {
                         Method method = noArgumentMethod(type, getter);
                         if (method != null) {
                             source = methodSource(method, spec.memberName());
@@ -324,6 +324,29 @@ public final class IdResolver {
         } else {
             for (Class<?> current = type; current != null && current != Object.class; current = current.getSuperclass()) {
                 order.add(current);
+            }
+        }
+        return order;
+    }
+
+    /**
+     * Where a configured method or getter is looked up: {@link #lookupOrder}, and for a class then the interfaces it and
+     * its superclasses implement, directly or not, nearest first, so that a default method a Java class inherits is
+     * found. Kotlin compiles such a method into the class as well.
+     */
+    private static List<Class<?>> methodLookupOrder(Class<?> type) {
+        List<Class<?>> order = lookupOrder(type);
+        if (type.isInterface()) {
+            return order;
+        }
+        List<Class<?>> classes = List.copyOf(order);
+        for (Class<?> current : classes) {
+            for (Class<?> implemented : current.getInterfaces()) {
+                for (Class<?> iface : lookupOrder(implemented)) {
+                    if (!order.contains(iface)) {
+                        order.add(iface);
+                    }
+                }
             }
         }
         return order;

@@ -72,7 +72,9 @@ inherits, SHALL NOT be instrumented, so their frames are unchanged. When several
 most characters other than `*` and `?` wins, with ties broken by the alphabetical order of the keys. A
 configured field or method SHALL be looked up in the matched class and its superclasses, including private
 members; for an interface, in the interface and the interfaces it extends, where an abstract method is
-called on the object. When no field of a configured name exists, as in an interface or for a Kotlin
+called on the object. A configured method or getter that a class does not declare itself SHALL then be looked up
+in the interfaces the class and its superclasses implement, nearest first, so that a Java class finds a default
+method it inherits, as a Kotlin class, which compiles it into the class, does. When no field of a configured name exists, as in an interface or for a Kotlin
 property without a backing field, the property's getter SHALL be used (`getName()`, or `isName()` for a
 name starting with `is`), with the configured name as the label.
 
@@ -80,6 +82,12 @@ name starting with `is`), with the configured name as the label.
 - **GIVEN** `"com.thirdparty.Order" = "getOrderNumber()"` in `[augment.receiver]`
 - **WHEN** an exception leaves a method of an `Order` with order number 4711
 - **THEN** that frame shows the receiver id `getOrderNumber=4711`
+
+#### Scenario: Default method of an implemented interface
+- **GIVEN** `"com.acme.Order" = "getId()"`, where the Java class `Order` implements `Identified`, whose default method `getId()` returns `id-7`
+- **WHEN** an exception leaves a method of an `Order`
+- **THEN** that frame shows the receiver id `getId=id-7`
+- **AND** with `"com.acme.Order" = "id"` and no field `id`, the frame shows `id=id-7`, read through the same getter
 
 #### Scenario: Configured member does not exist
 - **GIVEN** `"com.thirdparty.Customer" = "customerNo"` in `[augment.receiver]`, a misspelling: `Customer` has a field `customerId`, but no field and no getter for `customerNo`
