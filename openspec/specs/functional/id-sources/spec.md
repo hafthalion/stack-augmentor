@@ -30,9 +30,16 @@ The system SHALL use a non-static field or a non-static, no-argument method anno
 whose deciding `[augment.receiver]` entry is `"@"` (see "Annotations in use"). The
 annotated member SHALL be looked up in the class that the deciding entry matched and in its superclasses.
 In Kotlin, a property annotated in the primary constructor has the annotation on its field, because
-`@StackTraceId` does not target parameters. A member that cannot be made accessible SHALL be skipped with a
+`@StackTraceId` does not target parameters. A static member, a method with parameters and a synthetic method
+SHALL NOT be id sources, even when annotated, and SHALL NOT make a class count as annotated when the
+instrumentation decides which classes to change. A member that cannot be made accessible SHALL be skipped with a
 warning, and the lookup SHALL continue with the next annotated member. The annotation SHALL be matched by its class name, so that a copy of the API loaded by
 another class loader is also recognised.
+
+#### Scenario: Annotated method with parameters
+- **GIVEN** a class matched by an `"@"` entry whose only `@StackTraceId` member is `String idFor(int version)`
+- **WHEN** the instrumentation decides whether to change the class
+- **THEN** the class is not instrumented for a receiver id
 
 #### Scenario: Annotated field
 - **GIVEN** a class `ObjectClass` with `@StackTraceId val objectId = "object-1"`, matched by an `"@"` entry
@@ -94,6 +101,12 @@ name starting with `is`), with the configured name as the label.
 - **WHEN** the id source of `Customer` is first needed
 - **THEN** a warning `[augment.receiver] "com.thirdparty.Customer": no field or property customerNo found` is printed
 - **AND** frames of `Customer` show no receiver id
+
+#### Scenario: Configured member cannot be made accessible
+- **GIVEN** `"com.thirdparty.Customer" = "customerNo"`, where `Customer`'s private field `customerNo` is in a module package not opened to stack-augmentor
+- **WHEN** the id source of `Customer` is first needed
+- **THEN** a public getter `getCustomerNo()`, if there is one, gives the receiver id `customerNo=…` without a warning
+- **AND** without a usable getter, one warning `[augment.receiver] "com.thirdparty.Customer": cannot access private … customerNo` is printed, and no warning about a missing member
 
 #### Scenario: Kotlin interface property
 - **GIVEN** `"com.acme.Tracked" = "trackingCode"`, where the Kotlin interface `Tracked` declares `val trackingCode: String` and has a default method `track()`
@@ -277,7 +290,7 @@ class that declares the method, not its subclasses. The class pattern
 SHALL use the `[augment.receiver]` globs (`*` within one package segment, `**` across segments, `?` one
 character). In the method pattern, `*` SHALL match any sequence of characters and `?` one character. A key
 without wildcards SHALL match exactly. `<parameters>` SHALL be an array of parameter names and 0-based
-indexes, the string `"*"` for all parameters, or the string `"@"` for the parameters selected by the method's
+indexes (0 to 255), the string `"*"` for all parameters, or the string `"@"` for the parameters selected by the method's
 annotations: `@StackTraceParam` on its parameters, and `@StackTraceParams` on the method or on the class that
 declares it. Names and indexes that a matched method does not have
 SHALL be skipped. When several entries match one method, the parameters they select SHALL be combined, up to

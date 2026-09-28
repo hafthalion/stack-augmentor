@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -487,13 +488,17 @@ public final class AugmentorConfig {
 
             Builder config = builder();
             Map<String, IdSpec> classes = new LinkedHashMap<>();
+            Map<String, List<String>> classPaths = new HashMap<>();
             for (Entry entry : entries(CLASSES)) {
-                classes.put(classKey(entry.path()), classSpec(entry.path(), entry.value()));
+                String key = unique(classKey(entry.path()), entry.path(), classPaths);
+                classes.put(key, classSpec(entry.path(), entry.value()));
             }
             config.classes(classes);
             Map<String, List<ParamRef>> methods = new LinkedHashMap<>();
+            Map<String, List<String>> methodPaths = new HashMap<>();
             for (Entry entry : entries(METHODS)) {
-                methods.put(methodKey(entry.path()), paramRefs(entry.path(), entry.value()));
+                String key = unique(methodKey(entry.path()), entry.path(), methodPaths);
+                methods.put(key, paramRefs(entry.path(), entry.value()));
             }
             config.methods(methods);
             String frameFormat = value(plus(AUGMENT, "frameFormat"), String.class, "a string");
@@ -586,6 +591,21 @@ public final class AugmentorConfig {
             return entries;
         }
 
+        /**
+         * The key, unless another entry of the same table already names it: {@code "com.acme.Order"} and
+         * {@code com.acme.Order} are different TOML keys for the same class, and neither may silently win.
+         */
+        private String unique(String key, List<String> path, Map<String, List<String>> seen) {
+            List<String> first = seen.putIfAbsent(key, path);
+            if (first != null) {
+                TomlPosition position = toml.inputPositionOf(first);
+                String where = position != null ? " on line " + position.line() : "";
+                throw error(path, "'" + key + "' is configured twice; it is already configured" + where
+                        + " (quoted and unquoted keys name the same class)");
+            }
+            return key;
+        }
+
         private static String target(List<String> path, List<String> table) {
             return String.join(".", path.subList(table.size(), path.size()));
         }
@@ -653,7 +673,7 @@ public final class AugmentorConfig {
                 } else if (ref instanceof Long index && index >= 0 && index <= 255) {
                     refs.add(new ParamRef.ByIndex(index.intValue()));
                 } else {
-                    throw error(path, "invalid parameter '" + ref + "': use a parameter name or a 0-based index");
+                    throw error(path, "invalid parameter '" + ref + "': use a parameter name or a 0-based index from 0 to 255");
                 }
             }
             return refs;

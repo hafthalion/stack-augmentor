@@ -150,6 +150,22 @@ class IdResolverTest {
     }
 
     @Test
+    fun `a configured member that cannot be accessed is one warning, and its getter is used instead`() {
+        val err = ByteArrayOutputStream()
+        System.setErr(PrintStream(err, true, Charsets.UTF_8))
+        // java.lang is not opened to the unnamed module: Thread's fields cannot be made accessible.
+        val thread = Thread("worker-1")
+
+        assertEquals(NamedId("name", "worker-1"), resolver("java.lang.Thread" to IdSpec.FieldSpec("name")).receiverId(thread))
+        assertFalse(err.toString(Charsets.UTF_8).contains("WARN"), err.toString(Charsets.UTF_8))
+
+        assertNull(resolver("java.lang.Thread" to IdSpec.FieldSpec("eetop")).receiverId(thread))
+        val warnings = err.toString(Charsets.UTF_8).lines().filter { it.contains("WARN") }
+        assertEquals(1, warnings.size, warnings.toString())
+        assertTrue(warnings[0].contains("[augment.receiver] \"java.lang.Thread\": cannot access private volatile long java.lang.Thread.eetop"), warnings[0])
+    }
+
+    @Test
     fun `annotations need an entry`() {
         assertNull(resolver().receiverId(Annotated()))
         // An entry that is not "@" ignores the annotations.

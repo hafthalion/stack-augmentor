@@ -67,6 +67,29 @@ class ThrowHandlerTest {
     }
 
     @Test
+    fun `the context class loader provides the configuration that the runtime jar's loader does not see`(@TempDir dir: Path) {
+        Files.writeString(dir.resolve("stack-augmentor.toml"), "[augment.receiver]\n\"${Annotated::class.java.name}\" = \"@\"\n")
+        val thread = Thread.currentThread()
+        val originalLoader = thread.contextClassLoader
+        val originalErr = System.err
+        val err = ByteArrayOutputStream()
+        System.setErr(PrintStream(err, true, Charsets.UTF_8))
+        val target = Annotated()
+        val thrown = thrownBy(target)
+        try {
+            java.net.URLClassLoader(arrayOf(dir.toUri().toURL()), null).use { application ->
+                thread.contextClassLoader = application
+                ThrowHandler().onThrow(target, thrown, Annotated::class.java.name, "fail", null, null)
+            }
+        } finally {
+            thread.contextClassLoader = originalLoader
+            System.setErr(originalErr)
+        }
+        assertEquals(Annotated::class.java.name + "{objectId=a-1}", thrown.stackTrace[0].className)
+        assertTrue(!err.toString(Charsets.UTF_8).contains(ThrowHandler.NO_RUNTIME_CONFIG), err.toString(Charsets.UTF_8))
+    }
+
+    @Test
     fun `agent handler needs an entry`() {
         val target = Annotated()
         val thrown = thrownBy(target)
