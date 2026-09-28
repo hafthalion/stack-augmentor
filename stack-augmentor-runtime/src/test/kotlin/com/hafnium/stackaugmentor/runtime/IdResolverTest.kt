@@ -47,6 +47,11 @@ class IdResolverTest {
 
     data class Point(val x: Int)
 
+    class WithArrayId {
+        @StackTraceId
+        val codes = intArrayOf(1, 2)
+    }
+
     /** All classes of this test are in this package. */
     private val here = IdResolverTest::class.java.packageName + ".**"
     private val annotations = IdSpec.Annotations()
@@ -155,6 +160,11 @@ class IdResolverTest {
     fun `parentheses in receiver ids become braces`() {
         val resolver = resolver(name(Point::class.java) to IdSpec.MethodSpec("toString"))
         assertEquals(NamedId("toString", "Point{x=1}"), resolver.receiverId(Point(1)))
+    }
+
+    @Test
+    fun `an array receiver id shows its elements, like an argument`() {
+        assertEquals(NamedId("codes", "[1, 2]"), resolver(here to annotations).receiverId(WithArrayId()))
     }
 
     @Test

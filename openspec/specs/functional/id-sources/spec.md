@@ -190,6 +190,11 @@ throws SHALL be shown as `?`.
 - **THEN** the frame shows `order=Order#4711`, not the receiver id `4711`
 - **AND** `ship(null)` shows `order=null`
 
+#### Scenario: Array receiver id
+- **GIVEN** `@StackTraceId val codes = intArrayOf(1, 2)` in a class matched by an `"@"` entry
+- **WHEN** an exception leaves a method of that class
+- **THEN** the frame shows `codes=[1, 2]`, as an array argument would, not `[I@…`
+
 #### Scenario: Long and multi-line ids
 - **GIVEN** `maxIdLength = 20`
 - **WHEN** a receiver id is 50 characters long, or contains `line1\nline2`
