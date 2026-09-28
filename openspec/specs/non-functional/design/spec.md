@@ -50,15 +50,15 @@ re-entrant calls, and any `Throwable` from the handler SHALL be swallowed.
 - **THEN** `Dispatch.onThrow` returns immediately
 
 ### Requirement: Bridge on the bootstrap class path
-The agent SHALL embed the bridge jar as a resource, copy it to the temporary directory under a name
-derived from its SHA-256 hash (reusing an existing copy), and append it with
+The agent SHALL embed the bridge jar as a resource, copy it to a new file in the temporary directory that
+only the JVM's user can read, delete that file when the JVM exits, and append it with
 `Instrumentation.appendToBootstrapClassLoaderSearch` before any bridge class is referenced. It SHALL add
 read edges from instrumented modules to the bridge.
 
-#### Scenario: Repeated starts
-- **GIVEN** the agent has run before on the machine
-- **WHEN** it starts again with the same version
-- **THEN** it reuses the existing bridge copy instead of writing a new file
+#### Scenario: Several users on one machine
+- **GIVEN** another user's JVM has started with the agent on the same machine
+- **WHEN** the agent starts
+- **THEN** it writes and uses its own bridge copy, never a file another user created
 
 ### Requirement: Agent transformation strategy
 The agent SHALL instrument with ByteBuddy's `AgentBuilder` using `disableClassFormatChanges`, the
