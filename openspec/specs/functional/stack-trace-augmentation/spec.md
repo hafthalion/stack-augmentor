@@ -43,7 +43,9 @@ method that caught it and the frames below, SHALL be left unchanged.
 ### Requirement: Rewriting the frame
 The system SHALL find the frame of the method the exception left in the exception's own stack trace. It
 SHALL search from the frame after the last one handled for that exception, and match on class name and
-method name. It SHALL replace that frame with one whose class and method parts show the ids according to
+method name. When the handler is called from instrumented code, a matching frame SHALL also have the
+exiting method's caller below it (the same class, method and line), so that another frame of the same
+method is not taken for it; the bottom frame of a trace SHALL match without a frame below it. It SHALL replace that frame with one whose class and method parts show the ids according to
 the frame format, and SHALL keep the file name, the line number (including native methods) and the class
 loader or module prefix. It SHALL install the result with `setStackTrace`, so that every printer and
 logger shows the ids. A frame without any id SHALL be left unchanged.
@@ -57,6 +59,16 @@ logger shows the ids. A frame without any id SHALL be left unchanged.
 - **GIVEN** an exception whose stack trace does not contain the method it is leaving
 - **WHEN** it leaves an instrumented method
 - **THEN** its stack trace is not changed
+
+#### Scenario: Exception created by the caller in a recursion
+- **GIVEN** `Relay("a")`, whose `pass(depth)` creates an exception and passes it to `pass` of `Relay("b")`, which throws it
+- **WHEN** the exception leaves both calls
+- **THEN** the only `pass` frame in its stack trace, the one of `a` where it was created, shows `Relay{name=a}.pass{depth=0}`
+
+#### Scenario: Reused exception instance
+- **GIVEN** one exception instance that is thrown more than once, e.g. a preallocated static exception with a stack trace
+- **WHEN** it leaves instrumented methods the second time
+- **THEN** its frames keep what the first throw wrote, and no new ids are added (a known limitation)
 
 #### Scenario: Stack trace not writable
 - **GIVEN** an exception created with `writableStackTrace = false`

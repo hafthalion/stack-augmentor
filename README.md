@@ -123,7 +123,7 @@ The two kinds of ids are configured independently: `[augment.receiver]` decides 
 
 **Receiver id**: the object a frame runs on. It comes from the deciding `[augment.receiver]` entry of the class that declares the frame's method, and is read from the object. An entry applies only to the classes whose names it matches, not to their subclasses. The entry names:
 
-- a field, or a no-argument `method()`, looked up in that class and its superclasses (for an interface: in it and the interfaces it extends);
+- a field, or a no-argument `method()`, looked up in that class and its superclasses (for an interface: in it and the interfaces it extends); a name without a field, such as a Kotlin property of an interface, uses the property's getter (`code` reads `getCode()`);
 - `"@"`: the `@StackTraceId` on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`; or
 - `"-"`: nothing, so the class gets no receiver id. Its parameter ids are not affected.
 
@@ -141,7 +141,7 @@ A `TrackedOrder` shows `Order{id=…}.ship` in the frame of `Order.ship()`, and 
 
 Default methods of interfaces work the same way: with `"com.acme.Labeled" = "label()"`, the frame of `Labeled.relabel()` shows `Labeled{label=…}` whatever class implements it, with `label()` called on the object. The implementing class's entry does not apply to it, and without an entry for `Labeled` the frame is unchanged. Bridge methods are never instrumented, including the one Kotlin compiles into each implementing class to call the default method, so its frame stays as it is.
 
-The label is the real field or method name (`{objectId=…}`, `{getKey=…}`). `@StackTraceId(name = "…")` sets a different label.
+The label is the real field or method name (`{objectId=…}`, `{getKey=…}`). `@StackTraceId(name = "…")` sets a different label; like ids, labels are kept on one line, with braces instead of parentheses.
 
 **Parameter ids** are shown after the method name, in declaration order. `[augment.params]` entries `"<class>.<method>"` select them (see [Configuration](#configuration)):
 - by name or by 0-based index, e.g. `["order", 2]`;
@@ -260,6 +260,7 @@ When an exception leaves such a method, the advice passes `this`, the id argumen
 
 - **Only frames the exception passed through get ids.** If an exception is caught and logged in method `m`, then `m` and the frames below it show no ids.
 - **Constructors are not instrumented.**
+- **An exception instance that is thrown more than once keeps the ids of its first throw.** Its stack trace is recorded once, when it is created, so a preallocated exception that is thrown repeatedly shows the ids of the first time it left each method, and later throws add none.
 - **Parameter values are read when the exception leaves the method.** A parameter that was reassigned shows its new value.
 - **Class and method names in the `StackTraceElement`s change.** Tools that parse stack traces (IDE links, error grouping) may not recognise the changed frames.
 - **With the agent, the JVM prints `Sharing is only supported for boot loader classes because bootstrap classpath has been appended`** at startup. This is expected, because the agent extends the bootstrap class path; add `-Xshare:off` to silence it.
