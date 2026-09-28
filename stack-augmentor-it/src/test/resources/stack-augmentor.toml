@@ -31,6 +31,11 @@ maxParams = 8
 "com.hafnium.it.inheritance.Repository" = "name"
 # ... while a pattern matches every class whose name fits, generated subclasses in the package included
 "com.hafnium.it.inheritance.patterned.*" = "code"
+# Pattern precedence: the more specific pattern wins, and an entry without wildcards wins over any pattern
+"com.hafnium.it.inheritance.ranked.**" = "code"
+"com.hafnium.it.inheritance.ranked.excluded.*" = "-"
+"com.hafnium.it.inheritance.ranked.excluded.Kept" = "code"
+"com.hafnium.it.inheritance.ranked.special.*" = "tag"
 
 [augment.params]
 # The fixtures' parameter ids come from their @StackTraceParam and @StackTraceParams

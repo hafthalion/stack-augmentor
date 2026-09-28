@@ -19,6 +19,10 @@ import com.hafnium.it.inheritance.SeaShipment
 import com.hafnium.it.inheritance.TrackedOrder
 import com.hafnium.it.inheritance.patterned.Customer
 import com.hafnium.it.inheritance.patterned.VipCustomer
+import com.hafnium.it.inheritance.ranked.Account
+import com.hafnium.it.inheritance.ranked.excluded.Dropped
+import com.hafnium.it.inheritance.ranked.excluded.Kept
+import com.hafnium.it.inheritance.ranked.special.Tagged
 import net.bytebuddy.ByteBuddy
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy
 import net.bytebuddy.implementation.SuperMethodCall
@@ -385,6 +389,43 @@ class InheritanceTest {
                 "com.hafnium.it.inheritance.LocalCustomer",
                 frame("LocalCustomer(\"l-1\").relocate()", LocalCustomer("l-1"), "relocate") { it.relocate() }.className,
             )
+        }
+    }
+
+    @Nested
+    @DisplayName("Pattern precedence")
+    inner class PatternPrecedence {
+
+        private val ranked = "com.hafnium.it.inheritance.ranked"
+
+        @Test
+        fun `a class matched only by a broad pattern shows its id`() {
+            assertEquals("$ranked.Account{code=a-1}", frame("Account(\"a-1\").close()", Account("a-1"), "close") { it.close() }.className)
+        }
+
+        @Test
+        fun `a more specific "-" pattern wins over a broader pattern`() {
+            assertEquals("$ranked.excluded.Dropped", frame("Dropped(\"x-1\").drop()", Dropped("x-1"), "drop") { it.drop() }.className)
+        }
+
+        @Test
+        fun `a method inherited by a class excluded by a "-" pattern shows the superclass's id`() {
+            assertEquals("$ranked.Account{code=x-1}", frame("Dropped(\"x-1\").close()", Dropped("x-1"), "close") { it.close() }.className)
+        }
+
+        @Test
+        fun `an entry without wildcards wins over a "-" pattern`() {
+            assertEquals("$ranked.excluded.Kept{code=k-1}", frame("Kept(\"k-1\").keep()", Kept("k-1"), "keep") { it.keep() }.className)
+        }
+
+        @Test
+        fun `a more specific pattern wins over a broader one`() {
+            assertEquals("$ranked.special.Tagged{tag=vip}", frame("Tagged(\"t-1\", \"vip\").label()", Tagged("t-1", "vip"), "label") { it.label() }.className)
+        }
+
+        @Test
+        fun `a method inherited from a class matched by the broader pattern shows that pattern's id`() {
+            assertEquals("$ranked.Account{code=t-1}", frame("Tagged(\"t-1\", \"vip\").close()", Tagged("t-1", "vip"), "close") { it.close() }.className)
         }
     }
 
