@@ -2,7 +2,7 @@ package com.hafnium.stackaugmentor.agent;
 
 import com.hafnium.stackaugmentor.runtime.AugmentorConfig;
 import com.hafnium.stackaugmentor.runtime.FrameFormat;
-import com.hafnium.stackaugmentor.runtime.Log;
+import com.hafnium.stackaugmentor.runtime.Startup;
 
 import java.lang.instrument.Instrumentation;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -16,9 +16,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class StackAugmentorAgent {
 
     private static final AtomicBoolean STARTED = new AtomicBoolean();
-
-    static final String NOTHING_CONFIGURED =
-            "the configuration has no [augment.receiver] or [augment.params] entries, so nothing will be augmented";
 
     private StackAugmentorAgent() {
     }
@@ -36,26 +33,12 @@ public final class StackAugmentorAgent {
             return;
         }
         // Invalid configuration stops the JVM here, with the reason in the message.
-        AugmentorConfig config = AugmentorConfig.load(agentArgs);
+        AugmentorConfig config = Startup.load(Startup.AGENT, () -> AugmentorConfig.load(agentArgs));
         FrameFormat format = FrameFormat.create(config);
-        Log.setDebug(config.debug());
-        logConfiguration(agentArgs, config);
-        if (!config.hasAugmentEntries()) {
-            Log.warn(NOTHING_CONFIGURED);
-        }
+        String location = AugmentorConfig.location(agentArgs);
+        Startup.configure(Startup.AGENT, location != null ? location : "none, using the defaults", config);
+        Startup.warnIfNothingConfigured(Startup.AGENT, config);
         BridgeInjector.inject(instrumentation);
         Installer.install(instrumentation, config, format);
-    }
-
-    private static void logConfiguration(String agentArgs, AugmentorConfig config) {
-        if (!Log.isDebug()) {
-            return;
-        }
-        String location = AugmentorConfig.location(agentArgs);
-        Log.debug(() -> "configuration: " + (location != null ? location : "none, using the defaults"));
-        Log.debug(() -> "[augment.receiver]: " + config.classesDescription());
-        Log.debug(() -> "[augment.params]: " + config.methodsDescription());
-        Log.debug(() -> "format: " + config.frameFormat() + " / " + config.receiverFormat() + " / " + config.paramsFormat()
-                + ", maxIdLength=" + config.maxIdLength() + ", maxParams=" + config.maxParams());
     }
 }

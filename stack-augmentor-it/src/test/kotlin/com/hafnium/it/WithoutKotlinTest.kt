@@ -56,6 +56,8 @@ class WithoutKotlinTest {
         assertEquals(0, result.exitCode, result.output)
         assertTrue(result.output.contains("at com.hafnium.it.fixtures.JavaFixture{key=java-1}.run{arg0=42}(JavaFixture.java:"), result.output)
         // Debug output exercises the logging, configuration and matching code paths as well.
+        assertTrue(result.output.contains("[stack-augmentor] DEBUG agent: configuration "), result.output)
+        assertTrue(result.output.contains("[stack-augmentor] DEBUG agent: [augment] frameFormat="), result.output)
         assertTrue(result.output.contains("[stack-augmentor] DEBUG instrumenting com.hafnium.it.fixtures.JavaFixture"), result.output)
         assertTrue(result.output.contains("[stack-augmentor] DEBUG id source of com.hafnium.it.fixtures.JavaFixture"), result.output)
         assertNoKotlin(result.output)
@@ -67,7 +69,7 @@ class WithoutKotlinTest {
         assertEquals(0, result.exitCode, result.output)
         assertTrue(
             result.output.contains(
-                "[stack-augmentor] WARN the configuration has no [augment.receiver] or [augment.params] entries, " +
+                "[stack-augmentor] WARN agent: the configuration has no [augment.receiver] or [augment.params] entries, " +
                     "so nothing will be augmented",
             ),
             result.output,
@@ -81,7 +83,7 @@ class WithoutKotlinTest {
         val result = run(config(dir, "debug = false\n[augment]\nmaxIdLength = 1\n"))
         assertNotEquals(0, result.exitCode, result.output)
         assertTrue(
-            result.output.contains("stack-augmentor.toml, line 3: maxIdLength must be between 2 and 10000, was 1"),
+            result.output.contains("[stack-augmentor] ERROR agent: stack-augmentor.toml, line 3: maxIdLength must be between 2 and 10000, was 1"),
             result.output,
         )
         assertNoKotlin(result.output)

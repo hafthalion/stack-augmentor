@@ -12,24 +12,16 @@ import com.hafnium.stackaugmentor.runtime.ThrowHandler;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.description.method.MethodDescription;
-import net.bytebuddy.description.type.TypeDescription;
 import net.bytebuddy.dynamic.Nexus;
 import net.bytebuddy.dynamic.loading.ClassInjector;
 import net.bytebuddy.matcher.ElementMatcher;
 
 import java.lang.instrument.Instrumentation;
-import java.util.List;
 
 import static net.bytebuddy.matcher.ElementMatchers.any;
 import static net.bytebuddy.matcher.ElementMatchers.isBootstrapClassLoader;
-import static net.bytebuddy.matcher.ElementMatchers.isSynthetic;
-import static net.bytebuddy.matcher.ElementMatchers.nameStartsWith;
 
 final class Installer {
-
-    // Written without the trailing dot, so the shadow jar's relocation leaves them alone.
-    private static final List<String> IGNORED_PACKAGES = List.of(
-            "java", "javax", "jdk", "sun", "com.sun", "kotlin", "net.bytebuddy", "com.hafnium.stackaugmentor");
 
     private Installer() {
     }
@@ -47,11 +39,6 @@ final class Installer {
         TypeMatching matching = new TypeMatching(config, parameters);
         Advice advice = ExitAdviceFactory.create(parameters);
 
-        ElementMatcher.Junction<TypeDescription> ignored = isSynthetic();
-        for (String prefix : IGNORED_PACKAGES) {
-            ignored = ignored.or(nameStartsWith(prefix + "."));
-        }
-
         new AgentBuilder.Default()
                 .disableClassFormatChanges()
                 .with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION)
@@ -63,7 +50,8 @@ final class Installer {
                         ? AgentBuilder.Listener.StreamWriting.toSystemError().withErrorsOnly()
                         : AgentBuilder.Listener.NoOp.INSTANCE)
                 .assureReadEdgeTo(instrumentation, Dispatch.class)
-                .ignore(ignored)
+                // The same types are left alone as by the build plugin.
+                .ignore(TypeMatching.IGNORED)
                 .or(any(), isBootstrapClassLoader())
                 .type(matching::instrument)
                 .transform((builder, type, classLoader, module, protectionDomain) -> {

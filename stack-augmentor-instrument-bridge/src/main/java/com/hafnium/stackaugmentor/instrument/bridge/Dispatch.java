@@ -16,6 +16,9 @@ public final class Dispatch {
         void onThrow(Object self, Throwable thrown, String owner, String method, Object[] paramValues, String[] paramNames);
     }
 
+    /** Matched by name: this module has no dependencies. */
+    private static final String CONFIG_EXCEPTION = "com.hafnium.stackaugmentor.runtime.ConfigException";
+
     private static volatile Handler handler;
     private static volatile boolean lookedUp;
 
@@ -60,12 +63,25 @@ public final class Dispatch {
                         break;
                     }
                 } catch (Throwable error) {
-                    System.err.println("[stack-augmentor] WARN cannot create the stack trace handler: " + error);
+                    System.err.println("[stack-augmentor] WARN runtime: cannot create the stack trace handler, so stack traces "
+                            + "stay unchanged: " + reason(error));
                 } finally {
                     lookedUp = true;
                 }
             }
             return handler;
         }
+    }
+
+    /**
+     * What went wrong: {@code ServiceLoader} wraps the handler's exception. An invalid configuration was already printed
+     * with its file, key and line by the handler.
+     */
+    private static String reason(Throwable error) {
+        Throwable cause = error;
+        while (cause.getCause() != null && cause.getCause() != cause) {
+            cause = cause.getCause();
+        }
+        return cause.getClass().getName().equals(CONFIG_EXCEPTION) ? "the configuration is invalid" : cause.toString();
     }
 }

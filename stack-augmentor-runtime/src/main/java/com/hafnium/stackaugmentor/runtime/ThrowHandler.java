@@ -26,7 +26,7 @@ public final class ThrowHandler implements Dispatch.Handler {
 
     public static final String CLASSPATH_CONFIG = "stack-augmentor.toml";
 
-    static final String NO_RUNTIME_CONFIG = "build-time instrumentation: no " + CLASSPATH_CONFIG + " on the classpath and no -D"
+    static final String NO_RUNTIME_CONFIG = "no " + CLASSPATH_CONFIG + " on the classpath and no -D"
             + AugmentorConfig.CONFIG_PROPERTY + ", so frames show no receiver ids";
 
     /** Reflection frames are part of stack traces, so the walker shows them too. */
@@ -154,25 +154,24 @@ public final class ThrowHandler implements Dispatch.Handler {
         });
     }
 
-    /** The configuration for build-time instrumentation: the system property, then the classpath, then the defaults. */
+    /**
+     * The configuration for build-time instrumentation: the system property, then the classpath, then the defaults. An
+     * invalid one is printed as an error; {@link Dispatch} then warns that there is no handler.
+     */
     private static AugmentorConfig runtimeConfig() {
-        AugmentorConfig config;
-        String source;
         String location = AugmentorConfig.location(null);
-        URL resource;
-        if (location != null) {
-            config = AugmentorConfig.load((String) null);
-            source = location;
-        } else if ((resource = classpathConfig()) != null) {
-            config = AugmentorConfig.parse(read(resource), CLASSPATH_CONFIG);
-            source = resource.toString();
-        } else {
-            config = new AugmentorConfig();
-            source = "none, using the defaults";
-            Log.warn(NO_RUNTIME_CONFIG);
+        URL resource = location == null ? classpathConfig() : null;
+        AugmentorConfig config = Startup.load(Startup.RUNTIME, () -> {
+            if (location != null) {
+                return AugmentorConfig.load((String) null);
+            }
+            return resource != null ? AugmentorConfig.parse(read(resource), CLASSPATH_CONFIG) : new AugmentorConfig();
+        });
+        Startup.configure(Startup.RUNTIME, location != null ? location : resource != null ? resource.toString() : "none, using the defaults",
+                config);
+        if (location == null && resource == null) {
+            Log.warn(Startup.RUNTIME + ": " + NO_RUNTIME_CONFIG);
         }
-        Log.setDebug(config.debug());
-        Log.debug(() -> "build-time instrumentation, configuration: " + source);
         return config;
     }
 

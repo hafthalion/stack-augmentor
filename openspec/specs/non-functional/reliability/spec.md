@@ -37,10 +37,16 @@ SHALL be converted to text immediately, and per-exception state SHALL be held we
 
 ### Requirement: Fail fast on invalid configuration
 An invalid configuration SHALL stop the JVM when the agent starts, or fail the build when the build
-plugin is created, with a message naming the file, the key and the line. It SHALL NOT be silently
-ignored.
+plugin is created, with a message naming the file, the key and the line. With build-time instrumentation, an
+invalid runtime configuration SHALL be printed as an error with the file, the key and the line, and the
+application SHALL keep running with unchanged stack traces. It SHALL NOT be silently ignored.
 
 #### Scenario: Typo in a key
 - **GIVEN** `[augment]` with `frameformat = "…"`
 - **WHEN** the agent starts
 - **THEN** the JVM stops with a message naming the unknown key `frameformat` and the allowed keys
+
+#### Scenario: Invalid runtime configuration of build-time instrumentation
+- **GIVEN** a build-time instrumented application whose `stack-augmentor.toml` on the classpath has `frameformat = "…"`
+- **WHEN** the first exception leaves an instrumented method
+- **THEN** an error names the file, the unknown key `frameformat` and its line, and the exception is thrown with its original stack trace

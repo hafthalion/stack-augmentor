@@ -252,15 +252,18 @@ public final class IdResolver {
             }
         }
         if (source == null) {
-            String message = "[augment.receiver] \"" + entry.key() + "\": no " + member + " found";
-            if (entry.isPattern()) {
+            if (!entry.isPattern()) {
+                Log.warn(missingMember(entry, member));
+            } else if (Log.isDebug()) {
                 // A pattern is not expected to fit every class it matches.
-                Log.debug(() -> message + " in " + owner.getName());
-            } else {
-                Log.warn(message);
+                Log.debug(() -> missingMember(entry, member) + " in " + owner.getName());
             }
         }
         return source;
+    }
+
+    private static String missingMember(AugmentorConfig.ClassEntry entry, String member) {
+        return "[augment.receiver] \"" + entry.key() + "\": no " + member + " found";
     }
 
     /** The JVM name of a Kotlin property's getter: {@code id} has {@code getId()}, {@code isActive} has {@code isActive()}. */

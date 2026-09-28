@@ -16,9 +16,24 @@ import java.util.stream.Collectors;
 
 import static com.hafnium.stackaugmentor.instrument.ClassEntries.firstInHierarchy;
 import static com.hafnium.stackaugmentor.instrument.IdParameters.annotation;
+import static net.bytebuddy.matcher.ElementMatchers.isSynthetic;
+import static net.bytebuddy.matcher.ElementMatchers.nameStartsWith;
 
 /** Decides which types and methods get the exit advice. */
 public final class TypeMatching {
+
+    /**
+     * ByteBuddy's package is joined at runtime: the agent's shadow jar relocation rewrites the string constant
+     * {@code "net.bytebuddy"} to the relocated package, which would leave the application's own ByteBuddy instrumentable.
+     */
+    private static final List<String> IGNORED_PACKAGES = List.of(
+            "java", "javax", "jdk", "sun", "com.sun", "kotlin", String.join(".", "net", "bytebuddy"), "com.hafnium.stackaugmentor");
+
+    /**
+     * Types that the agent and the build plugin never instrument, whatever the configuration: synthetic types, and those
+     * of the JDK, Kotlin, ByteBuddy and stack-augmentor itself. Checked before {@link #instrument}.
+     */
+    public static final ElementMatcher.Junction<TypeDescription> IGNORED = ignored();
 
     private final IdParameters parameters;
     private final ClassEntries classEntries;
@@ -41,6 +56,14 @@ public final class TypeMatching {
             logIgnoredAnnotations(type);
         }
         return instrument;
+    }
+
+    private static ElementMatcher.Junction<TypeDescription> ignored() {
+        ElementMatcher.Junction<TypeDescription> ignored = isSynthetic();
+        for (String prefix : IGNORED_PACKAGES) {
+            ignored = ignored.or(nameStartsWith(prefix + "."));
+        }
+        return ignored;
     }
 
     /** One line for the debug log: why the type is instrumented, and which methods get which parameter ids. */
