@@ -40,8 +40,10 @@ byteBuddy {
 }
 
 tasks.matching { it.name == "byteBuddyKotlin" }.configureEach {
-    // Re-instrument when the configuration changes (the task is registered after evaluation).
+    // Re-instrument when the configuration or the build plugin's code changes (the task is registered after
+    // evaluation, and does not track either by itself).
     inputs.file(stackAugmentorConfig)
+    inputs.files(configurations.named("byteBuddy")).withNormalizer(ClasspathNormalizer::class.java)
 }
 
 application {

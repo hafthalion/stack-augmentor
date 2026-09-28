@@ -141,7 +141,7 @@ A `TrackedOrder` shows `Order{id=…}.ship` in the frame of `Order.ship()`, and 
 
 Default methods of interfaces work the same way: with `"com.acme.Labeled" = "label()"`, the frame of `Labeled.relabel()` shows `Labeled{label=…}` whatever class implements it, with `label()` called on the object. The implementing class's entry does not apply to it, and without an entry for `Labeled` the frame is unchanged. Bridge methods are never instrumented, including the one Kotlin compiles into each implementing class to call the default method, so its frame stays as it is.
 
-The label is the real field or method name (`{objectId=…}`, `{getKey=…}`). `@StackTraceId(name = "…")` sets a different label; like ids, labels are kept on one line, with braces instead of parentheses.
+The label is the real field or method name (`{objectId=…}`, `{getKey=…}`); it cannot be changed.
 
 **Parameter ids** are shown after the method name, in declaration order. `[augment.params]` entries `"<class>.<method>"` select them (see [Configuration](#configuration)):
 - by name or by 0-based index (0 to 255), e.g. `["order", 2]`;

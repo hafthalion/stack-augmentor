@@ -16,7 +16,6 @@ import com.hafnium.it.fixtures.ObjectClass
 import com.hafnium.it.fixtures.ParenLabels
 import com.hafnium.it.fixtures.Plain
 import com.hafnium.it.fixtures.Relay
-import com.hafnium.it.fixtures.Renamed
 import com.hafnium.it.fixtures.Shipping
 import com.hafnium.it.fixtures.WithToString
 import com.hafnium.it.fixtures.staticWithParam
@@ -57,12 +56,6 @@ class StackTraceIdsTest {
     fun `receiver id from an annotated method uses the method name`() {
         val e = assertThrows<IllegalStateException> { KeyedByMethod().fail() }
         assertEquals("com.hafnium.it.fixtures.KeyedByMethod{key=k-1}", e.stackTrace[0].className)
-    }
-
-    @Test
-    fun `annotation name overrides the label`() {
-        val e = assertThrows<IllegalStateException> { Renamed().fail() }
-        assertEquals("com.hafnium.it.fixtures.Renamed{user=bob}", e.stackTrace[0].className)
     }
 
     @Test
@@ -191,9 +184,9 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `labels are kept free of parentheses`() {
+    fun `ids are kept free of parentheses`() {
         val e = assertThrows<IllegalStateException> { ParenLabels().fail(5) }
-        assertEquals("com.hafnium.it.fixtures.ParenLabels{id{x}=7}", e.stackTrace[0].className)
+        assertEquals("com.hafnium.it.fixtures.ParenLabels{id=id{7}}", e.stackTrace[0].className)
         assertEquals("fail{value=5}", e.stackTrace[0].methodName)
     }
 
