@@ -10,7 +10,9 @@ import net.bytebuddy.description.type.TypeDescription;
 import net.bytebuddy.matcher.ElementMatcher;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.hafnium.stackaugmentor.instrument.ClassEntries.firstInHierarchy;
@@ -66,10 +68,30 @@ public final class TypeMatching {
         return "instrumenting " + type.getName() + " (" + reason + "): " + String.join(", ", instrumented);
     }
 
-    /** Instance methods get a receiver id; other methods are only instrumented for their id parameters. */
+    /**
+     * Instance methods get a receiver id; other methods are only instrumented for their id parameters.
+     *
+     * <p>Only the methods that the type declares, checked by their name and descriptor: ByteBuddy may offer a
+     * method of the type's class file as the method it resolves to. Kotlin compiles a class that inherits an
+     * interface's default method with a bridge method of the same signature, which ByteBuddy offers as the default
+     * method itself, so checking the offered method would instrument the bridge.
+     */
     public ElementMatcher<MethodDescription> methods(TypeDescription type) {
         boolean receiver = receiverRelevant(type);
-        return method -> isCandidate(method) && ((receiver && !method.isStatic()) || !parameters.select(type, method).isEmpty());
+        Map<String, MethodDescription> declared = new HashMap<>();
+        for (MethodDescription method : type.getDeclaredMethods()) {
+            if (isCandidate(method)) {
+                declared.put(signature(method), method);
+            }
+        }
+        return offered -> {
+            MethodDescription method = declared.get(signature(offered));
+            return method != null && ((receiver && !method.isStatic()) || !parameters.select(type, method).isEmpty());
+        };
+    }
+
+    private static String signature(MethodDescription method) {
+        return method.getInternalName() + method.getDescriptor();
     }
 
     private boolean hasIdParameters(TypeDescription type) {

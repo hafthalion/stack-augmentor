@@ -5,11 +5,14 @@ import com.hafnium.it.inheritance.DiscontinuedOrder
 import com.hafnium.it.inheritance.ExpressOrder
 import com.hafnium.it.inheritance.GiftOrder
 import com.hafnium.it.inheritance.Invoice
+import com.hafnium.it.inheritance.JavaParcel
 import com.hafnium.it.inheritance.LocalCustomer
 import com.hafnium.it.inheritance.Order
 import com.hafnium.it.inheritance.OrderRepository
 import com.hafnium.it.inheritance.OrderService
+import com.hafnium.it.inheritance.Pallet
 import com.hafnium.it.inheritance.Parcel
+import com.hafnium.it.inheritance.ParcelRepository
 import com.hafnium.it.inheritance.Priority
 import com.hafnium.it.inheritance.Repository
 import com.hafnium.it.inheritance.ReturnOrder
@@ -261,25 +264,75 @@ class InheritanceTest {
             val own = trace.filter { it.className.startsWith("com.hafnium.it.inheritance.OrderRepository") }
             assertTrue(own.isNotEmpty() && own.all { it.className == "com.hafnium.it.inheritance.OrderRepository" }, own.toString())
         }
+
+        @Test
+        fun `a generic override with an entry shows its id, and its bridge method is unchanged`() {
+            val repository: Repository<Parcel> = ParcelRepository()
+            val trace = trace("(ParcelRepository() as Repository<Parcel>).save(Parcel(\"p3\"))", repository, "save") { it.save(Parcel("p3")) }
+            val repositoryFrames = trace.takeWhile { !it.className.startsWith(InheritanceTest::class.java.name) }.map { it.className }
+            assertEquals(
+                listOf(
+                    "com.hafnium.it.inheritance.Repository{name=parcels}",
+                    "com.hafnium.it.inheritance.ParcelRepository{name=parcels}",
+                    // The bridge save(Object), which calls save(Parcel).
+                    "com.hafnium.it.inheritance.ParcelRepository",
+                ),
+                repositoryFrames.take(3),
+            )
+        }
     }
 
     @Nested
     @DisplayName("Interfaces")
     inner class Interfaces {
 
+        private val labeled = "com.hafnium.it.inheritance.Labeled"
+
         @Test
-        fun `a default method shows the id of the implementing class's entry, not the interface's`() {
+        fun `a default method shows the interface's id, not the implementing class's`() {
             val trace = trace("Parcel(\"p1\").relabel()", Parcel("p1"), "relabel") { it.relabel() }
-            assertEquals("com.hafnium.it.inheritance.Labeled{code=p1}", trace[0].className)
-            // Kotlin compiles a method into Parcel that calls the default method.
-            assertEquals("com.hafnium.it.inheritance.Parcel{code=p1}", trace[1].className)
+            assertEquals("$labeled{label=parcel-p1}", trace[0].className)
+            // Kotlin compiles a bridge method into Parcel that calls the default method: it is not instrumented.
+            assertEquals("com.hafnium.it.inheritance.Parcel", trace[1].className)
         }
 
         @Test
-        fun `a default method is unchanged when the implementing class has no entry`() {
+        fun `a default method shows the interface's id when the implementing class has no entry`() {
             val trace = trace("Crate(\"c1\").relabel()", Crate("c1"), "relabel") { it.relabel() }
-            assertEquals("com.hafnium.it.inheritance.Labeled", trace[0].className)
+            assertEquals("$labeled{label=crate-c1}", trace[0].className)
             assertEquals("com.hafnium.it.inheritance.Crate", trace[1].className)
+        }
+
+        @Test
+        fun `a default method of an interface without an entry is unchanged, whatever the implementing class`() {
+            val parcel = trace("Parcel(\"p2\").seal()", Parcel("p2"), "seal") { it.seal() }
+            assertEquals("com.hafnium.it.inheritance.Sealable", parcel[0].className)
+            assertEquals("com.hafnium.it.inheritance.Parcel", parcel[1].className)
+            val crate = trace("Crate(\"c2\").seal()", Crate("c2"), "seal") { it.seal() }
+            assertEquals("com.hafnium.it.inheritance.Sealable", crate[0].className)
+            assertEquals("com.hafnium.it.inheritance.Crate", crate[1].className)
+        }
+
+        @Test
+        fun `a default method of an extending interface shows its id, from a member of the extended interface`() {
+            val trace = trace("Pallet(\"x1\").track()", Pallet("x1"), "track") { it.track() }
+            assertEquals("com.hafnium.it.inheritance.Tracked{label=pallet-x1}", trace[0].className)
+            assertEquals("com.hafnium.it.inheritance.Pallet", trace[1].className)
+        }
+
+        @Test
+        fun `a default method inherited through an extending interface shows the declaring interface's id`() {
+            val trace = trace("Pallet(\"x2\").relabel()", Pallet("x2"), "relabel") { it.relabel() }
+            assertEquals("$labeled{label=pallet-x2}", trace[0].className)
+            assertEquals("com.hafnium.it.inheritance.Pallet", trace[1].className)
+        }
+
+        @Test
+        fun `a default method compiled by javac shows the interface's id`() {
+            val trace = trace("JavaParcel(\"j1\").relabel()", JavaParcel("j1"), "relabel") { it.relabel() }
+            assertEquals("com.hafnium.it.inheritance.JavaLabeled{label=java-parcel-j1}", trace[0].className)
+            // javac adds no method to JavaParcel: the next frame is the caller's.
+            assertTrue(trace[1].className.startsWith(InheritanceTest::class.java.name), trace[1].className)
         }
     }
 

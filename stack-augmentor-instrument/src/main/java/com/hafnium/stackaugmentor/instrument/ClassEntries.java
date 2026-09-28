@@ -5,6 +5,11 @@ import com.hafnium.stackaugmentor.runtime.IdSpec;
 import net.bytebuddy.description.type.TypeDefinition;
 import net.bytebuddy.description.type.TypeDescription;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -59,9 +64,13 @@ final class ClassEntries {
 
     /**
      * The first of the type and its superclasses that matches, stopping at {@code Object} or at a superclass that
-     * cannot be resolved. Superclasses are only resolved as far as needed.
+     * cannot be resolved. Superclasses are only resolved as far as needed. For an interface: the first of the
+     * interface and the interfaces it extends, directly or not, nearest first.
      */
     static TypeDescription firstInHierarchy(TypeDescription type, Predicate<TypeDescription> predicate) {
+        if (type.isInterface()) {
+            return firstInInterfaces(type, predicate);
+        }
         TypeDefinition current = type;
         while (current != null) {
             TypeDescription erasure = current.asErasure();
@@ -75,6 +84,28 @@ final class ClassEntries {
                 current = current.getSuperClass();
             } catch (RuntimeException e) {
                 return null;
+            }
+        }
+        return null;
+    }
+
+    private static TypeDescription firstInInterfaces(TypeDescription type, Predicate<TypeDescription> predicate) {
+        Deque<TypeDescription> queue = new ArrayDeque<>(List.of(type));
+        Set<TypeDescription> seen = new HashSet<>();
+        while (!queue.isEmpty()) {
+            TypeDescription current = queue.removeFirst();
+            if (!seen.add(current)) {
+                continue;
+            }
+            if (predicate.test(current)) {
+                return current;
+            }
+            try {
+                for (TypeDefinition superInterface : current.getInterfaces()) {
+                    queue.addLast(superInterface.asErasure());
+                }
+            } catch (RuntimeException e) {
+                // an interface that cannot be resolved: its superinterfaces are skipped
             }
         }
         return null;
