@@ -23,28 +23,25 @@ import com.hafnium.it.inheritance.ranked.Account
 import com.hafnium.it.inheritance.ranked.excluded.Dropped
 import com.hafnium.it.inheritance.ranked.excluded.Kept
 import com.hafnium.it.inheritance.ranked.special.Tagged
+import com.hafnium.it.report.FrameReport
+import com.hafnium.it.report.ReceiverEntries
 import net.bytebuddy.ByteBuddy
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy
 import net.bytebuddy.implementation.SuperMethodCall
 import net.bytebuddy.matcher.ElementMatchers.isDeclaredBy
 import net.bytebuddy.matcher.ElementMatchers.not
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInfo
-import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.mockito.Answers
 import org.mockito.MockMakers
 import org.mockito.Mockito
 import org.springframework.cglib.core.SpringNamingPolicy
 import org.springframework.cglib.proxy.Enhancer
 import org.springframework.cglib.proxy.NoOp
-import java.lang.reflect.Modifier
-import java.nio.file.Files
 import java.nio.file.Path
 
 /**
@@ -53,93 +50,18 @@ import java.nio.file.Path
  * method, read from the object: a subclass, e.g. a proxy or a mock, shows the id of Order in the frames of Order's
  * methods, but its own methods are only instrumented with an entry of its own. Runs with the agent.
  *
- * Each test makes one call. Its frames, as the test observed them, and the receiver's types and the declarations of
- * the called method, as reflection reports them, are written to build/reports/inheritance/observed.json for review.
+ * Each test makes one call. Its frames, as the test observed them, the receiver's types and the declarations of the
+ * called method, as reflection reports them, are written by [FrameReport] to build/reports/frames/InheritanceTest.html
+ * and .json for review.
  */
 class InheritanceTest {
 
     private val order = "com.hafnium.it.inheritance.Order"
     private val customer = "com.hafnium.it.inheritance.patterned.Customer"
 
-    private lateinit var category: String
-    private lateinit var test: String
-
-    @BeforeEach
-    fun name(info: TestInfo) {
-        category = info.testClass.map { it.getAnnotation(DisplayName::class.java)?.value ?: it.simpleName }.orElse("")
-        test = info.displayName.removeSuffix("()")
-    }
-
-    /**
-     * The frames of the exception that [call] throws on [receiver], recorded for the report together with what
-     * reflection says about the receiver: its class hierarchy, and which classes declare [method].
-     */
-    private fun <T : Any> trace(call: String, receiver: T, method: String, block: (T) -> Unit): Array<StackTraceElement> {
-        val trace = assertThrows<IllegalStateException> { block(receiver) }.stackTrace
-        // The frames down to the test's own code.
-        val frames = trace.takeWhile { !it.className.startsWith(InheritanceTest::class.java.name) }
-        observations += Observation(
-            category,
-            test,
-            call,
-            frames.take(8).map { "${it.className}.${it.methodName}" },
-            hierarchy(receiver.javaClass),
-            types(receiver.javaClass),
-            declarations(receiver.javaClass, method),
-        )
-        return trace
-    }
-
-    /** The class, its superclasses up to Object, and the interfaces that each of them implements directly. */
-    private fun hierarchy(type: Class<*>): List<String> =
-        generateSequence(type) { it.superclass }.takeWhile { it != Any::class.java }.map { c ->
-            if (c.interfaces.isEmpty()) c.name else c.name + " implements " + c.interfaces.joinToString(", ") { it.name }
-        }.toList()
-
-    /**
-     * The receiver's class, its superclasses and their interfaces, outside the JDK, each as its kind, its name and its
-     * direct supertypes, e.g. "open class com.acme.RushOrder : com.acme.Order".
-     */
-    private fun types(type: Class<*>): List<String> =
-        hierarchyTypes(type).filter { !it.name.startsWith("java.") }.map { c ->
-            val kind = when {
-                c.isInterface -> "interface"
-                c.isEnum || c.superclass?.isEnum == true -> "enum"
-                Modifier.isAbstract(c.modifiers) -> "abstract class"
-                Modifier.isFinal(c.modifiers) -> "class"
-                else -> "open class"
-            }
-            val supertypes = (listOfNotNull(c.superclass?.takeIf { it != Any::class.java }) + c.interfaces).map { it.name }
-            "$kind ${c.name}" + if (supertypes.isEmpty()) "" else " : " + supertypes.joinToString(", ")
-        }
-
-    /** The class, then its superclasses, each followed by the interfaces it implements, directly or not. */
-    private fun hierarchyTypes(type: Class<*>): Set<Class<*>> {
-        val types = LinkedHashSet<Class<*>>()
-        generateSequence(type) { it.superclass }.forEach { c ->
-            types += c
-            generateSequence(c.interfaces.toList()) { level -> level.flatMap { it.interfaces.toList() }.ifEmpty { null } }.forEach { types += it }
-        }
-        return types
-    }
-
-    /** Every class and interface in the hierarchy that declares a method of that name, the class first. */
-    private fun declarations(type: Class<*>, method: String): List<String> {
-        return hierarchyTypes(type).flatMap { c ->
-            c.declaredMethods.filter { it.name == method }.map { m ->
-                val kind = listOfNotNull(
-                    "bridge".takeIf { m.isBridge },
-                    "synthetic".takeIf { m.isSynthetic && !m.isBridge },
-                    "abstract".takeIf { Modifier.isAbstract(m.modifiers) },
-                    "default".takeIf { m.isDefault },
-                    "static".takeIf { Modifier.isStatic(m.modifiers) },
-                    "final".takeIf { Modifier.isFinal(m.modifiers) },
-                )
-                c.name + "." + m.name + "(" + m.parameterTypes.joinToString(", ") { it.simpleName } + ")" +
-                    (if (kind.isEmpty()) "" else " [" + kind.joinToString(", ") + "]")
-            }
-        }
-    }
+    /** The frames of the exception that [call] throws on [receiver], recorded for the report. */
+    private fun <T : Any> trace(call: String, receiver: T, method: String, block: (T) -> Unit): Array<StackTraceElement> =
+        report.trace<IllegalStateException, T>(call, receiver, method, block)
 
     /** The top frame: the method that threw. */
     private fun <T : Any> frame(call: String, receiver: T, method: String, block: (T) -> Unit): StackTraceElement =
@@ -502,32 +424,14 @@ class InheritanceTest {
         }
     }
 
-    private class Observation(
-        val category: String,
-        val test: String,
-        val call: String,
-        val frames: List<String>,
-        val hierarchy: List<String>,
-        val types: List<String>,
-        val declarations: List<String>,
-    )
-
     companion object {
-        private val observations = mutableListOf<Observation>()
-
-        private fun json(text: String) = "\"" + text.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
-
-        private fun list(items: List<String>) = items.joinToString(", ", "[", "]") { json(it) }
-
-        @JvmStatic
-        @AfterAll
-        fun writeObservations() {
-            val file = Path.of("build/reports/inheritance/observed.json")
-            Files.createDirectories(file.parent)
-            Files.writeString(file, observations.joinToString(",\n", "[\n", "\n]\n") { o ->
-                "{\"category\": ${json(o.category)}, \"test\": ${json(o.test)}, \"call\": ${json(o.call)}, \"frames\": ${list(o.frames)}, " +
-                    "\"hierarchy\": ${list(o.hierarchy)}, \"types\": ${list(o.types)}, \"declarations\": ${list(o.declarations)}}"
-            })
-        }
+        @JvmField
+        @RegisterExtension
+        val report = FrameReport(
+            "Receiver ids by inheritance",
+            basePackage = "com.hafnium.it.inheritance",
+            ownPackage = "com.hafnium.it",
+            entries = ReceiverEntries.load(Path.of("src/test/resources/stack-augmentor.toml")),
+        )
     }
 }

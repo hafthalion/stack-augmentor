@@ -21,6 +21,8 @@ dependencies {
 
     testImplementation(libs.kotlin.stdlib)
     testImplementation(project(":stack-augmentor-api"))
+    // The agent jar carries the runtime classes: ReceiverEntries reads the configuration with them.
+    testCompileOnly(project(":stack-augmentor-runtime"))
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     // Generated subclasses, as frameworks create them: InheritanceTest.
