@@ -63,12 +63,15 @@ deciding entry of the class that declares the frame's method, read from the obje
 whatever the object's runtime class: a subclass, including one generated at runtime (a proxy, a mock, an
 anonymous class or an enum constant with a body), SHALL show the id of its superclass's entry in the frames
 of the methods it inherits. The methods that a subclass declares SHALL only get a receiver id from an entry
-that matches the subclass, which a pattern whose glob matches a generated class's name does. For a method
-declared outside the object's superclass chain, e.g. a default method of an interface, the object's
-runtime class SHALL decide. When several entries match a class, the most specific SHALL decide: an entry without wildcards beats any pattern, and among patterns, the one with the
+that matches the subclass, which a pattern whose glob matches a generated class's name does. A default method
+of an interface SHALL likewise show the id of the interface's deciding entry, read from the object,
+whatever entry the implementing class has; without an entry for the interface, its frame SHALL be
+unchanged. Bridge methods, including those Kotlin compiles into a class for each default method it
+inherits, SHALL NOT be instrumented, so their frames are unchanged. When several entries match a class, the most specific SHALL decide: an entry without wildcards beats any pattern, and among patterns, the one with the
 most characters other than `*` and `?` wins, with ties broken by the alphabetical order of the keys. A
 configured field or method SHALL be looked up in the matched class and its superclasses, including private
-members.
+members; for an interface, in the interface and the interfaces it extends, where an abstract method is
+called on the object.
 
 #### Scenario: Configured method of a third-party class
 - **GIVEN** `"com.thirdparty.Order" = "getOrderNumber()"` in `[augment.receiver]`
@@ -110,6 +113,22 @@ members.
 - **GIVEN** `"com.acme.Order" = "id"`, and a Spring CGLIB proxy `com.acme.Order$$SpringCGLIB$$0` that calls the real methods
 - **WHEN** an exception leaves `Order.ship()`, called on the proxy
 - **THEN** that frame shows `id=…`, and the frame of the proxy's own override is unchanged
+
+#### Scenario: Default method of an interface
+- **GIVEN** `"com.acme.Labeled" = "label()"` and `"com.acme.Parcel" = "code"`, where the Kotlin class `Parcel` implements `Labeled` and inherits its default method `relabel()`
+- **WHEN** an exception leaves `Labeled.relabel()`, called on a `Parcel` whose `label()` returns `parcel-p1`
+- **THEN** the frame of `Labeled.relabel()` shows `label=parcel-p1`, and the frame of the bridge method `Parcel.relabel()` is unchanged
+- **AND** the same holds for a class implementing `Labeled` without an entry of its own
+
+#### Scenario: Default method of an interface without an entry
+- **GIVEN** an interface `Sealable` that no entry matches, with a default method `seal()`, implemented by a class with an entry
+- **WHEN** an exception leaves `Sealable.seal()`
+- **THEN** its frame is unchanged
+
+#### Scenario: Interface extending an interface
+- **GIVEN** `"com.acme.Tracked" = "label()"`, where `Tracked` extends `Labeled`, which declares `label()`, and has a default method `track()`
+- **WHEN** an exception leaves `Tracked.track()`
+- **THEN** that frame shows `label=…`, read through `Labeled.label()`
 
 ### Requirement: Parameter ids
 The system SHALL show the value of a method parameter after the method name when the parameter is

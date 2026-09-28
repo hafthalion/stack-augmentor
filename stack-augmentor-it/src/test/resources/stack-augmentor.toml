@@ -28,6 +28,10 @@ maxParams = 8
 "com.hafnium.it.inheritance.Shipment" = "id"
 "com.hafnium.it.inheritance.Labeled" = "label()"
 "com.hafnium.it.inheritance.Parcel" = "code"
+"com.hafnium.it.inheritance.Tracked" = "label()"
+"com.hafnium.it.inheritance.JavaLabeled" = "label()"
+"com.hafnium.it.inheritance.JavaParcel" = "code"
+"com.hafnium.it.inheritance.ParcelRepository" = "name"
 "com.hafnium.it.inheritance.Repository" = "name"
 # ... while a pattern matches every class whose name fits, generated subclasses in the package included
 "com.hafnium.it.inheritance.patterned.*" = "code"

@@ -123,7 +123,7 @@ The two kinds of ids are configured independently: `[augment.receiver]` decides 
 
 **Receiver id**: the object a frame runs on. It comes from the deciding `[augment.receiver]` entry of the class that declares the frame's method, and is read from the object. An entry applies only to the classes whose names it matches, not to their subclasses. The entry names:
 
-- a field, or a no-argument `method()`, looked up in that class and its superclasses;
+- a field, or a no-argument `method()`, looked up in that class and its superclasses (for an interface: in it and the interfaces it extends);
 - `"@"`: the `@StackTraceId` on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`; or
 - `"-"`: nothing, so the class gets no receiver id. Its parameter ids are not affected.
 
@@ -138,6 +138,8 @@ So a subclass shows the id of its superclass's entry in the frames of the method
 ```
 
 A `TrackedOrder` shows `Order{id=…}.ship` in the frame of `Order.ship()`, and `TrackedOrder{tracking=…}.track` in the frame of its own `track()`. The same holds for subclasses generated at runtime: a Spring CGLIB proxy `Order$$SpringCGLIB$$0`, a Hibernate proxy `Order$HibernateProxy$…`, a Mockito mock `Order$MockitoMock$…`, an anonymous subclass, or an enum constant with a body show `Order`'s id in `Order`'s frames, while their own overrides are not instrumented unless a pattern matches their names (`"com.acme.*"` matches `com.acme.Order$$SpringCGLIB$$0`, since `*` stops only at a `.`).
+
+Default methods of interfaces work the same way: with `"com.acme.Labeled" = "label()"`, the frame of `Labeled.relabel()` shows `Labeled{label=…}` whatever class implements it, with `label()` called on the object. The implementing class's entry does not apply to it, and without an entry for `Labeled` the frame is unchanged. Bridge methods are never instrumented, including the one Kotlin compiles into each implementing class to call the default method, so its frame stays as it is.
 
 The label is the real field or method name (`{objectId=…}`, `{getKey=…}`). `@StackTraceId(name = "…")` sets a different label.
 

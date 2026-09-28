@@ -29,4 +29,13 @@ class BuildTimeInstrumentationTest {
         assertEquals("com.hafnium.Shipping", e.stackTrace[0].className)
         assertEquals("ship{orderId=o-17, quantity=2}", e.stackTrace[0].methodName)
     }
+
+    @Test
+    fun `default method shows its interface's receiver id`() {
+        val e = assertThrows<IllegalStateException> { Parcel("p-1").track() }
+        assertEquals("com.hafnium.Tracked{trackingNumber=T-p-1}", e.stackTrace[0].className)
+        assertEquals("track", e.stackTrace[0].methodName)
+        assertEquals("com.hafnium.Parcel", e.stackTrace[1].className)
+        assertEquals("track", e.stackTrace[1].methodName)
+    }
 }

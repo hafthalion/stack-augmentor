@@ -7,7 +7,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.regex.Pattern;
 
 /**
@@ -93,7 +95,8 @@ public final class IdResolver {
     /**
      * The id of the object a frame runs on, or {@code null} if there is no id source. The id source is that of the
      * class declaring the frame's method, not of the object's runtime class: a subclass, e.g. a proxy or a mock, shows
-     * the id of the class whose method it runs. Its member is read from the object.
+     * the id of the class whose method it runs, and a default method shows the id of its interface's entry. Its member
+     * is read from the object.
      *
      * @param declaringClass the name of the class that declares the method
      */
@@ -102,11 +105,23 @@ public final class IdResolver {
         return source != null ? new NamedId(source.name(), read(source, target)) : null;
     }
 
-    /** The class named {@code name} among the type and its superclasses; the type itself for e.g. an interface's method. */
+    /**
+     * The class or interface named {@code name} among the type, its superclasses and the interfaces they implement,
+     * directly or not; the type itself if there is none.
+     */
     private static Class<?> declaringClass(Class<?> type, String name) {
         for (Class<?> candidate = type; candidate != null; candidate = candidate.getSuperclass()) {
             if (candidate.getName().equals(name)) {
                 return candidate;
+            }
+        }
+        for (Class<?> candidate = type; candidate != null; candidate = candidate.getSuperclass()) {
+            for (Class<?> implemented : candidate.getInterfaces()) {
+                for (Class<?> iface : lookupOrder(implemented)) {
+                    if (iface.getName().equals(name)) {
+                        return iface;
+                    }
+                }
             }
         }
         return type;
@@ -160,7 +175,7 @@ public final class IdResolver {
     /**
      * The deciding {@code [augment.receiver]} entry: the most specific entry that matches the class's own name; entries
      * of superclasses do not apply. Its field or method, or with {@code "@"} its {@code @StackTraceId}, is looked up in
-     * the class and its superclasses. Without a deciding entry, or with {@code "-"}, the class has no id source, even
+     * the class and its superclasses, or in an interface and the interfaces it extends. Without a deciding entry, or with {@code "-"}, the class has no id source, even
      * if it is annotated.
      */
     private Source findSource(Class<?> type) {
@@ -170,7 +185,7 @@ public final class IdResolver {
 
     /** {@code @StackTraceId} on a field, a no-argument method or (Kotlin) a primary constructor property. */
     private Source annotatedSource(Class<?> type) {
-        for (Class<?> owner = type; isInHierarchy(owner); owner = owner.getSuperclass()) {
+        for (Class<?> owner : lookupOrder(type)) {
             for (Field field : owner.getDeclaredFields()) {
                 Annotation annotation = idAnnotation(field);
                 if (!Modifier.isStatic(field.getModifiers()) && annotation != null) {
@@ -212,19 +227,21 @@ public final class IdResolver {
             }
             case IdSpec.MethodSpec spec -> {
                 member = "method " + spec.memberName() + "()";
-                for (Class<?> type = owner; isInHierarchy(type) && source == null; type = type.getSuperclass()) {
+                for (Class<?> type : lookupOrder(owner)) {
                     Method method = noArgumentMethod(type, spec.memberName());
                     if (method != null) {
                         source = methodSource(method, method.getName());
+                        break;
                     }
                 }
             }
             case IdSpec.FieldSpec spec -> {
                 member = "field " + spec.memberName();
-                for (Class<?> type = owner; isInHierarchy(type) && source == null; type = type.getSuperclass()) {
+                for (Class<?> type : lookupOrder(owner)) {
                     Field field = instanceField(type, spec.memberName());
                     if (field != null) {
                         source = fieldSource(field, field.getName());
+                        break;
                     }
                 }
             }
@@ -275,9 +292,27 @@ public final class IdResolver {
         return null;
     }
 
-    /** The class and its superclasses, stopping at {@code Object}. */
-    private static boolean isInHierarchy(Class<?> type) {
-        return type != null && type != Object.class;
+    /**
+     * Where the members of an id source are looked up: the class and its superclasses, stopping at {@code Object}; for
+     * an interface, the interface and the interfaces it extends, directly or not, nearest first.
+     */
+    private static List<Class<?>> lookupOrder(Class<?> type) {
+        List<Class<?>> order = new ArrayList<>();
+        if (type.isInterface()) {
+            order.add(type);
+            for (int i = 0; i < order.size(); i++) {
+                for (Class<?> superInterface : order.get(i).getInterfaces()) {
+                    if (!order.contains(superInterface)) {
+                        order.add(superInterface);
+                    }
+                }
+            }
+        } else {
+            for (Class<?> current = type; current != null && current != Object.class; current = current.getSuperclass()) {
+                order.add(current);
+            }
+        }
+        return order;
     }
 
     public static Annotation idAnnotation(AnnotatedElement element) {

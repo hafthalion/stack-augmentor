@@ -79,14 +79,29 @@ interface Labeled {
     fun relabel(): Nothing = throw IllegalStateException("cannot relabel ${label()}")
 }
 
-/** Entry "code": implements Labeled. */
-class Parcel(private val code: String) : Labeled {
+/** No entry: an interface with a default method. */
+interface Sealable {
+    fun seal(): Nothing = throw IllegalStateException("cannot seal")
+}
+
+/** Entry "label()", naming the method that Labeled declares: extends Labeled, with a default method of its own. */
+interface Tracked : Labeled {
+    fun track(): Nothing = throw IllegalStateException("cannot track ${label()}")
+}
+
+/** Entry "code": implements Labeled and Sealable. Kotlin adds a bridge method for each default method it inherits. */
+class Parcel(private val code: String) : Labeled, Sealable {
     override fun label() = "parcel-$code"
 }
 
-/** No entry: implements Labeled. */
-class Crate(private val code: String) : Labeled {
+/** No entry: implements Labeled and Sealable. */
+class Crate(private val code: String) : Labeled, Sealable {
     override fun label() = "crate-$code"
+}
+
+/** No entry: implements Tracked, and so Labeled. */
+class Pallet(private val code: String) : Tracked {
+    override fun label() = "pallet-$code"
 }
 
 /** Entry "name": generic, so that a subclass's override of save() gets a bridge method. */
@@ -97,6 +112,11 @@ open class Repository<T>(private val name: String) {
 /** No entry: overrides save(Order), and the compiler adds the bridge save(Object). */
 class OrderRepository : Repository<Order>("orders") {
     override fun save(item: Order): Nothing = super.save(item)
+}
+
+/** Entry "name", naming the field that Repository declares: overrides save(Parcel), with the bridge save(Object). */
+class ParcelRepository : Repository<Parcel>("parcels") {
+    override fun save(item: Parcel): Nothing = super.save(item)
 }
 
 /** Entry "code". */
