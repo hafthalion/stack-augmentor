@@ -25,8 +25,8 @@ class StackTraceParamsTest {
     }
 
     @Test
-    fun `parameter annotation sets the label under a method-level annotation`() {
-        assertEquals("move{sku=x-1, count=2}", assertThrows<IllegalStateException> { Accounts().move("x-1", 2) }.method())
+    fun `a parameter annotation under a method-level annotation selects nothing more`() {
+        assertEquals("move{item=x-1, count=2}", assertThrows<IllegalStateException> { Accounts().move("x-1", 2) }.method())
     }
 
     @Test

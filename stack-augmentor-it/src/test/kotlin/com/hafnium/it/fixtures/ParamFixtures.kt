@@ -11,7 +11,7 @@ class Accounts {
     fun transfer(from: String, to: String, amount: Long): Nothing = throw IllegalStateException("transfer")
 
     @StackTraceParams
-    fun move(@StackTraceParam(name = "sku") item: String, count: Int): Nothing = throw IllegalStateException("move")
+    fun move(@StackTraceParam item: String, count: Int): Nothing = throw IllegalStateException("move")
 
     fun plain(from: String): Nothing = throw IllegalStateException("plain $from")
 }
@@ -65,5 +65,5 @@ class Overridden {
 
     fun fail(@StackTraceParam x: Int): Nothing = throw IllegalStateException("fail $x")
 
-    fun failAnnotated(@StackTraceParam(name = "why") y: Int): Nothing = throw IllegalStateException("fail $y")
+    fun failAnnotated(@StackTraceParam y: Int): Nothing = throw IllegalStateException("fail $y")
 }

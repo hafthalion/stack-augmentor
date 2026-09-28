@@ -9,14 +9,12 @@ import java.lang.annotation.Target;
 /**
  * Shows this parameter's value after the method name in stack traces, e.g. {@code objectMethod{orderId=42}}.
  *
- * <p>To show all parameters of a method, or of every method of a class, use {@link StackTraceParams}.
- * {@code @StackTraceParam} on one of those parameters still sets its label.
+ * <p>The label is the parameter's name as compiled into the class file: compile Java with {@code javac -parameters}
+ * (Kotlin: {@code javaParameters = true}), otherwise the label is {@code arg<N>}. To show all parameters of a method,
+ * or of every method of a class, use {@link StackTraceParams}.
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.PARAMETER)
 public @interface StackTraceParam {
-
-    /** Label shown in the stack trace; empty means the real parameter name. */
-    String name() default "";
 }

@@ -14,7 +14,7 @@ import java.lang.annotation.Target;
  *   <li>On a class: all parameters of every method declared in that class (not of subclasses or nested classes).</li>
  * </ul>
  *
- * <p>Labels are the parameter names; {@link StackTraceParam#name()} on a parameter sets a different one.
+ * <p>Labels are the parameter names as compiled into the class file (see {@link StackTraceParam}).
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)

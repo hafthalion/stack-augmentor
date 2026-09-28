@@ -26,7 +26,7 @@ a warning.
 #### Scenario: Example project
 - **GIVEN** `examples/build-time`, with the ByteBuddy Gradle plugin, the `DECORATE` entry point and the build plugin with its configuration argument, which has `"com.hafnium.**" = "@"` in `[augment.receiver]` and `"com.hafnium.**.*" = "@"` in `[augment.params]`
 - **WHEN** the project is built and run without `-javaagent`
-- **THEN** the frames of `ClassWithAnnotation` show `{objectId=object-1}` and `{param=object-param-1}`
+- **THEN** the frames of `ClassWithAnnotation` show `{objectId=object-1}` and `{param=ObjectParam{name=object-param-1}}`, the argument's `toString()` with its parentheses replaced by braces
 - **AND** the frames of `ClassWithoutAnnotation` are unchanged
 
 #### Scenario: Configuration change

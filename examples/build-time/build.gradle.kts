@@ -7,8 +7,9 @@ plugins {
 }
 
 // Build-time instrumentation: the ByteBuddy Gradle plugin applies stack-augmentor-build-plugin to the
-// compiled classes, so the application runs without -javaagent. Only this project's classes that use
-// @StackTraceId are changed; libraries (third-party classes) are not.
+// compiled classes, so the application runs without -javaagent. Only this project's classes that the
+// configuration's [augment.receiver] and [augment.params] entries need are changed; libraries (third-party
+// classes) are not.
 
 dependencies {
     // The example is written in Kotlin; stack-augmentor itself does not need the Kotlin runtime.
@@ -33,7 +34,7 @@ byteBuddy {
     entryPoint = EntryPoint.Default.DECORATE
     transformation {
         pluginName = "com.hafnium.stackaugmentor.build.StackAugmentorByteBuddyPlugin"
-        // Without this argument, every class using @StackTraceId is instrumented.
+        // Without this argument, nothing is instrumented and the build prints a warning.
         argument { value = stackAugmentorConfig.asFile.absolutePath }
     }
 }

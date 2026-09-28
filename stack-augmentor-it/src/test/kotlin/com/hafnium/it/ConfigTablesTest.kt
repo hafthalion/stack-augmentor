@@ -56,7 +56,7 @@ class ConfigTablesTest {
     fun `an @ method entry enables the parameter annotations`() {
         val frame = frame { Overridden().failAnnotated(2) }
         assertEquals("com.hafnium.it.fixtures.Overridden{getId=o-1}", frame.className)
-        assertEquals("failAnnotated{why=2}", frame.methodName)
+        assertEquals("failAnnotated{y=2}", frame.methodName)
 
         val outside = frame { MethodAnnotationsOutside().run(7) }
         assertEquals("com.hafnium.it.outside.MethodAnnotationsOutside", outside.className)

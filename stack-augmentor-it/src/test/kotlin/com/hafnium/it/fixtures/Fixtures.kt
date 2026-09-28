@@ -50,12 +50,12 @@ class Relay(@StackTraceId val name: String, private val next: Relay?) {
     }
 }
 
-/** Labels with parentheses, which would confuse IDEs looking for "(File.kt:12)". */
+/** A receiver label with parentheses, which would confuse IDEs looking for "(File.kt:12)". */
 class ParenLabels {
     @StackTraceId(name = "id(x)")
     val id = "7"
 
-    fun fail(@StackTraceParam(name = "n(1)") value: Int): Nothing = throw IllegalStateException("fail $value")
+    fun fail(@StackTraceParam value: Int): Nothing = throw IllegalStateException("fail $value")
 }
 
 class ManyParams {
