@@ -24,7 +24,23 @@ dependencies {
     testRuntimeOnly(libs.junit.launcher)
 }
 
+// StackTracesTest needs java.lang open to the runtime classes, as the Java agent opens it. It runs in a JVM of its
+// own, so that the other tests run with the JDK's modules as an application sees them.
+val openJavaLangTest = "com.hafnium.stackaugmentor.runtime.StackTracesTest"
+
 tasks.test {
-    // StackTracesTest: the Java agent opens java.lang to the runtime classes the same way.
+    filter.excludeTestsMatching(openJavaLangTest)
+}
+
+val testOpenJavaLang = tasks.register<Test>("testOpenJavaLang") {
+    description = "Runs the tests that need java.lang open to the runtime classes."
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    filter.includeTestsMatching(openJavaLangTest)
     jvmArgs("--add-opens", "java.base/java.lang=ALL-UNNAMED")
+}
+
+tasks.check {
+    dependsOn(testOpenJavaLang)
 }

@@ -149,8 +149,7 @@ class IdResolverTest {
     fun `a configured member that cannot be accessed is one warning, and its getter is used instead`() {
         val err = ByteArrayOutputStream()
         System.setErr(PrintStream(err, true, Charsets.UTF_8))
-        // java.net is not opened to the unnamed module, even in the tests that open java.lang: URI's fields cannot be
-        // made accessible.
+        // java.net is not opened to the unnamed module: URI's fields cannot be made accessible.
         val uri = URI("https://example.com")
 
         assertEquals(NamedId("scheme", "https"), resolver("java.net.URI" to IdSpec.FieldSpec("scheme")).receiverId(uri))
