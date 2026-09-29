@@ -36,6 +36,7 @@ public final class ThrowHandler implements Dispatch.Handler {
 
     private final IdResolver resolver;
     private final FrameFormat format;
+    private final StackTraces stackTraces;
 
     /**
      * Per throwable, the index after the last frame handled. Frames unwind from the top of the trace
@@ -43,9 +44,14 @@ public final class ThrowHandler implements Dispatch.Handler {
      */
     private final WeakIdentityMap<Throwable, Integer> cursors = new WeakIdentityMap<>();
 
-    public ThrowHandler(IdResolver resolver, FrameFormat format) {
+    public ThrowHandler(IdResolver resolver, FrameFormat format, StackTraces stackTraces) {
         this.resolver = resolver;
         this.format = format;
+        this.stackTraces = stackTraces;
+    }
+
+    public ThrowHandler(IdResolver resolver, FrameFormat format) {
+        this(resolver, format, StackTraces.copying());
     }
 
     public ThrowHandler(AugmentorConfig config) {
@@ -59,7 +65,7 @@ public final class ThrowHandler implements Dispatch.Handler {
 
     @Override
     public void onThrow(Object self, Throwable thrown, String owner, String method, Object[] paramValues, String[] paramNames) {
-        StackTraceElement[] trace = thrown.getStackTrace();
+        StackTraceElement[] trace = stackTraces.read(thrown);
         if (trace.length == 0) {
             return;
         }
@@ -102,8 +108,7 @@ public final class ThrowHandler implements Dispatch.Handler {
             return;
         }
 
-        trace[index] = format.rewrite(trace[index], receiverId, paramIds, omitted);
-        thrown.setStackTrace(trace); // no effect if the throwable's stack trace is not writable
+        stackTraces.write(thrown, trace, index, format.rewrite(trace[index], receiverId, paramIds, omitted));
     }
 
     /**

@@ -8,6 +8,7 @@ import com.hafnium.stackaugmentor.runtime.AugmentorConfig;
 import com.hafnium.stackaugmentor.runtime.FrameFormat;
 import com.hafnium.stackaugmentor.runtime.IdResolver;
 import com.hafnium.stackaugmentor.runtime.Log;
+import com.hafnium.stackaugmentor.runtime.StackTraces;
 import com.hafnium.stackaugmentor.runtime.ThrowHandler;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.asm.Advice;
@@ -17,6 +18,8 @@ import net.bytebuddy.dynamic.loading.ClassInjector;
 import net.bytebuddy.matcher.ElementMatcher;
 
 import java.lang.instrument.Instrumentation;
+import java.util.Map;
+import java.util.Set;
 
 import static net.bytebuddy.matcher.ElementMatchers.any;
 import static net.bytebuddy.matcher.ElementMatchers.isBootstrapClassLoader;
@@ -27,7 +30,7 @@ final class Installer {
     }
 
     static void install(Instrumentation instrumentation, AugmentorConfig config, FrameFormat format) {
-        Dispatch.install(new ThrowHandler(new IdResolver(config), format));
+        Dispatch.install(new ThrowHandler(new IdResolver(config), format, stackTraces(instrumentation)));
 
         // Inlined advice needs neither the Nexus nor Unsafe-based class injection; turning them off avoids
         // the JDK's sun.misc.Unsafe warnings. In the shaded jar these property names are relocated, so they
@@ -62,5 +65,23 @@ final class Installer {
                     return builder.visit(advice.on(methods));
                 })
                 .installOn(instrumentation);
+    }
+
+    /**
+     * Opens {@code java.lang} to the runtime classes, so that the handler can replace a frame in the throwable's own
+     * stack trace instead of copying the whole trace twice for every frame. Without that, the copying way.
+     */
+    private static StackTraces stackTraces(Instrumentation instrumentation) {
+        Module javaBase = Throwable.class.getModule();
+        Module runtime = StackTraces.class.getModule();
+        try {
+            if (instrumentation.isModifiableModule(javaBase)) {
+                instrumentation.redefineModule(javaBase, Set.of(), Map.of(), Map.of("java.lang", Set.of(runtime)), Set.of(), Map.of());
+            }
+            return StackTraces.inPlace();
+        } catch (RuntimeException | IllegalAccessException e) {
+            Log.debug(() -> "agent: stack traces are copied for every frame, because java.lang cannot be opened: " + e);
+            return StackTraces.copying();
+        }
     }
 }
