@@ -18,11 +18,20 @@ SHALL only be created when an exception leaves the method.
 
 ### Requirement: Bounded cost on exceptions
 The work done when an exception leaves an instrumented method SHALL be limited to that exception: one
-copy and one search of its stack trace from the last handled frame, one walk of the current thread's stack
-to find the exiting method's caller when a frame of the same class and method is found, the id lookups for
-the frame, and one `setStackTrace`. The id source of each class SHALL be looked up once and cached.
-An exception that leaves N instrumented frames therefore costs O(N × trace length); the JVM caps the trace
-length (`-XX:MaxJavaStackTraceDepth`, 1024 by default). The README SHALL state this cost with measured numbers.
+search of its stack trace from the last handled frame, one walk of the current thread's stack to find the
+exiting method's caller when a frame of the same class and method is found, the id lookups for the frame,
+and one write of the rewritten frame. The id source of each class SHALL be looked up once and cached.
+The Java agent SHALL open `java.lang` to the runtime classes and write the frame into the throwable's own
+stack trace array, so no trace is copied; if it cannot, and with build-time instrumentation, the trace is
+copied once (`getStackTrace`) and written back once (`setStackTrace`). A trace the application replaced
+after it was read SHALL NOT be overwritten by an in-place write. With copying, an exception that leaves N
+instrumented frames costs O(N × trace length); the JVM caps the trace length
+(`-XX:MaxJavaStackTraceDepth`, 1024 by default). The README SHALL state this cost with measured numbers.
+
+#### Scenario: Deep recursion with the agent
+- **GIVEN** the Java agent and a trace of more than 1000 frames
+- **WHEN** an exception leaves an instrumented method
+- **THEN** its stack trace is not copied: the frame is replaced in the throwable's own array
 
 #### Scenario: Repeated exceptions of one class
 - **GIVEN** a class whose id source is an annotated field
