@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
+import java.net.URI
 
 class IdResolverTest {
 
@@ -148,16 +149,17 @@ class IdResolverTest {
     fun `a configured member that cannot be accessed is one warning, and its getter is used instead`() {
         val err = ByteArrayOutputStream()
         System.setErr(PrintStream(err, true, Charsets.UTF_8))
-        // java.lang is not opened to the unnamed module: Thread's fields cannot be made accessible.
-        val thread = Thread("worker-1")
+        // java.net is not opened to the unnamed module, even in the tests that open java.lang: URI's fields cannot be
+        // made accessible.
+        val uri = URI("https://example.com")
 
-        assertEquals(NamedId("name", "worker-1"), resolver("java.lang.Thread" to IdSpec.FieldSpec("name")).receiverId(thread))
+        assertEquals(NamedId("scheme", "https"), resolver("java.net.URI" to IdSpec.FieldSpec("scheme")).receiverId(uri))
         assertFalse(err.toString(Charsets.UTF_8).contains("WARN"), err.toString(Charsets.UTF_8))
 
-        assertNull(resolver("java.lang.Thread" to IdSpec.FieldSpec("eetop")).receiverId(thread))
+        assertNull(resolver("java.net.URI" to IdSpec.FieldSpec("hash")).receiverId(uri))
         val warnings = err.toString(Charsets.UTF_8).lines().filter { it.contains("WARN") }
         assertEquals(1, warnings.size, warnings.toString())
-        assertTrue(warnings[0].contains("[augment.receiver] \"java.lang.Thread\": cannot access private volatile long java.lang.Thread.eetop"), warnings[0])
+        assertTrue(warnings[0].contains("[augment.receiver] \"java.net.URI\": cannot access private transient int java.net.URI.hash"), warnings[0])
     }
 
     @Test
