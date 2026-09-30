@@ -57,7 +57,7 @@ maxParams = 8
 "com.thirdparty.InventoryAudit.log" = ["reason"]
 "com.thirdparty.**.*Repository.find*" = [0]
 # Hashed values: "#" after a name or an index (annotations use secret = true, see Secrets)
-"com.thirdparty.LoginService.login" = ["user", "password#", "2#"]
+"com.thirdparty.UserService.invite" = ["user", "email#", "2#"]
 # Matches JDK classes, which the agent never instruments
 "java.**.*" = [0]
 "com.hafnium.it.fixtures.Overlap.op" = ["x", "y"]

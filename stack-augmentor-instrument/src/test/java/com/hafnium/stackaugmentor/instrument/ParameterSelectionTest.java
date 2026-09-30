@@ -59,7 +59,7 @@ class ParameterSelectionTest {
     }
 
     static class Login {
-        void login(String userName, String password, int attempt) {
+        void login(String userName, String email, int attempt) {
         }
     }
 
@@ -287,7 +287,7 @@ class ParameterSelectionTest {
     }
 
     static class Secrets {
-        void login(@StackTraceParam String userName, @StackTraceParam(secret = true) String password, int attempt) {
+        void login(@StackTraceParam String userName, @StackTraceParam(secret = true) String email, int attempt) {
         }
 
         @StackTraceParams
@@ -300,27 +300,27 @@ class ParameterSelectionTest {
     void hashedParameters() {
         String login = Login.class.getName();
         IdParameters byName = new IdParameters(methods(Map.of(login + ".login",
-                List.of(new ParamRef.ByName("password", true), new ParamRef.ByIndex(0, true), new ParamRef.ByIndex(2)))));
-        assertEquals(List.of("userName#", "password#", "attempt"), encoded(byName, Login.class, "login"));
+                List.of(new ParamRef.ByName("email", true), new ParamRef.ByIndex(0, true), new ParamRef.ByIndex(2)))));
+        assertEquals(List.of("userName#", "email#", "attempt"), encoded(byName, Login.class, "login"));
 
         // Selected plainly and hashed by another entry: hashed.
         IdParameters overlapping = new IdParameters(methods(Map.of(
-                login + ".login", List.of(new ParamRef.ByName("password", true)),
+                login + ".login", List.of(new ParamRef.ByName("email", true)),
                 login + ".*", List.of(new ParamRef.ByIndex(0), new ParamRef.ByIndex(1)))));
-        assertEquals(List.of("userName", "password#"), encoded(overlapping, Login.class, "login"));
+        assertEquals(List.of("userName", "email#"), encoded(overlapping, Login.class, "login"));
     }
 
     @Test
     void secretAnnotations() {
         IdParameters annotations = new IdParameters(methods(Map.of(
                 Secrets.class.getName() + ".*", List.of(new ParamRef.Annotations()))));
-        assertEquals(List.of("userName", "password#"), encoded(annotations, Secrets.class, "login"));
+        assertEquals(List.of("userName", "email#"), encoded(annotations, Secrets.class, "login"));
         // Under @StackTraceParams, @StackTraceParam(secret = true) hashes one parameter.
         assertEquals(List.of("name", "token#"), encoded(annotations, Secrets.class, "update"));
         // A name entry hashes on top of the annotations, it cannot show a secret one as text.
         IdParameters named = new IdParameters(methods(Map.of(
-                Secrets.class.getName() + ".login", List.of(new ParamRef.ByName("password")),
+                Secrets.class.getName() + ".login", List.of(new ParamRef.ByName("email")),
                 Secrets.class.getName() + ".*", List.of(new ParamRef.Annotations()))));
-        assertEquals(List.of("userName", "password#"), encoded(named, Secrets.class, "login"));
+        assertEquals(List.of("userName", "email#"), encoded(named, Secrets.class, "login"));
     }
 }

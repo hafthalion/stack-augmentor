@@ -195,7 +195,7 @@ select it: `@StackTraceId` marks receiver ids only.
 - **THEN** that frame shows `code=7` and no receiver id
 
 ### Requirement: Hashed parameter ids
-A `#` after a parameter name or index in an `[augment.params]` array (`"password#"`, `"2#"`),
+A `#` after a parameter name or index in an `[augment.params]` array (`"email#"`, `"2#"`),
 or `@StackTraceParam(secret = true)` on a parameter (also one that `@StackTraceParams` selects) SHALL show the
 value hashed: `#` followed by the
 first 8 lower-case hex digits of the SHA-256 of the value's text (its UTF-8 bytes, before line breaks and
@@ -204,14 +204,14 @@ throws SHALL still show `?`. `secret` SHALL default to `false`. A parameter sele
 annotations SHALL be hashed when any of them hashes it. The label SHALL stay the parameter name.
 
 #### Scenario: Parameters hashed by name and index
-- **GIVEN** `"com.thirdparty.LoginService.login" = ["user", "password#", "2#"]` in `[augment.params]` for `login(user: String, password: String, attempt: Int)`
-- **WHEN** `login("ann", "s3cret", 3)` throws
-- **THEN** that frame shows `user=ann, password=#1ec1c26b, attempt=#4e074085`
+- **GIVEN** `"com.thirdparty.UserService.invite" = ["user", "email#", "2#"]` in `[augment.params]` for `invite(user: String, email: String, attempt: Int)`
+- **WHEN** `invite("ann", "ann@example.com", 3)` throws
+- **THEN** that frame shows `user=ann, email=#71d4f55f, attempt=#4e074085`
 
 #### Scenario: Secret annotations
-- **GIVEN** `fun login(@StackTraceParam user: String, @StackTraceParam(secret = true) password: String)` and `@StackTraceParams fun register(@StackTraceParam(secret = true) email: String, nickname: String)`, matched by an `"@"` entry
-- **WHEN** `login("ann", "s3cret")` throws, and separately `register("a@b.c", "annie")` throws
-- **THEN** the first frame shows `user=ann, password=#1ec1c26b`, and the second `email=#d648b243, nickname=annie`
+- **GIVEN** `fun invite(@StackTraceParam user: String, @StackTraceParam(secret = true) email: String)` and `@StackTraceParams fun register(@StackTraceParam(secret = true) email: String, nickname: String)`, matched by an `"@"` entry
+- **WHEN** `invite("ann", "ann@example.com")` throws, and separately `register("a@b.c", "annie")` throws
+- **THEN** the first frame shows `user=ann, email=#71d4f55f`, and the second `email=#d648b243, nickname=annie`
 
 ### Requirement: Labels
 The label of a receiver id SHALL be the real name of the field or method that supplies it, and the label

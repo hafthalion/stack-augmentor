@@ -111,9 +111,9 @@ class ThrowHandlerTest {
         val target = Annotated()
         val thrown = thrownBy(target)
         ThrowHandler(AugmentorConfig()).onThrow(
-            null, thrown, Annotated::class.java.name, "fail", arrayOf<Any?>("secret", 42, null), arrayOf("password#", "id", "email#"),
+            null, thrown, Annotated::class.java.name, "fail", arrayOf<Any?>("ann@example.com", 42, null), arrayOf("email#", "id", "phone#"),
         )
-        // SHA-256 of "secret" starts with 2bb80d53; null stays null.
-        assertEquals("fail{password=#2bb80d53, id=42, email=null}", thrown.stackTrace[0].methodName)
+        // SHA-256 of "ann@example.com" starts with 71d4f55f; null stays null.
+        assertEquals("fail{email=#71d4f55f, id=42, phone=null}", thrown.stackTrace[0].methodName)
     }
 }

@@ -29,6 +29,6 @@ open class SavingsAccount(private val number: String) {
 }
 
 /** Hashed parameter ids: "#" after a name or an index. */
-class LoginService {
-    fun login(user: String, password: String, attempt: Int): Nothing = throw IllegalStateException("login")
+class UserService {
+    fun invite(user: String, email: String, attempt: Int): Nothing = throw IllegalStateException("invite")
 }

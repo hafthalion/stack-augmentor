@@ -347,14 +347,14 @@ class AugmentorConfigTest {
         val config = parse(
             """
             [augment.params]
-            "com.acme.User.login" = ["user", "password#", 2, "3#"]
+            "com.acme.User.login" = ["user", "email#", 2, "3#"]
             """,
         )
         assertEquals(
-            listOf(ParamRef.ByName("user"), ParamRef.ByName("password", true), ParamRef.ByIndex(2), ParamRef.ByIndex(3, true)),
+            listOf(ParamRef.ByName("user"), ParamRef.ByName("email", true), ParamRef.ByIndex(2), ParamRef.ByIndex(3, true)),
             config.paramRefs("com.acme.User", "login"),
         )
-        assertTrue(config.methodsDescription().contains("com.acme.User.login[user, password#, #2, #3#]"), config.methodsDescription())
+        assertTrue(config.methodsDescription().contains("com.acme.User.login[user, email#, #2, #3#]"), config.methodsDescription())
     }
 
     @Test
