@@ -106,7 +106,7 @@ val stackAugmentorConfig = layout.projectDirectory.file("src/main/resources/stac
 byteBuddy {
     entryPoint = EntryPoint.Default.DECORATE   // only add advice, keep the methods as they are
     transformation {
-        pluginName = "com.hafnium.stackaugmentor.build.StackAugmentorByteBuddyPlugin"
+        pluginName = "com.hafnium.stackaugmentor.build.ByteBuddyPlugin"
         argument { value = stackAugmentorConfig.asFile.absolutePath }   // required: its [augment.*] tables
     }
 }
@@ -117,7 +117,7 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 }
 ```
 
-After compiling, the ByteBuddy Gradle plugin applies `StackAugmentorByteBuddyPlugin` to the project's classes (Java and Kotlin), instrumenting the classes and methods that the `[augment.receiver]` and `[augment.params]` entries of the given configuration need, as the agent does. Without the configuration argument, nothing is instrumented and the build prints a warning. No agent is needed at runtime: the application needs only `stack-augmentor-api` and `stack-augmentor-runtime`, which bring the bridge and tomlj, but neither ByteBuddy nor the Kotlin runtime. Libraries are not changed, so entries for third-party classes don't apply here.
+After compiling, the ByteBuddy Gradle plugin applies `ByteBuddyPlugin` to the project's classes (Java and Kotlin), instrumenting the classes and methods that the `[augment.receiver]` and `[augment.params]` entries of the given configuration need, as the agent does. Without the configuration argument, nothing is instrumented and the build prints a warning. No agent is needed at runtime: the application needs only `stack-augmentor-api` and `stack-augmentor-runtime`, which bring the bridge and tomlj, but neither ByteBuddy nor the Kotlin runtime. Libraries are not changed, so entries for third-party classes don't apply here.
 
 With the configuration in `src/main/resources`, one file serves both phases: the build plugin reads `[augment.receiver]` and `[augment.params]`, and at runtime `[augment]` (with `[augment.receiver]`, for receiver ids) and `debug` are read from `stack-augmentor.toml` on the classpath (or from `-Dstackaugmentor.config=<file>`); when the runtime jar's class loader does not see it, e.g. in an application server, the context class loader of the first throwing thread is asked. At runtime, the `[augment.receiver]` entries apply as with the agent: a class without a matching entry gets no receiver id, even if it is annotated. Without a runtime configuration, a warning says so, and frames show only the parameter ids chosen at build time. An invalid runtime configuration is printed as an error naming the file, the key and the line, and stack traces then stay unchanged.
 

@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class StackAugmentorByteBuddyPluginTest {
+class ByteBuddyPluginTest {
 
     /** In a stack-augmentor package, which neither the agent nor the build plugin instruments. */
     static class Annotated {
@@ -52,7 +52,7 @@ class StackAugmentorByteBuddyPluginTest {
     void withoutConfigurationNothingIsInstrumented() {
         ByteArrayOutputStream err = captureErr();
 
-        assertFalse(new StackAugmentorByteBuddyPlugin().matches(tracked()));
+        assertFalse(new ByteBuddyPlugin().matches(tracked()));
 
         String output = err.toString(StandardCharsets.UTF_8);
         assertTrue(output.contains("WARN build plugin: the configuration has no [augment.receiver] or [augment.params] entries, "
@@ -64,7 +64,7 @@ class StackAugmentorByteBuddyPluginTest {
         Path config = dir.resolve("stack-augmentor.toml");
         Files.writeString(config, "[augment]\nparamsFormat = \"($name: $id; ...)\"\n\n[augment.receiver]\n\"com.hafnium.**\" = \"@\"\n");
         ByteArrayOutputStream err = captureErr();
-        ConfigException error = assertThrows(ConfigException.class, () -> new StackAugmentorByteBuddyPlugin(config.toString()));
+        ConfigException error = assertThrows(ConfigException.class, () -> new ByteBuddyPlugin(config.toString()));
         assertTrue(error.getMessage().startsWith("stack-augmentor.toml, line 2: paramsFormat must not contain '('"), error.getMessage());
         // Also printed, since the ByteBuddy Gradle plugin does not show the cause.
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("[stack-augmentor] ERROR build plugin: " + error.getMessage()), err.toString(StandardCharsets.UTF_8));
@@ -74,14 +74,14 @@ class StackAugmentorByteBuddyPluginTest {
     void anAtEntryEnablesTheAnnotations(@TempDir Path dir) throws IOException {
         Path config = dir.resolve("stack-augmentor.toml");
         Files.writeString(config, "[augment.receiver]\n\"com.hafnium.**\" = \"@\"\n");
-        assertTrue(new StackAugmentorByteBuddyPlugin(config.toString()).matches(tracked()));
+        assertTrue(new ByteBuddyPlugin(config.toString()).matches(tracked()));
     }
 
     @Test
     void theAgentsIgnoredTypesAreLeftAlone(@TempDir Path dir) throws IOException {
         Path config = dir.resolve("stack-augmentor.toml");
         Files.writeString(config, "[augment.receiver]\n\"com.hafnium.**\" = \"@\"\n");
-        assertFalse(new StackAugmentorByteBuddyPlugin(config.toString()).matches(TypeDescription.ForLoadedType.of(Annotated.class)));
+        assertFalse(new ByteBuddyPlugin(config.toString()).matches(TypeDescription.ForLoadedType.of(Annotated.class)));
     }
 
     @Test
@@ -90,7 +90,7 @@ class StackAugmentorByteBuddyPluginTest {
         Files.writeString(config, "debug = true\n[augment]\nmaxIdLength = 32\n[augment.receiver]\n\"com.hafnium.**\" = \"@\"\n");
         ByteArrayOutputStream err = captureErr();
         try {
-            new StackAugmentorByteBuddyPlugin(config.toString());
+            new ByteBuddyPlugin(config.toString());
         } finally {
             Log.setDebug(false);
         }

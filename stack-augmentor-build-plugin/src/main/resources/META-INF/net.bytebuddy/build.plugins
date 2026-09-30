@@ -1,1 +1,1 @@
-com.hafnium.stackaugmentor.build.StackAugmentorByteBuddyPlugin
+com.hafnium.stackaugmentor.build.ByteBuddyPlugin

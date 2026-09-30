@@ -26,22 +26,22 @@ import java.nio.file.Path;
  * are instrumented, as with the agent; {@code debug} logs what gets instrumented. Without
  * it (e.g. when discovered through {@code META-INF/net.bytebuddy/build.plugins}), nothing is instrumented.
  */
-public final class StackAugmentorByteBuddyPlugin implements Plugin {
+public final class ByteBuddyPlugin implements Plugin {
 
     private final TypeMatching matching;
     private final Advice advice;
 
-    public StackAugmentorByteBuddyPlugin() {
+    public ByteBuddyPlugin() {
         this(new AugmentorConfig(), "none, using the defaults");
     }
 
     /** @param configFile a TOML configuration; its {@code [augment.receiver]} and {@code [augment.params]} apply. */
-    public StackAugmentorByteBuddyPlugin(String configFile) {
+    public ByteBuddyPlugin(String configFile) {
         // The ByteBuddy Gradle plugin reports a failing constructor without its cause, so Startup prints the reason too.
         this(Startup.load(Startup.BUILD_PLUGIN, () -> AugmentorConfig.load(Path.of(configFile))), configFile);
     }
 
-    private StackAugmentorByteBuddyPlugin(AugmentorConfig config, String location) {
+    private ByteBuddyPlugin(AugmentorConfig config, String location) {
         Startup.configure(Startup.BUILD_PLUGIN, location, config);
         Startup.warnIfNothingConfigured(Startup.BUILD_PLUGIN, config);
         IdParameters parameters = new IdParameters(config);
