@@ -20,9 +20,9 @@ maxIdLength = 64
 
 # Receiver ids: classes whose @StackTraceId is used. Without an "@" entry, it is not used.
 [augment.receiver]
-"com.hafnium.**" = "@"
+"com.hafnium.examples.buildtime.**" = "@"
 
 # Parameter ids, independently of the receivers: methods whose @StackTraceParam and @StackTraceParams
 # annotations are used.
 [augment.params]
-"com.hafnium.**.*" = "@"
+"com.hafnium.examples.buildtime.**.*" = "@"

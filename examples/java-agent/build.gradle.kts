@@ -16,7 +16,7 @@ dependencies {
 }
 
 application {
-    mainClass = "com.hafnium.Main"
+    mainClass = "com.hafnium.examples.agent.Main"
 }
 
 tasks.named<JavaExec>("run") {

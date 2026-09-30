@@ -1,4 +1,4 @@
-package com.hafnium
+package com.hafnium.examples.buildtime
 
 object Main {
     @JvmStatic

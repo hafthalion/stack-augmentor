@@ -1,4 +1,4 @@
-package com.hafnium
+package com.hafnium.examples.agent
 
 import com.hafnium.stackaugmentor.StackTraceId
 import com.hafnium.stackaugmentor.StackTraceParam
