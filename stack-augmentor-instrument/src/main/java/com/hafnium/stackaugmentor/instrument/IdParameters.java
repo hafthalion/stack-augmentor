@@ -18,8 +18,8 @@ import java.util.stream.Collectors;
 
 /**
  * Finds the id parameters of a method: those the {@code [augment.params]} config table selects, by name, index,
- * {@code "*"}, or {@code "@"} for the method's {@code @StackTraceParam} and {@code @StackTraceParams} annotations.
- * {@code [augment.receiver]} plays no part.
+ * {@code "*"}, or {@code "@"} for the method's {@code @StackTraceParam} and {@code @StackTraceParams} annotations, and
+ * whether their values are hashed ({@code #}, or {@code #?} for sensitive names). {@code [augment.receiver]} plays no part.
  */
 public final class IdParameters {
 
@@ -63,56 +63,73 @@ public final class IdParameters {
 
     public List<IdParameter> select(TypeDescription type, MethodDescription method) {
         ParameterList<?> parameters = method.getParameters();
-        TreeMap<Integer, String> labels = new TreeMap<>();
-        List<ParamRef> refs = paramRefs(type, method);
-        if (hasAnnotationsRef(refs)) {
-            // @StackTraceParams on the method, or on the class declaring it: all parameters.
-            if (annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null
-                    || annotation(type.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null) {
-                for (ParameterDescription parameter : parameters) {
-                    labels.put(parameter.getIndex(), parameter.getName());
-                }
-            }
-            // @StackTraceParam: this parameter.
-            for (ParameterDescription parameter : parameters) {
-                if (annotation(parameter.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAM) != null) {
-                    labels.put(parameter.getIndex(), parameter.getName());
-                }
-            }
-        }
-        for (ParamRef ref : refs) {
+        // By index: whether the value is hashed. A parameter selected by several entries is hashed if any of them hashes it.
+        TreeMap<Integer, Boolean> selected = new TreeMap<>();
+        for (ParamRef ref : paramRefs(type, method)) {
             switch (ref) {
                 case ParamRef.Annotations annotations -> {
-                    // Handled above, with the annotations.
+                    for (ParameterDescription parameter : annotated(type, method)) {
+                        select(selected, parameter, annotations.hashing());
+                    }
                 }
                 case ParamRef.Excluded excluded -> {
                     // paramRefs stops at "-".
                 }
                 case ParamRef.All all -> {
                     for (ParameterDescription parameter : parameters) {
-                        labels.putIfAbsent(parameter.getIndex(), parameter.getName());
+                        select(selected, parameter, all.hashing());
                     }
                 }
                 case ParamRef.ByName byName -> {
                     ParameterDescription parameter = named(parameters, byName.name());
                     if (parameter != null) {
-                        labels.putIfAbsent(parameter.getIndex(), parameter.getName());
+                        select(selected, parameter, byName.hashing());
                     }
                 }
                 case ParamRef.ByIndex byIndex -> {
                     if (byIndex.index() < parameters.size()) {
-                        labels.putIfAbsent(byIndex.index(), parameters.get(byIndex.index()).getName());
+                        select(selected, parameters.get(byIndex.index()), byIndex.hashing());
                     }
                 }
             }
         }
         // The label is the compiled parameter name; without the MethodParameters attribute (javac without -parameters),
         // ByteBuddy names parameters arg0, arg1, ...
-        List<IdParameter> selected = new ArrayList<>(labels.size());
-        for (Map.Entry<Integer, String> label : labels.entrySet()) {
-            selected.add(new IdParameter(parameters.get(label.getKey()), label.getValue()));
+        List<IdParameter> result = new ArrayList<>(selected.size());
+        for (Map.Entry<Integer, Boolean> entry : selected.entrySet()) {
+            ParameterDescription parameter = parameters.get(entry.getKey());
+            result.add(new IdParameter(parameter, parameter.getName(), entry.getValue()));
         }
-        return selected;
+        return result;
+    }
+
+    private void select(TreeMap<Integer, Boolean> selected, ParameterDescription parameter, ParamRef.Hashing hashing) {
+        boolean hashed = switch (hashing) {
+            case PLAIN -> false;
+            case HASH -> true;
+            // Without the MethodParameters attribute the name is arg<N>, which never looks sensitive.
+            case GUESS -> parameter.isNamed() && config.isSensitive(parameter.getName());
+        };
+        selected.merge(parameter.getIndex(), hashed, Boolean::logicalOr);
+    }
+
+    /**
+     * The parameters the annotations select: all of them with {@code @StackTraceParams} on the method or on the class
+     * declaring it, otherwise those with {@code @StackTraceParam}.
+     */
+    private static List<ParameterDescription> annotated(TypeDescription type, MethodDescription method) {
+        ParameterList<?> parameters = method.getParameters();
+        if (annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null
+                || annotation(type.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null) {
+            return new ArrayList<>(parameters);
+        }
+        List<ParameterDescription> annotated = new ArrayList<>();
+        for (ParameterDescription parameter : parameters) {
+            if (annotation(parameter.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAM) != null) {
+                annotated.add(parameter);
+            }
+        }
+        return annotated;
     }
 
     /**

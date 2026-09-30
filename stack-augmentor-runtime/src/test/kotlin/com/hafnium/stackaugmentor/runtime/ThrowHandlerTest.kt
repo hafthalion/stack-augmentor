@@ -105,4 +105,15 @@ class ThrowHandlerTest {
         ThrowHandler(config).onThrow(target, thrown, Annotated::class.java.name, "fail", null, null)
         assertEquals("${Annotated::class.java.name}{objectId=a-1}", thrown.stackTrace[0].className)
     }
+
+    @Test
+    fun `a label ending in # shows a hash of the value`() {
+        val target = Annotated()
+        val thrown = thrownBy(target)
+        ThrowHandler(AugmentorConfig()).onThrow(
+            null, thrown, Annotated::class.java.name, "fail", arrayOf("secret", 42, null), arrayOf("password#", "id", "email#"),
+        )
+        // SHA-256 of "secret" starts with 2bb80d53; null stays null.
+        assertEquals("fail{password=#2bb80d53, id=42, email=null}", thrown.stackTrace[0].methodName)
+    }
 }

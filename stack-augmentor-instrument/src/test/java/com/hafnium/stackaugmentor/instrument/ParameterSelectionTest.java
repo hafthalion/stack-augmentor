@@ -56,6 +56,15 @@ class ParameterSelectionTest {
         }
     }
 
+    static class Login {
+        void login(String userName, String password, int attempt) {
+        }
+
+        @StackTraceParams
+        void register(String email, String nickname) {
+        }
+    }
+
     /** An explicit class entry gives its receiver id; an "@" method entry re-enables the parameter annotations. */
     static class Explicit {
         @StackTraceId
@@ -114,6 +123,11 @@ class ParameterSelectionTest {
 
     private static List<String> labels(IdParameters parameters, Class<?> type, String method) {
         return parameters.select(type(type), method(type, method)).stream().map(IdParameter::label).toList();
+    }
+
+    /** The labels as the runtime receives them: hashed values' end with '#'. */
+    private static List<String> encoded(IdParameters parameters, Class<?> type, String method) {
+        return parameters.select(type(type), method(type, method)).stream().map(IdParameter::encodedLabel).toList();
     }
 
     private static AugmentorConfig classes(Map<String, IdSpec> classes) {
@@ -277,5 +291,36 @@ class ParameterSelectionTest {
 
         assertFalse(matching.instrument(type(UnusableId.class)));
         assertTrue(matching.instrument(type(UsableId.class)));
+    }
+
+    @Test
+    void hashedParameters() {
+        String login = Login.class.getName();
+        IdParameters byName = new IdParameters(methods(Map.of(login + ".login",
+                List.of(new ParamRef.ByName("password", ParamRef.Hashing.HASH), new ParamRef.ByIndex(0, ParamRef.Hashing.HASH),
+                        new ParamRef.ByIndex(2)))));
+        assertEquals(List.of("userName#", "password#", "attempt"), encoded(byName, Login.class, "login"));
+
+        IdParameters all = new IdParameters(methods(Map.of(login + ".*", List.of(new ParamRef.All(ParamRef.Hashing.HASH)))));
+        assertEquals(List.of("userName#", "password#", "attempt#"), encoded(all, Login.class, "login"));
+
+        IdParameters guessed = new IdParameters(methods(Map.of(login + ".*", List.of(new ParamRef.All(ParamRef.Hashing.GUESS)))));
+        assertEquals(List.of("userName#", "password#", "attempt"), encoded(guessed, Login.class, "login"));
+
+        IdParameters annotations = new IdParameters(methods(Map.of(login + ".*", List.of(new ParamRef.Annotations(ParamRef.Hashing.GUESS)))));
+        assertEquals(List.of(), encoded(annotations, Login.class, "login"));
+        assertEquals(List.of("email#", "nickname"), encoded(annotations, Login.class, "register"));
+
+        // Selected plainly and hashed by another entry: hashed.
+        IdParameters overlapping = new IdParameters(methods(Map.of(
+                login + ".login", List.of(new ParamRef.ByName("password", ParamRef.Hashing.HASH)),
+                login + ".*", List.of(new ParamRef.All()))));
+        assertEquals(List.of("userName", "password#", "attempt"), encoded(overlapping, Login.class, "login"));
+
+        IdParameters custom = new IdParameters(AugmentorConfig.builder()
+                .methods(Map.of(login + ".*", List.of(new ParamRef.All(ParamRef.Hashing.GUESS))))
+                .sensitiveParams(List.of("nickname"))
+                .build());
+        assertEquals(List.of("email", "nickname#"), encoded(custom, Login.class, "register"));
     }
 }

@@ -149,6 +149,13 @@ The label is the real field or method name (`{objectId=…}`, `{getKey=…}`); i
 - `"@"`: the parameters the method's annotations select: `@StackTraceParam` on a parameter, `@StackTraceParams` on the method (all its parameters), or `@StackTraceParams` on the class declaring it (all parameters of every method declared in that class; not of subclasses or nested classes);
 - `"-"`: none.
 
+**Hashed parameter ids.** A `#` after a name, an index, `"*"` or `"@"` shows the selected values as a short hash instead of their text: `#` and the first 8 hex digits of the SHA-256 of the `toString()`, e.g. `login{user=ann, password=#1ec1c26b}`. The same value always gives the same hash, so a value can still be followed across log lines and incidents without appearing in them. `null` stays `null`.
+- `["user", "password#", "2#"]`: `password` and the third parameter hashed, `user` as text;
+- `"*#"`, `"@#"`: all parameters, or those the annotations select, all hashed;
+- `"*#?"`, `"@#?"`: the same parameters, but only those whose names look sensitive are hashed, the others are shown as text.
+
+A name looks sensitive when one of the `sensitiveParams` names (see [Configuration](#configuration)) equals one of its words or several consecutive ones, ignoring case: names are split at camel-case humps, digits and `_`. So `email` matches `userEmail`, `eMail` and `EMAIL_ADDRESS`, `firstName` matches `first_name`, but `pin` does not match `shipping`. The defaults cover secrets (`password`, `secret`, `token`, `apiKey`, `pin`, `cvv`, …) and personal data (`email`, `phone`, `firstName`, `lastName`, `userName`, `address`, `birthDate`, `iban`, `ssn`, …); `sensitiveParams` replaces them. Parameters without compiled names (`arg<N>`) never look sensitive, so `"*#?"` shows them as text. When several entries select a parameter, it is hashed if any of them hashes it. The hash is not salted: values from a small set, e.g. PINs, can be found by trying them all, so drop such parameters (`"-"`) rather than hashing them.
+
 The keys match the class that declares the method, not its subclasses. When several entries match a method, they are taken from the most specific on (an exact `"<class>.<method>"` first, then the patterns with the most characters other than `*` and `?`) and combined up to the first `"-"`, which drops the less specific ones:
 
 ```toml
@@ -192,6 +199,7 @@ receiverFormat = "{$name=$id}"
 paramsFormat = "{$name=$id, ...}"
 maxIdLength = 64
 maxParams = 4        # at most this many parameter ids per frame, then "…"
+# sensitiveParams = ["password", "email"]   # the names "*#?" and "@#?" hash; replaces the built-in list
 
 # Which receivers and parameters get ids: two independent tables. Read by the agent when classes load, or by
 # the build plugin at build time, which instrument whatever classes and methods they need.
@@ -209,8 +217,9 @@ maxParams = 4        # at most this many parameter ids per frame, then "…"
 "com.thirdparty.**.*Account" = "number"
 
 # Parameter ids: "<class>.<method>" = parameter names and 0-based indexes, "*" for all parameters, "@" for
-# the method's @StackTraceParam and @StackTraceParams annotations, or "-" for none. Entries that match the same
-# method are combined from the most specific on, up to the first "-".
+# the method's @StackTraceParam and @StackTraceParams annotations, or "-" for none. A "#" after a name, an index,
+# "*" or "@" shows the values hashed; "*#?" and "@#?" hash only the parameters with sensitive names. Entries that
+# match the same method are combined from the most specific on, up to the first "-".
 [augment.params]
 "com.hafnium.**.*" = "@"                             # the annotations of these methods
 "com.acme.orders.*.*" = "@"
@@ -218,6 +227,8 @@ maxParams = 4        # at most this many parameter ids per frame, then "…"
 "com.thirdparty.InventoryService.*" = "*"             # all methods of a class
 "com.thirdparty.**.*Repository.find*" = [0]          # across packages
 "com.thirdparty.**.AuditRepository.find*" = "-"      # except these
+"com.thirdparty.LoginService.login" = ["user", "password#"]   # password hashed
+"com.thirdparty.**.*Controller.*" = "*#?"            # all, sensitive names hashed
 ```
 
 Quote class names in `[augment.receiver]` and `[augment.params]`. Without quotes, TOML treats each `.` as a nested table; the agent accepts that too, but the quoted form is the clear one. Keys with wildcards must be quoted. Broad wildcards such as `"com.**.*" = "*"` make the agent instrument many classes, which costs time when they are loaded; `debug = true` lists every instrumented class, and the annotations it ignores. A missing field or method is a warning for exact class names, and only a debug message for patterns. Startup messages name their source: `agent:`, `build plugin:` or `runtime:` (the handler of build-time instrumentation), and with `debug = true` each of them lists its configuration file, both tables and the `[augment]` values. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.

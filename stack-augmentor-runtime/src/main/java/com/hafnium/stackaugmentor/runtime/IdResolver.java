@@ -6,6 +6,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -25,6 +28,9 @@ public final class IdResolver {
 
     /** Name of the annotation that selects all parameters of a method, or of the methods of a class. */
     public static final String STACK_TRACE_PARAMS = "com.hafnium.stackaugmentor.StackTraceParams";
+
+    /** The hex digits of a hashed parameter id. */
+    private static final int HASH_LENGTH = 8;
 
     private static final Pattern LINE_BREAKS = Pattern.compile("[\\r\\n]+");
 
@@ -132,6 +138,30 @@ public final class IdResolver {
      */
     public String paramId(Object value) {
         return guarded(() -> text(value));
+    }
+
+    /**
+     * The id of an argument selected with {@code #}: {@code #} and the first 8 hex digits of the SHA-256 of its text,
+     * e.g. {@code #5d41402a}. The same value gives the same hash, so it can be followed across log lines and
+     * incidents without being shown. {@code null} stays {@code null}.
+     */
+    public String hashedParamId(Object value) {
+        return guarded(() -> value == null ? "null" : hash(text(value)));
+    }
+
+    static String hash(String text) {
+        byte[] digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));
+        } catch (NoSuchAlgorithmException e) {
+            // Every Java platform has SHA-256.
+            throw new IllegalStateException(e);
+        }
+        StringBuilder hex = new StringBuilder(HASH_LENGTH + 1).append('#');
+        for (int i = 0; i < HASH_LENGTH / 2; i++) {
+            hex.append(Character.forDigit((digest[i] >> 4) & 0xF, 16)).append(Character.forDigit(digest[i] & 0xF, 16));
+        }
+        return hex.toString();
     }
 
     /** A receiver id is shown like an argument, e.g. an array with its elements. */

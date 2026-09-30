@@ -195,6 +195,33 @@ select it: `@StackTraceId` marks receiver ids only.
 - **WHEN** `run(7)` throws
 - **THEN** that frame shows `code=7` and no receiver id
 
+### Requirement: Hashed parameter ids
+A `#` after a parameter name or index in an `[augment.params]` array (`"password#"`, `"2#"`), or after
+`"*"` or `"@"` (`"*#"`, `"@#"`), SHALL show the values of the parameters it selects hashed: `#` followed by
+the first 8 lower-case hex digits of the SHA-256 of the value's text (its UTF-8 bytes, before line breaks and
+parentheses are replaced and before `maxIdLength` applies). `null` SHALL stay `null`, and an id source that
+throws SHALL still show `?`. `"*#?"` and `"@#?"` SHALL select the same parameters as `"*"` and `"@"`, but
+hash only those whose name looks sensitive and show the others as text. A name SHALL look sensitive when one
+of the `[augment] sensitiveParams` names equals one of its words or several consecutive ones, ignoring case,
+where names are split into words at camel-case humps and at characters other than letters; parameters
+without compiled names (`arg<N>`) SHALL NOT look sensitive. A parameter selected by several entries SHALL be
+hashed when any of them hashes it. The label SHALL stay the parameter name.
+
+#### Scenario: Parameters hashed by name and index
+- **GIVEN** `"com.thirdparty.LoginService.login" = ["user", "password#", "2#"]` in `[augment.params]` for `login(user: String, password: String, attempt: Int)`
+- **WHEN** `login("ann", "s3cret", 3)` throws
+- **THEN** that frame shows `user=ann, password=#1ec1c26b, attempt=#4e074085`
+
+#### Scenario: Sensitive names guessed
+- **GIVEN** `"com.thirdparty.LoginService.register" = "*#?"` for `register(email: String, nickname: String)`, with the default `sensitiveParams`
+- **WHEN** `register("a@b.c", "annie")` throws
+- **THEN** that frame shows `email=#d648b243, nickname=annie`
+
+#### Scenario: Whole words only
+- **GIVEN** the default `sensitiveParams`, which contain `pin` and `email`
+- **WHEN** parameters named `shipping`, `userEmail` and `EMAIL_ADDRESS` are selected by `"*#?"`
+- **THEN** `shipping` is shown as text, `userEmail` and `EMAIL_ADDRESS` hashed
+
 ### Requirement: Labels
 The label of a receiver id SHALL be the real name of the field or method that supplies it, and the label
 of a parameter id SHALL be the parameter name compiled into the class file, however the parameter is

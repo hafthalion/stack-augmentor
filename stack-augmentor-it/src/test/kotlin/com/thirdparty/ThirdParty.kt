@@ -27,3 +27,10 @@ class InventoryAudit {
 open class SavingsAccount(private val number: String) {
     fun withdraw(): Nothing = throw IllegalStateException("cannot withdraw")
 }
+
+/** Hashed parameter ids: "#" after a name or index, and "*#?" for the names that look sensitive. */
+class LoginService {
+    fun login(user: String, password: String, attempt: Int): Nothing = throw IllegalStateException("login")
+
+    fun register(email: String, nickname: String): Nothing = throw IllegalStateException("register")
+}
