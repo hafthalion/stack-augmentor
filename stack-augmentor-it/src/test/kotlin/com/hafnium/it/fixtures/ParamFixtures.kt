@@ -34,22 +34,9 @@ class Overlap {
     fun op(@StackTraceParam x: Int, y: Int): Nothing = throw IllegalStateException("op")
 }
 
-/** Counts toString() calls, to check that parameters beyond maxParams are not resolved. */
-class Counted {
-    override fun toString(): String {
-        calls++
-        throw IllegalStateException("not to be called")
-    }
-
-    companion object {
-        @JvmStatic
-        var calls = 0
-    }
-}
-
 class Wide {
     @StackTraceParams
-    fun ten(a: Int, b: Int, c: Int, d: Int, e: Int, f: Int, g: Int, h: Int, i: Int, j: Counted): Nothing =
+    fun ten(a: Int, b: Int, c: Int, d: Int, e: Int, f: Int, g: Int, h: Int, i: Int, j: Int): Nothing =
         throw IllegalStateException("ten")
 }
 

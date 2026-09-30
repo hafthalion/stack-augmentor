@@ -14,8 +14,6 @@ receiverFormat = "{$name=$id}"
 paramsFormat = "{$name=$id, ...}"
 # Longer ids are cut off with "…".
 maxIdLength = 64
-# At most this many parameter ids per frame; more are shown as "…".
-maxParams = 4
 
 # Only this project's classes are changed, so entries for third-party classes don't apply.
 # '*' matches within one package, '**' across packages.

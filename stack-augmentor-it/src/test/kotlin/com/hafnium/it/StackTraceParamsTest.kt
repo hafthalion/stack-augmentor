@@ -1,7 +1,6 @@
 package com.hafnium.it
 
 import com.hafnium.it.fixtures.Accounts
-import com.hafnium.it.fixtures.Counted
 import com.hafnium.it.fixtures.DerivedInventory
 import com.hafnium.it.fixtures.Inventory
 import com.hafnium.it.fixtures.Overlap
@@ -15,7 +14,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
-/** @StackTraceParams, wildcard [augment.params] entries and maxParams; runs with the agent, see build.gradle.kts. */
+/** @StackTraceParams and wildcard [augment.params] entries; runs with the agent, see build.gradle.kts. */
 class StackTraceParamsTest {
 
     private fun Throwable.method(index: Int = 0): String = stackTrace[index].methodName
@@ -54,11 +53,9 @@ class StackTraceParamsTest {
     }
 
     @Test
-    fun `at most maxParams parameters are shown and resolved`() {
-        Counted.calls = 0
-        val e = assertThrows<IllegalStateException> { Wide().ten(1, 2, 3, 4, 5, 6, 7, 8, 9, Counted()) }
-        assertEquals("ten{a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, …}", e.method())
-        assertEquals(0, Counted.calls, "parameters beyond maxParams must not be resolved")
+    fun `all selected parameters are shown`() {
+        val e = assertThrows<IllegalStateException> { Wide().ten(1, 2, 3, 4, 5, 6, 7, 8, 9, 10) }
+        assertEquals("ten{a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, i=9, j=10}", e.method())
     }
 
     @Test

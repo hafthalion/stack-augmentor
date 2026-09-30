@@ -10,7 +10,7 @@ configurations are reported.
 The configuration SHALL be a TOML file ending in `.toml`, with these keys:
 - `debug` (boolean, default `false`);
 - `[augment]`: `frameFormat`, `receiverFormat`, `paramsFormat` (strings), `maxIdLength` (integer
-  between 2 and 10000, default 64) and `maxParams` (integer between 1 and 255, default 4), and the tables:
+  between 2 and 10000, default 64), and the tables:
   - `[augment.receiver]` (class name or class pattern → field name, `method()`, `"@"` for the class's
     `@StackTraceId`, or `"-"` for no receiver id), which decides the receiver ids;
   - `[augment.params]` (`"<class pattern>.<method pattern>"` → array of parameter names and 0-based
@@ -43,9 +43,9 @@ replacing the other.
 - **THEN** all defaults apply, and no class gets ids
 
 #### Scenario: Wildcard entry with named parameters
-- **GIVEN** `"com.thirdparty.**.*Service.*" = ["order", 1]` in `[augment.params]` and `maxParams = 4` in `[augment]`
+- **GIVEN** `"com.thirdparty.**.*Service.*" = ["order", 1]` in `[augment.params]`
 - **WHEN** it is loaded
-- **THEN** the entry selects the parameter `order` and the second parameter of all methods of matching classes, and at most 4 parameter ids are shown per frame
+- **THEN** the entry selects the parameter `order` and the second parameter of all methods of matching classes
 
 #### Scenario: Class entries
 - **GIVEN** `"com.acme.**" = "@"`, `"com.acme.legacy.*" = "getKey()"` and `"com.thirdparty.Customer" = "customerId"` in `[augment.receiver]`
@@ -85,7 +85,7 @@ inside the array, and `"*"` is not allowed as the value). The message SHALL name
 - **THEN** it is rejected with a message that the configuration must be a TOML file ending in `.toml`
 
 #### Scenario: Invalid parameter entries
-- **GIVEN** `[augment.params]` with `"com.acme.Order.process" = "all"`, or `"com.acme.Order.process" = "*"`, or `"com.acme.Order+.process" = "@"`, or `[augment]` with `maxParams = 0`
+- **GIVEN** `[augment.params]` with `"com.acme.Order.process" = "all"`, or `"com.acme.Order.process" = "*"`, or `"com.acme.Order+.process" = "@"`
 - **WHEN** the configuration is loaded
 - **THEN** it is rejected with a message naming the key and its line
 
