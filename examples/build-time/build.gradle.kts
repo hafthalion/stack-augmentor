@@ -47,5 +47,5 @@ tasks.matching { it.name == "byteBuddyKotlin" }.configureEach {
 }
 
 application {
-    mainClass = "com.hafnium.Main"
+    mainClass = "com.hafnium.examples.buildtime.Main"
 }

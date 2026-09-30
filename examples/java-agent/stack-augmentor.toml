@@ -18,7 +18,7 @@ maxIdLength = 64
 # cannot annotate name a field or a method(): an order is identified by its getOrderNumber() method, a
 # customer by its customerId field.
 [augment.receiver]
-"com.hafnium.**" = "@"
+"com.hafnium.examples.agent.**" = "@"
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"
 
@@ -26,7 +26,7 @@ maxIdLength = 64
 # shows its order argument and its second parameter (quantity), the methods of the Inventory* classes their sku
 # and count parameters, and ClassWithoutAnnotation.method its q parameter.
 [augment.params]
-"com.hafnium.**.*" = "@"
+"com.hafnium.examples.agent.**.*" = "@"
 "com.thirdparty.OrderService.process" = ["order", 1]
 "com.thirdparty.Inventory*.*" = ["sku", "count"]
-"com.hafnium.ClassWithoutAnnotation.method" = ["q"]
+"com.hafnium.examples.agent.ClassWithoutAnnotation.method" = ["q"]

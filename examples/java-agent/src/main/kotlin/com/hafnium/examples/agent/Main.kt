@@ -1,4 +1,4 @@
-package com.hafnium
+package com.hafnium.examples.agent
 
 import com.thirdparty.Customer
 import com.thirdparty.InventoryService
