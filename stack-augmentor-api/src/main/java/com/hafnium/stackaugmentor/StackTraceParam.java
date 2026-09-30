@@ -12,9 +12,16 @@ import java.lang.annotation.Target;
  * <p>The label is the parameter's name as compiled into the class file: compile Java with {@code javac -parameters}
  * (Kotlin: {@code javaParameters = true}), otherwise the label is {@code arg<N>}. To show all parameters of a method,
  * or of every method of a class, use {@link StackTraceParams}.
+ *
+ * <p>With {@code secret = true} the value is shown as a short hash instead of its text, e.g.
+ * {@code login{password=#1ec1c26b}}: the same value gives the same hash, so it can be followed across log lines
+ * without appearing in them.
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.PARAMETER)
 public @interface StackTraceParam {
+
+    /** Whether the value is shown as a hash of its text instead of the text itself. */
+    boolean secret() default false;
 }

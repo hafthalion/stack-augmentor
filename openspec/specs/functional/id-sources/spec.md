@@ -9,7 +9,7 @@ their values are turned into text.
 
 ### Requirement: Independent receiver and parameter ids
 `[augment.receiver]` SHALL decide the receiver ids and `[augment.params]` the parameter ids, independently:
-no value in one table (a member, `"@"`, `"*"` or `"-"`) SHALL change what the other selects. What gets
+no value in one table (a member, a parameter, `"@"` or `"-"`) SHALL change what the other selects. What gets
 instrumented SHALL NOT be configured directly: a class SHALL be instrumented when either table gives it a
 receiver id or a parameter id, and a method when it gets a parameter id or, as an instance method, a
 receiver id.
@@ -165,7 +165,7 @@ annotated with `@StackTraceParam` (`com.hafnium.stackaugmentor.StackTraceParam`)
 class declaring the method is annotated with `@StackTraceParams`
 (`com.hafnium.stackaugmentor.StackTraceParams`, see "Parameter ids from method- and class-level
 annotations"), in both cases only where an `[augment.params]` entry `"@"` applies, or when an
-`[augment.params]` entry selects it by name, index or `"*"` (see "Parameter ids of configured methods").
+`[augment.params]` entry selects it by name or index (see "Parameter ids of configured methods").
 This SHALL apply to instance and static methods. A parameter selected more than once SHALL be shown
 once, and parameter ids SHALL be listed in declaration order. `@StackTraceId` on a parameter SHALL NOT
 select it: `@StackTraceId` marks receiver ids only.
@@ -196,36 +196,28 @@ select it: `@StackTraceId` marks receiver ids only.
 - **THEN** that frame shows `code=7` and no receiver id
 
 ### Requirement: Hashed parameter ids
-A `#` after a parameter name or index in an `[augment.params]` array (`"password#"`, `"2#"`), or after
-`"*"` or `"@"` (`"*#"`, `"@#"`), SHALL show the values of the parameters it selects hashed: `#` followed by
-the first 8 lower-case hex digits of the SHA-256 of the value's text (its UTF-8 bytes, before line breaks and
+A `#` after a parameter name or index in an `[augment.params]` array (`"password#"`, `"2#"`),
+`@StackTraceParam(secret = true)` on a parameter, or `@StackTraceParams(secret = true)` on the method or the
+class that declares it (for all the parameters it selects) SHALL show the value hashed: `#` followed by the
+first 8 lower-case hex digits of the SHA-256 of the value's text (its UTF-8 bytes, before line breaks and
 parentheses are replaced and before `maxIdLength` applies). `null` SHALL stay `null`, and an id source that
-throws SHALL still show `?`. `"*#?"` and `"@#?"` SHALL select the same parameters as `"*"` and `"@"`, but
-hash only those whose name looks sensitive and show the others as text. A name SHALL look sensitive when one
-of the `[augment] sensitiveParams` names equals one of its words or several consecutive ones, ignoring case,
-where names are split into words at camel-case humps and at characters other than letters; parameters
-without compiled names (`arg<N>`) SHALL NOT look sensitive. A parameter selected by several entries SHALL be
-hashed when any of them hashes it. The label SHALL stay the parameter name.
+throws SHALL still show `?`. `secret` SHALL default to `false`. A parameter selected by several entries or
+annotations SHALL be hashed when any of them hashes it. The label SHALL stay the parameter name.
 
 #### Scenario: Parameters hashed by name and index
 - **GIVEN** `"com.thirdparty.LoginService.login" = ["user", "password#", "2#"]` in `[augment.params]` for `login(user: String, password: String, attempt: Int)`
 - **WHEN** `login("ann", "s3cret", 3)` throws
 - **THEN** that frame shows `user=ann, password=#1ec1c26b, attempt=#4e074085`
 
-#### Scenario: Sensitive names guessed
-- **GIVEN** `"com.thirdparty.LoginService.register" = "*#?"` for `register(email: String, nickname: String)`, with the default `sensitiveParams`
-- **WHEN** `register("a@b.c", "annie")` throws
-- **THEN** that frame shows `email=#d648b243, nickname=annie`
-
-#### Scenario: Whole words only
-- **GIVEN** the default `sensitiveParams`, which contain `pin` and `email`
-- **WHEN** parameters named `shipping`, `userEmail` and `EMAIL_ADDRESS` are selected by `"*#?"`
-- **THEN** `shipping` is shown as text, `userEmail` and `EMAIL_ADDRESS` hashed
+#### Scenario: Secret annotations
+- **GIVEN** `fun login(@StackTraceParam user: String, @StackTraceParam(secret = true) password: String)` and `@StackTraceParams(secret = true) fun register(email: String, nickname: String)`, matched by an `"@"` entry
+- **WHEN** `login("ann", "s3cret")` throws, and separately `register("a@b.c", "annie")` throws
+- **THEN** the first frame shows `user=ann, password=#1ec1c26b`, and the second `email=#d648b243, nickname=#71be92cb`
 
 ### Requirement: Labels
 The label of a receiver id SHALL be the real name of the field or method that supplies it, and the label
 of a parameter id SHALL be the parameter name compiled into the class file, however the parameter is
-selected. Labels SHALL NOT be overridden: `@StackTraceId` and `@StackTraceParam` have no attributes. When a class has no parameter names (compiled without
+selected. Labels SHALL NOT be overridden: `@StackTraceId` has no attributes, and the only one of `@StackTraceParam` and `@StackTraceParams` is `secret`. When a class has no parameter names (compiled without
 `-parameters`), the label SHALL be `arg<N>`, so Java classes SHOULD be compiled with `javac -parameters` (Kotlin
 with `javaParameters = true`).
 
@@ -281,7 +273,7 @@ throws SHALL be shown as `?`.
 - **THEN** the frame shows `id=?` and the original exception is unchanged otherwise
 
 ### Requirement: Parameter ids from method- and class-level annotations
-`@StackTraceParams` (on methods and classes only, without attributes) on a method SHALL select all
+`@StackTraceParams` (on methods and classes only) on a method SHALL select all
 parameters of that method. `@StackTraceParams` on a class SHALL select all parameters of every instance and
 static method declared in that class. It SHALL NOT apply to methods of subclasses or nested classes, which
 need their own annotation. Both SHALL only be used where an `[augment.params]` entry `"@"` applies. Methods without parameters SHALL get no parameter ids. Constructors, synthetic,
@@ -310,14 +302,14 @@ class that declares the method, not its subclasses. The class pattern
 SHALL use the `[augment.receiver]` globs (`*` within one package segment, `**` across segments, `?` one
 character). In the method pattern, `*` SHALL match any sequence of characters and `?` one character. A key
 without wildcards SHALL match exactly. `<parameters>` SHALL be an array of parameter names and 0-based
-indexes (0 to 255), the string `"*"` for all parameters, or the string `"@"` for the parameters selected by the method's
+indexes (0 to 255), or the string `"@"` for the parameters selected by the method's
 annotations: `@StackTraceParam` on its parameters, and `@StackTraceParams` on the method or on the class that
-declares it. Names and indexes that a matched method does not have
+declares it. There SHALL be no value for all parameters: each is named, or selected by an annotation. Names and indexes that a matched method does not have
 SHALL be skipped. When several entries match one method, the parameters they select SHALL be combined, up to
 a `"-"` entry as described under "Ignoring receivers and parameters".
 
-#### Scenario: All methods and parameters of a class
-- **GIVEN** `"com.thirdparty.InventoryService.*" = "*"`
+#### Scenario: All methods of a class
+- **GIVEN** `"com.thirdparty.InventoryService.*" = ["sku", "count"]`
 - **WHEN** `InventoryService.reserve("x-1", 2)` throws
 - **THEN** that frame shows `sku=x-1, count=2` and no receiver id
 
@@ -351,7 +343,7 @@ A configuration whose entries are all `"-"` SHALL count as having no entries.
 - **THEN** its frame shows no receiver id
 
 #### Scenario: Ignored methods under a wildcard entry
-- **GIVEN** `"com.thirdparty.Inventory*.*" = "*"`, `"com.thirdparty.InventoryAudit.*" = "-"` and `"com.thirdparty.InventoryAudit.log" = ["reason"]` in `[augment.params]`
+- **GIVEN** `"com.thirdparty.Inventory*.*" = ["sku", "count"]`, `"com.thirdparty.InventoryAudit.*" = "-"` and `"com.thirdparty.InventoryAudit.log" = ["reason"]` in `[augment.params]`
 - **WHEN** `InventoryAudit.purge("x-1")` throws, and separately `InventoryAudit.log("disk full", 2)` throws
 - **THEN** the first frame is unchanged, and the second frame shows `reason=disk full`
 

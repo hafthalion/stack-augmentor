@@ -18,8 +18,9 @@ import java.util.stream.Collectors;
 
 /**
  * Finds the id parameters of a method: those the {@code [augment.params]} config table selects, by name, index,
- * {@code "*"}, or {@code "@"} for the method's {@code @StackTraceParam} and {@code @StackTraceParams} annotations, and
- * whether their values are hashed ({@code #}, or {@code #?} for sensitive names). {@code [augment.receiver]} plays no part.
+ * or {@code "@"} for the method's {@code @StackTraceParam} and {@code @StackTraceParams} annotations, and whether their
+ * values are hashed: {@code #} after a name or index, {@code secret = true} on an annotation. {@code [augment.receiver]}
+ * plays no part.
  */
 public final class IdParameters {
 
@@ -67,28 +68,19 @@ public final class IdParameters {
         TreeMap<Integer, Boolean> selected = new TreeMap<>();
         for (ParamRef ref : paramRefs(type, method)) {
             switch (ref) {
-                case ParamRef.Annotations annotations -> {
-                    for (ParameterDescription parameter : annotated(type, method)) {
-                        select(selected, parameter, annotations.hashing());
-                    }
-                }
+                case ParamRef.Annotations annotations -> annotated(type, method, selected);
                 case ParamRef.Excluded excluded -> {
                     // paramRefs stops at "-".
-                }
-                case ParamRef.All all -> {
-                    for (ParameterDescription parameter : parameters) {
-                        select(selected, parameter, all.hashing());
-                    }
                 }
                 case ParamRef.ByName byName -> {
                     ParameterDescription parameter = named(parameters, byName.name());
                     if (parameter != null) {
-                        select(selected, parameter, byName.hashing());
+                        selected.merge(parameter.getIndex(), byName.hashed(), Boolean::logicalOr);
                     }
                 }
                 case ParamRef.ByIndex byIndex -> {
                     if (byIndex.index() < parameters.size()) {
-                        select(selected, parameters.get(byIndex.index()), byIndex.hashing());
+                        selected.merge(byIndex.index(), byIndex.hashed(), Boolean::logicalOr);
                     }
                 }
             }
@@ -103,33 +95,43 @@ public final class IdParameters {
         return result;
     }
 
-    private void select(TreeMap<Integer, Boolean> selected, ParameterDescription parameter, ParamRef.Hashing hashing) {
-        boolean hashed = switch (hashing) {
-            case PLAIN -> false;
-            case HASH -> true;
-            // Without the MethodParameters attribute the name is arg<N>, which never looks sensitive.
-            case GUESS -> parameter.isNamed() && config.isSensitive(parameter.getName());
-        };
-        selected.merge(parameter.getIndex(), hashed, Boolean::logicalOr);
-    }
-
     /**
      * The parameters the annotations select: all of them with {@code @StackTraceParams} on the method or on the class
-     * declaring it, otherwise those with {@code @StackTraceParam}.
+     * declaring it, and those with {@code @StackTraceParam}. Hashed with {@code secret = true} on the annotation that
+     * selects them.
      */
-    private static List<ParameterDescription> annotated(TypeDescription type, MethodDescription method) {
+    private static void annotated(TypeDescription type, MethodDescription method, TreeMap<Integer, Boolean> selected) {
         ParameterList<?> parameters = method.getParameters();
-        if (annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null
-                || annotation(type.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null) {
-            return new ArrayList<>(parameters);
-        }
-        List<ParameterDescription> annotated = new ArrayList<>();
-        for (ParameterDescription parameter : parameters) {
-            if (annotation(parameter.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAM) != null) {
-                annotated.add(parameter);
+        for (AnnotationDescription all : new AnnotationDescription[] {
+                annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS),
+                annotation(type.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS)}) {
+            if (all != null) {
+                for (ParameterDescription parameter : parameters) {
+                    selected.merge(parameter.getIndex(), secret(all), Boolean::logicalOr);
+                }
             }
         }
-        return annotated;
+        for (ParameterDescription parameter : parameters) {
+            AnnotationDescription one = annotation(parameter.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAM);
+            if (one != null) {
+                selected.merge(parameter.getIndex(), secret(one), Boolean::logicalOr);
+            }
+        }
+    }
+
+    /** The annotation's {@code secret} value, read by name: the application may load its own, older copy of the API. */
+    private static boolean secret(AnnotationDescription annotation) {
+        for (MethodDescription.InDefinedShape property : annotation.getAnnotationType().getDeclaredMethods()) {
+            if (property.getName().equals("secret")) {
+                try {
+                    return Boolean.TRUE.equals(annotation.getValue(property).resolve());
+                } catch (RuntimeException e) {
+                    // Not resolvable, e.g. an API copy whose annotation declares no default: shown as text.
+                    return false;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -166,8 +168,6 @@ public final class IdParameters {
                         .collect(Collectors.joining(", ")) + ")";
                 for (ParamRef ref : params.getValue()) {
                     switch (ref) {
-                        case ParamRef.All all -> {
-                        }
                         case ParamRef.Annotations annotations -> {
                         }
                         case ParamRef.Excluded excluded -> {

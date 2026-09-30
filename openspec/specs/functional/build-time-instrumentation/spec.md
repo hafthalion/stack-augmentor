@@ -77,6 +77,6 @@ with the file, the key and the line (see the diagnostics specification).
 - **AND** a warning says that there is no runtime configuration, so frames show no receiver ids
 
 #### Scenario: Parameter entry only
-- **GIVEN** `"com.acme.Svc.run" = "*"` in `[augment.params]`, no `[augment.receiver]` entry for `Svc`, and `Svc` with a `@StackTraceId` field
+- **GIVEN** `"com.acme.Svc.run" = [0]` in `[augment.params]`, no `[augment.receiver]` entry for `Svc`, and `Svc` with a `@StackTraceId` field
 - **WHEN** `run` throws in a build-time instrumented application
-- **THEN** the frame shows the parameter ids of `run` and no receiver id
+- **THEN** the frame shows the parameter id of `run`'s first parameter and no receiver id

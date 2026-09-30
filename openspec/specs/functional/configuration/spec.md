@@ -10,15 +10,13 @@ configurations are reported.
 The configuration SHALL be a TOML file ending in `.toml`, with these keys:
 - `debug` (boolean, default `false`);
 - `[augment]`: `frameFormat`, `receiverFormat`, `paramsFormat` (strings), `maxIdLength` (integer
-  between 2 and 10000, default 64), `maxParams` (integer between 1 and 255, default 4) and `sensitiveParams`
-  (array of parameter names that `"*#?"` and `"@#?"` hash, replacing the built-in list of secrets and personal
-  data such as `password`, `token`, `email`, `phone` and `firstName`), and the tables:
+  between 2 and 10000, default 64) and `maxParams` (integer between 1 and 255, default 4), and the tables:
   - `[augment.receiver]` (class name or class pattern → field name, `method()`, `"@"` for the class's
     `@StackTraceId`, or `"-"` for no receiver id), which decides the receiver ids;
   - `[augment.params]` (`"<class pattern>.<method pattern>"` → array of parameter names and 0-based
-    indexes from 0 to 255, the JVM's maximum number of parameters, `"*"` for all parameters, `"@"` for the method's parameter annotations, or `"-"` for none;
-    a `#` after a name, an index (then written as a string, e.g. `"2#"`), `"*"` or `"@"` hashes the values, and
-    `"*#?"` and `"@#?"` hash those with sensitive names, see the id sources specification), which decides the parameter ids.
+    indexes from 0 to 255, the JVM's maximum number of parameters, each optionally followed by `#` to hash the value
+    (an index is then written as a string, e.g. `"2#"`), `"@"` for the method's parameter annotations, or `"-"` for none;
+    there is no wildcard value for the parameters), which decides the parameter ids.
 
   Both tables default to empty. They SHALL be independent: no value in one table SHALL change what the
   other selects.
@@ -44,10 +42,10 @@ replacing the other.
 - **WHEN** it is loaded
 - **THEN** all defaults apply, and no class gets ids
 
-#### Scenario: Wildcard entry with all parameters
-- **GIVEN** `"com.thirdparty.**.*Service.*" = "*"` in `[augment.params]` and `maxParams = 4` in `[augment]`
+#### Scenario: Wildcard entry with named parameters
+- **GIVEN** `"com.thirdparty.**.*Service.*" = ["order", 1]` in `[augment.params]` and `maxParams = 4` in `[augment]`
 - **WHEN** it is loaded
-- **THEN** the entry selects all parameters of all methods of matching classes, and at most 4 parameter ids are shown per frame
+- **THEN** the entry selects the parameter `order` and the second parameter of all methods of matching classes, and at most 4 parameter ids are shown per frame
 
 #### Scenario: Class entries
 - **GIVEN** `"com.acme.**" = "@"`, `"com.acme.legacy.*" = "getKey()"` and `"com.thirdparty.Customer" = "customerId"` in `[augment.receiver]`
@@ -67,10 +65,9 @@ section, including keys in the wrong section (such as `maxIdLength` at the top l
 be invalid when its key contains characters other than identifier characters, `$`, `.`, `*` and `?`, or
 when its value is not a field name, a `method()`, `"@"` or `"-"`. An `[augment.params]` entry SHALL be invalid
 when its key has no class or no method part, when a part contains characters other than identifier
-characters, `$`, `.` (class part only), `*` and `?`, or when its value is neither `"*"`, `"@"`, `"-"`, `"*#"`,
-`"@#"`, `"*#?"`, `"@#?"` nor a non-empty array of parameter names and indexes, each optionally followed by `#`
-(`"*"`, `"@"`, `"-"` and `#?` are not allowed inside the array). `sensitiveParams` SHALL be invalid when it is
-not an array of parameter names. The message SHALL name the file, the key and its line.
+characters, `$`, `.` (class part only), `*` and `?`, or when its value is neither `"@"`, `"-"` nor a non-empty
+array of parameter names and indexes, each optionally followed by `#` (`"*"`, `"@"` and `"-"` are not allowed
+inside the array, and `"*"` is not allowed as the value). The message SHALL name the file, the key and its line.
 
 #### Scenario: Value out of range
 - **GIVEN** `[augment]` with `maxIdLength = 1` on line 3 of `stack-augmentor.toml`
@@ -88,7 +85,7 @@ not an array of parameter names. The message SHALL name the file, the key and it
 - **THEN** it is rejected with a message that the configuration must be a TOML file ending in `.toml`
 
 #### Scenario: Invalid parameter entries
-- **GIVEN** `[augment.params]` with `"com.acme.Order.process" = "all"`, or `"com.acme.Order+.process" = "*"`, or `[augment]` with `maxParams = 0`
+- **GIVEN** `[augment.params]` with `"com.acme.Order.process" = "all"`, or `"com.acme.Order.process" = "*"`, or `"com.acme.Order+.process" = "@"`, or `[augment]` with `maxParams = 0`
 - **WHEN** the configuration is loaded
 - **THEN** it is rejected with a message naming the key and its line
 

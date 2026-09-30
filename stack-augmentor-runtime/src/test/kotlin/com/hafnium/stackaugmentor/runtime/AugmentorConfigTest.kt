@@ -195,7 +195,7 @@ class AugmentorConfigTest {
     @Test
     fun `unknown keys are rejected, in every section`() {
         assertEquals(
-            "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams, sensitiveParams, " +
+            "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams, " +
                 "receiver, params",
             error("[augment]\nframe = \"\$class.\$method\""),
         )
@@ -227,24 +227,24 @@ class AugmentorConfigTest {
     }
 
     @Test
-    fun `method entries with wildcards, all parameters and annotations`() {
+    fun `method entries with wildcards and annotations`() {
         val config = parse(
             """
             [augment.params]
             "com.thirdparty.OrderService.process" = ["order"]
             "com.thirdparty.OrderService.*" = [2]
-            "com.thirdparty.Inventory*.*" = "*"
+            "com.thirdparty.Inventory*.*" = ["sku", "count"]
             "com.thirdparty.**.*Repository.find*" = [0]
             "com.acme.Outer${'$'}Inner.ru?" = ["x"]
             "com.acme.Legacy.*" = "@"
             """,
         )
-        val all = listOf(ParamRef.All())
-        assertEquals(all, config.methods()["com.thirdparty.Inventory*.*"])
+        val inventory = listOf(ParamRef.ByName("sku"), ParamRef.ByName("count"))
+        assertEquals(inventory, config.methods()["com.thirdparty.Inventory*.*"])
         // The exact entry first, then the matching wildcard entries.
         assertEquals(listOf(ParamRef.ByName("order"), ParamRef.ByIndex(2)), config.paramRefs("com.thirdparty.OrderService", "process"))
         assertEquals(listOf(ParamRef.ByIndex(2)), config.paramRefs("com.thirdparty.OrderService", "cancel"))
-        assertEquals(all, config.paramRefs("com.thirdparty.InventoryService", "reserve"))
+        assertEquals(inventory, config.paramRefs("com.thirdparty.InventoryService", "reserve"))
         assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.thirdparty.db.OrderRepository", "findById"))
         assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.thirdparty.db.sql.OrderRepository", "findAll"))
         // '.**.' stands for at least one package segment.
@@ -270,7 +270,7 @@ class AugmentorConfigTest {
             "com.acme.generated.Keep" = "id"
 
             [augment.params]
-            "com.thirdparty.**.*Service.*" = "*"
+            "com.thirdparty.**.*Service.*" = [0]
             "com.thirdparty.audit.AuditService.*" = "-"
             "com.thirdparty.audit.AuditService.log" = ["reason"]
             "com.thirdparty.billing.BillingService.refund" = "-"
@@ -284,8 +284,7 @@ class AugmentorConfigTest {
         assertEquals(IdSpec.FieldSpec("id"), config.classEntry("com.acme.generated.Keep").spec())
 
         // [augment.params]: entries are combined from the most specific on, up to the first "-".
-        val all = listOf(ParamRef.All())
-        assertEquals(all, config.paramRefs("com.thirdparty.billing.BillingService", "charge"))
+        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.thirdparty.billing.BillingService", "charge"))
         assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.billing.BillingService", "refund"))
         assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.audit.AuditService", "purge"))
         assertEquals(listOf(ParamRef.ByName("reason")), config.paramRefs("com.thirdparty.audit.AuditService", "log"))
@@ -303,7 +302,9 @@ class AugmentorConfigTest {
 
     @Test
     fun `invalid method entries and maxParams`() {
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"all\"").contains("\"*\" for all parameters, \"@\" for the method's annotations, or \"-\" for none, was all"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"all\"").contains("\"@\" for the method's annotations, or \"-\" for none, was all"))
+        // No wildcard for the parameters: they are named, or selected by the annotations.
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"*\"").contains("must be an array of parameter names and indexes"))
         assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"*\"]").contains("invalid parameter '*'"))
         // The JVM allows at most 255 parameters.
         assertEquals(listOf(ParamRef.ByIndex(255)), parse("augment.params.\"com.acme.Order.process\" = [255]").methods()["com.acme.Order.process"])
@@ -314,10 +315,10 @@ class AugmentorConfigTest {
         assertEquals(
             "test.toml, line 2: [augment.params] keys must name a class and a method, e.g. \"com.acme.OrderService.process\"; " +
                 "allowed are letters, digits, _, \$ and the wildcards * (within a package or name), ** (across packages) and ?",
-            error("[augment.params]\n\"com.acme.Order+.process\" = \"*\""),
+            error("[augment.params]\n\"com.acme.Order+.process\" = \"@\""),
         )
-        assertTrue(error("[augment.params]\n\"com.acme.Order.\" = \"*\"").contains("keys must name a class and a method"))
-        assertTrue(error("[augment.params]\n\"com..Order.run\" = \"*\"").contains("keys must name a class and a method"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.\" = \"@\"").contains("keys must name a class and a method"))
+        assertTrue(error("[augment.params]\n\"com..Order.run\" = \"@\"").contains("keys must name a class and a method"))
         assertEquals("test.toml, line 2: maxParams must be between 1 and 255, was 0", error("[augment]\nmaxParams = 0"))
         assertTrue(error("augment.maxParams = 256").contains("maxParams must be between 1 and 255, was 256"))
         assertEquals(4, AugmentorConfig().maxParams())
@@ -342,39 +343,18 @@ class AugmentorConfigTest {
     }
 
     @Test
-    fun `a # hashes the selected values, #? only those with sensitive names`() {
+    fun `a # after a name or an index hashes the value`() {
         val config = parse(
             """
-            [augment]
-            sensitiveParams = ["password", "iban"]
             [augment.params]
             "com.acme.User.login" = ["user", "password#", 2, "3#"]
-            "com.acme.Hashed.*" = "*#"
-            "com.acme.Annotated.*" = "@#"
-            "com.acme.Guessed.*" = "*#?"
-            "com.acme.AnnotatedGuessed.*" = "@#?"
             """,
         )
         assertEquals(
-            listOf(
-                ParamRef.ByName("user"),
-                ParamRef.ByName("password", ParamRef.Hashing.HASH),
-                ParamRef.ByIndex(2),
-                ParamRef.ByIndex(3, ParamRef.Hashing.HASH),
-            ),
+            listOf(ParamRef.ByName("user"), ParamRef.ByName("password", true), ParamRef.ByIndex(2), ParamRef.ByIndex(3, true)),
             config.paramRefs("com.acme.User", "login"),
         )
-        assertEquals(listOf(ParamRef.All(ParamRef.Hashing.HASH)), config.paramRefs("com.acme.Hashed", "run"))
-        assertEquals(listOf(ParamRef.Annotations(ParamRef.Hashing.HASH)), config.paramRefs("com.acme.Annotated", "run"))
-        assertEquals(listOf(ParamRef.All(ParamRef.Hashing.GUESS)), config.paramRefs("com.acme.Guessed", "run"))
-        assertEquals(listOf(ParamRef.Annotations(ParamRef.Hashing.GUESS)), config.paramRefs("com.acme.AnnotatedGuessed", "run"))
         assertTrue(config.methodsDescription().contains("com.acme.User.login[user, password#, #2, #3#]"), config.methodsDescription())
-        assertTrue(config.methodsDescription().contains("com.acme.Guessed.*[*#?]"), config.methodsDescription())
-
-        assertEquals(listOf("password", "iban"), config.sensitiveParams())
-        assertTrue(config.isSensitive("userPassword"))
-        assertFalse(config.isSensitive("email"))
-        assertEquals(AugmentorConfig.DEFAULT_SENSITIVE_PARAMS, parse("debug = false").sensitiveParams())
     }
 
     @Test
@@ -382,10 +362,9 @@ class AugmentorConfigTest {
         assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"order#?\"]").contains("invalid parameter 'order#?'"))
         assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"256#\"]").contains("invalid parameter '256#'"))
         assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"#\"]").contains("invalid parameter '#'"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"-#\"").contains("must be an array"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"*?\"").contains("must be an array"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"@#\"]").contains("invalid parameter '@#'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"@#\"").contains("must be an array"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"*#\"").contains("must be an array"))
         assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"order#\"").contains("must be an array"))
-        assertTrue(error("[augment]\nsensitiveParams = [\"pass word\"]").contains("sensitiveParams must be an array of parameter names"))
-        assertTrue(error("[augment]\nsensitiveParams = \"password\"").contains("'augment.sensitiveParams' must be an array"))
     }
 }

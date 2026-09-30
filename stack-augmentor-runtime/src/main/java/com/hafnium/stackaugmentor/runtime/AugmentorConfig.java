@@ -34,19 +34,17 @@ import java.util.stream.Collectors;
  * paramsFormat = "{$name=$id, ...}"
  * maxIdLength = 64
  * maxParams = 4
- * sensitiveParams = ["password", "email"]   # the names "*#?" and "@#?" hash, replacing the defaults
  *
  * [augment.receiver]           # receiver ids: a field, a "method()", "@" for @StackTraceId, "-" for none
  * "com.hafnium.**" = "@"
  * "com.hafnium.generated.**" = "-"
  * "com.thirdparty.Order" = "getOrderNumber()"
  *
- * [augment.params]           # parameter ids: names and indexes, "*" for all, "@" for the annotations, "-" for none;
- *                            # "#" after one hashes its values, "*#?" and "@#?" hash those with sensitive names
+ * [augment.params]           # parameter ids: names and indexes ("#" after one hashes it), "@" for the annotations,
+ *                            # "-" for none
  * "com.hafnium.**.*" = "@"
- * "com.thirdparty.OrderService.process" = ["order", 2, "email#", "3#"]
- * "com.thirdparty.**.*Controller.*" = "*#?"
- * "com.thirdparty.**.*Repository.find*" = "*"
+ * "com.thirdparty.OrderService.process" = ["order", 2, "password#", "3#"]
+ * "com.thirdparty.**.*Repository.find*" = [0]
  * "com.thirdparty.**.AuditRepository.*" = "-"
  * }</pre>
  *
@@ -63,17 +61,6 @@ public final class AugmentorConfig {
     public static final String DEFAULT_PARAMS_FORMAT = "{$name=$id, ...}";
     public static final int DEFAULT_MAX_ID_LENGTH = 64;
     public static final int DEFAULT_MAX_PARAMS = 4;
-
-    /**
-     * The parameter names that {@code "*#?"} and {@code "@#?"} hash: secrets and personal data. A name matches when
-     * one of these equals one of its words or several consecutive ones, so {@code userEmail} and {@code first_name}
-     * match, {@code shipping} does not match {@code pin}. See {@link SensitiveNames}.
-     */
-    public static final List<String> DEFAULT_SENSITIVE_PARAMS = List.of(
-            "password", "passwd", "pwd", "passphrase", "secret", "token", "credential", "credentials", "apiKey",
-            "privateKey", "auth", "authorization", "pin", "otp", "cvv", "cvc", "cardNumber", "creditCard", "iban",
-            "accountNumber", "ssn", "taxId", "passport", "email", "phone", "mobile", "birthDate", "birthday",
-            "dob", "address", "street", "zipCode", "postcode", "firstName", "lastName", "surname", "fullName", "username");
     public static final String CONFIG_PROPERTY = "stackaugmentor.config";
 
     /** The value that stands for "use the annotations", in both tables. */
@@ -92,8 +79,6 @@ public final class AugmentorConfig {
     private final String paramsFormat;
     private final int maxIdLength;
     private final int maxParams;
-    private final List<String> sensitiveParams;
-    private final SensitiveNames sensitiveNames;
     private final boolean debug;
 
     /** An {@code [augment.receiver]} entry: the key as written, and the id source it names. */
@@ -141,14 +126,6 @@ public final class AugmentorConfig {
     public AugmentorConfig(Map<String, IdSpec> classes, Map<String, List<ParamRef>> methods,
                            String frameFormat, String receiverFormat, String paramsFormat, int maxIdLength, int maxParams,
                            boolean debug) {
-        this(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams, DEFAULT_SENSITIVE_PARAMS,
-                debug);
-    }
-
-    /** @param sensitiveParams the parameter names that {@code "*#?"} and {@code "@#?"} hash */
-    public AugmentorConfig(Map<String, IdSpec> classes, Map<String, List<ParamRef>> methods,
-                           String frameFormat, String receiverFormat, String paramsFormat, int maxIdLength, int maxParams,
-                           List<String> sensitiveParams, boolean debug) {
         this.classes = Collections.unmodifiableMap(new LinkedHashMap<>(classes));
         Map<String, List<ParamRef>> methodsCopy = new LinkedHashMap<>();
         methods.forEach((target, refs) -> methodsCopy.put(target, List.copyOf(refs)));
@@ -158,8 +135,6 @@ public final class AugmentorConfig {
         this.paramsFormat = Objects.requireNonNull(paramsFormat, "paramsFormat");
         this.maxIdLength = maxIdLength;
         this.maxParams = maxParams;
-        this.sensitiveParams = List.copyOf(sensitiveParams);
-        this.sensitiveNames = new SensitiveNames(this.sensitiveParams);
         this.debug = debug;
 
         List<ClassPattern> classPatterns = new ArrayList<>();
@@ -218,16 +193,6 @@ public final class AugmentorConfig {
         return maxParams;
     }
 
-    /** The parameter names that {@code "*#?"} and {@code "@#?"} hash. */
-    public List<String> sensitiveParams() {
-        return sensitiveParams;
-    }
-
-    /** Whether {@code "*#?"} and {@code "@#?"} hash the values of a parameter with this name. */
-    public boolean isSensitive(String parameterName) {
-        return sensitiveNames.matches(parameterName);
-    }
-
     public boolean debug() {
         return debug;
     }
@@ -250,12 +215,11 @@ public final class AugmentorConfig {
         String text = methods.entrySet().stream()
                 .map(entry -> entry.getKey() + entry.getValue().stream()
                         .map(ref -> switch (ref) {
-                            case ParamRef.ByName byName -> byName.name();
-                            case ParamRef.ByIndex byIndex -> "#" + byIndex.index();
-                            case ParamRef.All all -> "*";
+                            case ParamRef.ByName byName -> byName.name() + (byName.hashed() ? "#" : "");
+                            case ParamRef.ByIndex byIndex -> "#" + byIndex.index() + (byIndex.hashed() ? "#" : "");
                             case ParamRef.Annotations annotations -> ANNOTATIONS;
                             case ParamRef.Excluded excluded -> EXCLUDED;
-                        } + ref.hashing().suffix())
+                        })
                         .collect(Collectors.joining(", ", "[", "]")))
                 .collect(Collectors.joining(", "));
         return text.isEmpty() ? "none" : text;
@@ -415,22 +379,19 @@ public final class AugmentorConfig {
                 && paramsFormat.equals(that.paramsFormat)
                 && maxIdLength == that.maxIdLength
                 && maxParams == that.maxParams
-                && sensitiveParams.equals(that.sensitiveParams)
                 && debug == that.debug;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams, sensitiveParams,
-                debug);
+        return Objects.hash(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams, debug);
     }
 
     @Override
     public String toString() {
         return "AugmentorConfig[classes=" + classes + ", methods=" + methods
                 + ", frameFormat=" + frameFormat + ", receiverFormat=" + receiverFormat + ", paramsFormat=" + paramsFormat
-                + ", maxIdLength=" + maxIdLength + ", maxParams=" + maxParams + ", sensitiveParams=" + sensitiveParams
-                + ", debug=" + debug + "]";
+                + ", maxIdLength=" + maxIdLength + ", maxParams=" + maxParams + ", debug=" + debug + "]";
     }
 
     /** Starts from the defaults; every setter replaces one value. */
@@ -443,7 +404,6 @@ public final class AugmentorConfig {
         private String paramsFormat = DEFAULT_PARAMS_FORMAT;
         private int maxIdLength = DEFAULT_MAX_ID_LENGTH;
         private int maxParams = DEFAULT_MAX_PARAMS;
-        private List<String> sensitiveParams = DEFAULT_SENSITIVE_PARAMS;
         private boolean debug;
 
         private Builder() {
@@ -484,11 +444,6 @@ public final class AugmentorConfig {
             return this;
         }
 
-        public Builder sensitiveParams(List<String> sensitiveParams) {
-            this.sensitiveParams = sensitiveParams;
-            return this;
-        }
-
         public Builder debug(boolean debug) {
             this.debug = debug;
             return this;
@@ -496,7 +451,7 @@ public final class AugmentorConfig {
 
         public AugmentorConfig build() {
             return new AugmentorConfig(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams,
-                    sensitiveParams, debug);
+                    debug);
         }
     }
 
@@ -509,7 +464,7 @@ public final class AugmentorConfig {
 
         private static final List<String> ROOT_KEYS = List.of("debug", "augment");
         private static final List<String> AUGMENT_KEYS = List.of("frameFormat", "receiverFormat", "paramsFormat", "maxIdLength",
-                "maxParams", "sensitiveParams", "receiver", "params");
+                "maxParams", "receiver", "params");
 
         /** A class name or class pattern: dotted segments of identifier characters and wildcards. */
         private static final Pattern CLASS_PART = Pattern.compile("[\\p{L}\\p{N}_$*?]+(\\.[\\p{L}\\p{N}_$*?]+)*");
@@ -566,10 +521,6 @@ public final class AugmentorConfig {
             Long maxParams = value(plus(AUGMENT, "maxParams"), Long.class, "an integer");
             if (maxParams != null) {
                 config.maxParams(maxParams(maxParams));
-            }
-            TomlArray sensitiveParams = value(plus(AUGMENT, "sensitiveParams"), TomlArray.class, "an array of parameter names");
-            if (sensitiveParams != null) {
-                config.sensitiveParams(sensitiveParams(sensitiveParams));
             }
             Boolean debug = value(List.of("debug"), Boolean.class, "true or false");
             if (debug != null) {
@@ -700,24 +651,15 @@ public final class AugmentorConfig {
         }
 
         private List<ParamRef> paramRefs(List<String> path, Object value) {
-            if (value instanceof String text) {
-                ParamRef.Hashing hashing = hashing(text);
-                String selector = text.substring(0, text.length() - hashing.suffix().length());
-                if ("*".equals(selector)) {
-                    return List.of(new ParamRef.All(hashing));
-                }
-                if (ANNOTATIONS.equals(selector)) {
-                    return List.of(new ParamRef.Annotations(hashing));
-                }
-                if (EXCLUDED.equals(text)) {
-                    return List.of(new ParamRef.Excluded());
-                }
+            if (ANNOTATIONS.equals(value)) {
+                return List.of(new ParamRef.Annotations());
+            }
+            if (EXCLUDED.equals(value)) {
+                return List.of(new ParamRef.Excluded());
             }
             if (!(value instanceof TomlArray array)) {
-                throw error(path, "must be an array of parameter names and indexes, e.g. [\"order\", 2], \"*\" for all parameters, "
-                        + "\"@\" for the method's annotations, or \"-\" for none, was " + value + "; a # after a name, an index, "
-                        + "\"*\" or \"@\" hashes the values, e.g. [\"email#\", \"1#\"], and \"*#?\" or \"@#?\" hashes those with "
-                        + "sensitive names");
+                throw error(path, "must be an array of parameter names and indexes, e.g. [\"order\", 2, \"password#\"] (# hashes "
+                        + "the value), \"@\" for the method's annotations, or \"-\" for none, was " + value);
             }
             if (array.size() == 0) {
                 throw error(path, "must list at least one parameter");
@@ -729,7 +671,7 @@ public final class AugmentorConfig {
             return refs;
         }
 
-        /** A name or index in an array, optionally followed by {@code #}: {@code "email#"}, {@code "1#"}. */
+        /** A name or an index, optionally followed by {@code #} to hash the value: {@code "password#"}, {@code "1#"}. */
         private ParamRef paramRef(List<String> path, Object ref) {
             if (ref instanceof Long index && index >= 0 && index <= 255) {
                 return new ParamRef.ByIndex(index.intValue());
@@ -737,36 +679,15 @@ public final class AugmentorConfig {
             if (ref instanceof String text) {
                 boolean hashed = text.endsWith("#");
                 String name = hashed ? text.substring(0, text.length() - 1) : text;
-                ParamRef.Hashing hashing = hashed ? ParamRef.Hashing.HASH : ParamRef.Hashing.PLAIN;
                 if (IDENTIFIER.matcher(name).matches()) {
-                    return new ParamRef.ByName(name, hashing);
+                    return new ParamRef.ByName(name, hashed);
                 }
                 if (hashed && INDEX.matcher(name).matches() && Integer.parseInt(name) <= 255) {
-                    return new ParamRef.ByIndex(Integer.parseInt(name), hashing);
+                    return new ParamRef.ByIndex(Integer.parseInt(name), true);
                 }
             }
             throw error(path, "invalid parameter '" + ref + "': use a parameter name or a 0-based index from 0 to 255, "
-                    + "or either followed by # to hash the value, e.g. \"email#\" or \"1#\"");
-        }
-
-        /** The hashing a {@code "*"} or {@code "@"} value asks for with its suffix. */
-        private static ParamRef.Hashing hashing(String text) {
-            if (text.endsWith(ParamRef.Hashing.GUESS.suffix())) {
-                return ParamRef.Hashing.GUESS;
-            }
-            return text.endsWith(ParamRef.Hashing.HASH.suffix()) ? ParamRef.Hashing.HASH : ParamRef.Hashing.PLAIN;
-        }
-
-        private List<String> sensitiveParams(TomlArray array) {
-            List<String> names = new ArrayList<>(array.size());
-            for (Object name : array.toList()) {
-                if (!(name instanceof String text) || !IDENTIFIER.matcher(text).matches()) {
-                    throw error(plus(AUGMENT, "sensitiveParams"),
-                            "sensitiveParams must be an array of parameter names, e.g. [\"password\", \"email\"], was " + name);
-                }
-                names.add(text);
-            }
-            return names;
+                    + "optionally followed by # to hash the value, e.g. \"password#\" or \"1#\"");
         }
 
         private int maxParams(long value) {

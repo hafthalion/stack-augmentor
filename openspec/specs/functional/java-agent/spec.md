@@ -40,7 +40,7 @@ Classes in the ignored packages SHALL stay uninstrumented, even when a wildcard 
 - **THEN** the frame reads `com.thirdparty.Customer{customerId=c-9}.rename(…)`
 
 #### Scenario: Library classes selected by a wildcard
-- **GIVEN** `"com.thirdparty.*Service.*" = "*"` in `[augment.params]`
+- **GIVEN** `"com.thirdparty.*Service.*" = ["sku", "count"]` in `[augment.params]`
 - **WHEN** `InventoryService().reserve("x-1", 2)` throws
 - **THEN** the frame reads `com.thirdparty.InventoryService.reserve{sku=x-1, count=2}(…)`
 
@@ -50,7 +50,7 @@ Classes in the ignored packages SHALL stay uninstrumented, even when a wildcard 
 - **THEN** the frame reads `com.thirdparty.SavingsAccount{number=S-1}.withdraw(…)`
 
 #### Scenario: Wildcard matching JDK classes
-- **GIVEN** `"java.**.*" = "*"` in `[augment.params]` and `"java.**" = "@"` in `[augment.receiver]`
+- **GIVEN** `"java.**.*" = [0]` in `[augment.params]` and `"java.**" = "@"` in `[augment.receiver]`
 - **WHEN** an exception is thrown inside a JDK method
 - **THEN** the JDK frames are unchanged
 

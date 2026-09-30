@@ -25,10 +25,10 @@ maxParams = 4
 "com.thirdparty.Customer" = "customerId"
 
 # Parameter ids: "@" uses the methods' @StackTraceParam and @StackTraceParams annotations. OrderService.process
-# shows its order argument and its second parameter (quantity), and all methods of the Inventory* classes and
-# of ClassWithoutAnnotation show all their parameters ("*").
+# shows its order argument and its second parameter (quantity), the methods of the Inventory* classes their sku
+# and count parameters, and ClassWithoutAnnotation.method its q parameter.
 [augment.params]
 "com.hafnium.**.*" = "@"
 "com.thirdparty.OrderService.process" = ["order", 1]
-"com.thirdparty.Inventory*.*" = "*"
-"com.hafnium.ClassWithoutAnnotation.*" = "*"
+"com.thirdparty.Inventory*.*" = ["sku", "count"]
+"com.hafnium.ClassWithoutAnnotation.method" = ["q"]

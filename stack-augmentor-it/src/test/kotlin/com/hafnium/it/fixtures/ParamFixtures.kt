@@ -67,3 +67,12 @@ class Overridden {
 
     fun failAnnotated(@StackTraceParam y: Int): Nothing = throw IllegalStateException("fail $y")
 }
+
+/** Hashed parameter ids: secret = true on the annotations. */
+class Secrets {
+    fun login(@StackTraceParam user: String, @StackTraceParam(secret = true) password: String): Nothing =
+        throw IllegalStateException("login")
+
+    @StackTraceParams(secret = true)
+    fun register(email: String, nickname: String): Nothing = throw IllegalStateException("register")
+}
