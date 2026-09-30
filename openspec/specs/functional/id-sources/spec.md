@@ -197,8 +197,8 @@ select it: `@StackTraceId` marks receiver ids only.
 
 ### Requirement: Hashed parameter ids
 A `#` after a parameter name or index in an `[augment.params]` array (`"password#"`, `"2#"`),
-`@StackTraceParam(secret = true)` on a parameter, or `@StackTraceParams(secret = true)` on the method or the
-class that declares it (for all the parameters it selects) SHALL show the value hashed: `#` followed by the
+or `@StackTraceParam(secret = true)` on a parameter (also one that `@StackTraceParams` selects) SHALL show the
+value hashed: `#` followed by the
 first 8 lower-case hex digits of the SHA-256 of the value's text (its UTF-8 bytes, before line breaks and
 parentheses are replaced and before `maxIdLength` applies). `null` SHALL stay `null`, and an id source that
 throws SHALL still show `?`. `secret` SHALL default to `false`. A parameter selected by several entries or
@@ -210,14 +210,14 @@ annotations SHALL be hashed when any of them hashes it. The label SHALL stay the
 - **THEN** that frame shows `user=ann, password=#1ec1c26b, attempt=#4e074085`
 
 #### Scenario: Secret annotations
-- **GIVEN** `fun login(@StackTraceParam user: String, @StackTraceParam(secret = true) password: String)` and `@StackTraceParams(secret = true) fun register(email: String, nickname: String)`, matched by an `"@"` entry
+- **GIVEN** `fun login(@StackTraceParam user: String, @StackTraceParam(secret = true) password: String)` and `@StackTraceParams fun register(@StackTraceParam(secret = true) email: String, nickname: String)`, matched by an `"@"` entry
 - **WHEN** `login("ann", "s3cret")` throws, and separately `register("a@b.c", "annie")` throws
-- **THEN** the first frame shows `user=ann, password=#1ec1c26b`, and the second `email=#d648b243, nickname=#71be92cb`
+- **THEN** the first frame shows `user=ann, password=#1ec1c26b`, and the second `email=#d648b243, nickname=annie`
 
 ### Requirement: Labels
 The label of a receiver id SHALL be the real name of the field or method that supplies it, and the label
 of a parameter id SHALL be the parameter name compiled into the class file, however the parameter is
-selected. Labels SHALL NOT be overridden: `@StackTraceId` has no attributes, and the only one of `@StackTraceParam` and `@StackTraceParams` is `secret`. When a class has no parameter names (compiled without
+selected. Labels SHALL NOT be overridden: `@StackTraceId` has no attributes, `@StackTraceParams` has none, and the only one of `@StackTraceParam` is `secret`. When a class has no parameter names (compiled without
 `-parameters`), the label SHALL be `arg<N>`, so Java classes SHOULD be compiled with `javac -parameters` (Kotlin
 with `javaParameters = true`).
 

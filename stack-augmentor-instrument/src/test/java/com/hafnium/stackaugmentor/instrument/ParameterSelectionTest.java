@@ -288,18 +288,14 @@ class ParameterSelectionTest {
         void login(@StackTraceParam String userName, @StackTraceParam(secret = true) String password, int attempt) {
         }
 
-        @StackTraceParams(secret = true)
-        void register(String email, @StackTraceParam String nickname) {
-        }
-
         @StackTraceParams
         void update(String name, @StackTraceParam(secret = true) String token) {
         }
     }
 
-    @StackTraceParams(secret = true)
+    @StackTraceParams
     static class SecretClass {
-        void store(String key, int size) {
+        void store(String key, @StackTraceParam(secret = true) int size) {
         }
     }
 
@@ -323,10 +319,9 @@ class ParameterSelectionTest {
                 Secrets.class.getName() + ".*", List.of(new ParamRef.Annotations()),
                 SecretClass.class.getName() + ".*", List.of(new ParamRef.Annotations()))));
         assertEquals(List.of("userName", "password#"), encoded(annotations, Secrets.class, "login"));
-        // secret on @StackTraceParams hashes all of them, also one with a plain @StackTraceParam.
-        assertEquals(List.of("email#", "nickname#"), encoded(annotations, Secrets.class, "register"));
+        // Under @StackTraceParams, on the method or the class, @StackTraceParam(secret = true) hashes one parameter.
         assertEquals(List.of("name", "token#"), encoded(annotations, Secrets.class, "update"));
-        assertEquals(List.of("key#", "size#"), encoded(annotations, SecretClass.class, "store"));
+        assertEquals(List.of("key", "size#"), encoded(annotations, SecretClass.class, "store"));
         // A name entry hashes on top of the annotations, it cannot show a secret one as text.
         IdParameters named = new IdParameters(methods(Map.of(
                 Secrets.class.getName() + ".login", List.of(new ParamRef.ByName("password")),
