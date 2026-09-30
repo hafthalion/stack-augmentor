@@ -44,8 +44,8 @@ relocating them under `com.hafnium.stackaugmentor.shaded`.
 ### Requirement: Tests
 The project SHALL have unit tests for configuration, frame formatting, id resolution and the weak map,
 integration tests that run fixtures in a test JVM started with the built agent jar and a test
-configuration, and tests in the build-time example that run without an agent. `./gradlew build` SHALL run
-them all.
+configuration, and tests in `stack-augmentor-it-build-time` that run fixtures instrumented at build time
+without an agent. `./gradlew build` SHALL run them all.
 
 #### Scenario: Integration tests use the real agent
 - **GIVEN** the integration test module

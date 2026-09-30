@@ -1,4 +1,4 @@
-package com.hafnium.examples.buildtime
+package com.hafnium.it.buildtime
 
 import com.thirdparty.InventoryAudit
 import com.thirdparty.InventoryService
@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
-/** The main classes were instrumented at build time; the tests run without a Java agent. */
+/** The fixtures in src/main were instrumented at build time; the tests run without a Java agent. */
 class BuildTimeInstrumentationTest {
 
     @Test
@@ -16,11 +16,11 @@ class BuildTimeInstrumentationTest {
         val e = assertThrows<Exception> { ClassWithoutAnnotation("object-2").method("123") }
         assertEquals(
             listOf(
-                "com.hafnium.examples.buildtime.ClassWithAnnotation{objectId=object-1}.error",
-                "com.hafnium.examples.buildtime.ClassWithAnnotation{objectId=object-1}.method{param=ObjectParam{name=object-param-1}, token=#fb07916a}",
-                "com.hafnium.examples.buildtime.ClassWithAnnotation{objectId=object-1}.transfer{from=a, to=b, amount=10}",
+                "com.hafnium.it.buildtime.ClassWithAnnotation{objectId=object-1}.error",
+                "com.hafnium.it.buildtime.ClassWithAnnotation{objectId=object-1}.method{param=ObjectParam{name=object-param-1}, token=#fb07916a}",
+                "com.hafnium.it.buildtime.ClassWithAnnotation{objectId=object-1}.transfer{from=a, to=b, amount=10}",
                 // The exact entry beats the "@" pattern.
-                "com.hafnium.examples.buildtime.ClassWithoutAnnotation.method{q=123}",
+                "com.hafnium.it.buildtime.ClassWithoutAnnotation.method{q=123}",
             ),
             frames(e, 4),
         )
@@ -45,9 +45,9 @@ class BuildTimeInstrumentationTest {
     @Test
     fun `default method shows its interface's receiver id`() {
         val e = assertThrows<IllegalStateException> { Parcel("p-1").track() }
-        assertEquals("com.hafnium.examples.buildtime.Tracked{trackingNumber=T-p-1}", e.stackTrace[0].className)
+        assertEquals("com.hafnium.it.buildtime.Tracked{trackingNumber=T-p-1}", e.stackTrace[0].className)
         assertEquals("track", e.stackTrace[0].methodName)
-        assertEquals("com.hafnium.examples.buildtime.Parcel", e.stackTrace[1].className)
+        assertEquals("com.hafnium.it.buildtime.Parcel", e.stackTrace[1].className)
         assertEquals("track", e.stackTrace[1].methodName)
     }
 

@@ -26,8 +26,8 @@ a warning.
 #### Scenario: Example project
 - **GIVEN** `examples/build-time`, with the ByteBuddy Gradle plugin, the `DECORATE` entry point and the build plugin with its configuration argument, which has `"com.hafnium.examples.buildtime.**" = "@"` in `[augment.receiver]` and `"com.hafnium.examples.buildtime.**.*" = "@"` in `[augment.params]`
 - **WHEN** the project is built and run without `-javaagent`
-- **THEN** the frames of `ClassWithAnnotation` show `{objectId=object-1}` and `{param=ObjectParam{name=object-param-1}}`, the argument's `toString()` with its parentheses replaced by braces
-- **AND** the frames of `ClassWithoutAnnotation` are unchanged
+- **THEN** the frames of `ClassWithAnnotation` show `{objectId=object-1}` and `{param=ObjectParam{name=object-param-1}, token=#fb07916a}`, the argument's `toString()` with its parentheses replaced by braces and the secret token hashed
+- **AND** the frame of `ClassWithoutAnnotation.method` shows `{q=123}` from its exact `[augment.params]` entry, and no receiver id
 
 #### Scenario: Configuration change
 - **GIVEN** the `"@"` entries in the build plugin's configuration no longer match the project's classes
@@ -66,7 +66,7 @@ exceptions SHALL keep their original stack traces; an invalid runtime configurat
 with the file, the key and the line (see the diagnostics specification).
 
 #### Scenario: Tests without an agent
-- **GIVEN** the build-time example's tests, which run without `-javaagent`
+- **GIVEN** the tests of `stack-augmentor-it-build-time`, which run without `-javaagent`
 - **WHEN** an instrumented method throws
 - **THEN** the handler is created through `ServiceLoader` and the frame shows the ids
 
