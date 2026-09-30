@@ -71,8 +71,8 @@ class Overridden {
 
 /** Hashed parameter ids: secret = true on the annotations. */
 class Secrets {
-    fun login(@StackTraceParam user: String, @StackTraceParam(secret = true) password: String): Nothing =
-        throw IllegalStateException("login")
+    fun invite(@StackTraceParam user: String, @StackTraceParam(secret = true) email: String): Nothing =
+        throw IllegalStateException("invite")
 
     @StackTraceParams
     fun register(@StackTraceParam(secret = true) email: String, nickname: String): Nothing = throw IllegalStateException("register")

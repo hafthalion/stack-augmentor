@@ -2,7 +2,7 @@ package com.hafnium.stackaugmentor.runtime;
 
 /**
  * Selects parameters of a configured method: by name, by position, those its annotations select ({@code "@"}), or
- * none ({@code "-"}). A {@code #} after a name or position ({@code "password#"}, {@code "1#"}) shows the value hashed;
+ * none ({@code "-"}). A {@code #} after a name or position ({@code "email#"}, {@code "1#"}) shows the value hashed;
  * the annotations say so themselves, with {@code secret = true}.
  */
 public sealed interface ParamRef {

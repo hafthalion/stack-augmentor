@@ -42,7 +42,7 @@ Use it in your own application:
        @StackTraceParams   // all parameters
        public void transfer(String from, String to, long amount) { }
 
-       public void login(@StackTraceParam String user, @StackTraceParam(secret = true) String password) { }
+       public void invite(@StackTraceParam String user, @StackTraceParam(secret = true) String email) { }
    }
    ```
 
@@ -58,7 +58,7 @@ Use it in your own application:
        @StackTraceParams   // all parameters
        fun transfer(from: String, to: String, amount: Long) { }
 
-       fun login(@StackTraceParam user: String, @StackTraceParam(secret = true) password: String) { }
+       fun invite(@StackTraceParam user: String, @StackTraceParam(secret = true) email: String) { }
    }
    ```
 
@@ -154,7 +154,7 @@ The label is the real field or method name (`{objectId=…}`, `{getKey=…}`); i
 
 There is no wildcard for the parameters themselves: each one is named, or selected by an annotation.
 
-**Hashed parameter ids.** A `#` after a name or an index in `[augment.params]` (`["user", "password#", "2#"]`), or `@StackTraceParam(secret = true)` on the parameter (also under `@StackTraceParams`, which then shows the others as text), shows the value as a short hash instead of its text: `#` and the first 8 hex digits of the SHA-256 of the `toString()`, e.g. `login{user=ann, password=#1ec1c26b}`. The same value always gives the same hash, so a value can still be followed across log lines and incidents without appearing in them. `null` stays `null`. When several entries or annotations select a parameter, it is hashed if any of them hashes it. The hash is not salted: values from a small set, e.g. PINs, can be found by trying them all, so leave such parameters out rather than hashing them.
+**Hashed parameter ids.** A `#` after a name or an index in `[augment.params]` (`["user", "email#", "2#"]`), or `@StackTraceParam(secret = true)` on the parameter (also under `@StackTraceParams`, which then shows the others as text), shows the value as a short hash instead of its text: `#` and the first 8 hex digits of the SHA-256 of the `toString()`, e.g. `invite{user=ann, email=#71d4f55f}`. The same value always gives the same hash, so a value can still be followed across log lines and incidents without appearing in them. `null` stays `null`. When several entries or annotations select a parameter, it is hashed if any of them hashes it. The hash is not salted: values from a small set, e.g. PINs, can be found by trying them all, so leave such parameters out rather than hashing them.
 
 The keys match the class that declares the method, not its subclasses. When several entries match a method, they are taken from the most specific on (an exact `"<class>.<method>"` first, then the patterns with the most characters other than `*` and `?`) and combined up to the first `"-"`, which drops the less specific ones:
 
@@ -225,7 +225,7 @@ maxParams = 4        # at most this many parameter ids per frame, then "…"
 "com.thirdparty.InventoryService.*" = ["sku"]         # all methods of a class
 "com.thirdparty.**.*Repository.find*" = [0]          # across packages
 "com.thirdparty.**.AuditRepository.find*" = "-"      # except these
-"com.thirdparty.LoginService.login" = ["user", "password#"]   # password hashed
+"com.thirdparty.UserService.invite" = ["user", "email#"]     # email hashed
 ```
 
 Quote class names in `[augment.receiver]` and `[augment.params]`. Without quotes, TOML treats each `.` as a nested table; the agent accepts that too, but the quoted form is the clear one. Keys with wildcards must be quoted. Broad wildcards such as `"com.**.*" = "@"` make the agent instrument many classes, which costs time when they are loaded; `debug = true` lists every instrumented class, and the annotations it ignores. A missing field or method is a warning for exact class names, and only a debug message for patterns. Startup messages name their source: `agent:`, `build plugin:` or `runtime:` (the handler of build-time instrumentation), and with `debug = true` each of them lists its configuration file, both tables and the `[augment]` values. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.

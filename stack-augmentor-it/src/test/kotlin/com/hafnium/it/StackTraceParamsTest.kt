@@ -9,7 +9,7 @@ import com.hafnium.it.fixtures.Secrets
 import com.hafnium.it.fixtures.Wide
 import com.hafnium.it.outside.AllParamsOutside
 import com.thirdparty.InventoryService
-import com.thirdparty.LoginService
+import com.thirdparty.UserService
 import com.thirdparty.db.OrderRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -74,12 +74,12 @@ class StackTraceParamsTest {
     @Test
     fun `hashed parameters show the start of the SHA-256 of their text`() {
         assertEquals(
-            "login{user=ann, password=#1ec1c26b, attempt=#4e074085}",
-            assertThrows<IllegalStateException> { LoginService().login("ann", "s3cret", 3) }.method(),
+            "invite{user=ann, email=#71d4f55f, attempt=#4e074085}",
+            assertThrows<IllegalStateException> { UserService().invite("ann", "ann@example.com", 3) }.method(),
         )
         assertEquals(
-            "login{user=ann, password=#1ec1c26b}",
-            assertThrows<IllegalStateException> { Secrets().login("ann", "s3cret") }.method(),
+            "invite{user=ann, email=#71d4f55f}",
+            assertThrows<IllegalStateException> { Secrets().invite("ann", "ann@example.com") }.method(),
         )
         assertEquals(
             "register{email=#d648b243, nickname=annie}",

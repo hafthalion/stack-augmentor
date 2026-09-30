@@ -14,7 +14,7 @@ import java.lang.annotation.Target;
  * use {@link StackTraceParams}.
  *
  * <p>With {@code secret = true} the value is shown as a short hash instead of its text, e.g.
- * {@code login{password=#1ec1c26b}}: the same value gives the same hash, so it can be followed across log lines
+ * {@code invite{email=#71d4f55f}}: the same value gives the same hash, so it can be followed across log lines
  * without appearing in them.
  */
 @Documented

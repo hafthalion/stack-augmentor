@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
  * [augment.params]           # parameter ids: names and indexes ("#" after one hashes it), "@" for the annotations,
  *                            # "-" for none
  * "com.hafnium.**.*" = "@"
- * "com.thirdparty.OrderService.process" = ["order", 2, "password#", "3#"]
+ * "com.thirdparty.OrderService.process" = ["order", 2, "email#", "3#"]
  * "com.thirdparty.**.*Repository.find*" = [0]
  * "com.thirdparty.**.AuditRepository.*" = "-"
  * }</pre>
@@ -658,7 +658,7 @@ public final class AugmentorConfig {
                 return List.of(new ParamRef.Excluded());
             }
             if (!(value instanceof TomlArray array)) {
-                throw error(path, "must be an array of parameter names and indexes, e.g. [\"order\", 2, \"password#\"] (# hashes "
+                throw error(path, "must be an array of parameter names and indexes, e.g. [\"order\", 2, \"email#\"] (# hashes "
                         + "the value), \"@\" for the method's annotations, or \"-\" for none, was " + value);
             }
             if (array.size() == 0) {
@@ -671,7 +671,7 @@ public final class AugmentorConfig {
             return refs;
         }
 
-        /** A name or an index, optionally followed by {@code #} to hash the value: {@code "password#"}, {@code "1#"}. */
+        /** A name or an index, optionally followed by {@code #} to hash the value: {@code "email#"}, {@code "1#"}. */
         private ParamRef paramRef(List<String> path, Object ref) {
             if (ref instanceof Long index && index >= 0 && index <= 255) {
                 return new ParamRef.ByIndex(index.intValue());
@@ -687,7 +687,7 @@ public final class AugmentorConfig {
                 }
             }
             throw error(path, "invalid parameter '" + ref + "': use a parameter name or a 0-based index from 0 to 255, "
-                    + "optionally followed by # to hash the value, e.g. \"password#\" or \"1#\"");
+                    + "optionally followed by # to hash the value, e.g. \"email#\" or \"1#\"");
         }
 
         private int maxParams(long value) {
