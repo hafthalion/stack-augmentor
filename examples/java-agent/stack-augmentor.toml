@@ -15,22 +15,21 @@ maxIdLength = 64
 # In keys, '*' matches within a package or name, '**' across packages, '?' one character.
 
 # Receiver ids: "@" uses the class's @StackTraceId (without an "@" entry, it is not used). Classes you
-# cannot annotate name a field or a method(): an order is identified by its getOrderNumber() method, a
+# cannot annotate name a method() or a field: an order is identified by its getOrderNumber() method, a
 # customer by its customerId field.
 [augment.receiver]
 "com.hafnium.examples.agent.**" = "@"
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"
 
-# Parameter ids: "@" uses the methods' @StackTraceParam and @StackTraceParams annotations. OrderService.process
-# shows its order argument and its second parameter (quantity), the methods of the Inventory* classes their sku
-# and count parameters, except InventoryAudit's ("-" for none), UserService.invite its user and its email hashed
-# ("#"), and ClassWithoutAnnotation.method its q parameter. When several entries match a method, only the most
-# specific one applies: an exact "<class>.<method>" beats any pattern, a longer pattern a shorter one.
+# Parameter ids: "@" uses the methods' @StackTraceParam and @StackTraceParams annotations. Otherwise
+# parameters are selected by name or 0-based index, "#" after one shows its value hashed, and "-" selects
+# none. When several entries match a method, only the most specific one applies: an exact
+# "<class>.<method>" beats any pattern, and a longer pattern a shorter one.
 [augment.params]
 "com.hafnium.examples.agent.**.*" = "@"
-"com.hafnium.examples.agent.ClassWithoutAnnotation.method" = ["q"]
-"com.thirdparty.OrderService.process" = ["order", 1]
-"com.thirdparty.Inventory*.*" = ["sku", "count"]
-"com.thirdparty.InventoryAudit.*" = "-"
-"com.thirdparty.UserService.invite" = ["user", "email#"]
+"com.hafnium.examples.agent.ClassWithoutAnnotation.method" = ["q"]   # exact: beats the "@" pattern
+"com.thirdparty.OrderService.process" = ["order", 1]                 # by name and by index
+"com.thirdparty.Inventory*.*" = ["sku", "count"]                     # all methods of the Inventory* classes ...
+"com.thirdparty.InventoryAudit.*" = "-"                              # ... except InventoryAudit's
+"com.thirdparty.Customer.notify" = ["email#"]                        # hashed
