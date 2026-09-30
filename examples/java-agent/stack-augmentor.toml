@@ -24,9 +24,13 @@ maxIdLength = 64
 
 # Parameter ids: "@" uses the methods' @StackTraceParam and @StackTraceParams annotations. OrderService.process
 # shows its order argument and its second parameter (quantity), the methods of the Inventory* classes their sku
-# and count parameters, and ClassWithoutAnnotation.method its q parameter.
+# and count parameters, except InventoryAudit's ("-" for none), UserService.invite its user and its email hashed
+# ("#"), and ClassWithoutAnnotation.method its q parameter. When several entries match a method, only the most
+# specific one applies: an exact "<class>.<method>" beats any pattern, a longer pattern a shorter one.
 [augment.params]
 "com.hafnium.examples.agent.**.*" = "@"
+"com.hafnium.examples.agent.ClassWithoutAnnotation.method" = ["q"]
 "com.thirdparty.OrderService.process" = ["order", 1]
 "com.thirdparty.Inventory*.*" = ["sku", "count"]
-"com.hafnium.examples.agent.ClassWithoutAnnotation.method" = ["q"]
+"com.thirdparty.InventoryAudit.*" = "-"
+"com.thirdparty.UserService.invite" = ["user", "email#"]
