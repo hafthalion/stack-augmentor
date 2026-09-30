@@ -87,7 +87,7 @@ class StackAugmentorByteBuddyPluginTest {
     @Test
     void debugDescribesTheConfigurationAsTheAgentDoes(@TempDir Path dir) throws IOException {
         Path config = dir.resolve("stack-augmentor.toml");
-        Files.writeString(config, "debug = true\n[augment]\nmaxParams = 3\n[augment.receiver]\n\"com.hafnium.**\" = \"@\"\n");
+        Files.writeString(config, "debug = true\n[augment]\nmaxIdLength = 32\n[augment.receiver]\n\"com.hafnium.**\" = \"@\"\n");
         ByteArrayOutputStream err = captureErr();
         try {
             new StackAugmentorByteBuddyPlugin(config.toString());
@@ -99,6 +99,6 @@ class StackAugmentorByteBuddyPluginTest {
         assertTrue(output.contains("DEBUG build plugin: [augment.receiver] com.hafnium.**=@"), output);
         assertTrue(output.contains("DEBUG build plugin: [augment.params] none"), output);
         assertTrue(output.contains("DEBUG build plugin: [augment] frameFormat="), output);
-        assertTrue(output.contains("maxParams=3"), output);
+        assertTrue(output.contains("maxIdLength=32"), output);
     }
 }
