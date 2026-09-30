@@ -8,6 +8,7 @@ import com.hafnium.it.fixtures.Overlap
 import com.hafnium.it.fixtures.Wide
 import com.hafnium.it.outside.AllParamsOutside
 import com.thirdparty.InventoryService
+import com.thirdparty.LoginService
 import com.thirdparty.db.OrderRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -67,6 +68,18 @@ class StackTraceParamsTest {
 
         assertEquals("findById{id=7}", assertThrows<IllegalStateException> { OrderRepository().findById(7) }.method())
         assertEquals("findAll", assertThrows<IllegalStateException> { OrderRepository().findAll() }.method())
+    }
+
+    @Test
+    fun `hashed parameters show the start of the SHA-256 of their text`() {
+        assertEquals(
+            "login{user=ann, password=#1ec1c26b, attempt=#4e074085}",
+            assertThrows<IllegalStateException> { LoginService().login("ann", "s3cret", 3) }.method(),
+        )
+        assertEquals(
+            "register{email=#d648b243, nickname=annie}",
+            assertThrows<IllegalStateException> { LoginService().register("a@b.c", "annie") }.method(),
+        )
     }
 
     @Test

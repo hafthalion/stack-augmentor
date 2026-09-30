@@ -12,7 +12,10 @@ import net.bytebuddy.implementation.bytecode.constant.TextConstant;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Binds {@code @IdArgNames String[]} to the labels of the values bound by {@link IdArgsMapping}. */
+/**
+ * Binds {@code @IdArgNames String[]} to the labels of the values bound by {@link IdArgsMapping}, with {@code #} after
+ * those of hashed values, see {@link IdParameter#encodedLabel()}.
+ */
 public final class IdArgNamesMapping implements Advice.OffsetMapping.Factory<IdArgNames> {
 
     private static final TypeDescription.Generic STRING = TypeDescription.Generic.OfNonGenericType.ForLoadedType.of(String.class);
@@ -39,7 +42,7 @@ public final class IdArgNamesMapping implements Advice.OffsetMapping.Factory<IdA
             }
             List<StackManipulation> labels = new ArrayList<>(selected.size());
             for (IdParameter idParameter : selected) {
-                labels.add(new TextConstant(idParameter.label()));
+                labels.add(new TextConstant(idParameter.encodedLabel()));
             }
             return new Advice.OffsetMapping.Target.ForArray.ReadOnly(STRING, labels);
         };

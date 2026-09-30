@@ -100,7 +100,12 @@ public final class ThrowHandler implements Dispatch.Handler {
             // Only the parameters that will be shown are resolved: an id source or toString() may be expensive.
             int shown = Math.min(paramNames.length, format.maxParams());
             for (int i = 0; i < shown; i++) {
-                paramIds.add(new NamedId(paramNames[i], resolver.paramId(paramValues[i])));
+                // The instrumentation marks the labels of hashed values with a trailing '#'.
+                String name = paramNames[i];
+                boolean hashed = name.endsWith("#");
+                paramIds.add(hashed
+                        ? new NamedId(name.substring(0, name.length() - 1), resolver.hashedParamId(paramValues[i]))
+                        : new NamedId(name, resolver.paramId(paramValues[i])));
             }
             omitted = paramNames.length - shown;
         }

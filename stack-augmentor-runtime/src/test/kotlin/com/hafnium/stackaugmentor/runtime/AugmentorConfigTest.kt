@@ -340,4 +340,52 @@ class AugmentorConfigTest {
         assertTrue(assertThrows<ConfigException> { AugmentorConfig.load("config=${dir.resolve("missing.toml")}") }.message!!.contains("not found"))
         assertEquals(AugmentorConfig(), AugmentorConfig.load(null as String?))
     }
+
+    @Test
+    fun `a # hashes the selected values, #? only those with sensitive names`() {
+        val config = parse(
+            """
+            [augment]
+            sensitiveParams = ["password", "iban"]
+            [augment.params]
+            "com.acme.User.login" = ["user", "password#", 2, "3#"]
+            "com.acme.Hashed.*" = "*#"
+            "com.acme.Annotated.*" = "@#"
+            "com.acme.Guessed.*" = "*#?"
+            "com.acme.AnnotatedGuessed.*" = "@#?"
+            """,
+        )
+        assertEquals(
+            listOf(
+                ParamRef.ByName("user"),
+                ParamRef.ByName("password", ParamRef.Hashing.HASH),
+                ParamRef.ByIndex(2),
+                ParamRef.ByIndex(3, ParamRef.Hashing.HASH),
+            ),
+            config.paramRefs("com.acme.User", "login"),
+        )
+        assertEquals(listOf(ParamRef.All(ParamRef.Hashing.HASH)), config.paramRefs("com.acme.Hashed", "run"))
+        assertEquals(listOf(ParamRef.Annotations(ParamRef.Hashing.HASH)), config.paramRefs("com.acme.Annotated", "run"))
+        assertEquals(listOf(ParamRef.All(ParamRef.Hashing.GUESS)), config.paramRefs("com.acme.Guessed", "run"))
+        assertEquals(listOf(ParamRef.Annotations(ParamRef.Hashing.GUESS)), config.paramRefs("com.acme.AnnotatedGuessed", "run"))
+        assertTrue(config.methodsDescription().contains("com.acme.User.login[user, password#, #2, #3#]"), config.methodsDescription())
+        assertTrue(config.methodsDescription().contains("com.acme.Guessed.*[*#?]"), config.methodsDescription())
+
+        assertEquals(listOf("password", "iban"), config.sensitiveParams())
+        assertTrue(config.isSensitive("userPassword"))
+        assertFalse(config.isSensitive("email"))
+        assertEquals(AugmentorConfig.DEFAULT_SENSITIVE_PARAMS, parse("debug = false").sensitiveParams())
+    }
+
+    @Test
+    fun `invalid hashed entries`() {
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"order#?\"]").contains("invalid parameter 'order#?'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"256#\"]").contains("invalid parameter '256#'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"#\"]").contains("invalid parameter '#'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"-#\"").contains("must be an array"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"*?\"").contains("must be an array"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"order#\"").contains("must be an array"))
+        assertTrue(error("[augment]\nsensitiveParams = [\"pass word\"]").contains("sensitiveParams must be an array of parameter names"))
+        assertTrue(error("[augment]\nsensitiveParams = \"password\"").contains("'augment.sensitiveParams' must be an array"))
+    }
 }
