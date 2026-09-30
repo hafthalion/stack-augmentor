@@ -15,8 +15,8 @@ paramsFormat = "{$name=$id, ...}"
 # Longer ids are cut off with "…".
 maxIdLength = 64
 
-# Only this project's classes are changed: entries for real library classes don't apply. The com.thirdparty
-# classes here are stand-ins compiled with this project, so their entries do.
+# Only this project's classes are changed. The classes in com.hafnium.it.buildtime.configured have no
+# annotations: their ids come from the entries below.
 # In keys, '*' matches within a package or name, '**' across packages, '?' one character.
 
 # Receiver ids: "@" uses the class's @StackTraceId (without an "@" entry, it is not used). Classes you
@@ -24,8 +24,8 @@ maxIdLength = 64
 # customer by its customerId field.
 [augment.receiver]
 "com.hafnium.it.buildtime.**" = "@"
-"com.thirdparty.Order" = "getOrderNumber()"
-"com.thirdparty.Customer" = "customerId"
+"com.hafnium.it.buildtime.configured.Order" = "getOrderNumber()"
+"com.hafnium.it.buildtime.configured.Customer" = "customerId"
 
 # Parameter ids, independently of the receivers: "@" uses the methods' @StackTraceParam and @StackTraceParams
 # annotations. Otherwise parameters are selected by name or 0-based index, "#" after one shows its value
@@ -33,8 +33,8 @@ maxIdLength = 64
 # exact "<class>.<method>" beats any pattern, and a longer pattern a shorter one.
 [augment.params]
 "com.hafnium.it.buildtime.**.*" = "@"
-"com.hafnium.it.buildtime.ClassWithoutAnnotation.method" = ["q"]   # exact: beats the "@" pattern
-"com.thirdparty.OrderService.process" = ["order", 1]                     # by name and by index
-"com.thirdparty.Inventory*.*" = ["sku", "count"]                         # all methods of the Inventory* classes ...
-"com.thirdparty.InventoryAudit.*" = "-"                                  # ... except InventoryAudit's
-"com.thirdparty.Customer.notify" = ["email#"]                            # hashed
+"com.hafnium.it.buildtime.ClassWithoutAnnotation.method" = ["q"]                # exact: beats the "@" pattern
+"com.hafnium.it.buildtime.configured.OrderService.process" = ["order", 1]       # by name and by index
+"com.hafnium.it.buildtime.configured.Inventory*.*" = ["sku", "count"]           # all methods of the Inventory* classes ...
+"com.hafnium.it.buildtime.configured.InventoryAudit.*" = "-"                    # ... except InventoryAudit's
+"com.hafnium.it.buildtime.configured.Customer.notify" = ["email#"]              # hashed
