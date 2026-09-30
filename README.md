@@ -285,6 +285,6 @@ The library modules are written in Java and don't depend on the Kotlin runtime; 
 | `stack-augmentor-build-plugin` | The ByteBuddy build plugin for build-time instrumentation |
 | `stack-augmentor-it` | Integration tests, run with the agent attached, including a Java application run without the Kotlin runtime |
 | `examples/java-agent` | Demo with the agent: the example above, plus third-party stand-ins configured in `stack-augmentor.toml` |
-| `examples/build-time` | Demo with build-time instrumentation, including tests that run without an agent |
+| `examples/build-time` | The same demo with build-time instrumentation (the stand-ins are compiled with it), plus a default-method case, with tests that run without an agent |
 
 Build and test with `./gradlew build`; run the agent demo with `run.bat`. This needs JDK 25.
