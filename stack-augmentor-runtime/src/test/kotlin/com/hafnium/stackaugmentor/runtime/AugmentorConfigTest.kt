@@ -195,7 +195,7 @@ class AugmentorConfigTest {
     @Test
     fun `unknown keys are rejected, in every section`() {
         assertEquals(
-            "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams, " +
+            "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams, sensitiveParams, " +
                 "receiver, params",
             error("[augment]\nframe = \"\$class.\$method\""),
         )
