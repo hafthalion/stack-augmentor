@@ -59,10 +59,6 @@ class ParameterSelectionTest {
     static class Login {
         void login(String userName, String password, int attempt) {
         }
-
-        @StackTraceParams
-        void register(String email, String nickname) {
-        }
     }
 
     /** An explicit class entry gives its receiver id; an "@" method entry re-enables the parameter annotations. */
@@ -189,7 +185,7 @@ class ParameterSelectionTest {
     }
 
     @Test
-    void configuredAllParametersAndOverlaps() {
+    void configuredParametersAndOverlaps() {
         String service = Service.class.getName();
         IdParameters parameters = new IdParameters(AugmentorConfig.builder()
                 .methods(Map.of(
@@ -197,11 +193,6 @@ class ParameterSelectionTest {
                         service.replace("Service", "Serv*") + ".*", List.of(new ParamRef.ByIndex(2))))
                 .build());
         assertEquals(List.of("order", "note"), labels(parameters, Service.class, "process"));
-
-        IdParameters all = new IdParameters(AugmentorConfig.builder()
-                .methods(Map.of(service + ".proc*", List.of(new ParamRef.All())))
-                .build());
-        assertEquals(List.of("order", "quantity", "note"), labels(all, Service.class, "process"));
     }
 
     @Test
@@ -210,14 +201,14 @@ class ParameterSelectionTest {
         IdParameters parameters = new IdParameters(AugmentorConfig.builder()
                 .methods(Map.of(
                         service + ".*", List.of(new ParamRef.ByName("missing"), new ParamRef.ByIndex(9)),
-                        service.replace("Service", "Serv?ce") + ".nope*", List.of(new ParamRef.All())))
+                        service.replace("Service", "Serv?ce") + ".nope*", List.of(new ParamRef.ByIndex(0))))
                 .build());
         assertEquals(List.of(), parameters.unmatchedEntries(type(Service.class)));
 
         IdParameters exact = new IdParameters(AugmentorConfig.builder()
                 .methods(Map.of(
                         service + ".process", List.of(new ParamRef.ByName("missing")),
-                        service + ".nope", List.of(new ParamRef.All())))
+                        service + ".nope", List.of(new ParamRef.ByIndex(0))))
                 .build());
         List<String> messages = exact.unmatchedEntries(type(Service.class));
         assertEquals(2, messages.size(), messages.toString());
@@ -263,7 +254,7 @@ class ParameterSelectionTest {
         AugmentorConfig config = AugmentorConfig.builder()
                 .classes(Map.of(HERE, ANNOTATIONS, explicit, new IdSpec.Excluded()))
                 .methods(Map.of(
-                        HERE_METHODS, List.of(new ParamRef.All()),
+                        HERE_METHODS, List.of(new ParamRef.ByIndex(0), new ParamRef.ByIndex(1)),
                         service + ".*", List.of(new ParamRef.Excluded()),
                         service + ".process", List.of(new ParamRef.ByName("note")),
                         explicit + ".failAnnotated", List.of(new ParamRef.Annotations())))
@@ -278,7 +269,7 @@ class ParameterSelectionTest {
         assertTrue(matching.describe(type(Explicit.class), matching.methods(type(Explicit.class))).contains("(parameter ids only)"));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("ignoring @StackTraceId in " + explicit + ": its [augment.receiver] entry \""
                 + explicit + "\" is not \"@\""), err.toString(StandardCharsets.UTF_8));
-        // The "@" class entry uses @StackTraceId only: the "*" method entry labels the parameters by name.
+        // The "@" class entry uses @StackTraceId only: the method entry labels the parameters by name.
         assertEquals(List.of("item", "count"), labels(parameters, MethodLevel.class, "move"));
         // A "-" method entry beats the less specific pattern; the exact entry beats the "-".
         assertEquals(List.of("note"), labels(parameters, Service.class, "process"));
@@ -293,34 +284,53 @@ class ParameterSelectionTest {
         assertTrue(matching.instrument(type(UsableId.class)));
     }
 
+    static class Secrets {
+        void login(@StackTraceParam String userName, @StackTraceParam(secret = true) String password, int attempt) {
+        }
+
+        @StackTraceParams(secret = true)
+        void register(String email, @StackTraceParam String nickname) {
+        }
+
+        @StackTraceParams
+        void update(String name, @StackTraceParam(secret = true) String token) {
+        }
+    }
+
+    @StackTraceParams(secret = true)
+    static class SecretClass {
+        void store(String key, int size) {
+        }
+    }
+
     @Test
     void hashedParameters() {
         String login = Login.class.getName();
         IdParameters byName = new IdParameters(methods(Map.of(login + ".login",
-                List.of(new ParamRef.ByName("password", ParamRef.Hashing.HASH), new ParamRef.ByIndex(0, ParamRef.Hashing.HASH),
-                        new ParamRef.ByIndex(2)))));
+                List.of(new ParamRef.ByName("password", true), new ParamRef.ByIndex(0, true), new ParamRef.ByIndex(2)))));
         assertEquals(List.of("userName#", "password#", "attempt"), encoded(byName, Login.class, "login"));
-
-        IdParameters all = new IdParameters(methods(Map.of(login + ".*", List.of(new ParamRef.All(ParamRef.Hashing.HASH)))));
-        assertEquals(List.of("userName#", "password#", "attempt#"), encoded(all, Login.class, "login"));
-
-        IdParameters guessed = new IdParameters(methods(Map.of(login + ".*", List.of(new ParamRef.All(ParamRef.Hashing.GUESS)))));
-        assertEquals(List.of("userName#", "password#", "attempt"), encoded(guessed, Login.class, "login"));
-
-        IdParameters annotations = new IdParameters(methods(Map.of(login + ".*", List.of(new ParamRef.Annotations(ParamRef.Hashing.GUESS)))));
-        assertEquals(List.of(), encoded(annotations, Login.class, "login"));
-        assertEquals(List.of("email#", "nickname"), encoded(annotations, Login.class, "register"));
 
         // Selected plainly and hashed by another entry: hashed.
         IdParameters overlapping = new IdParameters(methods(Map.of(
-                login + ".login", List.of(new ParamRef.ByName("password", ParamRef.Hashing.HASH)),
-                login + ".*", List.of(new ParamRef.All()))));
-        assertEquals(List.of("userName", "password#", "attempt"), encoded(overlapping, Login.class, "login"));
+                login + ".login", List.of(new ParamRef.ByName("password", true)),
+                login + ".*", List.of(new ParamRef.ByIndex(0), new ParamRef.ByIndex(1)))));
+        assertEquals(List.of("userName", "password#"), encoded(overlapping, Login.class, "login"));
+    }
 
-        IdParameters custom = new IdParameters(AugmentorConfig.builder()
-                .methods(Map.of(login + ".*", List.of(new ParamRef.All(ParamRef.Hashing.GUESS))))
-                .sensitiveParams(List.of("nickname"))
-                .build());
-        assertEquals(List.of("email", "nickname#"), encoded(custom, Login.class, "register"));
+    @Test
+    void secretAnnotations() {
+        IdParameters annotations = new IdParameters(methods(Map.of(
+                Secrets.class.getName() + ".*", List.of(new ParamRef.Annotations()),
+                SecretClass.class.getName() + ".*", List.of(new ParamRef.Annotations()))));
+        assertEquals(List.of("userName", "password#"), encoded(annotations, Secrets.class, "login"));
+        // secret on @StackTraceParams hashes all of them, also one with a plain @StackTraceParam.
+        assertEquals(List.of("email#", "nickname#"), encoded(annotations, Secrets.class, "register"));
+        assertEquals(List.of("name", "token#"), encoded(annotations, Secrets.class, "update"));
+        assertEquals(List.of("key#", "size#"), encoded(annotations, SecretClass.class, "store"));
+        // A name entry hashes on top of the annotations, it cannot show a secret one as text.
+        IdParameters named = new IdParameters(methods(Map.of(
+                Secrets.class.getName() + ".login", List.of(new ParamRef.ByName("password")),
+                Secrets.class.getName() + ".*", List.of(new ParamRef.Annotations()))));
+        assertEquals(List.of("userName", "password#"), encoded(named, Secrets.class, "login"));
     }
 }

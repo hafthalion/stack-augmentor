@@ -45,7 +45,7 @@ public final class Startup {
         Log.debug(() -> component + ": [augment.params] " + config.methodsDescription());
         Log.debug(() -> component + ": [augment] frameFormat=" + config.frameFormat() + ", receiverFormat=" + config.receiverFormat()
                 + ", paramsFormat=" + config.paramsFormat() + ", maxIdLength=" + config.maxIdLength() + ", maxParams="
-                + config.maxParams() + ", sensitiveParams=" + config.sensitiveParams());
+                + config.maxParams());
     }
 
     /** For the components that decide what gets instrumented: warns when the configuration selects nothing. */

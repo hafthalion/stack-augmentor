@@ -5,6 +5,7 @@ import com.hafnium.it.fixtures.Counted
 import com.hafnium.it.fixtures.DerivedInventory
 import com.hafnium.it.fixtures.Inventory
 import com.hafnium.it.fixtures.Overlap
+import com.hafnium.it.fixtures.Secrets
 import com.hafnium.it.fixtures.Wide
 import com.hafnium.it.outside.AllParamsOutside
 import com.thirdparty.InventoryService
@@ -77,8 +78,12 @@ class StackTraceParamsTest {
             assertThrows<IllegalStateException> { LoginService().login("ann", "s3cret", 3) }.method(),
         )
         assertEquals(
-            "register{email=#d648b243, nickname=annie}",
-            assertThrows<IllegalStateException> { LoginService().register("a@b.c", "annie") }.method(),
+            "login{user=ann, password=#1ec1c26b}",
+            assertThrows<IllegalStateException> { Secrets().login("ann", "s3cret") }.method(),
+        )
+        assertEquals(
+            "register{email=#d648b243, nickname=#71be92cb}",
+            assertThrows<IllegalStateException> { Secrets().register("a@b.c", "annie") }.method(),
         )
     }
 

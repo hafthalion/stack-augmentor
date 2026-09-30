@@ -105,7 +105,7 @@ type matching and advice.
 The agent, build plugin and runtime SHALL recognise `@StackTraceId`, `@StackTraceParam` and
 `@StackTraceParams` by their class names (`com.hafnium.stackaugmentor.StackTraceId`,
 `com.hafnium.stackaugmentor.StackTraceParam`, `com.hafnium.stackaugmentor.StackTraceParams`), without
-depending on the API module. The annotations SHALL have no attributes.
+depending on the API module. The annotations SHALL have no attributes other than `secret` on `@StackTraceParam` and `@StackTraceParams`.
 
 #### Scenario: API loaded by an application class loader
 - **GIVEN** the application loads its own copy of `stack-augmentor-api`

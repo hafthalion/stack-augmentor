@@ -51,18 +51,17 @@ maxParams = 8
 "com.thirdparty.OrderService.process" = ["order", 1]
 # Wildcards: combined with the entry above, and across packages
 "com.thirdparty.OrderService.*" = [2]
-"com.thirdparty.Inventory*.*" = "*"
+"com.thirdparty.Inventory*.*" = ["sku", "count"]
 # ... except for InventoryAudit, whose more specific "-" entry wins, except for log, whose exact entry wins
 "com.thirdparty.InventoryAudit.*" = "-"
 "com.thirdparty.InventoryAudit.log" = ["reason"]
 "com.thirdparty.**.*Repository.find*" = [0]
-# Hashed values: "#" after a name or an index, "*#?" for the parameters with sensitive names
+# Hashed values: "#" after a name or an index (annotations use secret = true, see Secrets)
 "com.thirdparty.LoginService.login" = ["user", "password#", "2#"]
-"com.thirdparty.LoginService.register" = "*#?"
 # Matches JDK classes, which the agent never instruments
-"java.**.*" = "*"
+"java.**.*" = [0]
 "com.hafnium.it.fixtures.Overlap.op" = ["x", "y"]
-"com.hafnium.it.inheritance.OrderService.process" = "*"
+"com.hafnium.it.inheritance.OrderService.process" = ["order"]
 # Parameter annotations outside the fixtures
 "com.hafnium.it.outside.MethodAnnotationsOutside.run" = "@"
 "com.hafnium.it.outside.ClassParamsViaMethods.*" = "@"
