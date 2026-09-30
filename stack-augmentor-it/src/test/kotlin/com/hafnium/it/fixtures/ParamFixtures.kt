@@ -64,3 +64,8 @@ class Secrets {
     @StackTraceParams
     fun register(@StackTraceParam(secret = true) email: String, nickname: String): Nothing = throw IllegalStateException("register")
 }
+
+/** A hashed parameter that is null. */
+class Forgetful {
+    fun forget(@StackTraceParam(secret = true) email: String?): Nothing = throw IllegalStateException("forget")
+}

@@ -41,16 +41,18 @@ pre{margin:0;overflow-x:auto;white-space:pre;background:var(--code);border-radiu
 .tag{font-size:12px;color:var(--muted)}
 .aug .tag{color:var(--markink)}
 .plain code{color:var(--muted)}
+.frames li.cause{margin-top:6px;list-style:none}
+.cause code{font-weight:600}
 </style>
 </head>
 <body>
 <div class="wrap">
 <div>
 <h1>{title}</h1>
-<p style="margin-top:8px">Each case is one test, run with the agent. The frames are copied from the exception the test caught. The Kotlin declarations are written out from reflection on the receiver in the same run: its classes and interfaces, and every declaration of the called method. Constructor arguments and method bodies are left out as <code>…</code>. The entry comments come from the configuration file.</p>
+<p style="margin-top:8px">{intro}</p>
 <div class="meta">{meta}</div>
 </div>
-<div class="box"><h2>{count} categories</h2><ol class="toc">{toc}</ol></div>
+<div class="box"><h2>{count}</h2><ol class="toc">{toc}</ol></div>
 {sections}
 </div>
 </body>

@@ -32,3 +32,13 @@ open class SavingsAccount(private val number: String) {
 class UserService {
     fun invite(user: String, email: String, attempt: Int): Nothing = throw IllegalStateException("invite")
 }
+
+/** Matched by "Ledger?": one character after Ledger. */
+class Ledger1(private val code: String) {
+    fun close(): Nothing = throw IllegalStateException("cannot close")
+}
+
+/** Not matched by "Ledger?": two characters after Ledger. */
+class Ledger12(private val code: String) {
+    fun close(): Nothing = throw IllegalStateException("cannot close")
+}

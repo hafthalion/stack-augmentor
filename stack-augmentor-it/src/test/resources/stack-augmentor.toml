@@ -13,6 +13,8 @@ maxIdLength = 20
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"
 "com.thirdparty.*Account" = "number"
+# '?' matches one character: Ledger1, not Ledger12
+"com.thirdparty.Ledger?" = "code"
 # Matches JDK classes, which the agent never instruments
 "java.**" = "@"
 # Entries do not apply to subclasses (InheritanceTest): a frame uses the entry of the class declaring its method

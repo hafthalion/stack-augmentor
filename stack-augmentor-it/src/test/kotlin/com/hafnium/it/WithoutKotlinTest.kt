@@ -1,10 +1,12 @@
 package com.hafnium.it
 
+import com.hafnium.it.report.FrameReport
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import java.nio.file.Files
@@ -13,7 +15,8 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Runs a Java-only application ([com.hafnium.it.fixtures.JavaMain]) in a JVM of its own, started with the agent
- * and a classpath without the Kotlin runtime; see build.gradle.kts.
+ * and a classpath without the Kotlin runtime; see build.gradle.kts. [FrameReport] writes the frames the application
+ * printed to build/reports/frames/WithoutKotlinTest.html.
  */
 class WithoutKotlinTest {
 
@@ -32,6 +35,12 @@ class WithoutKotlinTest {
         val output = process.inputStream.bufferedReader().use { it.readText() }
         assertTrue(process.waitFor(60, TimeUnit.SECONDS), "the application did not finish")
         return Result(process.exitValue(), output)
+    }
+
+    /** Records the frames of the stack trace the application printed. */
+    private fun record(call: String, output: String) {
+        val frames = output.lines().filter { it.startsWith("\tat ") }.map { it.removePrefix("\tat ").substringBefore('(') }
+        report.record(call, frames)
     }
 
     private fun config(dir: Path, text: String): Path =
@@ -54,6 +63,7 @@ class WithoutKotlinTest {
     fun `agent augments a Java application without the Kotlin runtime`(@TempDir dir: Path) {
         val result = run(config(dir, "debug = true\n[augment.receiver]\n\"com.hafnium.it.fixtures.**\" = \"@\"\n[augment.params]\n\"com.hafnium.it.fixtures.**.*\" = \"@\"\n"))
         assertEquals(0, result.exitCode, result.output)
+        record("JavaMain, with the agent and a configuration", result.output)
         assertTrue(result.output.contains("at com.hafnium.it.fixtures.JavaFixture{key=java-1}.run{arg0=42}(JavaFixture.java:"), result.output)
         // Debug output exercises the logging, configuration and matching code paths as well.
         assertTrue(result.output.contains("[stack-augmentor] DEBUG agent: configuration "), result.output)
@@ -67,6 +77,7 @@ class WithoutKotlinTest {
     fun `without a configuration nothing is augmented`() {
         val result = run(null)
         assertEquals(0, result.exitCode, result.output)
+        record("JavaMain, with the agent and no configuration", result.output)
         assertTrue(
             result.output.contains(
                 "[stack-augmentor] WARN agent: the configuration has no [augment.receiver] or [augment.params] entries, " +
@@ -87,5 +98,11 @@ class WithoutKotlinTest {
             result.output,
         )
         assertNoKotlin(result.output)
+    }
+
+    companion object {
+        @JvmField
+        @RegisterExtension
+        val report = FrameReport("Java application without Kotlin", basePackage = "com.hafnium.it.fixtures")
     }
 }

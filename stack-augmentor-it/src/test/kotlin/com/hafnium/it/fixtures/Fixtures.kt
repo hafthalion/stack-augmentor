@@ -160,3 +160,93 @@ class Layers {
 fun staticWithParam(@StackTraceParam code: Int): Nothing = throw IllegalStateException("static $code")
 
 fun staticWithoutParam(): Nothing = throw IllegalStateException("static")
+
+class ArrayId {
+    @StackTraceId
+    val codes = intArrayOf(1, 2)
+
+    fun fail(@StackTraceParam tags: Array<String>): Nothing = throw IllegalStateException("fail ${tags.size}")
+}
+
+class NullId {
+    @StackTraceId
+    val id: String? = null
+
+    fun fail(@StackTraceParam note: String?): Nothing = throw IllegalStateException("fail $note")
+}
+
+data class Point(val x: Int)
+
+/** An argument whose toString() throws. */
+class Unprintable {
+    override fun toString(): String = throw IllegalStateException("cannot print")
+}
+
+class Canvas {
+    @StackTraceId
+    val id = "canvas"
+
+    fun draw(@StackTraceParam point: Point): Nothing = throw IllegalStateException("draw $point")
+
+    fun print(@StackTraceParam item: Unprintable): Nothing = throw IllegalStateException("print")
+}
+
+/** Constructors are not instrumented. */
+class FailingInit(@StackTraceId val id: String) {
+    init {
+        check(id.isNotEmpty()) { "empty id" }
+    }
+}
+
+/** The property of an object is compiled to a static field, which is not an id source. */
+object Registry {
+    @StackTraceId
+    val name = "registry"
+
+    fun fail(@StackTraceParam key: String): Nothing = throw IllegalStateException("no $key")
+}
+
+/** Its getter is an instance method, so it is an id source. */
+object GetterRegistry {
+    @get:StackTraceId
+    val name = "getter-registry"
+
+    fun fail(@StackTraceParam key: String): Nothing = throw IllegalStateException("no $key")
+}
+
+class Chain {
+    @StackTraceId
+    val id = "chain"
+
+    fun start(@StackTraceParam n: Int): Nothing = step(n + 1)
+
+    private fun step(@StackTraceParam n: Int): Nothing = throw IllegalStateException("step $n")
+
+    /** Kotlin compiles a static withDefault$default, which fills in b and calls withDefault. */
+    fun withDefault(@StackTraceParam a: Int, @StackTraceParam b: Int = 2): Nothing = throw IllegalStateException("default $a $b")
+
+    /** Catches and throws the same exception again. */
+    fun rethrow(@StackTraceParam n: Int) {
+        try {
+            step(n)
+        } catch (e: IllegalStateException) {
+            throw e
+        }
+    }
+}
+
+/** Throws exceptions created before the call: in the constructor, or by the first call and reused. */
+class Prepared {
+    @StackTraceId
+    val id = "prepared"
+
+    private val created = IllegalStateException("created in the constructor")
+
+    private var shared: IllegalStateException? = null
+
+    fun throwCreated(): Nothing = throw created
+
+    fun throwShared(@StackTraceParam n: Int): Nothing = throw shared ?: IllegalStateException("shared").also { shared = it }
+
+    fun viaShared(@StackTraceParam n: Int): Nothing = throwShared(n)
+}
