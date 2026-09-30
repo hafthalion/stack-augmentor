@@ -97,7 +97,7 @@ class FrameFormatTest {
 
     @Test
     fun `all parameter ids are shown`() {
-        val ids = (1..6).map { NamedId("p\$it", "\$it") }
+        val ids = (1..6).map { NamedId("p$it", "$it") }
         assertEquals("process{p1=1, p2=2, p3=3, p4=4, p5=5, p6=6}", rewrite().rewrite(element, null, ids).methodName)
     }
 
