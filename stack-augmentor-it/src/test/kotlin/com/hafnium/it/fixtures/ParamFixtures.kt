@@ -73,6 +73,6 @@ class Secrets {
     fun login(@StackTraceParam user: String, @StackTraceParam(secret = true) password: String): Nothing =
         throw IllegalStateException("login")
 
-    @StackTraceParams(secret = true)
-    fun register(email: String, nickname: String): Nothing = throw IllegalStateException("register")
+    @StackTraceParams
+    fun register(@StackTraceParam(secret = true) email: String, nickname: String): Nothing = throw IllegalStateException("register")
 }

@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 /**
  * Finds the id parameters of a method: those the {@code [augment.params]} config table selects, by name, index,
  * or {@code "@"} for the method's {@code @StackTraceParam} and {@code @StackTraceParams} annotations, and whether their
- * values are hashed: {@code #} after a name or index, {@code secret = true} on an annotation. {@code [augment.receiver]}
+ * values are hashed: {@code #} after a name or index, or {@code @StackTraceParam(secret = true)}. {@code [augment.receiver]}
  * plays no part.
  */
 public final class IdParameters {
@@ -97,8 +97,8 @@ public final class IdParameters {
 
     /**
      * The parameters the annotations select: all of them with {@code @StackTraceParams} on the method or on the class
-     * declaring it, and those with {@code @StackTraceParam}. Hashed with {@code secret = true} on the annotation that
-     * selects them.
+     * declaring it, and those with {@code @StackTraceParam}. Hashed with {@code @StackTraceParam(secret = true)}, also
+     * under {@code @StackTraceParams}.
      */
     private static void annotated(TypeDescription type, MethodDescription method, TreeMap<Integer, Boolean> selected) {
         ParameterList<?> parameters = method.getParameters();
@@ -107,7 +107,7 @@ public final class IdParameters {
                 annotation(type.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS)}) {
             if (all != null) {
                 for (ParameterDescription parameter : parameters) {
-                    selected.merge(parameter.getIndex(), secret(all), Boolean::logicalOr);
+                    selected.merge(parameter.getIndex(), false, Boolean::logicalOr);
                 }
             }
         }

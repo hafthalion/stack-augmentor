@@ -82,7 +82,7 @@ class StackTraceParamsTest {
             assertThrows<IllegalStateException> { Secrets().login("ann", "s3cret") }.method(),
         )
         assertEquals(
-            "register{email=#d648b243, nickname=#71be92cb}",
+            "register{email=#d648b243, nickname=annie}",
             assertThrows<IllegalStateException> { Secrets().register("a@b.c", "annie") }.method(),
         )
     }
