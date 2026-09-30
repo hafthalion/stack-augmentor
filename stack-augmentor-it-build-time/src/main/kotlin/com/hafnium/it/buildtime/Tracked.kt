@@ -1,4 +1,4 @@
-package com.hafnium.examples.buildtime
+package com.hafnium.it.buildtime
 
 import com.hafnium.stackaugmentor.StackTraceId
 

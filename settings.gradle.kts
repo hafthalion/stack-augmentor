@@ -14,6 +14,7 @@ include(
     "stack-augmentor-agent",
     "stack-augmentor-build-plugin",
     "stack-augmentor-it",
+    "stack-augmentor-it-build-time",
     "examples:java-agent",
     "examples:build-time",
 )

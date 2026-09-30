@@ -1,0 +1,40 @@
+# One file for both phases:
+# - [augment.receiver] and [augment.params] are read at build time by the ByteBuddy build plugin (see
+#   build.gradle.kts), which instruments the classes and methods they need;
+# - [augment], [augment.receiver] and debug are read at runtime, from the classpath
+#   (or from -Dstackaugmentor.config=<file>).
+
+# Print diagnostics to stderr (default: false).
+debug = false
+
+# How frames look, at runtime (these are the defaults, see the README).
+[augment]
+frameFormat = "$class$receiver.$method$params"
+receiverFormat = "{$name=$id}"
+paramsFormat = "{$name=$id, ...}"
+# Longer ids are cut off with "…".
+maxIdLength = 64
+
+# Only this project's classes are changed: entries for real library classes don't apply. The com.thirdparty
+# classes here are stand-ins compiled with this project, so their entries do.
+# In keys, '*' matches within a package or name, '**' across packages, '?' one character.
+
+# Receiver ids: "@" uses the class's @StackTraceId (without an "@" entry, it is not used). Classes you
+# cannot annotate name a method() or a field: an order is identified by its getOrderNumber() method, a
+# customer by its customerId field.
+[augment.receiver]
+"com.hafnium.it.buildtime.**" = "@"
+"com.thirdparty.Order" = "getOrderNumber()"
+"com.thirdparty.Customer" = "customerId"
+
+# Parameter ids, independently of the receivers: "@" uses the methods' @StackTraceParam and @StackTraceParams
+# annotations. Otherwise parameters are selected by name or 0-based index, "#" after one shows its value
+# hashed, and "-" selects none. When several entries match a method, only the most specific one applies: an
+# exact "<class>.<method>" beats any pattern, and a longer pattern a shorter one.
+[augment.params]
+"com.hafnium.it.buildtime.**.*" = "@"
+"com.hafnium.it.buildtime.ClassWithoutAnnotation.method" = ["q"]   # exact: beats the "@" pattern
+"com.thirdparty.OrderService.process" = ["order", 1]                     # by name and by index
+"com.thirdparty.Inventory*.*" = ["sku", "count"]                         # all methods of the Inventory* classes ...
+"com.thirdparty.InventoryAudit.*" = "-"                                  # ... except InventoryAudit's
+"com.thirdparty.Customer.notify" = ["email#"]                            # hashed

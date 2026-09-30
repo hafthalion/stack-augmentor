@@ -49,8 +49,8 @@ Kotlin standard library. `stack-augmentor-api` SHALL have no dependencies.
 
 ### Requirement: Examples
 The project SHALL contain a runnable example for each mode: `examples/java-agent` (including third-party
-stand-ins configured in `stack-augmentor.toml`) and `examples/build-time` (including tests that run
-without an agent). `run.bat` SHALL build the project and run the agent example.
+stand-ins configured in `stack-augmentor.toml`) and `examples/build-time` (the same classes and entries,
+instrumented at build time). `run.bat` SHALL build the project and run the agent example.
 
 #### Scenario: Running the examples
 - **GIVEN** the project
