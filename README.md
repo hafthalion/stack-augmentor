@@ -154,9 +154,9 @@ The label is the real field or method name (`{objectId=…}`, `{getKey=…}`); i
 
 There is no wildcard for the parameters themselves: each one is named, or selected by an annotation.
 
-**Hashed parameter ids.** A `#` after a name or an index in `[augment.params]` (`["user", "email#", "2#"]`), or `@StackTraceParam(secret = true)` on the parameter (also under `@StackTraceParams`, which then shows the others as text), shows the value as a short hash instead of its text: `#` and the first 8 hex digits of the SHA-256 of the `toString()`, e.g. `invite{user=ann, email=#71d4f55f}`. The same value always gives the same hash, so a value can still be followed across log lines and incidents without appearing in them. `null` stays `null`. When several entries or annotations select a parameter, it is hashed if any of them hashes it. The hash is not salted: values from a small set, e.g. PINs, can be found by trying them all, so leave such parameters out rather than hashing them.
+**Hashed parameter ids.** A `#` after a name or an index in `[augment.params]` (`["user", "email#", "2#"]`), or `@StackTraceParam(secret = true)` on the parameter (also under `@StackTraceParams`, which then shows the others as text), shows the value as a short hash instead of its text: `#` and the first 8 hex digits of the SHA-256 of the `toString()`, e.g. `invite{user=ann, email=#71d4f55f}`. The same value always gives the same hash, so a value can still be followed across log lines and incidents without appearing in them. `null` stays `null`. When a parameter is selected twice (by name and by index, or by both annotations), it is hashed if either hashes it. The hash is not salted: values from a small set, e.g. PINs, can be found by trying them all, so leave such parameters out rather than hashing them.
 
-The keys match the class that declares the method, not its subclasses. When several entries match a method, they are taken from the most specific on (an exact `"<class>.<method>"` first, then the patterns with the most characters other than `*` and `?`) and combined up to the first `"-"`, which drops the less specific ones:
+The keys match the class that declares the method, not its subclasses. When several entries match a method, only the most specific one decides, as in `[augment.receiver]`: an exact `"<class>.<method>"` beats any pattern, and among patterns the one with the most characters other than `*` and `?` wins. Entries are not combined, so a more specific `"-"` takes a method out of a less specific entry:
 
 ```toml
 [augment.params]
@@ -214,7 +214,7 @@ maxIdLength = 64
 
 # Parameter ids: "<class>.<method>" = parameter names and 0-based indexes, a "#" after one to show its value
 # hashed, "@" for the method's @StackTraceParam and @StackTraceParams annotations, or "-" for none. Entries that
-# match the same method are combined from the most specific on, up to the first "-".
+# match the same method are not combined: the most specific entry wins.
 [augment.params]
 "com.hafnium.**.*" = "@"                             # the annotations of these methods
 "com.acme.orders.*.*" = "@"

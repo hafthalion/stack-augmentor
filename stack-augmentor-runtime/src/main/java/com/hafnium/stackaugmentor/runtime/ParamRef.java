@@ -25,7 +25,7 @@ public sealed interface ParamRef {
     record Annotations() implements ParamRef {
     }
 
-    /** {@code "-"}: no parameters, and less specific entries that match the same method are ignored. */
+    /** {@code "-"}: no parameters, even where a less specific entry would select some. */
     record Excluded() implements ParamRef {
     }
 }

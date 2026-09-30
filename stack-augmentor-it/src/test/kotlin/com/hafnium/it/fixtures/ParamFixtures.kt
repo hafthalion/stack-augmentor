@@ -29,7 +29,7 @@ class DerivedInventory : Inventory() {
     override fun reserve(sku: String, count: Int): Nothing = throw IllegalStateException("derived reserve")
 }
 
-/** Also listed in [augment.params] with both parameters: each is shown once. */
+/** Listed in [augment.params] with x by name and by index: it is shown once. */
 class Overlap {
     fun op(@StackTraceParam x: Int, y: Int): Nothing = throw IllegalStateException("op")
 }

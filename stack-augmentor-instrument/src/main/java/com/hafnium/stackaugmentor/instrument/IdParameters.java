@@ -63,13 +63,13 @@ public final class IdParameters {
 
     public List<IdParameter> select(TypeDescription type, MethodDescription method) {
         ParameterList<?> parameters = method.getParameters();
-        // By index: whether the value is hashed. A parameter selected by several entries is hashed if any of them hashes it.
+        // By index: whether the value is hashed. A parameter selected twice (by name and by index) is hashed if either hashes it.
         TreeMap<Integer, Boolean> selected = new TreeMap<>();
         for (ParamRef ref : paramRefs(type, method)) {
             switch (ref) {
                 case ParamRef.Annotations annotations -> annotated(method, selected);
                 case ParamRef.Excluded excluded -> {
-                    // paramRefs stops at "-".
+                    // paramRefs returns no refs for "-".
                 }
                 case ParamRef.ByName byName -> {
                     ParameterDescription parameter = named(parameters, byName.name());

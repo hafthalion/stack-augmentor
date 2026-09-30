@@ -200,8 +200,8 @@ or `@StackTraceParam(secret = true)` on a parameter (also one that `@StackTraceP
 value hashed: `#` followed by the
 first 8 lower-case hex digits of the SHA-256 of the value's text (its UTF-8 bytes, before line breaks and
 parentheses are replaced and before `maxIdLength` applies). `null` SHALL stay `null`, and an id source that
-throws SHALL still show `?`. `secret` SHALL default to `false`. A parameter selected by several entries or
-annotations SHALL be hashed when any of them hashes it. The label SHALL stay the parameter name.
+throws SHALL still show `?`. `secret` SHALL default to `false`. A parameter selected twice (by name and by
+index, or by both annotations) SHALL be hashed when either hashes it. The label SHALL stay the parameter name.
 
 #### Scenario: Parameters hashed by name and index
 - **GIVEN** `"com.thirdparty.UserService.invite" = ["user", "email#", "2#"]` in `[augment.params]` for `invite(user: String, email: String, attempt: Int)`
@@ -296,8 +296,9 @@ character). In the method pattern, `*` SHALL match any sequence of characters an
 without wildcards SHALL match exactly. `<parameters>` SHALL be an array of parameter names and 0-based
 indexes (0 to 255), or the string `"@"` for the parameters selected by the method's
 annotations: `@StackTraceParam` on its parameters, and `@StackTraceParams` on the method. There SHALL be no value for all parameters: each is named, or selected by an annotation. Names and indexes that a matched method does not have
-SHALL be skipped. When several entries match one method, the parameters they select SHALL be combined, up to
-a `"-"` entry as described under "Ignoring receivers and parameters".
+SHALL be skipped. When several entries match one method, only the most specific SHALL decide: the entry
+without wildcards beats any pattern, and among patterns, the one with the most characters other than `*` and
+`?` wins, ties broken by key. The less specific entries SHALL NOT be combined with it.
 
 #### Scenario: All methods of a class
 - **GIVEN** `"com.thirdparty.InventoryService.*" = ["sku", "count"]`
@@ -312,7 +313,7 @@ a `"-"` entry as described under "Ignoring receivers and parameters".
 #### Scenario: Overlapping entries
 - **GIVEN** `"com.thirdparty.OrderService.process" = ["order"]` and `"com.thirdparty.OrderService.*" = [2]`
 - **WHEN** `process(Order(4711), 3, "rush")` throws, where `Order.toString()` returns `Order#4711`
-- **THEN** that frame shows `order=Order#4711, note=rush`
+- **THEN** that frame shows only `order=Order#4711`: the exact entry decides, and the pattern adds nothing
 
 #### Scenario: Exact explicit class entry with annotated parameters
 - **GIVEN** `"com.acme.Order" = "getId()"` in `[augment.receiver]` and `"com.acme.Order.*" = "@"` in `[augment.params]`, and `fun ship(@StackTraceParam to: String)` in `Order`
@@ -322,10 +323,8 @@ a `"-"` entry as described under "Ignoring receivers and parameters".
 ### Requirement: Ignoring receivers and parameters
 The value `"-"` SHALL select nothing, in either table, and SHALL affect its own table only. A class whose
 deciding `[augment.receiver]` entry is `"-"` SHALL get no receiver id; the entry decides with the same
-most-specific rule as other entries. When several
-`[augment.params]` entries match a method, they SHALL be ordered from the most specific on (the entry
-without wildcards first, then the patterns with the most characters other than `*` and `?`, ties broken by
-key) and combined up to the first `"-"` entry; that entry and the less specific ones SHALL select nothing.
+most-specific rule as other entries. Likewise, a method whose deciding `[augment.params]` entry is `"-"`
+SHALL get no parameter ids, even where a less specific entry would select some.
 A configuration whose entries are all `"-"` SHALL count as having no entries.
 
 #### Scenario: No receiver ids in a package under an "@" pattern
