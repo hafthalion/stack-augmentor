@@ -21,6 +21,6 @@ if %ERRORLEVEL% neq 0 (
 echo.
 echo Running demo with %AGENT_JAR%
 echo.
-java %* -javaagent:%AGENT_JAR%=config=%CONFIG% -cp "%CLASSPATH%" com.hafnium.Main
+java %* -javaagent:%AGENT_JAR%=config=%CONFIG% -cp "%CLASSPATH%" com.hafnium.examples.agent.Main
 rem The demo ends with an uncaught exception on purpose, so a non-zero exit code is expected.
 endlocal & exit /b 0
