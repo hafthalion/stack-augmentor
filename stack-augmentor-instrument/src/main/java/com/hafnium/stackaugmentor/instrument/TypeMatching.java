@@ -136,7 +136,7 @@ public final class TypeMatching {
         }
         List<String> methods = new ArrayList<>();
         for (MethodDescription method : type.getDeclaredMethods()) {
-            if (isCandidate(method) && IdParameters.hasParameterAnnotations(type, method) && !parameters.annotationsUsed(type, method)) {
+            if (isCandidate(method) && IdParameters.hasParameterAnnotations(method) && !parameters.annotationsUsed(type, method)) {
                 methods.add(method.getInternalName());
             }
         }

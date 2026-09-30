@@ -2,8 +2,8 @@ package com.hafnium
 
 import com.hafnium.stackaugmentor.StackTraceParams
 
-/** Every method shows all its parameters; there is no receiver id. */
-@StackTraceParams
+/** ship shows all its parameters; there is no receiver id. */
 class Shipping {
+    @StackTraceParams
     fun ship(orderId: String, quantity: Int): Nothing = throw IllegalStateException("cannot ship")
 }

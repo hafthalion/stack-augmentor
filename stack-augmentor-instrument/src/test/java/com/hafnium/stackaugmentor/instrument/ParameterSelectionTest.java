@@ -34,20 +34,22 @@ class ParameterSelectionTest {
         }
     }
 
-    @StackTraceParams
-    static class ClassLevel {
+    static class Reservations {
+        @StackTraceParams
         void reserve(String sku, int count) {
         }
 
+        @StackTraceParams
         static void release(String sku) {
         }
 
-        void none() {
+        void none(String sku) {
         }
     }
 
-    static class Derived extends ClassLevel {
-        void run(int x) {
+    static class Derived extends Reservations {
+        @Override
+        void reserve(String sku, int count) {
         }
     }
 
@@ -138,15 +140,15 @@ class ParameterSelectionTest {
     private static final String HERE_METHODS = HERE + ".*";
 
     @Test
-    void methodAndClassLevelAnnotations() {
+    void methodAnnotations() {
         IdParameters parameters = new IdParameters(methods(Map.of(HERE_METHODS, List.of(new ParamRef.Annotations()))));
         assertEquals(List.of("item", "count"), labels(parameters, MethodLevel.class, "move"));
         assertEquals(List.of(), labels(parameters, MethodLevel.class, "plain"));
-        assertEquals(List.of("sku", "count"), labels(parameters, ClassLevel.class, "reserve"));
-        assertEquals(List.of("sku"), labels(parameters, ClassLevel.class, "release"));
-        assertEquals(List.of(), labels(parameters, ClassLevel.class, "none"));
-        // Not inherited by subclasses.
-        assertEquals(List.of(), labels(parameters, Derived.class, "run"));
+        assertEquals(List.of("sku", "count"), labels(parameters, Reservations.class, "reserve"));
+        assertEquals(List.of("sku"), labels(parameters, Reservations.class, "release"));
+        assertEquals(List.of(), labels(parameters, Reservations.class, "none"));
+        // Not inherited by overriding methods.
+        assertEquals(List.of(), labels(parameters, Derived.class, "reserve"));
     }
 
     @Test
@@ -155,7 +157,7 @@ class ParameterSelectionTest {
         for (AugmentorConfig config : List.of(new AugmentorConfig(), classes(Map.of(HERE, ANNOTATIONS)),
                 methods(Map.of("com.acme.**.*", List.of(new ParamRef.Annotations()))))) {
             IdParameters parameters = new IdParameters(config);
-            assertEquals(List.of(), labels(parameters, ClassLevel.class, "reserve"));
+            assertEquals(List.of(), labels(parameters, Reservations.class, "reserve"));
             assertEquals(List.of(), labels(parameters, MethodLevel.class, "move"));
         }
     }
@@ -176,12 +178,12 @@ class ParameterSelectionTest {
         assertEquals(List.of(), labels(withMethods, Explicit.class, "fail"));
         assertEquals(List.of("y"), labels(withMethods, Explicit.class, "failAnnotated"));
 
-        // A class-level @StackTraceParams, enabled by method entries alone.
+        // @StackTraceParams, enabled by a method entry for that method alone.
         IdParameters classLevel = new IdParameters(AugmentorConfig.builder()
-                .methods(Map.of(ClassLevel.class.getName() + ".reserve", List.of(new ParamRef.Annotations())))
+                .methods(Map.of(Reservations.class.getName() + ".reserve", List.of(new ParamRef.Annotations())))
                 .build());
-        assertEquals(List.of("sku", "count"), labels(classLevel, ClassLevel.class, "reserve"));
-        assertEquals(List.of(), labels(classLevel, ClassLevel.class, "release"));
+        assertEquals(List.of("sku", "count"), labels(classLevel, Reservations.class, "reserve"));
+        assertEquals(List.of(), labels(classLevel, Reservations.class, "release"));
     }
 
     @Test
@@ -230,13 +232,13 @@ class ParameterSelectionTest {
                 .build();
         TypeMatching matching = new TypeMatching(config, new IdParameters(config));
 
-        assertFalse(matching.instrument(type(ClassLevel.class)));
+        assertFalse(matching.instrument(type(Reservations.class)));
         assertFalse(matching.instrument(type(MethodLevel.class)));
         assertTrue(matching.instrument(type(Explicit.class)));
 
         String output = err.toString(StandardCharsets.UTF_8);
         String reason = ": no \"@\" entry in [augment.params] applies";
-        assertTrue(output.contains("ignoring the parameter annotations of release, reserve in " + ClassLevel.class.getName() + reason), output);
+        assertTrue(output.contains("ignoring the parameter annotations of release, reserve in " + Reservations.class.getName() + reason), output);
         assertTrue(output.contains("ignoring the parameter annotations of move in " + MethodLevel.class.getName() + reason), output);
         assertTrue(output.contains("ignoring @StackTraceId in " + explicit + ": its [augment.receiver] entry \"" + explicit + "\" is not \"@\""),
                 output);
@@ -293,11 +295,6 @@ class ParameterSelectionTest {
         }
     }
 
-    @StackTraceParams
-    static class SecretClass {
-        void store(String key, @StackTraceParam(secret = true) int size) {
-        }
-    }
 
     @Test
     void hashedParameters() {
@@ -316,12 +313,10 @@ class ParameterSelectionTest {
     @Test
     void secretAnnotations() {
         IdParameters annotations = new IdParameters(methods(Map.of(
-                Secrets.class.getName() + ".*", List.of(new ParamRef.Annotations()),
-                SecretClass.class.getName() + ".*", List.of(new ParamRef.Annotations()))));
+                Secrets.class.getName() + ".*", List.of(new ParamRef.Annotations()))));
         assertEquals(List.of("userName", "password#"), encoded(annotations, Secrets.class, "login"));
-        // Under @StackTraceParams, on the method or the class, @StackTraceParam(secret = true) hashes one parameter.
+        // Under @StackTraceParams, @StackTraceParam(secret = true) hashes one parameter.
         assertEquals(List.of("name", "token#"), encoded(annotations, Secrets.class, "update"));
-        assertEquals(List.of("key", "size#"), encoded(annotations, SecretClass.class, "store"));
         // A name entry hashes on top of the annotations, it cannot show a secret one as text.
         IdParameters named = new IdParameters(methods(Map.of(
                 Secrets.class.getName() + ".login", List.of(new ParamRef.ByName("password")),

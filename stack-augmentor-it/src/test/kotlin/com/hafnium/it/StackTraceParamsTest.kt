@@ -32,19 +32,19 @@ class StackTraceParamsTest {
     }
 
     @Test
-    fun `class-level annotation applies to the class's own methods`() {
+    fun `a method-level annotation does not apply to overrides`() {
         val reserve = assertThrows<IllegalStateException> { Inventory().reserve("x-1", 2) }
         assertEquals("com.hafnium.it.fixtures.Inventory", reserve.stackTrace[0].className)
         assertEquals("reserve{sku=x-1, count=2}", reserve.method())
         assertEquals("release{sku=x-2}", assertThrows<IllegalStateException> { Inventory().release("x-2") }.method())
 
-        val derived = assertThrows<IllegalStateException> { DerivedInventory().run(1) }
+        val derived = assertThrows<IllegalStateException> { DerivedInventory().reserve("x-3", 1) }
         assertEquals("com.hafnium.it.fixtures.DerivedInventory", derived.stackTrace[0].className)
-        assertEquals("run", derived.method())
+        assertEquals("reserve", derived.method())
     }
 
     @Test
-    fun `class-level annotation outside the @ entries is ignored`() {
+    fun `an annotation outside the @ entries is ignored`() {
         assertEquals("run", assertThrows<IllegalStateException> { AllParamsOutside().run(1) }.method())
     }
 

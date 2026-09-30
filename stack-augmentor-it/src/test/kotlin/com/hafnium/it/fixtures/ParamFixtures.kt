@@ -16,16 +16,17 @@ class Accounts {
     fun plain(from: String): Nothing = throw IllegalStateException("plain $from")
 }
 
-@StackTraceParams
 open class Inventory {
-    fun reserve(sku: String, count: Int): Nothing = throw IllegalStateException("reserve")
+    @StackTraceParams
+    open fun reserve(sku: String, count: Int): Nothing = throw IllegalStateException("reserve")
 
+    @StackTraceParams
     fun release(sku: String): Nothing = throw IllegalStateException("release")
 }
 
-/** The class-level annotation of Inventory does not apply here. */
+/** The @StackTraceParams of Inventory.reserve does not apply to its override. */
 class DerivedInventory : Inventory() {
-    fun run(x: Int): Nothing = throw IllegalStateException("run $x")
+    override fun reserve(sku: String, count: Int): Nothing = throw IllegalStateException("derived reserve")
 }
 
 /** Also listed in [augment.params] with both parameters: each is shown once. */

@@ -34,10 +34,10 @@ a warning.
 - **WHEN** the project is rebuilt
 - **THEN** its classes are not instrumented, and with `debug = true` the build lists the ignored annotations
 
-#### Scenario: Class-level parameter annotation
-- **GIVEN** a project class annotated only with `@StackTraceParams`, whose methods an `[augment.params]` `"@"` entry matches
+#### Scenario: Method-level parameter annotation
+- **GIVEN** a project class whose only annotation is `@StackTraceParams` on a method, which an `[augment.params]` `"@"` entry matches
 - **WHEN** the project is built
-- **THEN** its methods with parameters are instrumented and show their parameter ids
+- **THEN** that method is instrumented and shows its parameter ids
 
 #### Scenario: No configuration
 - **GIVEN** the build plugin discovered through `META-INF/net.bytebuddy/build.plugins`, without an argument

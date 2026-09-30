@@ -48,10 +48,9 @@ public final class IdParameters {
         return false;
     }
 
-    /** Whether the method has parameter annotations: {@code @StackTraceParam}, or {@code @StackTraceParams} on it or its type. */
-    static boolean hasParameterAnnotations(TypeDescription type, MethodDescription method) {
-        if (annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null
-                || (annotation(type.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null && !method.getParameters().isEmpty())) {
+    /** Whether the method has parameter annotations: {@code @StackTraceParam}, or {@code @StackTraceParams} on it. */
+    static boolean hasParameterAnnotations(MethodDescription method) {
+        if (annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null) {
             return true;
         }
         for (ParameterDescription parameter : method.getParameters()) {
@@ -68,7 +67,7 @@ public final class IdParameters {
         TreeMap<Integer, Boolean> selected = new TreeMap<>();
         for (ParamRef ref : paramRefs(type, method)) {
             switch (ref) {
-                case ParamRef.Annotations annotations -> annotated(type, method, selected);
+                case ParamRef.Annotations annotations -> annotated(method, selected);
                 case ParamRef.Excluded excluded -> {
                     // paramRefs stops at "-".
                 }
@@ -96,19 +95,15 @@ public final class IdParameters {
     }
 
     /**
-     * The parameters the annotations select: all of them with {@code @StackTraceParams} on the method or on the class
-     * declaring it, and those with {@code @StackTraceParam}. Hashed with {@code @StackTraceParam(secret = true)}, also
+     * The parameters the annotations select: all of them with {@code @StackTraceParams} on the method, and those with
+     * {@code @StackTraceParam}. Hashed with {@code @StackTraceParam(secret = true)}, also
      * under {@code @StackTraceParams}.
      */
-    private static void annotated(TypeDescription type, MethodDescription method, TreeMap<Integer, Boolean> selected) {
+    private static void annotated(MethodDescription method, TreeMap<Integer, Boolean> selected) {
         ParameterList<?> parameters = method.getParameters();
-        for (AnnotationDescription all : new AnnotationDescription[] {
-                annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS),
-                annotation(type.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS)}) {
-            if (all != null) {
-                for (ParameterDescription parameter : parameters) {
-                    selected.merge(parameter.getIndex(), false, Boolean::logicalOr);
-                }
+        if (annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null) {
+            for (ParameterDescription parameter : parameters) {
+                selected.merge(parameter.getIndex(), false, Boolean::logicalOr);
             }
         }
         for (ParameterDescription parameter : parameters) {
