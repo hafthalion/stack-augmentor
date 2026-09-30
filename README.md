@@ -149,7 +149,7 @@ The label is the real field or method name (`{objectId=…}`, `{getKey=…}`); i
 
 **Parameter ids** are shown after the method name, in declaration order. `[augment.params]` entries `"<class>.<method>"` select them (see [Configuration](#configuration)):
 - by name or by 0-based index (0 to 255), e.g. `["order", 2]`;
-- `"@"`: the parameters the method's annotations select: `@StackTraceParam` on a parameter, `@StackTraceParams` on the method (all its parameters), or `@StackTraceParams` on the class declaring it (all parameters of every method declared in that class; not of subclasses or nested classes);
+- `"@"`: the parameters the method's annotations select: `@StackTraceParam` on a parameter, or `@StackTraceParams` on the method (all its parameters; not of methods that override it);
 - `"-"`: none.
 
 There is no wildcard for the parameters themselves: each one is named, or selected by an annotation.

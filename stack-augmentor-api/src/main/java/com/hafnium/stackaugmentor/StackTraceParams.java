@@ -7,18 +7,14 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Shows all parameters after the method name in stack traces, e.g. {@code transfer{from=a, to=b, amount=10}}.
- *
- * <ul>
- *   <li>On a method: all parameters of that method.</li>
- *   <li>On a class: all parameters of every method declared in that class (not of subclasses or nested classes).</li>
- * </ul>
+ * Shows all parameters of the annotated method after its name in stack traces, e.g.
+ * {@code transfer{from=a, to=b, amount=10}}. Methods that override it are not affected.
  *
  * <p>Labels are the parameter names as compiled into the class file (see {@link StackTraceParam}). To show one of
  * these parameters hashed, annotate it with {@code @StackTraceParam(secret = true)}.
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.TYPE, ElementType.METHOD})
+@Target(ElementType.METHOD)
 public @interface StackTraceParams {
 }

@@ -161,10 +161,9 @@ name starting with `is`), with the configured name as the label.
 
 ### Requirement: Parameter ids
 The system SHALL show the value of a method parameter after the method name when the parameter is
-annotated with `@StackTraceParam` (`com.hafnium.stackaugmentor.StackTraceParam`), when its method or the
-class declaring the method is annotated with `@StackTraceParams`
-(`com.hafnium.stackaugmentor.StackTraceParams`, see "Parameter ids from method- and class-level
-annotations"), in both cases only where an `[augment.params]` entry `"@"` applies, or when an
+annotated with `@StackTraceParam` (`com.hafnium.stackaugmentor.StackTraceParam`), when its method is
+annotated with `@StackTraceParams` (`com.hafnium.stackaugmentor.StackTraceParams`, see "Parameter ids from
+method-level annotations"), in both cases only where an `[augment.params]` entry `"@"` applies, or when an
 `[augment.params]` entry selects it by name or index (see "Parameter ids of configured methods").
 This SHALL apply to instance and static methods. A parameter selected more than once SHALL be shown
 once, and parameter ids SHALL be listed in declaration order. `@StackTraceId` on a parameter SHALL NOT
@@ -272,11 +271,9 @@ throws SHALL be shown as `?`.
 - **WHEN** an exception leaves a method of that class
 - **THEN** the frame shows `id=?` and the original exception is unchanged otherwise
 
-### Requirement: Parameter ids from method- and class-level annotations
-`@StackTraceParams` (on methods and classes only) on a method SHALL select all
-parameters of that method. `@StackTraceParams` on a class SHALL select all parameters of every instance and
-static method declared in that class. It SHALL NOT apply to methods of subclasses or nested classes, which
-need their own annotation. Both SHALL only be used where an `[augment.params]` entry `"@"` applies. Methods without parameters SHALL get no parameter ids. Constructors, synthetic,
+### Requirement: Parameter ids from method-level annotations
+`@StackTraceParams` (on methods only) SHALL select all parameters of that method. It SHALL NOT apply to
+methods that override it, which need their own annotation. It SHALL only be used where an `[augment.params]` entry `"@"` applies. Methods without parameters SHALL get no parameter ids. Constructors, synthetic,
 bridge, abstract and native methods SHALL NOT be instrumented, as for other parameter ids.
 
 #### Scenario: Method-level annotation
@@ -284,15 +281,10 @@ bridge, abstract and native methods SHALL NOT be instrumented, as for other para
 - **WHEN** `transfer("a", "b", 10)` throws
 - **THEN** that frame shows `from=a, to=b, amount=10`
 
-#### Scenario: Class-level annotation
-- **GIVEN** `@StackTraceParams class Inventory` with `fun reserve(sku: String, count: Int)` and `fun release(sku: String)`
-- **WHEN** `reserve("x-1", 2)` throws, and separately `release("x-2")` throws
-- **THEN** the frames show `reserve{sku=x-1, count=2}` and `release{sku=x-2}`
-
-#### Scenario: Subclass of an annotated class
-- **GIVEN** `@StackTraceParams open class Base` and `class Derived : Base()` that declares `fun run(x: Int)` without annotations
-- **WHEN** `Derived().run(1)` throws
-- **THEN** the frame shows no parameter ids for `run`
+#### Scenario: Override of an annotated method
+- **GIVEN** `@StackTraceParams open fun reserve(sku: String, count: Int)` in `open class Inventory`, and `class DerivedInventory : Inventory()` that overrides `reserve` without annotations
+- **WHEN** `DerivedInventory().reserve("x-3", 1)` throws
+- **THEN** the frame shows no parameter ids for `reserve`
 
 ### Requirement: Parameter ids of configured methods
 An `[augment.params]` entry `"<class pattern>.<method pattern>" = <parameters>` SHALL select
@@ -303,8 +295,7 @@ SHALL use the `[augment.receiver]` globs (`*` within one package segment, `**` a
 character). In the method pattern, `*` SHALL match any sequence of characters and `?` one character. A key
 without wildcards SHALL match exactly. `<parameters>` SHALL be an array of parameter names and 0-based
 indexes (0 to 255), or the string `"@"` for the parameters selected by the method's
-annotations: `@StackTraceParam` on its parameters, and `@StackTraceParams` on the method or on the class that
-declares it. There SHALL be no value for all parameters: each is named, or selected by an annotation. Names and indexes that a matched method does not have
+annotations: `@StackTraceParam` on its parameters, and `@StackTraceParams` on the method. There SHALL be no value for all parameters: each is named, or selected by an annotation. Names and indexes that a matched method does not have
 SHALL be skipped. When several entries match one method, the parameters they select SHALL be combined, up to
 a `"-"` entry as described under "Ignoring receivers and parameters".
 
@@ -350,7 +341,7 @@ A configuration whose entries are all `"-"` SHALL count as having no entries.
 ### Requirement: Annotations in use
 The system SHALL use `@StackTraceId` annotations (on fields and methods) only in classes whose deciding
 `[augment.receiver]` entry is `"@"` (see "Receiver id from external configuration"), and
-`@StackTraceParam` annotations (on parameters) and `@StackTraceParams` annotations (on methods and classes)
+`@StackTraceParam` annotations (on parameters) and `@StackTraceParams` annotations (on methods)
 only for methods matched by an `[augment.params]` entry with the value `"@"` (see "Parameter ids of
 configured methods"). Without an `"@"` entry, no annotations SHALL be used. A class whose deciding entry
 names a field or method SHALL get its receiver id from that member: its `@StackTraceId` SHALL NOT be used.
@@ -372,13 +363,13 @@ them.
 - **WHEN** an exception leaves one of its methods
 - **THEN** the frame is unchanged
 
-#### Scenario: Class-level parameter annotation outside the "@" entries
-- **GIVEN** `"com.hafnium.it.fixtures.**.*" = "@"` in `[augment.params]` and a class in `com.hafnium.it.outside` annotated with `@StackTraceParams`
-- **WHEN** one of its methods throws
+#### Scenario: Method-level parameter annotation outside the "@" entries
+- **GIVEN** `"com.hafnium.it.fixtures.**.*" = "@"` in `[augment.params]` and a method of a class in `com.hafnium.it.outside` annotated with `@StackTraceParams`
+- **WHEN** that method throws
 - **THEN** the frame shows no parameter ids
 
-#### Scenario: Class-level parameter annotation enabled by method entries
-- **GIVEN** `@StackTraceParams class ClassParamsViaMethods` in `com.hafnium.it.outside`, and `"com.hafnium.it.outside.ClassParamsViaMethods.*" = "@"` in `[augment.params]`
+#### Scenario: Method-level parameter annotation enabled by method entries
+- **GIVEN** `@StackTraceParams fun run(a: Int, b: String)` in `com.hafnium.it.outside.ClassParamsViaMethods`, and `"com.hafnium.it.outside.ClassParamsViaMethods.*" = "@"` in `[augment.params]`
 - **WHEN** `run(1, "x")` throws
 - **THEN** that frame shows all its parameter ids
 

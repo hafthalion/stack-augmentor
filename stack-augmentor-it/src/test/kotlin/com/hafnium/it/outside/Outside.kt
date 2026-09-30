@@ -16,8 +16,8 @@ class ParamsOnly {
     fun withParam(@StackTraceParam code: Int): Nothing = throw IllegalStateException("code $code")
 }
 
-@StackTraceParams
 class AllParamsOutside {
+    @StackTraceParams
     fun run(x: Int): Nothing = throw IllegalStateException("run $x")
 }
 
@@ -26,9 +26,9 @@ class MethodAnnotationsOutside {
     fun run(@StackTraceParam code: Int): Nothing = throw IllegalStateException("run $code")
 }
 
-/** Its class-level annotation is enabled by an [augment.params] "@" entry for all its methods. */
-@StackTraceParams
+/** Its @StackTraceParams is enabled by an [augment.params] "@" entry for all its methods. */
 class ClassParamsViaMethods {
+    @StackTraceParams
     fun run(a: Int, b: String): Nothing = throw IllegalStateException("run $a $b")
 }
 
