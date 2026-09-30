@@ -33,7 +33,7 @@ byteBuddy {
     // Only adds advice to existing methods: keep the classes' methods as they are (no rebasing).
     entryPoint = EntryPoint.Default.DECORATE
     transformation {
-        pluginName = "com.hafnium.stackaugmentor.build.StackAugmentorByteBuddyPlugin"
+        pluginName = "com.hafnium.stackaugmentor.build.ByteBuddyPlugin"
         // Without this argument, nothing is instrumented and the build prints a warning.
         argument { value = stackAugmentorConfig.asFile.absolutePath }
     }
