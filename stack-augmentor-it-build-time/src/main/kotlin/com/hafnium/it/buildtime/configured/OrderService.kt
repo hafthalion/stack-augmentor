@@ -1,7 +1,6 @@
-package com.thirdparty
+package com.hafnium.it.buildtime.configured
 
-// Stand-ins for library classes: no annotations, ids come from stack-augmentor.toml. Build-time
-// instrumentation only changes this project's classes: these are compiled here, real library classes would not be.
+// Classes without annotations, as if they could not be annotated: their ids come from stack-augmentor.toml.
 
 class Order(private val orderNumber: Long) {
     fun getOrderNumber(): Long = orderNumber

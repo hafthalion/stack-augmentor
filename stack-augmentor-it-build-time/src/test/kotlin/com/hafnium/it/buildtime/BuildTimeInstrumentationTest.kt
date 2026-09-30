@@ -1,9 +1,9 @@
 package com.hafnium.it.buildtime
 
-import com.thirdparty.InventoryAudit
-import com.thirdparty.InventoryService
-import com.thirdparty.Order
-import com.thirdparty.OrderService
+import com.hafnium.it.buildtime.configured.InventoryAudit
+import com.hafnium.it.buildtime.configured.InventoryService
+import com.hafnium.it.buildtime.configured.Order
+import com.hafnium.it.buildtime.configured.OrderService
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -31,12 +31,12 @@ class BuildTimeInstrumentationTest {
         val e = assertThrows<IllegalStateException> { OrderService(InventoryService(InventoryAudit())).process(Order(4711), 3, "rush") }
         assertEquals(
             listOf(
-                "com.thirdparty.Customer{customerId=c-9}.notify{email=#71d4f55f}",
-                "com.thirdparty.Order{getOrderNumber=4711}.ship",
+                "com.hafnium.it.buildtime.configured.Customer{customerId=c-9}.notify{email=#71d4f55f}",
+                "com.hafnium.it.buildtime.configured.Order{getOrderNumber=4711}.ship",
                 // Its "-" entry beats the Inventory* pattern.
-                "com.thirdparty.InventoryAudit.record",
-                "com.thirdparty.InventoryService.reserve{sku=x-1, count=3}",
-                "com.thirdparty.OrderService.process{order=Order#4711, quantity=3}",
+                "com.hafnium.it.buildtime.configured.InventoryAudit.record",
+                "com.hafnium.it.buildtime.configured.InventoryService.reserve{sku=x-1, count=3}",
+                "com.hafnium.it.buildtime.configured.OrderService.process{order=Order#4711, quantity=3}",
             ),
             frames(e, 5),
         )
