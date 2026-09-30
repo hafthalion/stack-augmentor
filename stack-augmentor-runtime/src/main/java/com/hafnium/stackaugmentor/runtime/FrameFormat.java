@@ -15,46 +15,22 @@ public final class FrameFormat {
     private static final List<String> ID_PLACEHOLDERS = List.of("name", "id");
     private static final String REPEAT = "...";
     private static final String DEFAULT_SEPARATOR = ",";
-    /** The last item of a parameter list that was cut at maxParams. */
-    private static final String OMITTED = "…";
 
     private final List<Token> declaringClassPart;
     private final List<Token> methodPart;
     private final List<Token> receiver;
     private final ParamsTemplate params;
-    private final int maxParams;
 
-    private FrameFormat(List<Token> declaringClassPart, List<Token> methodPart, List<Token> receiver, ParamsTemplate params,
-                        int maxParams) {
+    private FrameFormat(List<Token> declaringClassPart, List<Token> methodPart, List<Token> receiver, ParamsTemplate params) {
         this.declaringClassPart = declaringClassPart;
         this.methodPart = methodPart;
         this.receiver = receiver;
         this.params = params;
-        this.maxParams = maxParams;
     }
 
-    /** The most parameter ids shown per frame. */
-    public int maxParams() {
-        return maxParams;
-    }
-
-    /**
-     * A replacement element whose {@code toString()} shows the ids. Of the parameter ids, the first {@link #maxParams()}
-     * are shown, followed by {@code …} if there are more.
-     */
+    /** A replacement element whose {@code toString()} shows the ids. */
     public StackTraceElement rewrite(StackTraceElement element, NamedId receiverId, List<NamedId> paramIds) {
-        if (paramIds.size() > maxParams) {
-            return rewrite(element, receiverId, paramIds.subList(0, maxParams), paramIds.size() - maxParams);
-        }
-        return rewrite(element, receiverId, paramIds, 0);
-    }
-
-    /**
-     * A replacement element whose {@code toString()} shows the ids, for parameter ids already cut to {@link #maxParams()}:
-     * {@code omitted} is the number of parameters left out, shown as {@code …}.
-     */
-    public StackTraceElement rewrite(StackTraceElement element, NamedId receiverId, List<NamedId> paramIds, int omitted) {
-        UnaryOperator<String> values = values(element, receiverId, paramIds, omitted);
+        UnaryOperator<String> values = values(element, receiverId, paramIds);
         String declaringClass = render(declaringClassPart, values);
         String method = render(methodPart, values);
         String prefix = prefixOf(element);
@@ -68,13 +44,13 @@ public final class FrameFormat {
         return new StackTraceElement(loader, module, version, declaringClass, method, element.getFileName(), element.getLineNumber());
     }
 
-    private UnaryOperator<String> values(StackTraceElement element, NamedId receiverId, List<NamedId> paramIds, int omitted) {
+    private UnaryOperator<String> values(StackTraceElement element, NamedId receiverId, List<NamedId> paramIds) {
         return name -> switch (name) {
             case "class" -> element.getClassName();
             case "simpleClass" -> element.getClassName().substring(element.getClassName().lastIndexOf('.') + 1);
             case "method" -> element.getMethodName();
             case "receiver" -> receiverId != null ? render(receiver, values(receiverId)) : "";
-            case "params" -> params.render(paramIds, omitted);
+            case "params" -> params.render(paramIds);
             default -> throw new IllegalStateException("unexpected placeholder " + name);
         };
     }
@@ -90,30 +66,23 @@ public final class FrameFormat {
 
     private record ParamsTemplate(String prefix, List<Token> item, String separator, String suffix) {
 
-        String render(List<NamedId> ids, int omitted) {
-            if (ids.isEmpty() && omitted == 0) {
+        String render(List<NamedId> ids) {
+            if (ids.isEmpty()) {
                 return "";
             }
-            List<String> items = new ArrayList<>(ids.size() + 1);
+            List<String> items = new ArrayList<>(ids.size());
             for (NamedId id : ids) {
                 items.add(FrameFormat.render(item, values(id)));
-            }
-            if (omitted > 0) {
-                items.add(OMITTED);
             }
             return prefix + String.join(separator, items) + suffix;
         }
     }
 
     public static FrameFormat create(AugmentorConfig config) {
-        return create(config.frameFormat(), config.receiverFormat(), config.paramsFormat(), config.maxParams());
+        return create(config.frameFormat(), config.receiverFormat(), config.paramsFormat());
     }
 
     public static FrameFormat create(String frameFormat, String receiverFormat, String paramsFormat) {
-        return create(frameFormat, receiverFormat, paramsFormat, AugmentorConfig.DEFAULT_MAX_PARAMS);
-    }
-
-    public static FrameFormat create(String frameFormat, String receiverFormat, String paramsFormat, int maxParams) {
         rejectParentheses(frameFormat, "frameFormat");
         rejectParentheses(receiverFormat, "receiverFormat");
         rejectParentheses(paramsFormat, "paramsFormat");
@@ -140,7 +109,7 @@ public final class FrameFormat {
         }
         List<Token> methodPart = List.copyOf(frame.subList(method, frame.size()));
         List<Token> receiver = parse(receiverFormat, ID_PLACEHOLDERS, "receiverFormat");
-        return new FrameFormat(List.copyOf(declaringClassPart), methodPart, receiver, parseParams(paramsFormat), maxParams);
+        return new FrameFormat(List.copyOf(declaringClassPart), methodPart, receiver, parseParams(paramsFormat));
     }
 
     /** IDEs find a frame's file and line by the parenthesised {@code (File.java:12)} that the JDK appends. */

@@ -33,7 +33,6 @@ import java.util.stream.Collectors;
  * receiverFormat = "{$name=$id}"
  * paramsFormat = "{$name=$id, ...}"
  * maxIdLength = 64
- * maxParams = 4
  *
  * [augment.receiver]           # receiver ids: a field, a "method()", "@" for @StackTraceId, "-" for none
  * "com.hafnium.**" = "@"
@@ -60,7 +59,6 @@ public final class AugmentorConfig {
     public static final String DEFAULT_RECEIVER_FORMAT = "{$name=$id}";
     public static final String DEFAULT_PARAMS_FORMAT = "{$name=$id, ...}";
     public static final int DEFAULT_MAX_ID_LENGTH = 64;
-    public static final int DEFAULT_MAX_PARAMS = 4;
     public static final String CONFIG_PROPERTY = "stackaugmentor.config";
 
     /** The value that stands for "use the annotations", in both tables. */
@@ -78,7 +76,6 @@ public final class AugmentorConfig {
     private final String receiverFormat;
     private final String paramsFormat;
     private final int maxIdLength;
-    private final int maxParams;
     private final boolean debug;
 
     /** An {@code [augment.receiver]} entry: the key as written, and the id source it names. */
@@ -114,17 +111,16 @@ public final class AugmentorConfig {
     /** The defaults: no class or method entries, so nothing gets ids. */
     public AugmentorConfig() {
         this(Map.of(), Map.of(), DEFAULT_FRAME_FORMAT, DEFAULT_RECEIVER_FORMAT, DEFAULT_PARAMS_FORMAT,
-                DEFAULT_MAX_ID_LENGTH, DEFAULT_MAX_PARAMS, false);
+                DEFAULT_MAX_ID_LENGTH, false);
     }
 
     /**
      * @param classes   receiver id sources by class name or class pattern: the {@code [augment.receiver]} table
      * @param methods   parameter ids by {@code "<class>.<method>"}, possibly with wildcards: the
      *                  {@code [augment.params]} table
-     * @param maxParams the most parameter ids shown per frame
      */
     public AugmentorConfig(Map<String, IdSpec> classes, Map<String, List<ParamRef>> methods,
-                           String frameFormat, String receiverFormat, String paramsFormat, int maxIdLength, int maxParams,
+                           String frameFormat, String receiverFormat, String paramsFormat, int maxIdLength,
                            boolean debug) {
         this.classes = Collections.unmodifiableMap(new LinkedHashMap<>(classes));
         Map<String, List<ParamRef>> methodsCopy = new LinkedHashMap<>();
@@ -134,7 +130,6 @@ public final class AugmentorConfig {
         this.receiverFormat = Objects.requireNonNull(receiverFormat, "receiverFormat");
         this.paramsFormat = Objects.requireNonNull(paramsFormat, "paramsFormat");
         this.maxIdLength = maxIdLength;
-        this.maxParams = maxParams;
         this.debug = debug;
 
         List<ClassPattern> classPatterns = new ArrayList<>();
@@ -186,11 +181,6 @@ public final class AugmentorConfig {
 
     public int maxIdLength() {
         return maxIdLength;
-    }
-
-    /** The most parameter ids shown per frame. */
-    public int maxParams() {
-        return maxParams;
     }
 
     public boolean debug() {
@@ -378,20 +368,19 @@ public final class AugmentorConfig {
                 && receiverFormat.equals(that.receiverFormat)
                 && paramsFormat.equals(that.paramsFormat)
                 && maxIdLength == that.maxIdLength
-                && maxParams == that.maxParams
                 && debug == that.debug;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams, debug);
+        return Objects.hash(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug);
     }
 
     @Override
     public String toString() {
         return "AugmentorConfig[classes=" + classes + ", methods=" + methods
                 + ", frameFormat=" + frameFormat + ", receiverFormat=" + receiverFormat + ", paramsFormat=" + paramsFormat
-                + ", maxIdLength=" + maxIdLength + ", maxParams=" + maxParams + ", debug=" + debug + "]";
+                + ", maxIdLength=" + maxIdLength + ", debug=" + debug + "]";
     }
 
     /** Starts from the defaults; every setter replaces one value. */
@@ -403,7 +392,6 @@ public final class AugmentorConfig {
         private String receiverFormat = DEFAULT_RECEIVER_FORMAT;
         private String paramsFormat = DEFAULT_PARAMS_FORMAT;
         private int maxIdLength = DEFAULT_MAX_ID_LENGTH;
-        private int maxParams = DEFAULT_MAX_PARAMS;
         private boolean debug;
 
         private Builder() {
@@ -439,19 +427,13 @@ public final class AugmentorConfig {
             return this;
         }
 
-        public Builder maxParams(int maxParams) {
-            this.maxParams = maxParams;
-            return this;
-        }
-
         public Builder debug(boolean debug) {
             this.debug = debug;
             return this;
         }
 
         public AugmentorConfig build() {
-            return new AugmentorConfig(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams,
-                    debug);
+            return new AugmentorConfig(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug);
         }
     }
 
@@ -464,7 +446,7 @@ public final class AugmentorConfig {
 
         private static final List<String> ROOT_KEYS = List.of("debug", "augment");
         private static final List<String> AUGMENT_KEYS = List.of("frameFormat", "receiverFormat", "paramsFormat", "maxIdLength",
-                "maxParams", "receiver", "params");
+                "receiver", "params");
 
         /** A class name or class pattern: dotted segments of identifier characters and wildcards. */
         private static final Pattern CLASS_PART = Pattern.compile("[\\p{L}\\p{N}_$*?]+(\\.[\\p{L}\\p{N}_$*?]+)*");
@@ -517,10 +499,6 @@ public final class AugmentorConfig {
             Long maxIdLength = value(plus(AUGMENT, "maxIdLength"), Long.class, "an integer");
             if (maxIdLength != null) {
                 config.maxIdLength(maxIdLength(maxIdLength));
-            }
-            Long maxParams = value(plus(AUGMENT, "maxParams"), Long.class, "an integer");
-            if (maxParams != null) {
-                config.maxParams(maxParams(maxParams));
             }
             Boolean debug = value(List.of("debug"), Boolean.class, "true or false");
             if (debug != null) {
@@ -688,13 +666,6 @@ public final class AugmentorConfig {
             }
             throw error(path, "invalid parameter '" + ref + "': use a parameter name or a 0-based index from 0 to 255, "
                     + "optionally followed by # to hash the value, e.g. \"email#\" or \"1#\"");
-        }
-
-        private int maxParams(long value) {
-            if (value < 1 || value > 255) {
-                throw error(plus(AUGMENT, "maxParams"), "maxParams must be between 1 and 255, was " + value);
-            }
-            return (int) value;
         }
 
         private int maxIdLength(long value) {

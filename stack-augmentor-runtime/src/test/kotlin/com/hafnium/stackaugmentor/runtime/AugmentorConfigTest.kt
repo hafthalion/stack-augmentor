@@ -46,7 +46,6 @@ class AugmentorConfigTest {
             receiverFormat = "<${'$'}id>"
             paramsFormat = "[${'$'}name: ${'$'}id; ...]"
             maxIdLength = 32
-            maxParams = 3
             """,
         )
         assertEquals(
@@ -68,7 +67,6 @@ class AugmentorConfigTest {
                 .receiverFormat("<\$id>")
                 .paramsFormat("[\$name: \$id; ...]")
                 .maxIdLength(32)
-                .maxParams(3)
                 .debug(true)
                 .build(),
             config,
@@ -186,7 +184,7 @@ class AugmentorConfigTest {
         assertEquals(
             "test.toml, line 3: paramsFormat must not contain '(' (at position 0), because IDEs find a frame's file by the " +
                 "'(File.java:12)' at its end; use e.g. '{' and '}' or '[' and ']'; was '(\$name; ...)'",
-            error("[augment]\nmaxParams = 3\nparamsFormat = \"(\$name; ...)\""),
+            error("[augment]\nmaxIdLength = 32\nparamsFormat = \"(\$name; ...)\""),
         )
         assertTrue(error("[augment]\nframeFormat = \"\$class#\$method\"").startsWith("test.toml, line 2: frameFormat must contain"))
         assertTrue(error("[augment]\n\nreceiverFormat = \"\$nam\"").startsWith("test.toml, line 3: receiverFormat uses unknown placeholder"))
@@ -195,8 +193,8 @@ class AugmentorConfigTest {
     @Test
     fun `unknown keys are rejected, in every section`() {
         assertEquals(
-            "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxIdLength, maxParams, " +
-                "receiver, params",
+            "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxIdLength, receiver, " +
+                "params",
             error("[augment]\nframe = \"\$class.\$method\""),
         )
         assertTrue(error("[other]\nx = 1").contains("unknown key 'other'; allowed: debug, augment"))
@@ -301,7 +299,7 @@ class AugmentorConfigTest {
     }
 
     @Test
-    fun `invalid method entries and maxParams`() {
+    fun `invalid method entries`() {
         assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"all\"").contains("\"@\" for the method's annotations, or \"-\" for none, was all"))
         // No wildcard for the parameters: they are named, or selected by the annotations.
         assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"*\"").contains("must be an array of parameter names and indexes"))
@@ -319,10 +317,8 @@ class AugmentorConfigTest {
         )
         assertTrue(error("[augment.params]\n\"com.acme.Order.\" = \"@\"").contains("keys must name a class and a method"))
         assertTrue(error("[augment.params]\n\"com..Order.run\" = \"@\"").contains("keys must name a class and a method"))
-        assertEquals("test.toml, line 2: maxParams must be between 1 and 255, was 0", error("[augment]\nmaxParams = 0"))
-        assertTrue(error("augment.maxParams = 256").contains("maxParams must be between 1 and 255, was 256"))
-        assertEquals(4, AugmentorConfig().maxParams())
-        assertEquals(1, parse("augment.maxParams = 1").maxParams())
+        // maxParams was removed: all selected parameters are shown.
+        assertTrue(error("[augment]\nmaxParams = 4").startsWith("test.toml, line 2: unknown key 'maxParams' in [augment]"))
     }
 
     @Test

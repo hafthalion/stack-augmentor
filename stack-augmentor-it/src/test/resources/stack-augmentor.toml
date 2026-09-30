@@ -1,7 +1,5 @@
 [augment]
 maxIdLength = 20
-# Above the default (4), so the six-parameter fixtures show all their parameters
-maxParams = 8
 
 # The two tables are independent: [augment.receiver] for the receiver ids, [augment.params] for the parameter ids.
 [augment.receiver]
