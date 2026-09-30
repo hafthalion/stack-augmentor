@@ -239,8 +239,8 @@ class AugmentorConfigTest {
         )
         val inventory = listOf(ParamRef.ByName("sku"), ParamRef.ByName("count"))
         assertEquals(inventory, config.methods()["com.thirdparty.Inventory*.*"])
-        // The exact entry first, then the matching wildcard entries.
-        assertEquals(listOf(ParamRef.ByName("order"), ParamRef.ByIndex(2)), config.paramRefs("com.thirdparty.OrderService", "process"))
+        // The exact entry decides alone; the wildcard entry applies to the other methods.
+        assertEquals(listOf(ParamRef.ByName("order")), config.paramRefs("com.thirdparty.OrderService", "process"))
         assertEquals(listOf(ParamRef.ByIndex(2)), config.paramRefs("com.thirdparty.OrderService", "cancel"))
         assertEquals(inventory, config.paramRefs("com.thirdparty.InventoryService", "reserve"))
         assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.thirdparty.db.OrderRepository", "findById"))
@@ -259,7 +259,7 @@ class AugmentorConfigTest {
     }
 
     @Test
-    fun `"-" entries ignore less specific entries of their table`() {
+    fun `the most specific entry decides, "-" included`() {
         val config = parse(
             """
             [augment.receiver]
@@ -281,7 +281,7 @@ class AugmentorConfigTest {
         assertEquals(IdSpec.Excluded(), config.classEntry("com.acme.generated.Gen").spec())
         assertEquals(IdSpec.FieldSpec("id"), config.classEntry("com.acme.generated.Keep").spec())
 
-        // [augment.params]: entries are combined from the most specific on, up to the first "-".
+        // [augment.params]: the most specific entry decides, "-" included; entries are not combined.
         assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.thirdparty.billing.BillingService", "charge"))
         assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.billing.BillingService", "refund"))
         assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.audit.AuditService", "purge"))
@@ -289,7 +289,7 @@ class AugmentorConfigTest {
 
         // The tables are independent: the "-" class entry of Gen does not affect its parameters.
         assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.generated.Gen", "stop"))
-        assertEquals(listOf(ParamRef.ByIndex(1), ParamRef.ByIndex(0)), config.paramRefs("com.acme.generated.Gen", "run"))
+        assertEquals(listOf(ParamRef.ByIndex(1)), config.paramRefs("com.acme.generated.Gen", "run"))
 
         assertTrue(config.classesDescription().contains("com.acme.generated.**=-"), config.classesDescription())
         assertTrue(config.methodsDescription().contains("com.thirdparty.audit.AuditService.*[-]"), config.methodsDescription())

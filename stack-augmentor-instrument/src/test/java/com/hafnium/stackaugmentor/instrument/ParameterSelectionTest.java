@@ -187,14 +187,15 @@ class ParameterSelectionTest {
     }
 
     @Test
-    void configuredParametersAndOverlaps() {
+    void onlyTheMostSpecificEntryDecides() {
         String service = Service.class.getName();
         IdParameters parameters = new IdParameters(AugmentorConfig.builder()
                 .methods(Map.of(
                         service + ".process", List.of(new ParamRef.ByName("order")),
                         service.replace("Service", "Serv*") + ".*", List.of(new ParamRef.ByIndex(2))))
                 .build());
-        assertEquals(List.of("order", "note"), labels(parameters, Service.class, "process"));
+        // The exact entry decides alone: the pattern adds nothing.
+        assertEquals(List.of("order"), labels(parameters, Service.class, "process"));
     }
 
     @Test
@@ -303,11 +304,10 @@ class ParameterSelectionTest {
                 List.of(new ParamRef.ByName("email", true), new ParamRef.ByIndex(0, true), new ParamRef.ByIndex(2)))));
         assertEquals(List.of("userName#", "email#", "attempt"), encoded(byName, Login.class, "login"));
 
-        // Selected plainly and hashed by another entry: hashed.
-        IdParameters overlapping = new IdParameters(methods(Map.of(
-                login + ".login", List.of(new ParamRef.ByName("email", true)),
-                login + ".*", List.of(new ParamRef.ByIndex(0), new ParamRef.ByIndex(1)))));
-        assertEquals(List.of("userName", "email#"), encoded(overlapping, Login.class, "login"));
+        // Selected plainly by index and hashed by name: hashed.
+        IdParameters twice = new IdParameters(methods(Map.of(login + ".login",
+                List.of(new ParamRef.ByIndex(0), new ParamRef.ByIndex(1), new ParamRef.ByName("email", true)))));
+        assertEquals(List.of("userName", "email#"), encoded(twice, Login.class, "login"));
     }
 
     @Test
@@ -317,10 +317,10 @@ class ParameterSelectionTest {
         assertEquals(List.of("userName", "email#"), encoded(annotations, Secrets.class, "login"));
         // Under @StackTraceParams, @StackTraceParam(secret = true) hashes one parameter.
         assertEquals(List.of("name", "token#"), encoded(annotations, Secrets.class, "update"));
-        // A name entry hashes on top of the annotations, it cannot show a secret one as text.
+        // A more specific name entry decides alone: the annotations, secret included, do not apply.
         IdParameters named = new IdParameters(methods(Map.of(
                 Secrets.class.getName() + ".login", List.of(new ParamRef.ByName("email")),
                 Secrets.class.getName() + ".*", List.of(new ParamRef.Annotations()))));
-        assertEquals(List.of("userName", "email#"), encoded(named, Secrets.class, "login"));
+        assertEquals(List.of("email"), encoded(named, Secrets.class, "login"));
     }
 }

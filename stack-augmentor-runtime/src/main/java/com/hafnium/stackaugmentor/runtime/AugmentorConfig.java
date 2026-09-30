@@ -97,15 +97,6 @@ public final class AugmentorConfig {
     private record MethodPattern(String key, Pattern classPattern, Pattern methodPattern, List<ParamRef> refs) {
     }
 
-    /** An {@code [augment.params]} entry that matches a method. */
-    private record MethodMatch(String key, boolean exact, List<ParamRef> refs) {
-
-        static final Comparator<MethodMatch> MOST_SPECIFIC_FIRST = Comparator
-                .comparing((MethodMatch it) -> !it.exact())
-                .thenComparing(Comparator.comparingInt((MethodMatch it) -> specificity(it.key())).reversed())
-                .thenComparing(MethodMatch::key);
-    }
-
     private final List<MethodPattern> methodPatterns;
 
     /** The defaults: no class or method entries, so nothing gets ids. */
@@ -150,6 +141,8 @@ public final class AugmentorConfig {
                         refs));
             }
         });
+        methodPatterns.sort(Comparator.comparingInt((MethodPattern it) -> specificity(it.key())).reversed()
+                .thenComparing(MethodPattern::key));
         this.methodPatterns = List.copyOf(methodPatterns);
     }
 
@@ -240,35 +233,23 @@ public final class AugmentorConfig {
     }
 
     /**
-     * The parameters selected for a method by {@code [augment.params]}. The matching entries are taken from the
-     * most specific on: the entry without wildcards for exactly this class and method, then the patterns with the
-     * most characters other than {@code *} and {@code ?}, ties broken by key. They are combined up to the first
-     * {@code "-"} entry, which ignores the less specific ones. {@code [augment.receiver]} plays no part. Parameters
-     * selected more than once are shown once, in declaration order, so the order of this list does not matter.
+     * The parameters selected for a method by the most specific {@code [augment.params]} entry that matches it: the
+     * entry without wildcards for exactly this class and method, otherwise the pattern with the most characters other
+     * than {@code *} and {@code ?}, ties broken by key. Less specific entries play no part, so a {@code "-"} entry
+     * selects nothing even where a less specific entry would select parameters. {@code [augment.receiver]} plays no
+     * part either.
      */
     public List<ParamRef> paramRefs(String className, String methodName) {
-        List<ParamRef> exact = methods.get(className + "." + methodName);
-        if (methodPatterns.isEmpty()) {
-            return exact != null && !exact.contains(new ParamRef.Excluded()) ? exact : List.of();
-        }
-        List<MethodMatch> matches = new ArrayList<>();
-        if (exact != null) {
-            matches.add(new MethodMatch(className + "." + methodName, true, exact));
-        }
-        for (MethodPattern entry : methodPatterns) {
-            if (entry.classPattern().matcher(className).matches() && entry.methodPattern().matcher(methodName).matches()) {
-                matches.add(new MethodMatch(entry.key(), false, entry.refs()));
+        List<ParamRef> refs = methods.get(className + "." + methodName);
+        if (refs == null) {
+            for (MethodPattern entry : methodPatterns) {
+                if (entry.classPattern().matcher(className).matches() && entry.methodPattern().matcher(methodName).matches()) {
+                    refs = entry.refs();
+                    break;
+                }
             }
         }
-        matches.sort(MethodMatch.MOST_SPECIFIC_FIRST);
-        List<ParamRef> refs = new ArrayList<>();
-        for (MethodMatch match : matches) {
-            if (match.refs().contains(new ParamRef.Excluded())) {
-                break;
-            }
-            refs.addAll(match.refs());
-        }
-        return refs;
+        return refs == null || refs.contains(new ParamRef.Excluded()) ? List.of() : refs;
     }
 
     /** Whether a key of {@code [augment.receiver]} or {@code [augment.params]} has wildcards ({@code *} or {@code ?}). */

@@ -47,7 +47,7 @@ maxIdLength = 20
 "com.hafnium.it.fixtures.Overridden.*" = "-"
 "com.hafnium.it.fixtures.Overridden.failAnnotated" = "@"
 "com.thirdparty.OrderService.process" = ["order", 1]
-# Wildcards: combined with the entry above, and across packages
+# Wildcards: not combined with the more specific entry above, and across packages
 "com.thirdparty.OrderService.*" = [2]
 "com.thirdparty.Inventory*.*" = ["sku", "count"]
 # ... except for InventoryAudit, whose more specific "-" entry wins, except for log, whose exact entry wins
@@ -58,7 +58,7 @@ maxIdLength = 20
 "com.thirdparty.UserService.invite" = ["user", "email#", "2#"]
 # Matches JDK classes, which the agent never instruments
 "java.**.*" = [0]
-"com.hafnium.it.fixtures.Overlap.op" = ["x", "y"]
+"com.hafnium.it.fixtures.Overlap.op" = ["x", "y", 0]
 "com.hafnium.it.inheritance.OrderService.process" = ["order"]
 # Parameter annotations outside the fixtures
 "com.hafnium.it.outside.MethodAnnotationsOutside.run" = "@"
