@@ -32,10 +32,14 @@ jobs:
       # Compiles all modules, runs the unit tests, the agent integration tests and the build-time integration tests.
       - run: ./gradlew build
 
-      - name: Upload test reports
-        if: failure()
+      # On every run, also when the build fails: the run's summary page links the archive. The frame reports
+      # (stack-augmentor-it/build/reports/frames, start with index.html) show the frames each agent test caught.
+      - name: Upload test and frame reports
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: test-reports
-          path: '**/build/reports/tests/'
+          path: |
+            **/build/reports/tests/
+            **/build/reports/frames/
           retention-days: 7
