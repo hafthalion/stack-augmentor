@@ -69,3 +69,33 @@ class Secrets {
 class Forgetful {
     fun forget(@StackTraceParam(secret = true) email: String?): Nothing = throw IllegalStateException("forget")
 }
+
+// Constructors: parameter ids from the "<init>" entry, never a receiver id.
+
+/** Validation in an init block, after the superclass constructor has run. */
+class Shipment(@StackTraceParam val orderId: Long, @StackTraceParam(secret = true) val email: String, val weight: Int) {
+    init {
+        require(weight > 0) { "weight" }
+    }
+}
+
+open class Parcel(code: String) {
+    init {
+        require(code.isNotEmpty()) { "code" }
+    }
+}
+
+/** The superclass constructor throws: before this constructor's body, so this frame gets no ids. */
+class ExpressParcel @StackTraceParams constructor(code: String, val priority: Int) : Parcel(code)
+
+/** A secondary constructor delegating to the primary one: it gets ids only for exceptions from its own body. */
+class Pallet @StackTraceParams constructor(val size: Int) {
+    init {
+        check(size < 100) { "size" }
+    }
+
+    @StackTraceParams
+    constructor(label: String, size: Long) : this(size.toInt()) {
+        require(label.isNotEmpty()) { "label" }
+    }
+}

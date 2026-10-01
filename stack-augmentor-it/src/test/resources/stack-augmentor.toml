@@ -45,6 +45,8 @@ maxIdLength = 20
 [augment.params]
 # The fixtures' parameter ids come from their @StackTraceParam and @StackTraceParams
 "com.hafnium.it.fixtures.**.*" = "@"
+# Wildcards in the method name never match constructors; "<init>" selects them
+"com.hafnium.it.fixtures.**.<init>" = "@"
 # ... except Overridden's, except for failAnnotated, whose exact entry is more specific
 "com.hafnium.it.fixtures.Overridden.*" = "-"
 "com.hafnium.it.fixtures.Overridden.failAnnotated" = "@"

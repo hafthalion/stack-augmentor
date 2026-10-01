@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
  * [augment.params]           # parameter ids: names and indexes ("#" after one hashes it), "@" for the annotations,
  *                            # "-" for none
  * "com.hafnium.**.*" = "@"
+ * "com.hafnium.**.<init>" = "@"     # constructors only by name
  * "com.thirdparty.OrderService.process" = ["order", 2, "email#", "3#"]
  * "com.thirdparty.**.*Repository.find*" = [0]
  * "com.thirdparty.**.AuditRepository.*" = "-"
@@ -54,6 +55,9 @@ import java.util.stream.Collectors;
  * configured values only.
  */
 public final class AugmentorConfig {
+
+    /** The method name of constructors, in {@code [augment.params]} keys as in stack traces: {@code "com.acme.Order.<init>"}. */
+    public static final String CONSTRUCTOR = "<init>";
 
     public static final String DEFAULT_FRAME_FORMAT = "$class$receiver.$method$params";
     public static final String DEFAULT_RECEIVER_FORMAT = "{$name=$id}";
@@ -242,8 +246,11 @@ public final class AugmentorConfig {
     public List<ParamRef> paramRefs(String className, String methodName) {
         List<ParamRef> refs = methods.get(className + "." + methodName);
         if (refs == null) {
+            // Wildcards in the method name never match constructors: those need an entry ending in .<init>.
+            boolean constructor = methodName.equals(CONSTRUCTOR);
             for (MethodPattern entry : methodPatterns) {
-                if (entry.classPattern().matcher(className).matches() && entry.methodPattern().matcher(methodName).matches()) {
+                if (entry.classPattern().matcher(className).matches() && entry.methodPattern().matcher(methodName).matches()
+                        && constructor == entry.key().endsWith("." + CONSTRUCTOR)) {
                     refs = entry.refs();
                     break;
                 }
@@ -583,9 +590,9 @@ public final class AugmentorConfig {
             String target = target(path, METHODS);
             int dot = target.lastIndexOf('.');
             if (dot <= 0 || !CLASS_PART.matcher(target.substring(0, dot)).matches()
-                    || !METHOD_PART.matcher(target.substring(dot + 1)).matches()) {
-                throw error(path, "[" + name(METHODS) + "] keys must name a class and a method, e.g. \"com.acme.OrderService.process\"; "
-                        + ALLOWED_CHARACTERS);
+                    || !(METHOD_PART.matcher(target.substring(dot + 1)).matches() || target.substring(dot + 1).equals(CONSTRUCTOR))) {
+                throw error(path, "[" + name(METHODS) + "] keys must name a class and a method, e.g. \"com.acme.OrderService.process\", "
+                        + "or <init> for the constructors; " + ALLOWED_CHARACTERS);
             }
             return target;
         }

@@ -1,5 +1,6 @@
 package com.hafnium.stackaugmentor.build;
 
+import com.hafnium.stackaugmentor.instrument.ConstructorExit;
 import com.hafnium.stackaugmentor.instrument.ExitAdviceFactory;
 import com.hafnium.stackaugmentor.instrument.IdParameters;
 import com.hafnium.stackaugmentor.instrument.TypeMatching;
@@ -28,6 +29,7 @@ import java.nio.file.Path;
  */
 public final class ByteBuddyPlugin implements Plugin {
 
+    private final IdParameters parameters;
     private final TypeMatching matching;
     private final Advice advice;
 
@@ -44,7 +46,7 @@ public final class ByteBuddyPlugin implements Plugin {
     private ByteBuddyPlugin(AugmentorConfig config, String location) {
         Startup.configure(Startup.BUILD_PLUGIN, location, config);
         Startup.warnIfNothingConfigured(Startup.BUILD_PLUGIN, config);
-        IdParameters parameters = new IdParameters(config);
+        this.parameters = new IdParameters(config);
         this.matching = new TypeMatching(config, parameters);
         this.advice = ExitAdviceFactory.create(parameters);
     }
@@ -63,7 +65,7 @@ public final class ByteBuddyPlugin implements Plugin {
         if (Log.isDebug()) {
             Log.debug(() -> matching.describe(typeDescription, methods));
         }
-        return builder.visit(advice.on(methods));
+        return builder.visit(advice.on(methods)).visit(ConstructorExit.on(parameters, matching.constructors(typeDescription)));
     }
 
     @Override

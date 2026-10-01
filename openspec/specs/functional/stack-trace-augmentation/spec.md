@@ -13,7 +13,23 @@ cases:
   `[augment.receiver]` entry, or an annotated member when that entry is `"@"`);
 - instance or static methods that have at least one parameter id.
 
-Constructors SHALL NOT be instrumented.
+Constructors that are not synthetic SHALL be instrumented when they have at least one parameter id, for
+those ids only: they SHALL never get a receiver id. ByteBuddy's advice cannot catch exceptions in
+constructors, so the system SHALL add its own handler that covers the constructor body after the
+`super(...)` or `this(...)` call, passes the parameter ids with the method name `<init>`, and rethrows the
+exception unchanged. Exceptions thrown before that call ends (in the called constructor, or while its
+arguments are computed) SHALL leave the frame unchanged.
+
+#### Scenario: Constructor with parameter ids
+- **GIVEN** `class Shipment(@StackTraceParam val orderId: Long, val weight: Int)` whose `init` block calls
+  `require(weight > 0)`, and an entry `"com.acme.**.<init>" = "@"`
+- **WHEN** `Shipment(42, 0)` throws
+- **THEN** its frame shows `Shipment.<init>{orderId=42}`
+
+#### Scenario: Exception from the superclass constructor
+- **GIVEN** a constructor with parameter ids whose `super(...)` call throws
+- **WHEN** the stack trace is inspected
+- **THEN** that constructor's frame is unchanged
 
 #### Scenario: Static method without parameter ids
 - **GIVEN** a static function without id parameters

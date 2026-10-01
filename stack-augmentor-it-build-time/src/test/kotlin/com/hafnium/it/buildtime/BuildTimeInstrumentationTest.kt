@@ -4,6 +4,7 @@ import com.hafnium.it.buildtime.configured.InventoryAudit
 import com.hafnium.it.buildtime.configured.InventoryService
 import com.hafnium.it.buildtime.configured.Order
 import com.hafnium.it.buildtime.configured.OrderService
+import com.hafnium.it.buildtime.configured.Shipment
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -40,6 +41,12 @@ class BuildTimeInstrumentationTest {
             ),
             frames(e, 5),
         )
+    }
+
+    @Test
+    fun `constructors show their parameter ids`() {
+        val e = assertThrows<IllegalArgumentException> { Shipment(4711, 0.0, "fragile") }
+        assertEquals(listOf("com.hafnium.it.buildtime.configured.Shipment.<init>{orderId=4711, weight=0.0}"), frames(e, 1))
     }
 
     @Test

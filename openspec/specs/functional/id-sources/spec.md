@@ -272,9 +272,10 @@ throws SHALL be shown as `?`.
 - **THEN** the frame shows `id=?` and the original exception is unchanged otherwise
 
 ### Requirement: Parameter ids from method-level annotations
-`@StackTraceParams` (on methods only) SHALL select all parameters of that method. It SHALL NOT apply to
-methods that override it, which need their own annotation. It SHALL only be used where an `[augment.params]` entry `"@"` applies. Methods without parameters SHALL get no parameter ids. Constructors, synthetic,
-bridge, abstract and native methods SHALL NOT be instrumented, as for other parameter ids.
+`@StackTraceParams` (on methods and constructors) SHALL select all parameters of that method or constructor. It SHALL NOT apply to
+methods that override it, which need their own annotation. It SHALL only be used where an `[augment.params]` entry `"@"` applies. Methods without parameters SHALL get no parameter ids. Synthetic,
+bridge, abstract and native methods SHALL NOT be instrumented, as for other parameter ids; constructors are
+instrumented as described in the stack trace augmentation specification.
 
 #### Scenario: Method-level annotation
 - **GIVEN** `@StackTraceParams fun transfer(from: String, to: String, amount: Long)`
