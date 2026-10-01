@@ -222,6 +222,25 @@ class AugmentorConfigTest {
         assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [-1]").contains("invalid parameter '-1'"))
         assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"@\"]").contains("invalid parameter '@'"))
         assertTrue(error("[augment.params]\nOrder = [\"id\"]").contains("[augment.params] keys must name a class and a method"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.<clinit>\" = [0]").contains("or <init> for the constructors"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.<init>x\" = [0]").contains("or <init> for the constructors"))
+    }
+
+    @Test
+    fun `constructor entries end in init, and wildcards in the method name do not match constructors`() {
+        val config = parse(
+            """
+            [augment.params]
+            "com.acme.Order.<init>" = ["id"]
+            "com.acme.*.*" = [0]
+            "com.acme.**.<init>" = "@"
+            """,
+        )
+        assertEquals(listOf(ParamRef.ByName("id")), config.paramRefs("com.acme.Order", "<init>"))
+        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.Order", "process"))
+        // "com.acme.*.*" matches the class, but its '*' does not match <init>; the <init> pattern does.
+        assertEquals(listOf(ParamRef.Annotations()), config.paramRefs("com.acme.Invoice", "<init>"))
+        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.other.Invoice", "<init>"))
     }
 
     @Test
@@ -311,7 +330,7 @@ class AugmentorConfigTest {
                 .contains("invalid parameter '256': use a parameter name or a 0-based index from 0 to 255"),
         )
         assertEquals(
-            "test.toml, line 2: [augment.params] keys must name a class and a method, e.g. \"com.acme.OrderService.process\"; " +
+            "test.toml, line 2: [augment.params] keys must name a class and a method, e.g. \"com.acme.OrderService.process\", or <init> for the constructors; " +
                 "allowed are letters, digits, _, \$ and the wildcards * (within a package or name), ** (across packages) and ?",
             error("[augment.params]\n\"com.acme.Order+.process\" = \"@\""),
         )

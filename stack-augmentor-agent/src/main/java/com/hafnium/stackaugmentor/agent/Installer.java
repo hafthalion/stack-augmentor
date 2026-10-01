@@ -1,5 +1,6 @@
 package com.hafnium.stackaugmentor.agent;
 
+import com.hafnium.stackaugmentor.instrument.ConstructorExit;
 import com.hafnium.stackaugmentor.instrument.ExitAdviceFactory;
 import com.hafnium.stackaugmentor.instrument.IdParameters;
 import com.hafnium.stackaugmentor.instrument.TypeMatching;
@@ -62,7 +63,7 @@ final class Installer {
                     if (Log.isDebug()) {
                         Log.debug(() -> matching.describe(type, methods));
                     }
-                    return builder.visit(advice.on(methods));
+                    return builder.visit(advice.on(methods)).visit(ConstructorExit.on(parameters, matching.constructors(type)));
                 })
                 .installOn(instrumentation);
     }

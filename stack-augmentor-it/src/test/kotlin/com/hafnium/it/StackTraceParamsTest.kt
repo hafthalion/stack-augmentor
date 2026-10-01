@@ -2,10 +2,13 @@ package com.hafnium.it
 
 import com.hafnium.it.fixtures.Accounts
 import com.hafnium.it.fixtures.DerivedInventory
+import com.hafnium.it.fixtures.ExpressParcel
 import com.hafnium.it.fixtures.Forgetful
 import com.hafnium.it.fixtures.Inventory
 import com.hafnium.it.fixtures.Overlap
+import com.hafnium.it.fixtures.Pallet
 import com.hafnium.it.fixtures.Secrets
+import com.hafnium.it.fixtures.Shipment
 import com.hafnium.it.fixtures.Wide
 import com.hafnium.it.outside.AllParamsOutside
 import com.hafnium.it.report.FrameReport
@@ -92,6 +95,35 @@ class StackTraceParamsTest {
     @Test
     fun `a hashed parameter that is null stays null`() {
         assertEquals("forget{email=null}", report.thrown<IllegalStateException, _>("Forgetful().forget(null)", Forgetful()) { it.forget(null) }.method())
+    }
+
+    @Test
+    fun `constructors show their parameter ids, never a receiver id`() {
+        val shipment = report.thrown<IllegalArgumentException>("Shipment(42, \"ann@example.com\", 0)") { Shipment(42, "ann@example.com", 0) }
+        assertEquals("com.hafnium.it.fixtures.Shipment", shipment.stackTrace[0].className)
+        assertEquals("<init>{orderId=42, email=#71d4f55f}", shipment.method())
+    }
+
+    @Test
+    fun `an exception from the constructor called with this gets no ids in the delegating constructor`() {
+        val pallet = report.thrown<IllegalStateException>("Pallet(\"big\", 200L)") { Pallet("big", 200L) }
+        assertEquals("<init>{size=200}", pallet.method(0))
+        assertEquals("<init>", pallet.method(1))
+    }
+
+    @Test
+    fun `a delegating constructor shows its ids for exceptions from its own body`() {
+        val pallet = report.thrown<IllegalArgumentException>("Pallet(\"\", 1L)") { Pallet("", 1L) }
+        assertEquals("<init>{label=, size=1}", pallet.method(0))
+    }
+
+    @Test
+    fun `an exception from the superclass constructor gets no ids in the subclass constructor`() {
+        val parcel = report.thrown<IllegalArgumentException>("ExpressParcel(\"\", 1)") { ExpressParcel("", 1) }
+        assertEquals("com.hafnium.it.fixtures.Parcel", parcel.stackTrace[0].className)
+        assertEquals("<init>", parcel.method(0))
+        assertEquals("com.hafnium.it.fixtures.ExpressParcel", parcel.stackTrace[1].className)
+        assertEquals("<init>", parcel.method(1))
     }
 
     @Test

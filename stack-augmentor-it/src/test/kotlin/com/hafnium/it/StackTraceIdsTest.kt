@@ -298,7 +298,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `constructor frames are unchanged`() {
+    fun `constructors without selected parameters are unchanged`() {
         val e = report.thrown<IllegalStateException>("FailingInit(\"\")") { FailingInit("") }
         assertEquals("empty id", e.message)
         val init = e.stackTrace.first { it.methodName == "<init>" }

@@ -35,3 +35,10 @@ class InventoryAudit {
         order.ship(Customer("c-9"))
     }
 }
+
+/** Constructors are selected by "<init>": parameter ids, never a receiver id. */
+class Shipment(orderId: Long, weight: Double, note: String) {
+    init {
+        require(weight > 0) { "weight" }
+    }
+}

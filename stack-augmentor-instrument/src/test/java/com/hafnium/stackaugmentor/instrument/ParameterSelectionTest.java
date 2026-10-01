@@ -18,7 +18,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
+import static net.bytebuddy.matcher.ElementMatchers.isConstructor;
 import static net.bytebuddy.matcher.ElementMatchers.named;
+import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -97,6 +99,18 @@ class ParameterSelectionTest {
         }
 
         void run() {
+        }
+    }
+
+    static class Built {
+        @StackTraceParams
+        Built(String code, long size) {
+        }
+
+        Built(String code) {
+        }
+
+        void run(String code) {
         }
     }
 
@@ -322,5 +336,31 @@ class ParameterSelectionTest {
                 Secrets.class.getName() + ".login", List.of(new ParamRef.ByName("email")),
                 Secrets.class.getName() + ".*", List.of(new ParamRef.Annotations()))));
         assertEquals(List.of("email"), encoded(named, Secrets.class, "login"));
+    }
+
+    @Test
+    void constructorsOnlyWithAnInitEntryAndNeverForTheReceiver() {
+        TypeDescription built = type(Built.class);
+        MethodDescription annotated = built.getDeclaredMethods().filter(isConstructor().and(takesArguments(2))).getOnly();
+        MethodDescription plain = built.getDeclaredMethods().filter(isConstructor().and(takesArguments(1))).getOnly();
+
+        // Wildcards in the method name do not match constructors.
+        AugmentorConfig wildcard = AugmentorConfig.builder()
+                .classes(Map.of(HERE, ANNOTATIONS))
+                .methods(Map.of(HERE_METHODS, List.of(new ParamRef.Annotations())))
+                .build();
+        IdParameters wildcardParameters = new IdParameters(wildcard);
+        assertEquals(List.of(), wildcardParameters.select(built, annotated));
+        assertFalse(new TypeMatching(wildcard, wildcardParameters).constructors(built).matches(annotated));
+
+        AugmentorConfig init = methods(Map.of(HERE + ".<init>", List.of(new ParamRef.Annotations())));
+        IdParameters parameters = new IdParameters(init);
+        TypeMatching matching = new TypeMatching(init, parameters);
+        assertEquals(List.of("code", "size"), parameters.select(built, annotated).stream().map(IdParameter::label).toList());
+        assertTrue(matching.instrument(built));
+        assertTrue(matching.constructors(built).matches(annotated));
+        assertFalse(matching.constructors(built).matches(plain));
+        // Constructors never get the method advice.
+        assertFalse(matching.methods(built).matches(annotated));
     }
 }

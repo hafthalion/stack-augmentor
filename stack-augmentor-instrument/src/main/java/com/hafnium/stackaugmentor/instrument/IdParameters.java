@@ -148,7 +148,7 @@ public final class IdParameters {
             String entry = "[augment.params] \"" + target + "\"";
             List<MethodDescription> methods = new ArrayList<>();
             for (MethodDescription method : type.getDeclaredMethods()) {
-                if (method.isMethod() && method.getInternalName().equals(methodName)) {
+                if ((method.isMethod() || method.isConstructor()) && method.getInternalName().equals(methodName)) {
                     methods.add(method);
                 }
             }

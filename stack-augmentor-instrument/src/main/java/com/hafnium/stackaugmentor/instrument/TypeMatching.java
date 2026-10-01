@@ -77,9 +77,10 @@ public final class TypeMatching {
         } else {
             reason = "receiver id from @StackTraceId (\"" + deciding.entry().key() + "\" = \"@\")";
         }
+        ElementMatcher<MethodDescription> constructors = constructors(type);
         List<String> instrumented = new ArrayList<>();
         for (MethodDescription method : type.getDeclaredMethods()) {
-            if (!methods.matches(method)) {
+            if (!methods.matches(method) && !constructors.matches(method)) {
                 continue;
             }
             List<IdParameter> params = parameters.select(type, method);
@@ -112,13 +113,27 @@ public final class TypeMatching {
         };
     }
 
+    /**
+     * Constructors are only instrumented for their id parameters, never for a receiver id: {@code this} is not usable
+     * where they throw. See {@link ConstructorExit}.
+     */
+    public ElementMatcher<MethodDescription> constructors(TypeDescription type) {
+        Map<String, MethodDescription> declared = new HashMap<>();
+        for (MethodDescription constructor : type.getDeclaredMethods()) {
+            if (isConstructorCandidate(constructor) && !parameters.select(type, constructor).isEmpty()) {
+                declared.put(signature(constructor), constructor);
+            }
+        }
+        return offered -> declared.containsKey(signature(offered));
+    }
+
     private static String signature(MethodDescription method) {
         return method.getInternalName() + method.getDescriptor();
     }
 
     private boolean hasIdParameters(TypeDescription type) {
         for (MethodDescription method : type.getDeclaredMethods()) {
-            if (isCandidate(method) && !parameters.select(type, method).isEmpty()) {
+            if ((isCandidate(method) || isConstructorCandidate(method)) && !parameters.select(type, method).isEmpty()) {
                 return true;
             }
         }
@@ -136,7 +151,8 @@ public final class TypeMatching {
         }
         List<String> methods = new ArrayList<>();
         for (MethodDescription method : type.getDeclaredMethods()) {
-            if (isCandidate(method) && IdParameters.hasParameterAnnotations(method) && !parameters.annotationsUsed(type, method)) {
+            if ((isCandidate(method) || isConstructorCandidate(method)) && IdParameters.hasParameterAnnotations(method)
+                    && !parameters.annotationsUsed(type, method)) {
                 methods.add(method.getInternalName());
             }
         }
@@ -161,6 +177,10 @@ public final class TypeMatching {
 
     private static boolean isCandidate(MethodDescription method) {
         return method.isMethod() && !method.isAbstract() && !method.isNative() && !method.isBridge() && !method.isSynthetic();
+    }
+
+    private static boolean isConstructorCandidate(MethodDescription method) {
+        return method.isConstructor() && !method.isSynthetic();
     }
 
     /**

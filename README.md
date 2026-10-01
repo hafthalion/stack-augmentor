@@ -154,6 +154,8 @@ The label is the real field or method name (`{objectId=…}`, `{getKey=…}`); i
 
 There is no wildcard for the parameters themselves: each one is named, or selected by an annotation.
 
+**Constructors** are named `<init>`, as in stack traces: `"com.acme.Shipment.<init>" = ["orderId"]`, or `"com.acme.**.<init>" = "@"` for their annotations (`@StackTraceParams` works on constructors too). Wildcards in the method name never match constructors, so `"com.acme.**.*"` leaves them alone. A constructor frame shows parameter ids only, never a receiver id, e.g. `com.acme.Shipment.<init>{orderId=42}`, and only for exceptions thrown after its `super(...)` or `this(...)` call: validation in the constructor body or in Kotlin `init` blocks is covered, an exception from the superclass constructor (or the one called with `this(...)`), or from computing its arguments, leaves the frame unchanged.
+
 **Hashed parameter ids.** A `#` after a name or an index in `[augment.params]` (`["user", "email#", "2#"]`), or `@StackTraceParam(secret = true)` on the parameter (also under `@StackTraceParams`, which then shows the others as text), shows the value as a short hash instead of its text: `#` and the first 8 hex digits of the SHA-256 of the `toString()`, e.g. `invite{user=ann, email=#71d4f55f}`. The same value always gives the same hash, so a value can still be followed across log lines and incidents without appearing in them. `null` stays `null`. When a parameter is selected twice (by name and by index, or by both annotations), it is hashed if either hashes it. The hash is not salted: values from a small set, e.g. PINs, can be found by trying them all, so leave such parameters out rather than hashing them.
 
 The keys match the class that declares the method, not its subclasses. When several entries match a method, only the most specific one decides, as in `[augment.receiver]`: an exact `"<class>.<method>"` beats any pattern, and among patterns the one with the most characters other than `*` and `?` wins. Entries are not combined, so a more specific `"-"` takes a method out of a less specific entry:
@@ -223,6 +225,7 @@ maxIdLength = 64
 "com.thirdparty.**.*Repository.find*" = [0]          # across packages
 "com.thirdparty.**.AuditRepository.find*" = "-"      # except these
 "com.thirdparty.UserService.invite" = ["user", "email#"]     # email hashed
+"com.thirdparty.Shipment.<init>" = ["orderId"]       # constructors: <init>
 ```
 
 Quote class names in `[augment.receiver]` and `[augment.params]`. Without quotes, TOML treats each `.` as a nested table; the agent accepts that too, but the quoted form is the clear one. Keys with wildcards must be quoted. Broad wildcards such as `"com.**.*" = "@"` make the agent instrument many classes, which costs time when they are loaded; `debug = true` lists every instrumented class, and the annotations it ignores. A missing field or method is a warning for exact class names, and only a debug message for patterns. Startup messages name their source: `agent:`, `build plugin:` or `runtime:` (the handler of build-time instrumentation), and with `debug = true` each of them lists its configuration file, both tables and the `[augment]` values. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.
@@ -254,7 +257,8 @@ Examples:
 
 The agent (ByteBuddy, shaded), or the ByteBuddy build plugin, adds exit advice to instrumented methods:
 - instance methods of matched classes;
-- static methods that have id parameters.
+- static methods that have id parameters;
+- constructors that have id parameters. ByteBuddy's advice cannot catch exceptions in constructors, so these get a small handler of stack-augmentor's own (`ConstructorExit`) around the code after `super(...)` or `this(...)`, which passes the id arguments without a receiver and rethrows the exception. On a normal return it runs no code at all.
 
 When an exception leaves such a method, the advice passes `this`, the id arguments and their labels to `Dispatch` (in `stack-augmentor-instrument-bridge`), which hands them to the handler. The handler finds that method's frame in the exception's stack trace and replaces it, so every printer and logger shows the ids. The agent opens `java.lang` to its own classes at startup, so it replaces the one element in the exception's own trace array; build-time instrumentation copies the trace and writes it back with `setStackTrace`. The advice is inlined, so on a normal return it costs one null check: the argument array is only built on the exception path. A test checks that normal calls allocate nothing.
 
@@ -264,7 +268,7 @@ When an exception leaves such a method, the advice passes `this`, the id argumen
 ## Limitations
 
 - **Only frames the exception passed through get ids.** If an exception is caught and logged in method `m`, then `m` and the frames below it show no ids.
-- **Constructors are not instrumented.**
+- **Constructors get parameter ids only, and only after `super(...)`.** They never show a receiver id. An exception thrown by the superclass constructor or the constructor called with `this(...)`, or while their arguments are computed, leaves the constructor's frame unchanged: ByteBuddy's advice cannot catch exceptions in constructors, and the handler stack-augmentor adds instead can only cover the code after that call.
 - **An exception instance that is thrown more than once keeps the ids of its first throw.** Its stack trace is recorded once, when it is created, so a preallocated exception that is thrown repeatedly shows the ids of the first time it left each method, and later throws add none.
 - **Each instrumented frame an exception leaves costs a few microseconds.** The handler walks the top of the current stack to find the caller, which costs about a microsecond whatever the depth. With build-time instrumentation it also copies the stack trace twice (`getStackTrace`, `setStackTrace`), so the cost grows with the number of instrumented frames times the trace length; the JVM keeps at most 1024 frames in a trace (`-XX:MaxJavaStackTraceDepth`), which bounds it. The agent writes the frame in place and copies nothing. Measured with JDK 25 on a Linux container, agent on vs off: an exception passing 5 instrumented frames in a 100-frame stack took 33 µs instead of 21 µs; one passing a recursion of 1000 instrumented frames took 1.8 ms instead of 0.16 ms (3.8 ms when copying). Normal returns are not affected; avoid instrumenting deeply recursive methods that throw often.
 - **Parameter values are read when the exception leaves the method.** A parameter that was reassigned shows its new value.

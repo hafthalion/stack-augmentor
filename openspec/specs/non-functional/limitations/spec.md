@@ -16,14 +16,20 @@ normal returns free of cost.
 - **WHEN** the log is read
 - **THEN** the frame of `m` and the frames below it show no ids
 
-### Requirement: Constructors are not instrumented
-Constructors SHALL NOT get ids, because an exception can leave a constructor before the object is
-initialised.
+### Requirement: Constructors show parameter ids only, after super(...)
+Constructors SHALL NOT get receiver ids, because an exception can leave a constructor before the object is
+initialised. Their parameter ids SHALL only be shown for exceptions thrown after the `super(...)` or
+`this(...)` call: the JVM's verifier accepts no exception handler that covers the code before it as well.
 
-#### Scenario: Exception in a constructor
-- **GIVEN** an annotated class whose constructor throws
+#### Scenario: Exception in a constructor without parameter ids
+- **GIVEN** an annotated class whose constructor throws, and no `[augment.params]` entry for its `<init>`
 - **WHEN** the stack trace is inspected
 - **THEN** the constructor frame is unchanged
+
+#### Scenario: Exception from a delegated constructor
+- **GIVEN** a constructor with parameter ids that calls `this(...)`, and the called constructor throws
+- **WHEN** the stack trace is inspected
+- **THEN** the called constructor's frame shows its own ids and the delegating constructor's frame is unchanged
 
 ### Requirement: Parameter values at exit
 Parameter ids SHALL show the parameter's value when the exception leaves the method; a parameter that the
