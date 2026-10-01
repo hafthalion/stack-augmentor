@@ -53,7 +53,9 @@ jobs:
           links=""
           if [ -d reports/stack-augmentor-it/build/reports/frames ]; then
             cp -r reports/stack-augmentor-it/build/reports/frames site/frames
-            links="<li><a href=\"frames/index.html\">Frame reports</a> (agent integration tests)</li>"
+            # Their index links back to this site's index page.
+            sed -i 's|<nav class="back"></nav>|<nav class="back"><a href="../index.html">← stack-augmentor reports</a></nav>|' site/frames/index.html
+            links="<li><a href=\"frames/index.html\">Stack Trace Frame reports</a> (agent integration tests)</li>"
           fi
           for report in $(cd reports && find . -path '*/build/reports/tests/test/index.html' | sort); do
             module=$(echo "$report" | sed -e 's|^\./||' -e 's|/build/reports/tests/test/index.html$||')
