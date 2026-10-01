@@ -41,6 +41,8 @@ pre{margin:0;overflow-x:auto;white-space:pre;background:var(--code);border-radiu
 .tag{font-size:12px;color:var(--muted)}
 .aug .tag{color:var(--markink)}
 .plain code{color:var(--muted)}
+.back{font-size:13px;margin-bottom:6px}
+.back:empty{display:none}
 .frames li.cause{margin-top:6px;list-style:none}
 .cause code{font-weight:600}
 </style>
@@ -48,6 +50,7 @@ pre{margin:0;overflow-x:auto;white-space:pre;background:var(--code);border-radiu
 <body>
 <div class="wrap">
 <div>
+<nav class="back">{nav}</nav>
 <h1>{title}</h1>
 <p style="margin-top:8px">{intro}</p>
 <div class="meta">{meta}</div>

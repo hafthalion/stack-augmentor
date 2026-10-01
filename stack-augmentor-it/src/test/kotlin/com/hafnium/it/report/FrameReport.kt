@@ -149,7 +149,8 @@ class FrameReport(
             "<li><a href=\"${file.fileName}\">$title</a> <span>$passed</span></li>"
         }
         return TEMPLATE
-            .replace("{title}", "Frame reports")
+            .replace("{nav}", "")
+            .replace("{title}", INDEX_TITLE)
             .replace("{intro}", "One report per test class; run the tests to update them.")
             .replace("{meta}", "<span>Updated ${Instant.now()}</span>")
             .replace("{toc}", items)
@@ -195,6 +196,7 @@ class FrameReport(
             "<li><a href=\"#k$index\">${escape(category)}</a> <span>${results.count { it.first == category }}</span></li>"
         }.joinToString("")
         return TEMPLATE
+            .replace("{nav}", "<a href=\"index.html\">← $INDEX_TITLE</a>")
             .replace("{title}", escape(title))
             .replace("{meta}", "<span>Run ${Instant.now()}</span><span>Java ${System.getProperty("java.version")}</span><span>$passed/${results.size} passed</span>")
             .replace("{toc}", toc)
@@ -237,6 +239,7 @@ class FrameReport(
 
     private companion object {
         const val CAUSE = "Caused by: "
+        const val INDEX_TITLE = "Stack Trace Frame reports"
         val TEMPLATE = FrameReport::class.java.getResource("frame-report.html")!!.readText()
     }
 }
