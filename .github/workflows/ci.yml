@@ -34,6 +34,7 @@ jobs:
 
       # On every run, also when the build fails: the run's summary page links the archive. The frame reports
       # (stack-augmentor-it/build/reports/frames, start with index.html) show the frames each agent test caught.
+      # On master, reports.yml publishes this archive to GitHub Pages.
       - name: Upload test and frame reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -44,52 +45,3 @@ jobs:
             **/build/reports/frames/
           retention-days: 7
 
-      # On master, the reports are also published to GitHub Pages (see the deploy job): the frame reports under
-      # frames/, each module's test report under tests/<module>/, and an index page that links them.
-      - name: Collect the reports for GitHub Pages
-        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master'
-        run: |
-          mkdir -p site/tests
-          links=""
-          if [ -d stack-augmentor-it/build/reports/frames ]; then
-            cp -r stack-augmentor-it/build/reports/frames site/frames
-            links="<li><a href=\"frames/index.html\">Frame reports</a> (agent integration tests)</li>"
-          fi
-          for report in $(find . -path ./site -prune -o -path '*/build/reports/tests/test/index.html' -print | sort); do
-            module=$(echo "$report" | sed -e 's|^\./||' -e 's|/build/reports/tests/test/index.html$||')
-            mkdir -p "site/tests/$module"
-            cp -r "$(dirname "$report")/." "site/tests/$module/"
-            links="$links<li><a href=\"tests/$module/index.html\">$module</a> (tests)</li>"
-          done
-          cat > site/index.html <<HTML
-          <!doctype html>
-          <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>stack-augmentor reports</title>
-          <style>body{font:15px/1.6 system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 16px}</style></head>
-          <body><h1>stack-augmentor reports</h1>
-          <p>Build of master at <code>${GITHUB_SHA::7}</code>, $(date -u '+%Y-%m-%d %H:%M UTC'), <a href="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}">run ${GITHUB_RUN_NUMBER}</a>.</p>
-          <ul>$links</ul></body></html>
-          HTML
-
-      - name: Upload the reports for GitHub Pages
-        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master'
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: site
-
-  # Publishes master's reports at the repository's GitHub Pages address. Needs Pages enabled in the repository
-  # settings, with "GitHub Actions" as the source.
-  reports:
-    needs: build
-    if: always() && needs.build.result != 'cancelled' && github.event_name == 'push' && github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - id: deploy
-        uses: actions/deploy-pages@v4
