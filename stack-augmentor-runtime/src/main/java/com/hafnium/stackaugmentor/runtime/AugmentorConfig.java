@@ -265,6 +265,27 @@ public final class AugmentorConfig {
         return refs == null || refs.contains(new ParamRef.Excluded()) ? List.of() : refs;
     }
 
+    /**
+     * Whether an {@code [augment.params]} entry other than {@code "-"} matches this class name for some method, so that
+     * {@link #paramRefs} may select parameters of its methods.
+     */
+    public boolean hasParamEntries(String className) {
+        for (Map.Entry<String, List<ParamRef>> entry : methods.entrySet()) {
+            String key = entry.getKey();
+            if (!isPattern(key) && !entry.getValue().contains(new ParamRef.Excluded())
+                    && key.length() > className.length() && key.startsWith(className) && key.charAt(className.length()) == '.'
+                    && key.indexOf('.', className.length() + 1) < 0) {
+                return true;
+            }
+        }
+        for (MethodPattern pattern : methodPatterns) {
+            if (!pattern.refs().contains(new ParamRef.Excluded()) && pattern.classPattern().matcher(className).matches()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Whether a key of {@code [augment.receiver]} or {@code [augment.params]} has wildcards ({@code *} or {@code ?}). */
     public static boolean isPattern(String key) {
         return key.indexOf('*') >= 0 || key.indexOf('?') >= 0;

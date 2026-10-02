@@ -13,6 +13,7 @@ The project SHALL be split into these modules:
 - `stack-augmentor-runtime`: configuration, id lookup, frame formatting and `ThrowHandler`;
 - `stack-augmentor-instrument`: type and method matching and the exit advice (ByteBuddy);
 - `stack-augmentor-agent`: the Java agent;
+- `stack-augmentor-native`: the native library (C) of the agent's experimental live-stack mode;
 - `stack-augmentor-build-plugin`: the ByteBuddy build plugin.
 
 The agent and build-time instrumentation SHALL share the runtime and instrument modules.

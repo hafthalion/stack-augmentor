@@ -106,10 +106,10 @@ class StackTraceParamsTest {
     }
 
     @Test
-    fun `an exception from the constructor called with this gets no ids in the delegating constructor`() {
+    fun `an exception from the constructor called with this gets ids in the delegating constructor only from the live stack`() {
         val pallet = report.thrown<IllegalStateException>("Pallet(\"big\", 200L)") { Pallet("big", 200L) }
         assertEquals("<init>{size=200}", pallet.method(0))
-        assertEquals("<init>", pallet.method(1))
+        assertEquals(if (AgentMode.liveStack) "<init>{label=big, size=200}" else "<init>", pallet.method(1))
     }
 
     @Test
@@ -126,12 +126,12 @@ class StackTraceParamsTest {
     }
 
     @Test
-    fun `an exception from the superclass constructor gets no ids in the subclass constructor`() {
+    fun `an exception from the superclass constructor gets ids in the subclass constructor only from the live stack`() {
         val parcel = report.thrown<IllegalArgumentException>("ExpressParcel(\"\", 1)") { ExpressParcel("", 1) }
         assertEquals("com.hafnium.it.fixtures.Parcel", parcel.stackTrace[0].className)
         assertEquals("<init>", parcel.method(0))
         assertEquals("com.hafnium.it.fixtures.ExpressParcel", parcel.stackTrace[1].className)
-        assertEquals("<init>", parcel.method(1))
+        assertEquals(if (AgentMode.liveStack) "<init>{code=, priority=1}" else "<init>", parcel.method(1))
     }
 
     @Test

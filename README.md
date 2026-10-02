@@ -268,10 +268,31 @@ When an exception leaves such a method, the advice passes `this`, the id argumen
 - **Build time:** the bridge is an ordinary dependency (through `stack-augmentor-runtime`), and `Dispatch` finds the runtime's handler with `ServiceLoader` when the first exception needs it.
 - **Both:** an application with classes instrumented at build time can also run with the agent. The agent leaves those classes as they are (it recognizes them by their reference to `Dispatch`), and their advice reaches the agent's handler, because `Dispatch` is then the one in the bootstrap class loader. Which of their methods have ids is decided at build time; the agent's `[augment.receiver]` entries decide the receiver ids at runtime.
 
+## Experimental: reading frames from the live stack
+
+The agent can also work without instrumenting any class: start the JVM with the native library `stack-augmentor-native` as well, before the agent or after it:
+
+```
+java -agentpath:/path/to/libstackaugmentor.so -javaagent:stack-augmentor-agent-<version>.jar=config=stack-augmentor.toml -jar app.jar
+```
+
+`./gradlew :stack-augmentor-native:compileNative` builds it into `stack-augmentor-native/build/native/` with the platform's C compiler: `libstackaugmentor.so` on Linux, `libstackaugmentor.dylib` on macOS (`cc`), `stackaugmentor.dll` on Windows (MinGW `gcc`). The library only asks the JVM, while it starts, to keep the local variables of JIT-compiled code readable (the JVMTI capability `can_access_local_variables`); that cannot be done later, so it cannot be part of the agent jar.
+
+The agent then adds code to `java.lang.Throwable` only. When the JVM records the stack trace of a new exception, its frames are still on the stack: for the configured methods, the agent reads the receiver and the arguments from the live stack (with the JDK-internal `java.lang.LiveStackFrame`) and turns them into ids right away. They are written into the stack trace once, when it is first read or printed. The configuration and the formats are the same. Differences from instrumenting classes:
+
+- **Every frame on the stack when the exception is created gets ids**, also the method that catches it and the frames below.
+- **Constructors show their parameter ids also for exceptions from `super(...)` or `this(...)`.** Still no receiver id.
+- **Ids are read when the exception is created**, not when it leaves each method.
+- **Every exception pays a stack walk**, also when no frame is configured: measured with JDK 25 on a Linux container, about 4 µs for a 10-frame stack and 13 µs for a 100-frame one, plus 2 to 4 µs per configured frame. Exceptions created while a class loads, such as a class loader's `ClassNotFoundException`, are skipped.
+- **An object argument that the JIT optimized away reads as `null`, and is shown as `?`**, e.g. a boxed `Integer` created in compiled code and never stored (scalar replacement). `-XX:-EliminateAllocations` turns that optimization off, at some cost; a receiver optimized away shows no receiver id.
+- **It relies on JDK internals.** If they are missing or behave differently, the agent says so and instruments classes as usual. There is no build-time equivalent.
+
+`./gradlew :stack-augmentor-it:testLiveStack` runs the integration tests in this mode; without a C compiler it is skipped, except on CI.
+
 ## Limitations
 
-- **Only frames the exception passed through get ids.** If an exception is caught and logged in method `m`, then `m` and the frames below it show no ids.
-- **Constructors get parameter ids only, and not for exceptions from `super(...)` itself.** They never show a receiver id. An exception thrown inside the superclass constructor, or the one called with `this(...)`, leaves the calling constructor's frame unchanged: the JVM's verifier accepts no exception handler around that call, so stack-augmentor's handlers cover only the code before and after it.
+- **Only frames the exception passed through get ids.** If an exception is caught and logged in method `m`, then `m` and the frames below it show no ids. Not so when the agent reads frames from the live stack (see above).
+- **Constructors get parameter ids only, and not for exceptions from `super(...)` itself.** They never show a receiver id. An exception thrown inside the superclass constructor, or the one called with `this(...)`, leaves the calling constructor's frame unchanged: the JVM's verifier accepts no exception handler around that call, so stack-augmentor's handlers cover only the code before and after it. Reading frames from the live stack covers it (see above).
 - **An exception instance that is thrown more than once keeps the ids of its first throw.** Its stack trace is recorded once, when it is created, so a preallocated exception that is thrown repeatedly shows the ids of the first time it left each method, and later throws add none.
 - **Each instrumented frame an exception leaves costs a few microseconds.** The handler walks the top of the current stack to find the caller, which costs about a microsecond whatever the depth. With build-time instrumentation, unless `java.lang` is open to it, it also copies the stack trace twice (`getStackTrace`, `setStackTrace`), so the cost grows with the number of instrumented frames times the trace length; the JVM keeps at most 1024 frames in a trace (`-XX:MaxJavaStackTraceDepth`), which bounds it. The agent writes the frame in place and copies nothing; so does build-time instrumentation in an application started with `--add-opens java.base/java.lang=ALL-UNNAMED` (or with `Add-Opens: java.base/java.lang` in the manifest of an executable jar), which is recommended when deeply recursive methods are instrumented. Measured with JDK 25 on a Linux container, agent on vs off: an exception passing 5 instrumented frames in a 100-frame stack took 33 µs instead of 21 µs; one passing a recursion of 1000 instrumented frames took 1.8 ms instead of 0.16 ms (3.8 ms when copying). Normal returns are not affected; avoid instrumenting deeply recursive methods that throw often.
 - **Parameter values are read when the exception leaves the method.** A parameter that was reassigned shows its new value.
@@ -289,8 +310,9 @@ The library modules are written in Java and don't depend on the Kotlin runtime; 
 | `stack-augmentor-runtime` | Configuration, id lookup, frame formatting, and the handler; shared by both ways |
 | `stack-augmentor-instrument` | Which classes and methods get the advice, and the advice itself (ByteBuddy); shared by both ways |
 | `stack-augmentor-agent` | The Java agent; `shadowJar` builds the `-javaagent` jar |
+| `stack-augmentor-native` | The native library (C) for the agent's experimental live-stack mode, loaded with `-agentpath` |
 | `stack-augmentor-build-plugin` | The ByteBuddy build plugin for build-time instrumentation |
-| `stack-augmentor-it` | Integration tests, run with the agent attached, including a Java application run without the Kotlin runtime |
+| `stack-augmentor-it` | Integration tests, run with the agent attached (`test`) and in the live-stack mode (`testLiveStack`), including a Java application run without the Kotlin runtime |
 | `examples/java-agent` | Demo with the agent: the example above, plus third-party stand-ins configured in `stack-augmentor.toml` |
 | `stack-augmentor-it-build-time` | Integration tests for build-time instrumentation: fixtures instrumented by the build plugin, run without an agent, and again with it (`testWithAgent`) |
 | `examples/build-time` | The same demo with build-time instrumentation (the stand-ins are compiled with it) |

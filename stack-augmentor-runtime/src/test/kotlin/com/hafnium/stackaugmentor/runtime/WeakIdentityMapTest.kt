@@ -26,6 +26,16 @@ class WeakIdentityMapTest {
     }
 
     @Test
+    fun `remove returns the value once`() {
+        val map = WeakIdentityMap<Throwable, Int>()
+        val key = RuntimeException()
+        map[key] = 1
+        assertEquals(1, map.remove(key))
+        assertNull(map.remove(key))
+        assertNull(map[key])
+    }
+
+    @Test
     fun `put replaces the value`() {
         val map = WeakIdentityMap<Throwable, Int>()
         val key = RuntimeException()

@@ -31,7 +31,7 @@ class FrameReport(
     private val basePackage: String,
     ownPackage: String = basePackage,
     private val entries: ReceiverEntries? = null,
-    private val directory: Path = Path.of("build/reports/frames"),
+    private val directory: Path = Path.of(System.getProperty("stackaugmentor.it.frames", "build/reports/frames")),
 ) : BeforeEachCallback, TestWatcher, AfterAllCallback {
 
     private val declarations = KotlinDeclarations(basePackage, ownPackage, entries)

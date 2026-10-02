@@ -41,6 +41,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
 import java.util.concurrent.ExecutionException
@@ -218,14 +219,19 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `frames below a catch get no ids`() {
+    fun `frames below a catch get ids only from the live stack`() {
         val layers = Layers()
         val e = layers.catchAndReturn()
         report.record("Layers().catchAndReturn()", e, layers)
         assertEquals("com.hafnium.it.fixtures.Layers{layer=layers}", e.stackTrace[0].className)
         assertEquals("inner{step=1}", e.stackTrace[0].methodName)
-        // The exception never left catchAndReturn, so that frame and the ones below keep their plain form.
-        assertEquals("com.hafnium.it.fixtures.Layers", e.stackTrace[1].className)
+        if (AgentMode.liveStack) {
+            // Every frame on the stack when the exception was created.
+            assertEquals("com.hafnium.it.fixtures.Layers{layer=layers}", e.stackTrace[1].className)
+        } else {
+            // The exception never left catchAndReturn, so that frame and the ones below keep their plain form.
+            assertEquals("com.hafnium.it.fixtures.Layers", e.stackTrace[1].className)
+        }
         assertEquals("catchAndReturn", e.stackTrace[1].methodName)
     }
 
@@ -374,6 +380,40 @@ class StackTraceIdsTest {
         } finally {
             executor.shutdown()
         }
+    }
+
+    @Test
+    fun `ids stay right once the JIT compiled the method`() {
+        val target = ObjectClass()
+        repeat(20_000) { n ->
+            try {
+                target.objectMethod(n)
+            } catch (e: Exception) {
+                // warming up
+            }
+        }
+        val e = report.thrown<Exception, _>("ObjectClass().objectMethod(4242), after 20000 calls", target) { it.objectMethod(4242) }
+        assertEquals("com.hafnium.it.fixtures.ObjectClass{objectId=object-1}", e.stackTrace[0].className)
+        assertEquals("objectMethod{orderId=4242}", e.stackTrace[0].methodName)
+    }
+
+    @Test
+    fun `a stack trace that the application replaced gets no ids from the live stack`() {
+        assumeTrue(AgentMode.liveStack)
+        val layers = Layers()
+        val e = layers.catchAndReturn()
+        val replaced = arrayOf(StackTraceElement("com.example.Elsewhere", "run", "Elsewhere.java", 3))
+        e.stackTrace = replaced
+        report.record("Layers().catchAndReturn(), then setStackTrace", e, layers)
+        assertEquals(replaced.toList(), e.stackTrace.toList())
+    }
+
+    @Test
+    fun `reading the stack trace again keeps the ids once`() {
+        val e = report.thrown<IllegalStateException, _>("Layers().inner(3)", Layers()) { it.inner(3) }
+        assertEquals("inner{step=3}", e.stackTrace[0].methodName)
+        assertEquals("inner{step=3}", e.stackTrace[0].methodName)
+        assertTrue(e.printed().contains("Layers{layer=layers}.inner{step=3}("), e.printed())
     }
 
     @Test

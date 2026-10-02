@@ -12,6 +12,7 @@ include(
     "stack-augmentor-runtime",
     "stack-augmentor-instrument",
     "stack-augmentor-agent",
+    "stack-augmentor-native",
     "stack-augmentor-build-plugin",
     "stack-augmentor-it",
     "stack-augmentor-it-build-time",

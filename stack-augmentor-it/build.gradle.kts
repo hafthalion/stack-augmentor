@@ -10,6 +10,12 @@ val agent = configurations.create("agent") {
     isTransitive = false
 }
 
+// The native library of the agent's live-stack mode, if a C compiler built it.
+val nativeLibrary = configurations.create("nativeLibrary") {
+    isCanBeConsumed = false
+    isTransitive = false
+}
+
 // The API jar and its dependencies (none), for the Java-only application run without the Kotlin runtime.
 val javaApplication = configurations.create("javaApplication") {
     isCanBeConsumed = false
@@ -17,6 +23,7 @@ val javaApplication = configurations.create("javaApplication") {
 
 dependencies {
     agent(project(path = ":stack-augmentor-agent", configuration = "shadowRuntimeElements"))
+    nativeLibrary(project(path = ":stack-augmentor-native", configuration = "nativeLibrary"))
     javaApplication(project(":stack-augmentor-api"))
 
     testImplementation(libs.kotlin.stdlib)
@@ -32,7 +39,7 @@ dependencies {
     testRuntimeOnly(libs.junit.launcher)
 }
 
-tasks.test {
+tasks.withType<Test>().configureEach {
     val agentJar = agent
     val config = layout.projectDirectory.file("src/test/resources/stack-augmentor.toml")
     inputs.files(agentJar).withPropertyName("agent")
@@ -53,4 +60,26 @@ tasks.test {
             "-Dstackaugmentor.it.javaClasspath=${classpath.joinToString(File.pathSeparator) { it.absolutePath }}",
         )
     })
+}
+
+// The same tests with the agent's experimental live-stack mode: the native library loaded with -agentpath. The tests
+// read stackaugmentor.it.mode where the two modes differ. Skipped when no C compiler built the library.
+val testLiveStack = tasks.register<Test>("testLiveStack") {
+    description = "Runs the integration tests with the agent's live-stack mode."
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    val library = nativeLibrary
+    inputs.files(library).withPropertyName("nativeLibrary")
+    onlyIf("the native library was built") { library.files.any { it.exists() } }
+    systemProperty("stackaugmentor.it.mode", "live")
+    systemProperty("stackaugmentor.it.frames", layout.buildDirectory.dir("reports/frames-live").get().asFile.absolutePath)
+    jvmArgumentProviders.add(CommandLineArgumentProvider {
+        val path = library.singleFile.absolutePath
+        listOf("-agentpath:$path", "-Dstackaugmentor.it.nativeLibrary=$path")
+    })
+}
+
+tasks.check {
+    dependsOn(testLiveStack)
 }

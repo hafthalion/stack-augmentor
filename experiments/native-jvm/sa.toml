@@ -1,6 +1,0 @@
-[augment.receiver]
-"Proto$Svc" = "id"
-
-[augment.params]
-"Proto$Svc.call" = [0]
-"Proto$Child.<init>" = [0]
