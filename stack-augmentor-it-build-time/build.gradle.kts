@@ -7,9 +7,16 @@ plugins {
 
 // Integration tests for build-time instrumentation: the ByteBuddy Gradle plugin applies
 // stack-augmentor-build-plugin to the fixtures in src/main, as in examples/build-time, and the tests in
-// src/test run them without -javaagent.
+// src/test run them without -javaagent (and with it in testWithAgent).
+
+// The shaded agent jar, for testWithAgent.
+val agent = configurations.create("agent") {
+    isCanBeConsumed = false
+    isTransitive = false
+}
 
 dependencies {
+    agent(project(path = ":stack-augmentor-agent", configuration = "shadowRuntimeElements"))
     // The fixtures are written in Kotlin; stack-augmentor itself does not need the Kotlin runtime.
     implementation(libs.kotlin.stdlib)
     implementation(project(":stack-augmentor-api"))
@@ -54,6 +61,21 @@ val testOpenJavaLang = tasks.register<Test>("testOpenJavaLang") {
     jvmArgs("--add-opens", "java.base/java.lang=ALL-UNNAMED")
 }
 
+// The same tests with the agent attached as well: it must leave the classes instrumented at build time alone, their
+// advice already calls the agent's handler.
+val testWithAgent = tasks.register<Test>("testWithAgent") {
+    description = "Runs the integration tests with the agent attached."
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    val agentJar = agent
+    inputs.files(agentJar).withPropertyName("agent")
+    inputs.file(stackAugmentorConfig).withPropertyName("agentConfig")
+    jvmArgumentProviders.add(CommandLineArgumentProvider {
+        listOf("-javaagent:${agentJar.singleFile.absolutePath}=config=${stackAugmentorConfig.asFile.absolutePath}")
+    })
+}
+
 tasks.check {
-    dependsOn(testOpenJavaLang)
+    dependsOn(testOpenJavaLang, testWithAgent)
 }

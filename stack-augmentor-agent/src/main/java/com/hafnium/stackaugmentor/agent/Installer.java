@@ -54,6 +54,8 @@ final class Installer {
                         ? AgentBuilder.Listener.StreamWriting.toSystemError().withErrorsOnly()
                         : AgentBuilder.Listener.NoOp.INSTANCE)
                 .assureReadEdgeTo(instrumentation, Dispatch.class)
+                // Classes instrumented at build time already call Dispatch.
+                .with(BuildTimeClasses::new)
                 // The same types are left alone as by the build plugin.
                 .ignore(TypeMatching.IGNORED)
                 .or(any(), isBootstrapClassLoader())
