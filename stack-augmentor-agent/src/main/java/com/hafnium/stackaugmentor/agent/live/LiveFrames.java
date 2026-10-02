@@ -1,6 +1,6 @@
 package com.hafnium.stackaugmentor.agent.live;
 
-import com.hafnium.stackaugmentor.instrument.bridge.Dispatch;
+import com.hafnium.stackaugmentor.instrument.bridge.LiveDispatch;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.WeakIdentityMap;
 import com.hafnium.stackaugmentor.runtime.ids.FrameFormat;
@@ -22,7 +22,7 @@ import java.util.stream.Stream;
  * methods that catch the exception or called them, and it matches frames by position: recursion needs no special
  * care.
  */
-final class LiveFrames implements Dispatch.TraceHandler {
+final class LiveFrames implements LiveDispatch.Handler {
 
     /** Shown for an argument that the JIT optimized away (scalar replacement): it reads as {@code null}. */
     static final String UNKNOWN = "?";
