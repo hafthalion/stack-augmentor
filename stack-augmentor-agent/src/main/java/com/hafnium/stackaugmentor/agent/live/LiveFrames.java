@@ -1,11 +1,11 @@
-package com.hafnium.stackaugmentor.agent;
+package com.hafnium.stackaugmentor.agent.live;
 
 import com.hafnium.stackaugmentor.instrument.bridge.Dispatch;
-import com.hafnium.stackaugmentor.runtime.FrameFormat;
-import com.hafnium.stackaugmentor.runtime.IdResolver;
 import com.hafnium.stackaugmentor.runtime.Log;
-import com.hafnium.stackaugmentor.runtime.NamedId;
 import com.hafnium.stackaugmentor.runtime.WeakIdentityMap;
+import com.hafnium.stackaugmentor.runtime.ids.FrameFormat;
+import com.hafnium.stackaugmentor.runtime.ids.IdResolver;
+import com.hafnium.stackaugmentor.runtime.ids.NamedId;
 
 import java.util.ArrayList;
 import java.util.Iterator;

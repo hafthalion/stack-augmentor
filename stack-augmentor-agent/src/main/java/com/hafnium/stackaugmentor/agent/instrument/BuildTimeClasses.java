@@ -1,4 +1,4 @@
-package com.hafnium.stackaugmentor.agent;
+package com.hafnium.stackaugmentor.agent.instrument;
 
 import com.hafnium.stackaugmentor.instrument.bridge.Dispatch;
 import com.hafnium.stackaugmentor.runtime.Log;

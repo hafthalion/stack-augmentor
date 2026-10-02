@@ -1,4 +1,4 @@
-package com.hafnium.stackaugmentor.runtime;
+package com.hafnium.stackaugmentor.runtime.handler;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;

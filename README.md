@@ -317,4 +317,20 @@ The library modules are written in Java and don't depend on the Kotlin runtime; 
 | `stack-augmentor-it-build-time` | Integration tests for build-time instrumentation: fixtures instrumented by the build plugin, run without an agent, and again with it (`testWithAgent`) |
 | `examples/build-time` | The same demo with build-time instrumentation (the stand-ins are compiled with it) |
 
+The packages under `com.hafnium.stackaugmentor` show which way of working uses which code:
+
+| Package | Contents | Used by |
+|---|---|---|
+| `runtime.config` | The configuration, and how each component starts | All |
+| `runtime.ids` | Ids of receivers and parameters, and how frames show them | All |
+| `runtime` | `Log`, `WeakIdentityMap` | All |
+| `runtime.handler` | `ThrowHandler`, called by the code added to methods, and how it writes stack traces | Agent instrumenting classes, build-time instrumentation |
+| `instrument` | Which classes, methods and parameters show ids (`TypeMatching`, `IdParameters`) | Agent in both modes, build plugin |
+| `instrument.advice` | The code added to methods and constructors | Agent instrumenting classes, build plugin |
+| `instrument.bridge` | `Dispatch`, the entry point of all added code | All |
+| `agent` | The agent's entry point, the bridge jar, and the choice of mode | Agent |
+| `agent.instrument` | Instrumenting the configured classes | Agent |
+| `agent.live` | The experimental live-stack mode | Agent with the native library |
+| `build` | The ByteBuddy build plugin | Build-time instrumentation |
+
 Build and test with `./gradlew build`; run the agent demo with `run.bat`. This needs JDK 25.

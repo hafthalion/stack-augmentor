@@ -1,7 +1,7 @@
 package com.hafnium.it.report
 
-import com.hafnium.stackaugmentor.runtime.AugmentorConfig
-import com.hafnium.stackaugmentor.runtime.IdSpec
+import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig
+import com.hafnium.stackaugmentor.runtime.config.IdSpec
 import java.nio.file.Path
 
 /**

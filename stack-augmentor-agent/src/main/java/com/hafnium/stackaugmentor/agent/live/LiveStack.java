@@ -1,12 +1,12 @@
-package com.hafnium.stackaugmentor.agent;
+package com.hafnium.stackaugmentor.agent.live;
 
 import com.hafnium.stackaugmentor.instrument.IdParameters;
 import com.hafnium.stackaugmentor.instrument.TypeMatching;
 import com.hafnium.stackaugmentor.instrument.bridge.Dispatch;
-import com.hafnium.stackaugmentor.runtime.AugmentorConfig;
-import com.hafnium.stackaugmentor.runtime.FrameFormat;
-import com.hafnium.stackaugmentor.runtime.IdResolver;
 import com.hafnium.stackaugmentor.runtime.Log;
+import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
+import com.hafnium.stackaugmentor.runtime.ids.FrameFormat;
+import com.hafnium.stackaugmentor.runtime.ids.IdResolver;
 import com.sun.management.HotSpotDiagnosticMXBean;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.agent.builder.ResettableClassFileTransformer;
@@ -32,7 +32,7 @@ import static net.bytebuddy.matcher.ElementMatchers.takesNoArguments;
  * keep the local variables of compiled frames readable. If it cannot be used, nothing is changed, and the agent
  * instruments classes as usual.
  */
-final class LiveStack {
+public final class LiveStack {
 
     /** Reflection frames are part of stack traces, so the walkers show them too. */
     private static final Set<StackWalker.Option> OPTIONS =
@@ -44,7 +44,7 @@ final class LiveStack {
     }
 
     /** Whether the native library was loaded, which asks for this mode. */
-    static boolean requested() {
+    public static boolean requested() {
         return NativeLibrary.loadedVersion() >= 0;
     }
 
@@ -53,7 +53,7 @@ final class LiveStack {
      *
      * @return null, or why the mode cannot be used; then nothing was changed
      */
-    static String install(Instrumentation instrumentation, AugmentorConfig config, FrameFormat format) {
+    public static String install(Instrumentation instrumentation, AugmentorConfig config, FrameFormat format) {
         int version = NativeLibrary.loadedVersion();
         if (version != NativeLibrary.VERSION) {
             return version == 0
@@ -92,6 +92,9 @@ final class LiveStack {
             return "the code added to java.lang.Throwable is not called";
         }
         Dispatch.install(handler);
+        // Classes instrumented at build time still call the handler: the live stack already covers their frames.
+        Dispatch.install((self, thrown, owner, method, paramValues, paramNames) -> {
+        });
         Log.debug(() -> "agent: reading frames from the live stack (native library version " + version + "), stack trace depth " + maxDepth + (eliminatedAllocations
                 ? ", an object argument the JIT optimized away shows as '" + LiveFrames.UNKNOWN + "' (-XX:-EliminateAllocations avoids that)"
                 : ""));

@@ -26,7 +26,7 @@ dependencies {
 
 // StackTracesTest needs java.lang open to the runtime classes, as the Java agent opens it. It runs in a JVM of its
 // own, so that the other tests run with the JDK's modules as an application sees them.
-val openJavaLangTest = "com.hafnium.stackaugmentor.runtime.StackTracesTest"
+val openJavaLangTest = "com.hafnium.stackaugmentor.runtime.handler.StackTracesTest"
 
 tasks.test {
     filter.excludeTestsMatching(openJavaLangTest)

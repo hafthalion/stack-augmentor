@@ -1,4 +1,4 @@
-package com.hafnium.stackaugmentor.agent;
+package com.hafnium.stackaugmentor.agent.live;
 
 import com.hafnium.stackaugmentor.instrument.bridge.Dispatch;
 import net.bytebuddy.asm.Advice;

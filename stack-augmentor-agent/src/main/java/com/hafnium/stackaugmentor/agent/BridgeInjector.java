@@ -1,7 +1,7 @@
 package com.hafnium.stackaugmentor.agent;
 
 import com.hafnium.stackaugmentor.runtime.Log;
-import com.hafnium.stackaugmentor.runtime.Startup;
+import com.hafnium.stackaugmentor.runtime.config.Startup;
 
 import java.io.IOException;
 import java.io.InputStream;

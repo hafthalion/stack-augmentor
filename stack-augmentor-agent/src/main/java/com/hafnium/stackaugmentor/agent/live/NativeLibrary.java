@@ -1,4 +1,4 @@
-package com.hafnium.stackaugmentor.agent;
+package com.hafnium.stackaugmentor.agent.live;
 
 /**
  * The native library of the live-stack mode ({@code stack-augmentor-native}), loaded with {@code -agentpath}. The JVM

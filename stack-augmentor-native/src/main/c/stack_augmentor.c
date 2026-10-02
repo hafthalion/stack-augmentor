@@ -17,7 +17,7 @@
 
 static jint version = 0;
 
-JNIEXPORT jint JNICALL Java_com_hafnium_stackaugmentor_agent_NativeLibrary_version(JNIEnv *env, jclass type) {
+JNIEXPORT jint JNICALL Java_com_hafnium_stackaugmentor_agent_live_NativeLibrary_version(JNIEnv *env, jclass type) {
     return version;
 }
 

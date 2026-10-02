@@ -1,4 +1,4 @@
-package com.hafnium.stackaugmentor.runtime;
+package com.hafnium.stackaugmentor.runtime.ids;
 
 /**
  * Java classes that inherit a getter as an interface default method: unlike Kotlin, javac does not compile the method

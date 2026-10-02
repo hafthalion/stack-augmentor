@@ -29,6 +29,7 @@ import com.hafnium.it.inheritance.ranked.excluded.Kept
 import com.hafnium.it.inheritance.ranked.special.Tagged
 import com.hafnium.it.report.FrameReport
 import com.hafnium.it.report.ReceiverEntries
+import java.nio.file.Path
 import net.bytebuddy.ByteBuddy
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy
 import net.bytebuddy.implementation.SuperMethodCall
@@ -46,7 +47,6 @@ import org.mockito.Mockito
 import org.springframework.cglib.core.SpringNamingPolicy
 import org.springframework.cglib.proxy.Enhancer
 import org.springframework.cglib.proxy.NoOp
-import java.nio.file.Path
 
 /**
  * [augment.receiver] entries apply to the classes they match, not to subclasses: see the inheritance entries in

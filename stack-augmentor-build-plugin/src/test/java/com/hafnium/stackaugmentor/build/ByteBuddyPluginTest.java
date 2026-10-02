@@ -2,8 +2,8 @@ package com.hafnium.stackaugmentor.build;
 
 import com.hafnium.buildfixture.Tracked;
 import com.hafnium.stackaugmentor.StackTraceId;
-import com.hafnium.stackaugmentor.runtime.ConfigException;
 import com.hafnium.stackaugmentor.runtime.Log;
+import com.hafnium.stackaugmentor.runtime.config.ConfigException;
 import net.bytebuddy.description.type.TypeDescription;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;

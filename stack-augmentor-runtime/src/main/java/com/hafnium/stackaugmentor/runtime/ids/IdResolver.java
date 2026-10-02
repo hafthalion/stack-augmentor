@@ -1,5 +1,8 @@
-package com.hafnium.stackaugmentor.runtime;
+package com.hafnium.stackaugmentor.runtime.ids;
 
+import com.hafnium.stackaugmentor.runtime.Log;
+import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
+import com.hafnium.stackaugmentor.runtime.config.IdSpec;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;

@@ -1,6 +1,7 @@
-package com.hafnium.stackaugmentor.instrument;
+package com.hafnium.stackaugmentor.instrument.advice;
 
-import com.hafnium.stackaugmentor.instrument.advice.IdArgNames;
+import com.hafnium.stackaugmentor.instrument.IdParameter;
+import com.hafnium.stackaugmentor.instrument.IdParameters;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.description.annotation.AnnotationDescription;
 import net.bytebuddy.description.method.ParameterDescription;

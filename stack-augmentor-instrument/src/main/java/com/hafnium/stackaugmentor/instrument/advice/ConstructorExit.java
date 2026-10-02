@@ -1,5 +1,7 @@
-package com.hafnium.stackaugmentor.instrument;
+package com.hafnium.stackaugmentor.instrument.advice;
 
+import com.hafnium.stackaugmentor.instrument.IdParameter;
+import com.hafnium.stackaugmentor.instrument.IdParameters;
 import com.hafnium.stackaugmentor.instrument.bridge.Dispatch;
 import net.bytebuddy.ClassFileVersion;
 import net.bytebuddy.asm.AsmVisitorWrapper;

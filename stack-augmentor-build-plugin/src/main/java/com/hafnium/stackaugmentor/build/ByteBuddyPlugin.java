@@ -1,12 +1,12 @@
 package com.hafnium.stackaugmentor.build;
 
-import com.hafnium.stackaugmentor.instrument.ConstructorExit;
-import com.hafnium.stackaugmentor.instrument.ExitAdviceFactory;
 import com.hafnium.stackaugmentor.instrument.IdParameters;
 import com.hafnium.stackaugmentor.instrument.TypeMatching;
-import com.hafnium.stackaugmentor.runtime.AugmentorConfig;
+import com.hafnium.stackaugmentor.instrument.advice.ConstructorExit;
+import com.hafnium.stackaugmentor.instrument.advice.ExitAdviceFactory;
 import com.hafnium.stackaugmentor.runtime.Log;
-import com.hafnium.stackaugmentor.runtime.Startup;
+import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
+import com.hafnium.stackaugmentor.runtime.config.Startup;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.build.Plugin;
 import net.bytebuddy.description.method.MethodDescription;

@@ -1,8 +1,8 @@
 package com.hafnium.stackaugmentor.agent;
 
-import com.hafnium.stackaugmentor.runtime.AugmentorConfig;
-import com.hafnium.stackaugmentor.runtime.FrameFormat;
-import com.hafnium.stackaugmentor.runtime.Startup;
+import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
+import com.hafnium.stackaugmentor.runtime.config.Startup;
+import com.hafnium.stackaugmentor.runtime.ids.FrameFormat;
 
 import java.lang.instrument.Instrumentation;
 import java.util.concurrent.atomic.AtomicBoolean;

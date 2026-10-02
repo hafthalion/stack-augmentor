@@ -1,14 +1,14 @@
 package com.hafnium.it.report
 
+import java.nio.file.Files
+import java.nio.file.Path
+import java.time.Instant
+import java.util.Optional
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.extension.AfterAllCallback
 import org.junit.jupiter.api.extension.BeforeEachCallback
 import org.junit.jupiter.api.extension.ExtensionContext
 import org.junit.jupiter.api.extension.TestWatcher
-import java.nio.file.Files
-import java.nio.file.Path
-import java.time.Instant
-import java.util.Optional
 
 /**
  * Records the calls a test class makes and writes a report of them for review: build/reports/frames/<class>.json with
