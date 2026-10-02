@@ -339,19 +339,19 @@ class ParameterSelectionTest {
     }
 
     @Test
-    void constructorsOnlyWithAnInitEntryAndNeverForTheReceiver() {
+    void constructorsByWildcardOrInitEntryAndNeverForTheReceiver() {
         TypeDescription built = type(Built.class);
         MethodDescription annotated = built.getDeclaredMethods().filter(isConstructor().and(takesArguments(2))).getOnly();
         MethodDescription plain = built.getDeclaredMethods().filter(isConstructor().and(takesArguments(1))).getOnly();
 
-        // Wildcards in the method name do not match constructors.
+        // Wildcards in the method name match constructors too.
         AugmentorConfig wildcard = AugmentorConfig.builder()
                 .classes(Map.of(HERE, ANNOTATIONS))
                 .methods(Map.of(HERE_METHODS, List.of(new ParamRef.Annotations())))
                 .build();
         IdParameters wildcardParameters = new IdParameters(wildcard);
-        assertEquals(List.of(), wildcardParameters.select(built, annotated));
-        assertFalse(new TypeMatching(wildcard, wildcardParameters).constructors(built).matches(annotated));
+        assertEquals(List.of("code", "size"), wildcardParameters.select(built, annotated).stream().map(IdParameter::label).toList());
+        assertTrue(new TypeMatching(wildcard, wildcardParameters).constructors(built).matches(annotated));
 
         AugmentorConfig init = methods(Map.of(HERE + ".<init>", List.of(new ParamRef.Annotations())));
         IdParameters parameters = new IdParameters(init);

@@ -227,19 +227,22 @@ class AugmentorConfigTest {
     }
 
     @Test
-    fun `constructor entries end in init, and wildcards in the method name do not match constructors`() {
+    fun `constructor entries end in init, and wildcards in the method name match constructors too`() {
         val config = parse(
             """
             [augment.params]
             "com.acme.Order.<init>" = ["id"]
             "com.acme.*.*" = [0]
-            "com.acme.**.<init>" = "@"
+            "com.acme.billing.*.<init>" = "@"
             """,
         )
         assertEquals(listOf(ParamRef.ByName("id")), config.paramRefs("com.acme.Order", "<init>"))
         assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.Order", "process"))
-        // "com.acme.*.*" matches the class, but its '*' does not match <init>; the <init> pattern does.
-        assertEquals(listOf(ParamRef.Annotations()), config.paramRefs("com.acme.Invoice", "<init>"))
+        // '*' matches <init> like any method name.
+        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.Invoice", "<init>"))
+        // The more specific <init> pattern wins over "com.acme.**.*"-style patterns, as for methods.
+        assertEquals(listOf(ParamRef.Annotations()), config.paramRefs("com.acme.billing.Invoice", "<init>"))
+        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.acme.billing.Invoice", "send"))
         assertEquals(emptyList<ParamRef>(), config.paramRefs("com.other.Invoice", "<init>"))
     }
 
