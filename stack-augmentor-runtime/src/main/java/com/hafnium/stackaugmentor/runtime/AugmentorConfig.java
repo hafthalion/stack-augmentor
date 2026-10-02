@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
  * [augment.params]           # parameter ids: names and indexes ("#" after one hashes it), "@" for the annotations,
  *                            # "-" for none
  * "com.hafnium.**.*" = "@"
- * "com.hafnium.**.<init>" = "@"     # constructors only by name
+ * "com.thirdparty.Shipment.<init>" = ["orderId"]   # constructors, also matched by wildcards such as ".*"
  * "com.thirdparty.OrderService.process" = ["order", 2, "email#", "3#"]
  * "com.thirdparty.**.*Repository.find*" = [0]
  * "com.thirdparty.**.AuditRepository.*" = "-"
@@ -246,11 +246,8 @@ public final class AugmentorConfig {
     public List<ParamRef> paramRefs(String className, String methodName) {
         List<ParamRef> refs = methods.get(className + "." + methodName);
         if (refs == null) {
-            // Wildcards in the method name never match constructors: those need an entry ending in .<init>.
-            boolean constructor = methodName.equals(CONSTRUCTOR);
             for (MethodPattern entry : methodPatterns) {
-                if (entry.classPattern().matcher(className).matches() && entry.methodPattern().matcher(methodName).matches()
-                        && constructor == entry.key().endsWith("." + CONSTRUCTOR)) {
+                if (entry.classPattern().matcher(className).matches() && entry.methodPattern().matcher(methodName).matches()) {
                     refs = entry.refs();
                     break;
                 }

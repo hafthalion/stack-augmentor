@@ -17,7 +17,7 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
     indexes from 0 to 255, the JVM's maximum number of parameters, each optionally followed by `#` to hash the value
     (an index is then written as a string, e.g. `"2#"`), `"@"` for the method's parameter annotations, or `"-"` for none;
     there is no wildcard value for the parameters), which decides the parameter ids. The method part `<init>`
-    names the constructors; wildcards in the method part SHALL NOT match constructors.
+    names the constructors; wildcards in the method part SHALL match it like any method name.
 
   Both tables default to empty. They SHALL be independent: no value in one table SHALL change what the
   other selects.
@@ -56,12 +56,12 @@ replacing the other.
 #### Scenario: Method entry with "@"
 - **GIVEN** `"com.acme.legacy.*.*" = "@"` in `[augment.params]`
 - **WHEN** it is loaded
-- **THEN** the methods of the classes directly in `com.acme.legacy` use their `@StackTraceParam` and `@StackTraceParams` annotations, but their constructors do not
+- **THEN** the methods of the classes directly in `com.acme.legacy` use their `@StackTraceParam` and `@StackTraceParams` annotations, and so do their constructors
 
 #### Scenario: Constructor entry
-- **GIVEN** `"com.acme.legacy.*.<init>" = "@"` in `[augment.params]`
+- **GIVEN** `"com.acme.legacy.*.*" = [0]` and `"com.acme.legacy.*.<init>" = "@"` in `[augment.params]`
 - **WHEN** it is loaded
-- **THEN** the constructors of the classes directly in `com.acme.legacy` use their `@StackTraceParam` and `@StackTraceParams` annotations
+- **THEN** the constructors of the classes directly in `com.acme.legacy` use their `@StackTraceParam` and `@StackTraceParams` annotations; the more specific `<init>` entry wins over `*`, and their methods show their first parameter
 
 ### Requirement: Invalid configuration
 The system SHALL reject a configuration with a TOML syntax error, a value of the wrong type, a value out
