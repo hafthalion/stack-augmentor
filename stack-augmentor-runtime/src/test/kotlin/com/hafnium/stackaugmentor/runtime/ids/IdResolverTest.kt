@@ -1,15 +1,17 @@
-package com.hafnium.stackaugmentor.runtime
+package com.hafnium.stackaugmentor.runtime.ids
 
 import com.hafnium.stackaugmentor.StackTraceId
+import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig
+import com.hafnium.stackaugmentor.runtime.config.IdSpec
+import java.io.ByteArrayOutputStream
+import java.io.PrintStream
+import java.net.URI
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import java.io.ByteArrayOutputStream
-import java.io.PrintStream
-import java.net.URI
 
 class IdResolverTest {
 

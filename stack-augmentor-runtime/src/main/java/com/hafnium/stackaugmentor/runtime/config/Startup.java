@@ -1,5 +1,6 @@
-package com.hafnium.stackaugmentor.runtime;
+package com.hafnium.stackaugmentor.runtime.config;
 
+import com.hafnium.stackaugmentor.runtime.Log;
 import java.util.function.Supplier;
 
 /**

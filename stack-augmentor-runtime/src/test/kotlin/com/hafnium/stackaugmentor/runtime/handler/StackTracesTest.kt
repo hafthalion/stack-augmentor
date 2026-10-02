@@ -1,4 +1,4 @@
-package com.hafnium.stackaugmentor.runtime
+package com.hafnium.stackaugmentor.runtime.handler
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotSame

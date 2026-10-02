@@ -1,4 +1,4 @@
-package com.hafnium.stackaugmentor.runtime;
+package com.hafnium.stackaugmentor.runtime.config;
 
 import java.util.List;
 

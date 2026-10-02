@@ -1,6 +1,13 @@
-package com.hafnium.stackaugmentor.runtime;
+package com.hafnium.stackaugmentor.runtime.handler;
 
 import com.hafnium.stackaugmentor.instrument.bridge.Dispatch;
+import com.hafnium.stackaugmentor.runtime.Log;
+import com.hafnium.stackaugmentor.runtime.WeakIdentityMap;
+import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
+import com.hafnium.stackaugmentor.runtime.config.Startup;
+import com.hafnium.stackaugmentor.runtime.ids.FrameFormat;
+import com.hafnium.stackaugmentor.runtime.ids.IdResolver;
+import com.hafnium.stackaugmentor.runtime.ids.NamedId;
 
 import java.io.IOException;
 import java.io.InputStream;

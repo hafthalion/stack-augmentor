@@ -1,4 +1,4 @@
-package com.hafnium.stackaugmentor.agent;
+package com.hafnium.stackaugmentor.agent.live;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;

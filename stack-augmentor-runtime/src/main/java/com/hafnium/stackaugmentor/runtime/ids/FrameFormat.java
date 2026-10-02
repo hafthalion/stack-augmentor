@@ -1,5 +1,7 @@
-package com.hafnium.stackaugmentor.runtime;
+package com.hafnium.stackaugmentor.runtime.ids;
 
+import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
+import com.hafnium.stackaugmentor.runtime.config.ConfigException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.UnaryOperator;

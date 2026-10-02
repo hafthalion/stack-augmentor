@@ -1,6 +1,13 @@
-package com.hafnium.stackaugmentor.runtime
+package com.hafnium.stackaugmentor.runtime.handler
 
 import com.hafnium.stackaugmentor.StackTraceId
+import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig
+import com.hafnium.stackaugmentor.runtime.config.ConfigException
+import com.hafnium.stackaugmentor.runtime.config.IdSpec
+import java.io.ByteArrayOutputStream
+import java.io.PrintStream
+import java.nio.file.Files
+import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
@@ -8,10 +15,6 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
-import java.io.ByteArrayOutputStream
-import java.io.PrintStream
-import java.nio.file.Files
-import java.nio.file.Path
 
 /** This module has no stack-augmentor.toml on its test classpath, so ThrowHandler() uses the defaults. */
 class ThrowHandlerTest {

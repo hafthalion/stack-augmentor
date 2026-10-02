@@ -1,4 +1,4 @@
-package com.hafnium.stackaugmentor.runtime;
+package com.hafnium.stackaugmentor.runtime.config;
 
 /**
  * Selects parameters of a configured method: by name, by position, those its annotations select ({@code "@"}), or

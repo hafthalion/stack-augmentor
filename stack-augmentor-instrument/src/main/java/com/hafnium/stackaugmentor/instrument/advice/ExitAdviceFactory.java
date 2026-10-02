@@ -1,6 +1,6 @@
-package com.hafnium.stackaugmentor.instrument;
+package com.hafnium.stackaugmentor.instrument.advice;
 
-import com.hafnium.stackaugmentor.instrument.advice.ExitAdvice;
+import com.hafnium.stackaugmentor.instrument.IdParameters;
 import net.bytebuddy.asm.Advice;
 
 /** Creates the exit advice shared by the Java agent and the build plugin. */

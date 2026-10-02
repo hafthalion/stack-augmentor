@@ -14,9 +14,9 @@ import com.hafnium.it.fixtures.Layers
 import com.hafnium.it.fixtures.LongId
 import com.hafnium.it.fixtures.ManyParams
 import com.hafnium.it.fixtures.MultiLine
-import com.hafnium.it.fixtures.Node
 import com.hafnium.it.fixtures.NoTrace
 import com.hafnium.it.fixtures.NoTraceException
+import com.hafnium.it.fixtures.Node
 import com.hafnium.it.fixtures.NullId
 import com.hafnium.it.fixtures.ObjectClass
 import com.hafnium.it.fixtures.ParenLabels
@@ -37,6 +37,12 @@ import com.hafnium.it.report.ReceiverEntries
 import com.thirdparty.Customer
 import com.thirdparty.Order
 import com.thirdparty.OrderService
+import java.io.PrintWriter
+import java.io.StringWriter
+import java.lang.management.ManagementFactory
+import java.nio.file.Path
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Executors
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -44,12 +50,6 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
-import java.util.concurrent.ExecutionException
-import java.util.concurrent.Executors
-import java.io.PrintWriter
-import java.io.StringWriter
-import java.lang.management.ManagementFactory
-import java.nio.file.Path
 
 /**
  * Runs with the agent and `src/test/resources/stack-augmentor.toml` attached; see build.gradle.kts. [FrameReport] writes

@@ -1,7 +1,7 @@
 package com.hafnium.stackaugmentor.instrument;
 
-import com.hafnium.stackaugmentor.runtime.AugmentorConfig;
-import com.hafnium.stackaugmentor.runtime.IdSpec;
+import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
+import com.hafnium.stackaugmentor.runtime.config.IdSpec;
 import net.bytebuddy.description.type.TypeDefinition;
 import net.bytebuddy.description.type.TypeDescription;
 

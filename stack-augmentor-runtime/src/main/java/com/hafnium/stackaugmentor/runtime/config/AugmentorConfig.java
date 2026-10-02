@@ -1,5 +1,6 @@
-package com.hafnium.stackaugmentor.runtime;
+package com.hafnium.stackaugmentor.runtime.config;
 
+import com.hafnium.stackaugmentor.runtime.ids.FrameFormat;
 import org.tomlj.Toml;
 import org.tomlj.TomlArray;
 import org.tomlj.TomlParseResult;

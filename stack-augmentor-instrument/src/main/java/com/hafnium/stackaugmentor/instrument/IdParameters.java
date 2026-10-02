@@ -1,8 +1,8 @@
 package com.hafnium.stackaugmentor.instrument;
 
-import com.hafnium.stackaugmentor.runtime.AugmentorConfig;
-import com.hafnium.stackaugmentor.runtime.IdResolver;
-import com.hafnium.stackaugmentor.runtime.ParamRef;
+import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
+import com.hafnium.stackaugmentor.runtime.config.ParamRef;
+import com.hafnium.stackaugmentor.runtime.ids.IdResolver;
 import net.bytebuddy.description.annotation.AnnotationDescription;
 import net.bytebuddy.description.annotation.AnnotationList;
 import net.bytebuddy.description.method.MethodDescription;

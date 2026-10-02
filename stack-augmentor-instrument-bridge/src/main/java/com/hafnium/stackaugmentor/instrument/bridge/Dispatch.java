@@ -36,7 +36,7 @@ public final class Dispatch {
     }
 
     /** Matched by name: this module has no dependencies. */
-    private static final String CONFIG_EXCEPTION = "com.hafnium.stackaugmentor.runtime.ConfigException";
+    private static final String CONFIG_EXCEPTION = "com.hafnium.stackaugmentor.runtime.config.ConfigException";
 
     private static volatile Handler handler;
     private static volatile boolean lookedUp;
