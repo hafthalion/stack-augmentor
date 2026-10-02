@@ -266,6 +266,7 @@ When an exception leaves such a method, the advice passes `this`, the id argumen
 
 - **Java agent:** the bridge is appended to the bootstrap class loader, so every class loader can see it, and the agent installs the handler at startup.
 - **Build time:** the bridge is an ordinary dependency (through `stack-augmentor-runtime`), and `Dispatch` finds the runtime's handler with `ServiceLoader` when the first exception needs it.
+- **Both:** an application with classes instrumented at build time can also run with the agent. The agent leaves those classes as they are (it recognizes them by their reference to `Dispatch`), and their advice reaches the agent's handler, because `Dispatch` is then the one in the bootstrap class loader. Which of their methods have ids is decided at build time; the agent's `[augment.receiver]` entries decide the receiver ids at runtime.
 
 ## Limitations
 
@@ -291,7 +292,7 @@ The library modules are written in Java and don't depend on the Kotlin runtime; 
 | `stack-augmentor-build-plugin` | The ByteBuddy build plugin for build-time instrumentation |
 | `stack-augmentor-it` | Integration tests, run with the agent attached, including a Java application run without the Kotlin runtime |
 | `examples/java-agent` | Demo with the agent: the example above, plus third-party stand-ins configured in `stack-augmentor.toml` |
-| `stack-augmentor-it-build-time` | Integration tests for build-time instrumentation: fixtures instrumented by the build plugin, run without an agent |
+| `stack-augmentor-it-build-time` | Integration tests for build-time instrumentation: fixtures instrumented by the build plugin, run without an agent, and again with it (`testWithAgent`) |
 | `examples/build-time` | The same demo with build-time instrumentation (the stand-ins are compiled with it) |
 
 Build and test with `./gradlew build`; run the agent demo with `run.bat`. This needs JDK 25.
