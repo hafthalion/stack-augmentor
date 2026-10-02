@@ -54,7 +54,9 @@ Kotlin standard library. `stack-augmentor-api` SHALL have no dependencies.
 The project SHALL contain a runnable example for each mode: `examples/java-agent` (including third-party
 stand-ins configured in `stack-augmentor.toml`) and `examples/build-time` (the same classes and entries,
 instrumented at build time). `examples/live-agent` SHALL run with the agent's live-stack mode, and its
-`runInstrumented` task with the agent alone. `run.bat` SHALL build the project and run the agent example.
+`runInstrumented` task with the agent alone. `run.bat` SHALL build the project and run `examples/live-agent`
+with the agent alone, then in the live-stack mode, which it SHALL skip with a message when the native library was
+not built.
 
 #### Scenario: Running the examples
 - **GIVEN** the project

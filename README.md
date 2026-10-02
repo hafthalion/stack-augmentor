@@ -337,4 +337,4 @@ The packages under `com.hafnium.stackaugmentor` show which way of working uses w
 | `agent.live` | Turning the experimental live-stack mode on: the native library and the startup checks | Agent with the native library |
 | `build` | The ByteBuddy build plugin | Build-time instrumentation |
 
-Build and test with `./gradlew build`; run the agent demo with `run.bat`. This needs JDK 25.
+Build and test with `./gradlew build`. On Windows, `run.bat` builds the project and runs the live-stack demo (`examples/live-agent`) twice: with the agent alone, and in the live-stack mode if MinGW `gcc` built the native library. This needs JDK 25.
