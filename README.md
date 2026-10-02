@@ -287,6 +287,8 @@ The agent then adds code to `java.lang.Throwable` only. When the JVM records the
 - **An object argument that the JIT optimized away reads as `null`, and is shown as `?`**, e.g. a boxed `Integer` created in compiled code and never stored (scalar replacement). `-XX:-EliminateAllocations` turns that optimization off, at some cost; a receiver optimized away shows no receiver id.
 - **It relies on JDK internals.** If they are missing or behave differently, the agent says so and instruments classes as usual. There is no build-time equivalent.
 
+`./gradlew :examples:live-agent:run` runs an example in this mode: a shop that logs the exceptions of three requests, where every frame shows its ids. `./gradlew :examples:live-agent:runInstrumented` runs it with the agent alone, which shows ids only on the frames the exceptions left: none for an exception that is logged without being thrown.
+
 `./gradlew :stack-augmentor-it:testLiveStack` runs the integration tests in this mode; without a C compiler it is skipped, except on CI.
 
 ## Limitations
@@ -314,6 +316,7 @@ The library modules are written in Java and don't depend on the Kotlin runtime; 
 | `stack-augmentor-build-plugin` | The ByteBuddy build plugin for build-time instrumentation |
 | `stack-augmentor-it` | Integration tests, run with the agent attached (`test`) and in the live-stack mode (`testLiveStack`), including a Java application run without the Kotlin runtime |
 | `examples/java-agent` | Demo with the agent: the example above, plus third-party stand-ins configured in `stack-augmentor.toml` |
+| `examples/live-agent` | Demo of the agent's live-stack mode, where every frame of the logged stack traces shows its ids |
 | `stack-augmentor-it-build-time` | Integration tests for build-time instrumentation: fixtures instrumented by the build plugin, run without an agent, and again with it (`testWithAgent`) |
 | `examples/build-time` | The same demo with build-time instrumentation (the stand-ins are compiled with it) |
 

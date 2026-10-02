@@ -53,9 +53,16 @@ Kotlin standard library. `stack-augmentor-api` SHALL have no dependencies.
 ### Requirement: Examples
 The project SHALL contain a runnable example for each mode: `examples/java-agent` (including third-party
 stand-ins configured in `stack-augmentor.toml`) and `examples/build-time` (the same classes and entries,
-instrumented at build time). `run.bat` SHALL build the project and run the agent example.
+instrumented at build time). `examples/live-agent` SHALL run with the agent's live-stack mode, and its
+`runInstrumented` task with the agent alone. `run.bat` SHALL build the project and run the agent example.
 
 #### Scenario: Running the examples
 - **GIVEN** the project
 - **WHEN** `./gradlew :examples:java-agent:run` and `./gradlew :examples:build-time:run` are run
 - **THEN** both print stack traces with ids
+
+#### Scenario: Running the live-stack example
+- **GIVEN** the project, with the native library built
+- **WHEN** `./gradlew :examples:live-agent:run` is run
+- **THEN** every frame of its stack traces, except `Main.main`, shows ids, also below the catching method, for an
+  exception that is never thrown, and for the constructor whose `super(...)` call throws
