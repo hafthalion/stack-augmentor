@@ -33,7 +33,8 @@ jobs:
       - run: ./gradlew build
 
       # On every run, also when the build fails: the run's summary page links the archive. The frame reports
-      # (stack-augmentor-it/build/reports/frames, start with index.html) show the frames each agent test caught.
+      # (stack-augmentor-it/build/reports/frames, start with index.html) show the frames each agent test caught;
+      # frames-live the same for the agent's live-stack mode.
       # On master, reports.yml publishes this archive to GitHub Pages.
       - name: Upload test and frame reports
         if: always()
@@ -43,5 +44,6 @@ jobs:
           path: |
             **/build/reports/tests/
             **/build/reports/frames/
+            **/build/reports/frames-live/
           retention-days: 7
 

@@ -262,6 +262,28 @@ class AugmentorConfigTest {
     }
 
     @Test
+    fun `whether params entries match a class at all`() {
+        val config = parse(
+            """
+            [augment.params]
+            "com.acme.Order.process" = [0]
+            "com.acme.Order.cancel" = "-"
+            "com.acme.billing.*.send" = ["to"]
+            "com.acme.legacy.**.*" = "-"
+            "com.acme.Shipment.ship" = "-"
+            """,
+        )
+        assertTrue(config.hasParamEntries("com.acme.Order"))
+        assertTrue(config.hasParamEntries("com.acme.billing.Invoice"))
+        // Not a prefix of the class name, a nested class or a "-" entry.
+        assertFalse(config.hasParamEntries("com.acme.Ord"))
+        assertFalse(config.hasParamEntries("com.acme.Order.Line"))
+        assertFalse(config.hasParamEntries("com.acme.billing.sub.Invoice"))
+        assertFalse(config.hasParamEntries("com.acme.legacy.Old"))
+        assertFalse(config.hasParamEntries("com.acme.Shipment"))
+    }
+
+    @Test
     fun `method entries with wildcards and annotations`() {
         val config = parse(
             """

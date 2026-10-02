@@ -9,19 +9,25 @@ import java.util.concurrent.ConcurrentHashMap;
  * A concurrent map with weakly referenced keys compared by identity.
  * {@link java.util.WeakHashMap} is not usable for throwables, because it relies on {@code equals}.
  */
-final class WeakIdentityMap<K, V> {
+public final class WeakIdentityMap<K, V> {
 
     private final ConcurrentHashMap<Key<K>, V> map = new ConcurrentHashMap<>();
     private final ReferenceQueue<K> queue = new ReferenceQueue<>();
 
-    V get(K key) {
+    public V get(K key) {
         expunge();
         return map.get(new Key<>(key, null));
     }
 
-    void set(K key, V value) {
+    public void set(K key, V value) {
         expunge();
         map.put(new Key<>(key, queue), value);
+    }
+
+    /** Removes the key's value and returns it, or {@code null} if there is none. */
+    public V remove(K key) {
+        expunge();
+        return map.remove(new Key<>(key, null));
     }
 
     private void expunge() {

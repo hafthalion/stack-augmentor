@@ -24,12 +24,14 @@ class WithoutKotlinTest {
 
     private val agentJar = System.getProperty("stackaugmentor.it.agentJar")
     private val classpath = System.getProperty("stackaugmentor.it.javaClasspath")
+    private val nativeLibrary: String? = System.getProperty("stackaugmentor.it.nativeLibrary")
 
     /** Runs JavaMain with the agent and this configuration, or without one. */
     private fun run(config: Path?): Result {
         val java = Path.of(System.getProperty("java.home"), "bin", "java").toString()
         val agent = if (config != null) "-javaagent:$agentJar=config=$config" else "-javaagent:$agentJar"
-        val process = ProcessBuilder(java, agent, "-cp", classpath, "com.hafnium.it.fixtures.JavaMain")
+        val command = listOfNotNull(java, nativeLibrary?.let { "-agentpath:$it" }, agent, "-cp", classpath, "com.hafnium.it.fixtures.JavaMain")
+        val process = ProcessBuilder(command)
             .redirectErrorStream(true)
             .start()
         val output = process.inputStream.bufferedReader().use { it.readText() }
@@ -68,7 +70,12 @@ class WithoutKotlinTest {
         // Debug output exercises the logging, configuration and matching code paths as well.
         assertTrue(result.output.contains("[stack-augmentor] DEBUG agent: configuration "), result.output)
         assertTrue(result.output.contains("[stack-augmentor] DEBUG agent: [augment] frameFormat="), result.output)
-        assertTrue(result.output.contains("[stack-augmentor] DEBUG instrumenting com.hafnium.it.fixtures.JavaFixture"), result.output)
+        if (AgentMode.liveStack) {
+            assertTrue(result.output.contains("[stack-augmentor] DEBUG agent: reading frames from the live stack"), result.output)
+            assertTrue(result.output.contains("[stack-augmentor] DEBUG live stack: frames of com.hafnium.it.fixtures.JavaFixture.run show"), result.output)
+        } else {
+            assertTrue(result.output.contains("[stack-augmentor] DEBUG instrumenting com.hafnium.it.fixtures.JavaFixture"), result.output)
+        }
         assertTrue(result.output.contains("[stack-augmentor] DEBUG id sources of com.hafnium.it.fixtures.JavaFixture"), result.output)
         assertNoKotlin(result.output)
     }

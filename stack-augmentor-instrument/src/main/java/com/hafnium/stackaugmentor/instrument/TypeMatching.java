@@ -58,6 +58,16 @@ public final class TypeMatching {
         return instrument;
     }
 
+    /** Whether the class name is in a package of {@link #IGNORED}, without describing the class. */
+    public static boolean isIgnoredName(String className) {
+        for (String prefix : IGNORED_PACKAGES) {
+            if (className.startsWith(prefix) && className.length() > prefix.length() && className.charAt(prefix.length()) == '.') {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static ElementMatcher.Junction<TypeDescription> ignored() {
         ElementMatcher.Junction<TypeDescription> ignored = isSynthetic();
         for (String prefix : IGNORED_PACKAGES) {
@@ -129,6 +139,20 @@ public final class TypeMatching {
 
     private static String signature(MethodDescription method) {
         return method.getInternalName() + method.getDescriptor();
+    }
+
+    /**
+     * Whether frames of this method show a receiver id: a method, not a constructor, that is not static, of a type whose
+     * deciding {@code [augment.receiver]} entry gives ids. For the agent's live-stack mode, which reads the frames of
+     * methods that it does not instrument.
+     */
+    public boolean receiverIds(TypeDescription type, MethodDescription method) {
+        return isCandidate(method) && !method.isStatic() && receiverRelevant(type);
+    }
+
+    /** The id parameters that frames of this method or constructor show. For the agent's live-stack mode. */
+    public List<IdParameter> idParameters(TypeDescription type, MethodDescription method) {
+        return isCandidate(method) || isConstructorCandidate(method) ? parameters.select(type, method) : List.of();
     }
 
     private boolean hasIdParameters(TypeDescription type) {
