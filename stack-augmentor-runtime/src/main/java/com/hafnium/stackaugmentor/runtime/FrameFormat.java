@@ -18,10 +18,10 @@ public final class FrameFormat {
 
     private final List<Token> declaringClassPart;
     private final List<Token> methodPart;
-    private final List<Token> receiver;
-    private final ParamsTemplate params;
+    private final IdsTemplate receiver;
+    private final IdsTemplate params;
 
-    private FrameFormat(List<Token> declaringClassPart, List<Token> methodPart, List<Token> receiver, ParamsTemplate params) {
+    private FrameFormat(List<Token> declaringClassPart, List<Token> methodPart, IdsTemplate receiver, IdsTemplate params) {
         this.declaringClassPart = declaringClassPart;
         this.methodPart = methodPart;
         this.receiver = receiver;
@@ -29,8 +29,8 @@ public final class FrameFormat {
     }
 
     /** A replacement element whose {@code toString()} shows the ids. */
-    public StackTraceElement rewrite(StackTraceElement element, NamedId receiverId, List<NamedId> paramIds) {
-        UnaryOperator<String> values = values(element, receiverId, paramIds);
+    public StackTraceElement rewrite(StackTraceElement element, List<NamedId> receiverIds, List<NamedId> paramIds) {
+        UnaryOperator<String> values = values(element, receiverIds, paramIds);
         String declaringClass = render(declaringClassPart, values);
         String method = render(methodPart, values);
         String prefix = prefixOf(element);
@@ -44,12 +44,12 @@ public final class FrameFormat {
         return new StackTraceElement(loader, module, version, declaringClass, method, element.getFileName(), element.getLineNumber());
     }
 
-    private UnaryOperator<String> values(StackTraceElement element, NamedId receiverId, List<NamedId> paramIds) {
+    private UnaryOperator<String> values(StackTraceElement element, List<NamedId> receiverIds, List<NamedId> paramIds) {
         return name -> switch (name) {
             case "class" -> element.getClassName();
             case "simpleClass" -> element.getClassName().substring(element.getClassName().lastIndexOf('.') + 1);
             case "method" -> element.getMethodName();
-            case "receiver" -> receiverId != null ? render(receiver, values(receiverId)) : "";
+            case "receiver" -> receiver.render(receiverIds);
             case "params" -> params.render(paramIds);
             default -> throw new IllegalStateException("unexpected placeholder " + name);
         };
@@ -64,7 +64,11 @@ public final class FrameFormat {
         }
     }
 
-    private record ParamsTemplate(String prefix, List<Token> item, String separator, String suffix) {
+    /**
+     * A {@code receiverFormat} or {@code paramsFormat}: a prefix, the item repeated for each id with a separator in
+     * between, and a suffix. Empty without ids.
+     */
+    private record IdsTemplate(String prefix, List<Token> item, String separator, String suffix) {
 
         String render(List<NamedId> ids) {
             if (ids.isEmpty()) {
@@ -108,8 +112,8 @@ public final class FrameFormat {
             declaringClassPart.add(new Token.Literal(beforeDot));
         }
         List<Token> methodPart = List.copyOf(frame.subList(method, frame.size()));
-        List<Token> receiver = parse(receiverFormat, ID_PLACEHOLDERS, "receiverFormat");
-        return new FrameFormat(List.copyOf(declaringClassPart), methodPart, receiver, parseParams(paramsFormat));
+        return new FrameFormat(List.copyOf(declaringClassPart), methodPart, parseIds(receiverFormat, "receiverFormat"),
+                parseIds(paramsFormat, "paramsFormat"));
     }
 
     /** IDEs find a frame's file and line by the parenthesised {@code (File.java:12)} that the JDK appends. */
@@ -124,18 +128,18 @@ public final class FrameFormat {
         }
     }
 
-    private static ParamsTemplate parseParams(String template) {
+    private static IdsTemplate parseIds(String template, String key) {
         int repeat = template.lastIndexOf(REPEAT);
         if (repeat < 0) {
-            List<Token> item = parse(template, ID_PLACEHOLDERS, "paramsFormat");
-            requirePlaceholder(item, template);
-            return new ParamsTemplate("", item, DEFAULT_SEPARATOR, "");
+            List<Token> item = parse(template, ID_PLACEHOLDERS, key);
+            requirePlaceholder(item, template, key);
+            return new IdsTemplate("", item, DEFAULT_SEPARATOR, "");
         }
-        List<Token> head = parse(template.substring(0, repeat), ID_PLACEHOLDERS, "paramsFormat");
-        List<Token> tail = parse(template.substring(repeat + REPEAT.length()), ID_PLACEHOLDERS, "paramsFormat");
-        requirePlaceholder(head, template);
+        List<Token> head = parse(template.substring(0, repeat), ID_PLACEHOLDERS, key);
+        List<Token> tail = parse(template.substring(repeat + REPEAT.length()), ID_PLACEHOLDERS, key);
+        requirePlaceholder(head, template, key);
         if (tail.stream().anyMatch(token -> token instanceof Token.Placeholder)) {
-            throw new ConfigException("paramsFormat must not have placeholders after '" + REPEAT + "'; was '" + template + "'");
+            throw new ConfigException(key + " must not have placeholders after '" + REPEAT + "'; was '" + template + "'");
         }
         int first = -1;
         int last = -1;
@@ -147,16 +151,16 @@ public final class FrameFormat {
                 last = i;
             }
         }
-        return new ParamsTemplate(
+        return new IdsTemplate(
                 literalText(head.subList(0, first)),
                 List.copyOf(head.subList(first, last + 1)),
                 literalText(head.subList(last + 1, head.size())),
                 literalText(tail));
     }
 
-    private static void requirePlaceholder(List<Token> tokens, String template) {
+    private static void requirePlaceholder(List<Token> tokens, String template, String key) {
         if (tokens.stream().noneMatch(token -> token instanceof Token.Placeholder)) {
-            throw new ConfigException("paramsFormat must contain $name or $id; was '" + template + "'");
+            throw new ConfigException(key + " must contain $name or $id; was '" + template + "'");
         }
     }
 

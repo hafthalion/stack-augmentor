@@ -9,7 +9,7 @@ Defines how the ids are laid out in a stack trace frame, through the `frameForma
 ### Requirement: Default layout
 By default, the receiver id SHALL follow the class name and the parameter ids SHALL follow the method
 name, each in braces. The defaults SHALL be `frameFormat = "$class$receiver.$method$params"`,
-`receiverFormat = "{$name=$id}"` and `paramsFormat = "{$name=$id, ...}"`.
+`receiverFormat = "{$name=$id, ...}"` and `paramsFormat = "{$name=$id, ...}"`.
 
 #### Scenario: Receiver and parameter ids
 - **GIVEN** the default formats
@@ -47,9 +47,9 @@ frame's class, the rest its method.
 ### Requirement: Receiver and parameter templates
 `receiverFormat` and `paramsFormat` SHALL support the placeholders `$name` and `$id`. All other text,
 braces included, SHALL be literal, and `$$` SHALL be a literal `$`; as in `frameFormat`, `${name}` and `${id}` are
-the braced forms. In `paramsFormat`, `...` SHALL mark
+the braced forms. In both, `...` SHALL mark
 repetition: the text before the first placeholder and after `...` wraps the list, the text from the
-first to the last placeholder is repeated for each parameter, and the text between the last placeholder
+first to the last placeholder is repeated for each receiver id or parameter id, and the text between the last placeholder
 and `...` separates the items. Without `...`, the whole template SHALL be repeated and joined with `,`.
 A template that renders no ids SHALL render as empty text.
 
@@ -57,6 +57,11 @@ A template that renders no ids SHALL render as empty text.
 - **GIVEN** `paramsFormat = "[$name: $id; ...]"`
 - **WHEN** a frame has the parameter ids `orderId=42` and `customer=7`
 - **THEN** the method part reads `process[orderId: 42; customer: 7]`
+
+#### Scenario: Several receiver ids
+- **GIVEN** the default `receiverFormat`
+- **WHEN** a frame has the receiver ids `tenant=acme` and `lineId=3`
+- **THEN** the class part reads `OrderLine{tenant=acme, lineId=3}`
 
 #### Scenario: Value only
 - **GIVEN** `receiverFormat = "<$id>"`
@@ -66,7 +71,7 @@ A template that renders no ids SHALL render as empty text.
 ### Requirement: Template validation
 The system SHALL reject, when the configuration is loaded, a template with an unknown placeholder (for
 example `$klass`, `$line`, `$idx`, `${nam}` or a lone `$`), an unclosed `${`, a
-`paramsFormat` without `$name` or `$id`, a `paramsFormat` with placeholders after `...`, and any template
+`receiverFormat` or `paramsFormat` without `$name` or `$id`, one with placeholders after `...`, and any template
 containing `(` or `)`: IDEs find a frame's file and line by the parenthesised `(File.java:12)` that the JDK
 appends, which parentheses in the frame's class or method part would confuse.
 

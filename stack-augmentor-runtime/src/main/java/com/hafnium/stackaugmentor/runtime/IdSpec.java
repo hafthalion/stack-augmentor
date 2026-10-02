@@ -1,15 +1,34 @@
 package com.hafnium.stackaugmentor.runtime;
 
-/** The receiver id source an {@code [augment.receiver]} entry names. */
+import java.util.List;
+
+/** The receiver id sources an {@code [augment.receiver]} entry names. */
 public sealed interface IdSpec {
 
-    record FieldSpec(String memberName) implements IdSpec {
+    /** One field or no-argument method, giving one receiver id. */
+    sealed interface MemberSpec extends IdSpec {
+
+        String memberName();
     }
 
-    record MethodSpec(String memberName) implements IdSpec {
+    record FieldSpec(String memberName) implements MemberSpec {
     }
 
-    /** {@code "@"}: the {@code @StackTraceId} of the class. The parameter annotations are {@code [augment.params]}'s. */
+    record MethodSpec(String memberName) implements MemberSpec {
+    }
+
+    /** A list of fields and methods, e.g. {@code ["tenant", "id()"]}: one receiver id each, in this order. */
+    record MemberList(List<MemberSpec> members) implements IdSpec {
+
+        public MemberList {
+            members = List.copyOf(members);
+        }
+    }
+
+    /**
+     * {@code "@"}: the {@code @StackTraceId} members of the class, one receiver id each. The parameter annotations are
+     * {@code [augment.params]}'s.
+     */
     record Annotations() implements IdSpec {
     }
 

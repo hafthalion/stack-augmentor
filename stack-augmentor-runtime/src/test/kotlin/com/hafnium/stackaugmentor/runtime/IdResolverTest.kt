@@ -44,6 +44,25 @@ class IdResolverTest {
 
     class ChildOfBase : BaseWithId()
 
+    open class MultiAnnotated {
+        @StackTraceId
+        val tenant = "acme"
+
+        @StackTraceId
+        val orderId = 42
+
+        @StackTraceId
+        fun region() = "eu"
+
+        @StackTraceId
+        fun channel() = "web"
+    }
+
+    class ChildOfMulti : MultiAnnotated() {
+        @StackTraceId
+        val lineId = 7
+    }
+
     enum class Color { RED }
 
     data class Point(val x: Int)
@@ -72,6 +91,38 @@ class IdResolverTest {
         IdResolver(AugmentorConfig.builder().classes(classes.toMap()).maxIdLength(10).build())
 
     private fun name(type: Class<*>) = type.name
+
+    /** The only receiver id, or null. */
+    private fun IdResolver.receiverId(target: Any, declaringClass: String = target.javaClass.name): NamedId? =
+        receiverIds(target, declaringClass).also { assertTrue(it.size <= 1, "$it") }.singleOrNull()
+
+    @Test
+    fun `every annotated member gives an id, fields first, then methods by name, nearest class first`() {
+        val resolver = resolver(here to annotations)
+        assertEquals(
+            listOf(NamedId("tenant", "acme"), NamedId("orderId", "42"), NamedId("channel", "web"), NamedId("region", "eu")),
+            resolver.receiverIds(MultiAnnotated()),
+        )
+        assertEquals(listOf("lineId", "tenant", "orderId", "channel", "region"), resolver.receiverIds(ChildOfMulti()).map { it.name() })
+    }
+
+    @Test
+    fun `a list of members gives one id each, in the configured order`() {
+        val list = IdSpec.MemberList(listOf(IdSpec.FieldSpec("customerId"), IdSpec.MethodSpec("toString")))
+        assertEquals(
+            listOf(NamedId("customerId", "c-7"), NamedId("toString", "Unannotat…")),
+            resolver(name(Unannotated::class.java) to list).receiverIds(Unannotated("c-7")),
+        )
+    }
+
+    @Test
+    fun `a missing member of a list is reported and left out`() {
+        val err = ByteArrayOutputStream()
+        System.setErr(PrintStream(err, true, Charsets.UTF_8))
+        val list = IdSpec.MemberList(listOf(IdSpec.FieldSpec("nope"), IdSpec.FieldSpec("customerId")))
+        assertEquals(listOf(NamedId("customerId", "c-1")), resolver(name(Annotated::class.java) to list).receiverIds(Annotated()))
+        assertTrue(err.toString().contains("no field or property nope found"), err.toString())
+    }
 
     @Test
     fun `annotated field, method and constructor property`() {

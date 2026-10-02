@@ -22,12 +22,7 @@ class ReceiverEntries(private val config: AugmentorConfig) {
         return listOf(Entry(deciding.key(), text(deciding.spec()))) + others.map { (key, spec) -> Entry(key, text(spec)) }
     }
 
-    private fun text(spec: IdSpec) = when (spec) {
-        is IdSpec.FieldSpec -> spec.memberName()
-        is IdSpec.MethodSpec -> spec.memberName() + "()"
-        is IdSpec.Annotations -> AugmentorConfig.ANNOTATIONS
-        is IdSpec.Excluded -> AugmentorConfig.EXCLUDED
-    }
+    private fun text(spec: IdSpec) = AugmentorConfig.specText(spec)
 
     companion object {
         fun load(file: Path) = ReceiverEntries(AugmentorConfig.load(file))

@@ -30,14 +30,16 @@ import java.util.stream.Collectors;
  *
  * [augment]                   # how frames look
  * frameFormat = "$class$receiver.$method$params"
- * receiverFormat = "{$name=$id}"
+ * receiverFormat = "{$name=$id, ...}"
  * paramsFormat = "{$name=$id, ...}"
  * maxIdLength = 64
  *
- * [augment.receiver]           # receiver ids: a field, a "method()", "@" for @StackTraceId, "-" for none
+ * [augment.receiver]           # receiver ids: a field, a "method()", a list of them, "@" for the @StackTraceId
+ *                            # members, "-" for none
  * "com.hafnium.**" = "@"
  * "com.hafnium.generated.**" = "-"
  * "com.thirdparty.Order" = "getOrderNumber()"
+ * "com.thirdparty.OrderLine" = ["tenant", "lineId()"]
  *
  * [augment.params]           # parameter ids: names and indexes ("#" after one hashes it), "@" for the annotations,
  *                            # "-" for none
@@ -60,7 +62,7 @@ public final class AugmentorConfig {
     public static final String CONSTRUCTOR = "<init>";
 
     public static final String DEFAULT_FRAME_FORMAT = "$class$receiver.$method$params";
-    public static final String DEFAULT_RECEIVER_FORMAT = "{$name=$id}";
+    public static final String DEFAULT_RECEIVER_FORMAT = "{$name=$id, ...}";
     public static final String DEFAULT_PARAMS_FORMAT = "{$name=$id, ...}";
     public static final int DEFAULT_MAX_ID_LENGTH = 64;
     public static final String CONFIG_PROPERTY = "stackaugmentor.config";
@@ -187,14 +189,21 @@ public final class AugmentorConfig {
     /** The {@code [augment.receiver]} entries for the debug log, e.g. {@code com.acme.**=@, com.acme.Order=getId()}. */
     public String classesDescription() {
         String text = classes.entrySet().stream()
-                .map(entry -> entry.getKey() + "=" + switch (entry.getValue()) {
-                    case IdSpec.Annotations annotations -> ANNOTATIONS;
-                    case IdSpec.MethodSpec method -> method.memberName() + "()";
-                    case IdSpec.FieldSpec field -> field.memberName();
-                    case IdSpec.Excluded excluded -> EXCLUDED;
-                })
+                .map(entry -> entry.getKey() + "=" + specText(entry.getValue()))
                 .collect(Collectors.joining(", "));
         return text.isEmpty() ? "none" : text;
+    }
+
+    /** An {@code [augment.receiver]} value as written, e.g. {@code getId()} or {@code [tenant, id()]}. */
+    public static String specText(IdSpec spec) {
+        return switch (spec) {
+            case IdSpec.Annotations annotations -> ANNOTATIONS;
+            case IdSpec.MethodSpec method -> method.memberName() + "()";
+            case IdSpec.FieldSpec field -> field.memberName();
+            case IdSpec.MemberList list -> list.members().stream().map(AugmentorConfig::specText)
+                    .collect(Collectors.joining(", ", "[", "]"));
+            case IdSpec.Excluded excluded -> EXCLUDED;
+        };
     }
 
     /** The {@code [augment.params]} entries for the debug log, e.g. {@code com.acme.Order.process[order, #2]}. */
@@ -601,9 +610,37 @@ public final class AugmentorConfig {
             if (EXCLUDED.equals(value)) {
                 return new IdSpec.Excluded();
             }
+            if (value instanceof TomlArray array) {
+                if (array.size() == 0) {
+                    throw error(path, "must list at least one field or method");
+                }
+                List<IdSpec.MemberSpec> members = new ArrayList<>(array.size());
+                for (Object member : array.toList()) {
+                    IdSpec.MemberSpec spec = memberSpec(member);
+                    if (spec == null) {
+                        throw error(path, "invalid receiver id '" + member + "': use a field name (e.g. \"orderId\") or a "
+                                + "method (e.g. \"getOrderId()\")");
+                    }
+                    if (members.stream().anyMatch(it -> it.memberName().equals(spec.memberName()))) {
+                        throw error(path, "'" + member + "' is listed twice");
+                    }
+                    members.add(spec);
+                }
+                return new IdSpec.MemberList(members);
+            }
+            IdSpec.MemberSpec spec = memberSpec(value);
+            if (spec == null) {
+                throw error(path, "must be a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), a list of them "
+                        + "(e.g. [\"tenant\", \"getOrderId()\"]), \"@\" for its @StackTraceId members, or \"-\" for no receiver "
+                        + "id, was " + value);
+            }
+            return spec;
+        }
+
+        /** A field name or a method, e.g. {@code "orderId"} or {@code "getOrderId()"}; {@code null} for anything else. */
+        private static IdSpec.MemberSpec memberSpec(Object value) {
             if (!(value instanceof String text) || !IDENTIFIER.matcher(removeCallSuffix(text)).matches()) {
-                throw error(path, "must be a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), \"@\" for its "
-                        + "@StackTraceId, or \"-\" for no receiver id, was " + value);
+                return null;
             }
             String name = removeCallSuffix(text);
             return text.endsWith("()") ? new IdSpec.MethodSpec(name) : new IdSpec.FieldSpec(name);

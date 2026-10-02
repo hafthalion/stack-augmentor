@@ -18,6 +18,17 @@ class KeyedByMethod {
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
+/** Several @StackTraceId members: one id each. */
+class MultiKeyed {
+    @StackTraceId
+    val tenant = "acme"
+
+    @StackTraceId
+    val orderId = 42
+
+    fun fail(): Nothing = throw IllegalStateException("fail")
+}
+
 open class Base {
     @StackTraceId
     val baseId = "b1"

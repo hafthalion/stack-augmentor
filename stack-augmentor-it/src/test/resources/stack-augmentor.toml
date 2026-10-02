@@ -12,6 +12,8 @@ maxIdLength = 20
 # Stand-ins for classes you cannot annotate
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"
+# Several receiver ids, in this order
+"com.thirdparty.OrderLine" = ["tenant", "lineId()"]
 "com.thirdparty.*Account" = "number"
 # '?' matches one character: Ledger1, not Ledger12
 "com.thirdparty.Ledger?" = "code"
