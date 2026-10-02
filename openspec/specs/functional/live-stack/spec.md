@@ -28,8 +28,7 @@ frame of that trace whose method an entry selects, as decided by the same rules 
 the receiver and the selected arguments from the live stack and turn them into ids right away. Exceptions created while
 a class is being loaded SHALL be skipped. The ids SHALL be written into the throwable's stack trace array when that is
 created from the recorded frames, once, and SHALL not be written if the application replaced the stack trace.
-The configuration and the formats SHALL be the same as with instrumentation. Code added to classes at build time SHALL
-do nothing in this mode: the live stack covers their frames.
+The configuration and the formats SHALL be the same as with instrumentation.
 
 #### Scenario: Frames below a catch
 - **GIVEN** `Layers.catchAndReturn()` catches the exception that `Layers.inner(1)` throws, and returns it
@@ -43,11 +42,6 @@ do nothing in this mode: the live stack covers their frames.
 - **GIVEN** a configured method called often enough to be compiled
 - **WHEN** it throws
 - **THEN** its frame shows the same ids as before it was compiled
-
-#### Scenario: Classes instrumented at build time
-- **GIVEN** an application whose classes were instrumented at build time, started with the native library and the agent
-- **WHEN** `ClassWithAnnotation.caught()` catches the exception that its `error()` throws, and returns it
-- **THEN** both frames show the receiver id, read from the live stack, and no frame shows ids twice
 
 #### Scenario: Replaced stack trace
 - **GIVEN** an exception with captured ids whose stack trace the application replaced with `setStackTrace`

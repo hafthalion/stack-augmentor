@@ -10,14 +10,8 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
-/**
- * The fixtures in src/main were instrumented at build time; the tests run without a Java agent, in testWithAgent with it,
- * and in testLiveStack with the agent's live-stack mode, which then gives their frames ids instead of the code added at
- * build time.
- */
+/** The fixtures in src/main were instrumented at build time; the tests run without a Java agent. */
 class BuildTimeInstrumentationTest {
-
-    private val liveStack = System.getProperty("stackaugmentor.it.mode") == "live"
 
     @Test
     fun `annotated classes show their receiver and parameter ids`() {
@@ -66,19 +60,6 @@ class BuildTimeInstrumentationTest {
         assertEquals("track", e.stackTrace[0].methodName)
         assertEquals("com.hafnium.it.buildtime.Parcel", e.stackTrace[1].className)
         assertEquals("track", e.stackTrace[1].methodName)
-    }
-
-    @Test
-    fun `the frame that catches the exception gets ids only from the live stack`() {
-        val e = ClassWithAnnotation("object-3").caught()
-        val receiver = if (liveStack) "{objectId=object-3}" else ""
-        assertEquals(
-            listOf(
-                "com.hafnium.it.buildtime.ClassWithAnnotation{objectId=object-3}.error",
-                "com.hafnium.it.buildtime.ClassWithAnnotation$receiver.caught",
-            ),
-            frames(e, 2),
-        )
     }
 
     private fun frames(e: Throwable, count: Int) = e.stackTrace.take(count).map { "${it.className}.${it.methodName}" }

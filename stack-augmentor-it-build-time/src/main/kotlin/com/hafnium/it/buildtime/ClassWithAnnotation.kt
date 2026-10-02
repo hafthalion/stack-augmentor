@@ -26,13 +26,6 @@ data class ClassWithAnnotation(
     private fun error(): Nothing {
         throw Exception("An error has occurred")
     }
-
-    /** Catches the exception and returns it: it never leaves this frame. */
-    fun caught(): Exception = try {
-        error()
-    } catch (e: Exception) {
-        e
-    }
 }
 
 /** No annotations: its parameter comes from its exact [augment.params] entry, which beats the "@" pattern. */

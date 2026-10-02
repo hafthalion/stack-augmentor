@@ -286,9 +286,8 @@ The agent then adds code to `java.lang.Throwable` only. When the JVM records the
 - **Every exception pays a stack walk**, also when no frame is configured: measured with JDK 25 on a Linux container, about 4 µs for a 10-frame stack and 13 µs for a 100-frame one, plus 2 to 4 µs per configured frame. Exceptions created while a class loads, such as a class loader's `ClassNotFoundException`, are skipped.
 - **An object argument that the JIT optimized away reads as `null`, and is shown as `?`**, e.g. a boxed `Integer` created in compiled code and never stored (scalar replacement). `-XX:-EliminateAllocations` turns that optimization off, at some cost; a receiver optimized away shows no receiver id.
 - **It relies on JDK internals.** If they are missing or behave differently, the agent says so and instruments classes as usual. There is no build-time equivalent.
-- **Classes instrumented at build time work in this mode too:** their frames get ids from the live stack like all others, as the agent's configuration decides, and the code added at build time does nothing. Without the agent, the native library alone changes nothing.
 
-`./gradlew :stack-augmentor-it:testLiveStack :stack-augmentor-it-build-time:testLiveStack` runs the integration tests in this mode; without a C compiler they are skipped, except on CI.
+`./gradlew :stack-augmentor-it:testLiveStack` runs the integration tests in this mode; without a C compiler it is skipped, except on CI.
 
 ## Limitations
 
@@ -315,7 +314,7 @@ The library modules are written in Java and don't depend on the Kotlin runtime; 
 | `stack-augmentor-build-plugin` | The ByteBuddy build plugin for build-time instrumentation |
 | `stack-augmentor-it` | Integration tests, run with the agent attached (`test`) and in the live-stack mode (`testLiveStack`), including a Java application run without the Kotlin runtime |
 | `examples/java-agent` | Demo with the agent: the example above, plus third-party stand-ins configured in `stack-augmentor.toml` |
-| `stack-augmentor-it-build-time` | Integration tests for build-time instrumentation: fixtures instrumented by the build plugin, run without an agent (`test`, `testOpenJavaLang`), again with it (`testWithAgent`) and with its live-stack mode (`testLiveStack`) |
+| `stack-augmentor-it-build-time` | Integration tests for build-time instrumentation: fixtures instrumented by the build plugin, run without an agent, and again with it (`testWithAgent`) |
 | `examples/build-time` | The same demo with build-time instrumentation (the stand-ins are compiled with it) |
 
 Build and test with `./gradlew build`; run the agent demo with `run.bat`. This needs JDK 25.
