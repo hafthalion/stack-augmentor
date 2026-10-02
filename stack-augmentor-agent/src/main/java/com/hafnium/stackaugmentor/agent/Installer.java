@@ -2,7 +2,7 @@ package com.hafnium.stackaugmentor.agent;
 
 import com.hafnium.stackaugmentor.agent.instrument.ClassInstrumentation;
 import com.hafnium.stackaugmentor.agent.live.LiveStack;
-import com.hafnium.stackaugmentor.instrument.bridge.Dispatch;
+import com.hafnium.stackaugmentor.instrument.bridge.LiveDispatch;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
 import com.hafnium.stackaugmentor.runtime.handler.StackTraces;
@@ -56,7 +56,7 @@ final class Installer {
             if (!instrumentation.isModifiableModule(javaBase)) {
                 return false;
             }
-            instrumentation.redefineModule(javaBase, Set.of(Dispatch.class.getModule()), Map.of(), Map.of("java.lang", agent), Set.of(),
+            instrumentation.redefineModule(javaBase, Set.of(LiveDispatch.class.getModule()), Map.of(), Map.of("java.lang", agent), Set.of(),
                     Map.of());
             return true;
         } catch (RuntimeException e) {

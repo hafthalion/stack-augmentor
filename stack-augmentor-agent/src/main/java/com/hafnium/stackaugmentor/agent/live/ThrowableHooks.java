@@ -1,11 +1,11 @@
 package com.hafnium.stackaugmentor.agent.live;
 
-import com.hafnium.stackaugmentor.instrument.bridge.Dispatch;
+import com.hafnium.stackaugmentor.instrument.bridge.LiveDispatch;
 import net.bytebuddy.asm.Advice;
 
 /**
  * The code that the live-stack mode adds to {@link Throwable}. It is inlined into {@code Throwable} and only calls
- * {@link Dispatch}, which the bootstrap class loader sees.
+ * {@link LiveDispatch}, which the bootstrap class loader sees.
  */
 final class ThrowableHooks {
 
@@ -22,7 +22,7 @@ final class ThrowableHooks {
         static void exit(@Advice.This Throwable self, @Advice.FieldValue("backtrace") Object backtrace) {
             // No backtrace: the stack trace is not writable, so the VM recorded nothing.
             if (backtrace != null) {
-                Dispatch.onFill(self);
+                LiveDispatch.onFill(self);
             }
         }
     }
@@ -44,7 +44,7 @@ final class ThrowableHooks {
         @Advice.OnMethodExit
         static void exit(@Advice.Enter boolean created, @Advice.This Throwable self, @Advice.Return StackTraceElement[] trace) {
             if (created) {
-                Dispatch.onTrace(self, trace);
+                LiveDispatch.onTrace(self, trace);
             }
         }
     }
@@ -57,7 +57,7 @@ final class ThrowableHooks {
 
         @Advice.OnMethodExit
         static void exit(@Advice.This Throwable self) {
-            Dispatch.onSetTrace(self);
+            LiveDispatch.onSetTrace(self);
         }
     }
 }

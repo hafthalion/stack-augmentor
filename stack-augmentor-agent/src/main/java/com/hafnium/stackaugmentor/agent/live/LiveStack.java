@@ -3,6 +3,7 @@ package com.hafnium.stackaugmentor.agent.live;
 import com.hafnium.stackaugmentor.instrument.IdParameters;
 import com.hafnium.stackaugmentor.instrument.TypeMatching;
 import com.hafnium.stackaugmentor.instrument.bridge.Dispatch;
+import com.hafnium.stackaugmentor.instrument.bridge.LiveDispatch;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
 import com.hafnium.stackaugmentor.runtime.ids.FrameFormat;
@@ -77,21 +78,21 @@ public final class LiveStack {
                 maxDepth <= 0 ? Integer.MAX_VALUE : maxDepth, eliminatedAllocations);
 
         AtomicBoolean probed = new AtomicBoolean();
-        Dispatch.install(new ProbeHandler(probed));
+        LiveDispatch.install(new ProbeHandler(probed));
         ResettableClassFileTransformer transformer;
         try {
             transformer = hookThrowable(instrumentation);
         } catch (RuntimeException e) {
-            Dispatch.install((Dispatch.TraceHandler) null);
+            LiveDispatch.install(null);
             return "cannot add code to java.lang.Throwable: " + e;
         }
         new ProbeException();
         if (!probed.get()) {
-            Dispatch.install((Dispatch.TraceHandler) null);
+            LiveDispatch.install(null);
             transformer.reset(instrumentation, AgentBuilder.RedefinitionStrategy.RETRANSFORMATION);
             return "the code added to java.lang.Throwable is not called";
         }
-        Dispatch.install(handler);
+        LiveDispatch.install(handler);
         // Classes instrumented at build time still call the handler: the live stack already covers their frames.
         Dispatch.install((self, thrown, owner, method, paramValues, paramNames) -> {
         });
@@ -142,7 +143,7 @@ public final class LiveStack {
     private static final class ProbeException extends Throwable {
     }
 
-    private record ProbeHandler(AtomicBoolean probed) implements Dispatch.TraceHandler {
+    private record ProbeHandler(AtomicBoolean probed) implements LiveDispatch.Handler {
 
         @Override
         public void onFill(Throwable thrown) {
