@@ -1,4 +1,4 @@
-package com.hafnium.stackaugmentor.agent.live;
+package com.hafnium.stackaugmentor.instrument.live;
 
 import com.hafnium.stackaugmentor.instrument.IdParameter;
 import com.hafnium.stackaugmentor.instrument.TypeMatching;
@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
  * <p>It runs while a throwable is created, so it only looks at a class with reflection once a configuration entry
  * names it: reflection may load other classes.
  */
-final class FrameSpecs {
+public final class FrameSpecs {
 
     /** A parameter shown after the method name: where its value is among the frame's local variables, and its type. */
     record Param(String label, boolean hashed, int slot, Class<?> type) {
@@ -56,7 +56,7 @@ final class FrameSpecs {
         }
     };
 
-    FrameSpecs(AugmentorConfig config, TypeMatching matching) {
+    public FrameSpecs(AugmentorConfig config, TypeMatching matching) {
         this.config = config;
         this.matching = matching;
     }

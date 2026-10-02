@@ -4,6 +4,10 @@ import com.hafnium.stackaugmentor.instrument.IdParameters;
 import com.hafnium.stackaugmentor.instrument.TypeMatching;
 import com.hafnium.stackaugmentor.instrument.bridge.Dispatch;
 import com.hafnium.stackaugmentor.instrument.bridge.LiveDispatch;
+import com.hafnium.stackaugmentor.instrument.live.FrameSpecs;
+import com.hafnium.stackaugmentor.instrument.live.LiveFrames;
+import com.hafnium.stackaugmentor.instrument.live.LiveStackFrames;
+import com.hafnium.stackaugmentor.instrument.live.ThrowableHooks;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
 import com.hafnium.stackaugmentor.runtime.ids.FrameFormat;
@@ -11,18 +15,13 @@ import com.hafnium.stackaugmentor.runtime.ids.IdResolver;
 import com.sun.management.HotSpotDiagnosticMXBean;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.agent.builder.ResettableClassFileTransformer;
-import net.bytebuddy.asm.Advice;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.management.ManagementFactory;
-import java.util.EnumSet;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static net.bytebuddy.matcher.ElementMatchers.is;
-import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.none;
-import static net.bytebuddy.matcher.ElementMatchers.takesNoArguments;
 
 /**
  * The experimental live-stack mode: instead of instrumenting the configured classes, the agent adds code to
@@ -34,10 +33,6 @@ import static net.bytebuddy.matcher.ElementMatchers.takesNoArguments;
  * instruments classes as usual.
  */
 public final class LiveStack {
-
-    /** Reflection frames are part of stack traces, so the walkers show them too. */
-    private static final Set<StackWalker.Option> OPTIONS =
-            EnumSet.of(StackWalker.Option.RETAIN_CLASS_REFERENCE, StackWalker.Option.SHOW_REFLECT_FRAMES);
 
     private static final int DEFAULT_MAX_DEPTH = 1024;
 
@@ -63,18 +58,18 @@ public final class LiveStack {
         }
         LiveStackFrames live;
         try {
-            live = new LiveStackFrames(OPTIONS);
+            live = new LiveStackFrames();
         } catch (ReflectiveOperationException | RuntimeException e) {
             return "this JDK has no usable java.lang.LiveStackFrame: " + e;
         }
-        String problem = Probe.check(live);
+        String problem = live.checkLayout();
         if (problem != null) {
             return problem;
         }
         int maxDepth = vmOption("MaxJavaStackTraceDepth", DEFAULT_MAX_DEPTH);
         boolean eliminatedAllocations = vmOption("EliminateAllocations", 1) != 0;
         TypeMatching matching = new TypeMatching(config, new IdParameters(config));
-        LiveFrames handler = new LiveFrames(StackWalker.getInstance(OPTIONS), live, new FrameSpecs(config, matching), new IdResolver(config), format,
+        LiveFrames handler = new LiveFrames(live, new FrameSpecs(config, matching), new IdResolver(config), format,
                 maxDepth <= 0 ? Integer.MAX_VALUE : maxDepth, eliminatedAllocations);
 
         AtomicBoolean probed = new AtomicBoolean();
@@ -118,10 +113,7 @@ public final class LiveStack {
                 })
                 .ignore(none())
                 .type(is(Throwable.class))
-                .transform((builder, type, classLoader, module, protectionDomain) -> builder
-                        .visit(Advice.to(ThrowableHooks.Fill.class).on(named("fillInStackTrace").and(takesNoArguments())))
-                        .visit(Advice.to(ThrowableHooks.Read.class).on(named("getOurStackTrace")))
-                        .visit(Advice.to(ThrowableHooks.Replace.class).on(named("setStackTrace"))))
+                .transform((builder, type, classLoader, module, protectionDomain) -> ThrowableHooks.addTo(builder))
                 .installOn(instrumentation);
     }
 
@@ -158,56 +150,6 @@ public final class LiveStack {
 
         @Override
         public void onSetTrace(Throwable thrown) {
-        }
-    }
-
-    /** Checks that live stack frames hold the receiver and the arguments where {@link LiveFrames} expects them. */
-    static final class Probe {
-
-        private static final long LONG = 0x1122334455667788L;
-        private static final int INT = -42;
-        private static final String OBJECT = "probe";
-        private static final double DOUBLE = 2.5;
-
-        private final LiveStackFrames live;
-        private Object[] locals;
-
-        private Probe(LiveStackFrames live) {
-            this.live = live;
-        }
-
-        static String check(LiveStackFrames live) {
-            Probe probe = new Probe(live);
-            try {
-                probe.run(LONG, INT, OBJECT, DOUBLE, true);
-            } catch (RuntimeException e) {
-                return "cannot read live stack frames: " + e;
-            }
-            Object[] locals = probe.locals;
-            if (locals == null || locals.length < 8) {
-                return "live stack frames have no local variables";
-            }
-            boolean expected;
-            try {
-                // this, long (2 slots), int, Object, double (2 slots), boolean
-                expected = locals[0] == probe
-                        && Long.valueOf(LONG).equals(LiveFrames.primitive(long.class, live.bits(locals[2])))
-                        && Integer.valueOf(INT).equals(LiveFrames.primitive(int.class, live.bits(locals[3])))
-                        && locals[4] == OBJECT
-                        && Double.valueOf(DOUBLE).equals(LiveFrames.primitive(double.class, live.bits(locals[6])))
-                        && Boolean.TRUE.equals(LiveFrames.primitive(boolean.class, live.bits(locals[7])));
-            } catch (RuntimeException e) {
-                expected = false;
-            }
-            return expected ? null : "live stack frames do not hold the receiver and the arguments as expected";
-        }
-
-        private void run(long a, int b, Object c, double d, boolean e) {
-            locals = live.walker().walk(frames -> frames
-                    .filter(frame -> frame.getDeclaringClass() == Probe.class && frame.getMethodName().equals("run"))
-                    .findFirst()
-                    .map(live::locals)
-                    .orElse(null));
         }
     }
 }
