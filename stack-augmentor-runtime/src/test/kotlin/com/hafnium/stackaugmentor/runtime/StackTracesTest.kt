@@ -1,6 +1,7 @@
 package com.hafnium.stackaugmentor.runtime
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotSame
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -73,5 +74,10 @@ class StackTracesTest {
         stackTraces.write(thrown, trace, 0, replacement)
 
         assertEquals(replaced.toList(), thrown.stackTrace.toList())
+    }
+
+    @Test
+    fun `build-time handler writes in place when the application opens java lang`() {
+        assertNotSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces())
     }
 }
