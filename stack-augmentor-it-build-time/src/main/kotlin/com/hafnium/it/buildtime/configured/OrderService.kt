@@ -42,3 +42,8 @@ class Shipment(orderId: Long, weight: Double, note: String) {
         require(weight > 0) { "weight" }
     }
 }
+
+open class Box(val weight: Double)
+
+/** Computing the argument of super(...) throws, before the call: covered too. */
+class Crate(orderId: Long, weight: Double) : Box(weight.also { require(it > 0) { "weight" } })

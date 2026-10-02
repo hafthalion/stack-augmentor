@@ -25,12 +25,20 @@ import java.util.List;
 
 /**
  * The counterpart of the exit advice for constructors, which ByteBuddy's {@code Advice} cannot catch exceptions in:
- * a handler around the constructor body after the {@code super(...)} or {@code this(...)} call that passes the id
- * parameters to {@link Dispatch#onThrow} without a receiver, as {@code <init>}, and rethrows the exception.
+ * handlers that pass the id parameters to {@link Dispatch#onThrow} without a receiver, as {@code <init>}, and rethrow
+ * the exception. As Java, with the handler written twice:
+ * <pre>{@code
+ * Order(long orderId) {
+ *     try { <computing the arguments> } catch (Throwable t) { Dispatch.onThrow(...); throw t; }
+ *     super(<arguments>);
+ *     try { <the body> } catch (Throwable t) { Dispatch.onThrow(...); throw t; }
+ * }
+ * }</pre>
  *
- * <p>The code before that call is not covered: while {@code this} is uninitialized, the verifier accepts no handler
- * that also covers the code after it. So exceptions thrown by the superclass constructor, or while its arguments are
- * computed, get no ids in this frame. A normal return runs no added code.
+ * <p>The {@code super(...)} or {@code this(...)} call itself is not covered: the verifier accepts no handler around it,
+ * because no stack map frame can describe the state where {@code this} is in the middle of being initialized. So
+ * exceptions thrown by the called constructor get no ids in this frame. Two handlers are needed because {@code this} has
+ * different types before and after that call. A normal return runs no added code.
  */
 public final class ConstructorExit {
 
@@ -56,9 +64,10 @@ public final class ConstructorExit {
         private final MethodDescription constructor;
         private final List<IdParameter> selected;
         private final Implementation.Context context;
-        private final Label start = new Label();
+        private final Label begin = new Label();
+        private final Label beforeInit = new Label();
+        private final Label afterInit = new Label();
         private final Label end = new Label();
-        private final Label handler = new Label();
         /** Objects created with {@code new} whose constructor has not been called yet. */
         private int pendingNew;
         private boolean started;
@@ -73,6 +82,12 @@ public final class ConstructorExit {
         }
 
         @Override
+        public void visitCode() {
+            super.visitCode();
+            super.visitLabel(begin);
+        }
+
+        @Override
         public void visitTypeInsn(int opcode, String typeName) {
             super.visitTypeInsn(opcode, typeName);
             if (opcode == Opcodes.NEW) {
@@ -82,17 +97,18 @@ public final class ConstructorExit {
 
         @Override
         public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
-            super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
             if (started || opcode != Opcodes.INVOKESPECIAL || !name.equals(MethodDescription.CONSTRUCTOR_INTERNAL_NAME)) {
-                return;
-            }
-            if (pendingNew > 0) {
+                super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
+            } else if (pendingNew > 0) {
                 // Initializes an object created with new, e.g. an argument of super(...).
                 pendingNew--;
+                super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
             } else {
-                // The super(...) or this(...) call: from here on, this is initialized.
+                // The super(...) or this(...) call: before it this is uninitialized, after it initialized.
                 started = true;
-                super.visitLabel(start);
+                super.visitLabel(beforeInit);
+                super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
+                super.visitLabel(afterInit);
             }
         }
 
@@ -103,23 +119,37 @@ public final class ConstructorExit {
                 return;
             }
             super.visitLabel(end);
-            super.visitTryCatchBlock(start, end, handler, THROWABLE);
+            Label argumentsHandler = new Label();
+            Label bodyHandler = new Label();
+            super.visitTryCatchBlock(begin, beforeInit, argumentsHandler, THROWABLE);
+            super.visitTryCatchBlock(afterInit, end, bodyHandler, THROWABLE);
+            int handlerStack = handler(argumentsHandler, Opcodes.UNINITIALIZED_THIS);
+            handler(bodyHandler, type.getInternalName());
+            super.visitMaxs(Math.max(maxStack, handlerStack), maxLocals);
+        }
+
+        /**
+         * Writes a handler: {@code Dispatch.onThrow(null, thrown, owner, "<init>", values, labels)}, then rethrows. Its
+         * frame names {@code this} as {@code thisType} and the parameters with their declared types. Returns its maximal
+         * stack size.
+         */
+        private int handler(Label handler, Object thisType) {
             super.visitLabel(handler);
             if (context.getClassFileVersion().isAtLeast(ClassFileVersion.JAVA_V6)) {
                 List<Object> locals = new ArrayList<>();
-                locals.add(type.getInternalName());
+                locals.add(thisType);
                 for (ParameterDescription parameter : constructor.getParameters()) {
                     locals.add(frameType(parameter.getType().asErasure()));
                 }
                 super.visitFrame(Opcodes.F_NEW, locals.size(), locals.toArray(), 1, new Object[]{THROWABLE});
             }
-            // Stack: thrown. Dispatch.onThrow(null, thrown, owner, "<init>", values, labels), then rethrow.
+            // Stack: thrown, thrown, null -> thrown, null, thrown.
             super.visitInsn(Opcodes.DUP);
             super.visitInsn(Opcodes.ACONST_NULL);
             super.visitInsn(Opcodes.SWAP);
             StackManipulation.Size size = arguments().apply(mv, context);
             super.visitInsn(Opcodes.ATHROW);
-            super.visitMaxs(Math.max(maxStack, 3 + size.getMaximalSize()), maxLocals);
+            return 3 + size.getMaximalSize();
         }
 
         /** Pushes the owner, the method name, the id values and their labels, and calls {@link Dispatch#onThrow}. */

@@ -16,10 +16,10 @@ normal returns free of cost.
 - **WHEN** the log is read
 - **THEN** the frame of `m` and the frames below it show no ids
 
-### Requirement: Constructors show parameter ids only, after super(...)
+### Requirement: Constructors show parameter ids only, not for exceptions from super(...)
 Constructors SHALL NOT get receiver ids, because an exception can leave a constructor before the object is
-initialised. Their parameter ids SHALL only be shown for exceptions thrown after the `super(...)` or
-`this(...)` call: the JVM's verifier accepts no exception handler that covers the code before it as well.
+initialised. Their parameter ids SHALL NOT be shown for exceptions thrown inside the constructor called with
+`super(...)` or `this(...)`: the JVM's verifier accepts no exception handler around that call.
 
 #### Scenario: Exception in a constructor without parameter ids
 - **GIVEN** an annotated class whose constructor throws, and no `[augment.params]` entry for its `<init>`
