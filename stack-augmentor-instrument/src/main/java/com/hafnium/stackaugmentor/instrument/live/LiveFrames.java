@@ -1,4 +1,4 @@
-package com.hafnium.stackaugmentor.agent.live;
+package com.hafnium.stackaugmentor.instrument.live;
 
 import com.hafnium.stackaugmentor.instrument.bridge.LiveDispatch;
 import com.hafnium.stackaugmentor.runtime.Log;
@@ -22,10 +22,10 @@ import java.util.stream.Stream;
  * methods that catch the exception or called them, and it matches frames by position: recursion needs no special
  * care.
  */
-final class LiveFrames implements LiveDispatch.Handler {
+public final class LiveFrames implements LiveDispatch.Handler {
 
     /** Shown for an argument that the JIT optimized away (scalar replacement): it reads as {@code null}. */
-    static final String UNKNOWN = "?";
+    public static final String UNKNOWN = "?";
 
     /** The ids of one frame, at its position in the trace. */
     record Captured(int index, String className, String methodName, int lineNumber, List<NamedId> receiverIds, List<NamedId> paramIds) {
@@ -44,9 +44,9 @@ final class LiveFrames implements LiveDispatch.Handler {
     /** The captured frames of the throwables whose stack trace array was not created yet. */
     private final WeakIdentityMap<Throwable, List<Captured>> pending = new WeakIdentityMap<>();
 
-    LiveFrames(StackWalker plain, LiveStackFrames live, FrameSpecs specs, IdResolver resolver, FrameFormat format, int maxDepth,
-               boolean eliminatedAllocations) {
-        this.plain = plain;
+    public LiveFrames(LiveStackFrames live, FrameSpecs specs, IdResolver resolver, FrameFormat format, int maxDepth,
+                      boolean eliminatedAllocations) {
+        this.plain = live.plainWalker();
         this.live = live;
         this.specs = specs;
         this.resolver = resolver;
@@ -157,39 +157,9 @@ final class LiveFrames implements LiveDispatch.Handler {
             if (!live.isPrimitive(local)) {
                 return UNKNOWN;
             }
-            value = primitive(type, live.bits(local));
+            value = LiveStackFrames.primitive(type, live.bits(local));
         }
         return param.hashed() ? resolver.hashedParamId(value) : resolver.paramId(value);
-    }
-
-    /** The value of a primitive slot: narrower types sit in its low bits. */
-    static Object primitive(Class<?> type, long bits) {
-        if (type == long.class) {
-            return bits;
-        }
-        if (type == double.class) {
-            return Double.longBitsToDouble(bits);
-        }
-        int low = (int) bits;
-        if (type == int.class) {
-            return low;
-        }
-        if (type == boolean.class) {
-            return low != 0;
-        }
-        if (type == char.class) {
-            return (char) low;
-        }
-        if (type == byte.class) {
-            return (byte) low;
-        }
-        if (type == short.class) {
-            return (short) low;
-        }
-        if (type == float.class) {
-            return Float.intBitsToFloat(low);
-        }
-        throw new IllegalArgumentException(type.getName());
     }
 
     /**

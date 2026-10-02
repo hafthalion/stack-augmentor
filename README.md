@@ -308,7 +308,7 @@ The library modules are written in Java and don't depend on the Kotlin runtime; 
 | `stack-augmentor-api` | `@StackTraceId`, `@StackTraceParam`, `@StackTraceParams` (no dependencies) |
 | `stack-augmentor-instrument-bridge` | `Dispatch`, which the advice calls, and `LiveDispatch`, which the live-stack mode's code in `Throwable` calls (Java, no dependencies) |
 | `stack-augmentor-runtime` | Configuration, id lookup, frame formatting, and the handler; shared by both ways |
-| `stack-augmentor-instrument` | Which classes and methods get the advice, and the advice itself (ByteBuddy); shared by both ways |
+| `stack-augmentor-instrument` | Which classes and methods get the advice, the advice itself, and the live-stack mode's code in `Throwable` with how it reads ids from the live stack (ByteBuddy); shared by both ways |
 | `stack-augmentor-agent` | The Java agent; `shadowJar` builds the `-javaagent` jar |
 | `stack-augmentor-native` | The native library (C) for the agent's experimental live-stack mode, loaded with `-agentpath` |
 | `stack-augmentor-build-plugin` | The ByteBuddy build plugin for build-time instrumentation |
@@ -327,10 +327,11 @@ The packages under `com.hafnium.stackaugmentor` show which way of working uses w
 | `runtime.handler` | `ThrowHandler`, called by the code added to methods, and how it writes stack traces | Agent instrumenting classes, build-time instrumentation |
 | `instrument` | Which classes, methods and parameters show ids (`TypeMatching`, `IdParameters`) | Agent in both modes, build plugin |
 | `instrument.advice` | The code added to methods and constructors | Agent instrumenting classes, build plugin |
+| `instrument.live` | The code the live-stack mode adds to `Throwable`, and how it reads ids from the live stack | Agent with the native library |
 | `instrument.bridge` | `Dispatch`, the entry point of the code added to methods; `LiveDispatch`, of the code the live-stack mode adds to `Throwable` | `Dispatch`: all; `LiveDispatch`: agent with the native library |
 | `agent` | The agent's entry point, the bridge jar, and the choice of mode | Agent |
 | `agent.instrument` | Instrumenting the configured classes | Agent |
-| `agent.live` | The experimental live-stack mode | Agent with the native library |
+| `agent.live` | Turning the experimental live-stack mode on: the native library and the startup checks | Agent with the native library |
 | `build` | The ByteBuddy build plugin | Build-time instrumentation |
 
 Build and test with `./gradlew build`; run the agent demo with `run.bat`. This needs JDK 25.

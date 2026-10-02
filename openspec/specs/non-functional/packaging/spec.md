@@ -12,7 +12,8 @@ The project SHALL be split into these modules:
 - `stack-augmentor-instrument-bridge`: `Dispatch`, the class the advice calls, and `LiveDispatch`, the class the
   live-stack mode's code in `Throwable` calls (Java, no dependencies);
 - `stack-augmentor-runtime`: configuration, id lookup, frame formatting and `ThrowHandler`;
-- `stack-augmentor-instrument`: type and method matching and the exit advice (ByteBuddy);
+- `stack-augmentor-instrument`: type and method matching, the exit advice, and the live-stack mode's code in
+  `Throwable` with how it reads ids from the live stack (ByteBuddy);
 - `stack-augmentor-agent`: the Java agent;
 - `stack-augmentor-native`: the native library (C) of the agent's experimental live-stack mode;
 - `stack-augmentor-build-plugin`: the ByteBuddy build plugin.
