@@ -20,9 +20,9 @@ class FrameFormatTest {
 
     @Test
     fun `default format`() {
-        assertEquals("{\$name=\$id}", AugmentorConfig.DEFAULT_RECEIVER_FORMAT)
+        assertEquals("{\$name=\$id, ...}", AugmentorConfig.DEFAULT_RECEIVER_FORMAT)
         assertEquals("{\$name=\$id, ...}", AugmentorConfig.DEFAULT_PARAMS_FORMAT)
-        val result = rewrite().rewrite(element, receiver, listOf(orderId))
+        val result = rewrite().rewrite(element, listOf(receiver), listOf(orderId))
         assertEquals("com.hafnium.ObjectClass{objectId=123}", result.className)
         assertEquals("process{orderId=42}", result.methodName)
         assertEquals("com.hafnium.ObjectClass{objectId=123}.process{orderId=42}(ObjectClass.java:13)", result.toString())
@@ -30,31 +30,31 @@ class FrameFormatTest {
 
     @Test
     fun `groups without ids render empty`() {
-        assertEquals("com.hafnium.ObjectClass.process(ObjectClass.java:13)", rewrite().rewrite(element, null, emptyList()).toString())
-        assertEquals("com.hafnium.ObjectClass.process{orderId=42}(ObjectClass.java:13)", rewrite().rewrite(element, null, listOf(orderId)).toString())
+        assertEquals("com.hafnium.ObjectClass.process(ObjectClass.java:13)", rewrite().rewrite(element, emptyList(), emptyList()).toString())
+        assertEquals("com.hafnium.ObjectClass.process{orderId=42}(ObjectClass.java:13)", rewrite().rewrite(element, emptyList(), listOf(orderId)).toString())
     }
 
     @Test
     fun `ids after the method`() {
-        val result = rewrite(frameFormat = "\$class.\$method\$receiver\$params").rewrite(element, receiver, listOf(orderId))
+        val result = rewrite(frameFormat = "\$class.\$method\$receiver\$params").rewrite(element, listOf(receiver), listOf(orderId))
         assertEquals("com.hafnium.ObjectClass.process{objectId=123}{orderId=42}(ObjectClass.java:13)", result.toString())
     }
 
     @Test
     fun `value only and simple class name`() {
-        val result = rewrite(frameFormat = "\$simpleClass\$receiver.\$method", receiverFormat = "<\$id>").rewrite(element, receiver, listOf(orderId))
+        val result = rewrite(frameFormat = "\$simpleClass\$receiver.\$method", receiverFormat = "<\$id>").rewrite(element, listOf(receiver), listOf(orderId))
         assertEquals("ObjectClass<123>.process(ObjectClass.java:13)", result.toString())
     }
 
     @Test
     fun `brackets instead of braces`() {
-        val result = rewrite(receiverFormat = "[\$name=\$id]", paramsFormat = "[\$name=\$id, ...]").rewrite(element, receiver, listOf(orderId, customer))
+        val result = rewrite(receiverFormat = "[\$name=\$id]", paramsFormat = "[\$name=\$id, ...]").rewrite(element, listOf(receiver), listOf(orderId, customer))
         assertEquals("com.hafnium.ObjectClass[objectId=123].process[orderId=42, customer=7](ObjectClass.java:13)", result.toString())
     }
 
     @Test
     fun `braces and dollars are literal in the frame format`() {
-        val result = rewrite(frameFormat = "{\$\$\$simpleClass}\$receiver.\$method{\$params}").rewrite(element, receiver, listOf(orderId))
+        val result = rewrite(frameFormat = "{\$\$\$simpleClass}\$receiver.\$method{\$params}").rewrite(element, listOf(receiver), listOf(orderId))
         assertEquals("{\$ObjectClass}{objectId=123}.process{{orderId=42}}(ObjectClass.java:13)", result.toString())
     }
 
@@ -64,46 +64,46 @@ class FrameFormatTest {
             frameFormat = "\${simpleClass}Impl\$receiver.\${method}X\$params",
             receiverFormat = "<\${name}s=\$id>",
             paramsFormat = "[\${name}Id=\${id}, ...]",
-        ).rewrite(element, receiver, listOf(orderId, customer))
+        ).rewrite(element, listOf(receiver), listOf(orderId, customer))
         assertEquals("ObjectClassImpl<objectIds=123>.processX[orderIdId=42, customerId=7](ObjectClass.java:13)", result.toString())
     }
 
     @Test
     fun `a brace without a dollar is literal`() {
-        val result = rewrite(frameFormat = "{\$class}\$receiver.\$method\$params}").rewrite(element, receiver, listOf(orderId))
+        val result = rewrite(frameFormat = "{\$class}\$receiver.\$method\$params}").rewrite(element, listOf(receiver), listOf(orderId))
         assertEquals("{com.hafnium.ObjectClass}{objectId=123}.process{orderId=42}}(ObjectClass.java:13)", result.toString())
         // $$ before a brace is a literal dollar followed by a literal brace.
-        assertEquals("com.hafnium.ObjectClass\${123}", rewrite(receiverFormat = "\$\${\$id}").rewrite(element, receiver, emptyList()).className)
+        assertEquals("com.hafnium.ObjectClass\${123}", rewrite(receiverFormat = "\$\${\$id}").rewrite(element, listOf(receiver), emptyList()).className)
     }
 
     @Test
     fun `params format with repetition marker`() {
         assertEquals(
             "process{orderId=42, customer=7}",
-            rewrite().rewrite(element, null, listOf(orderId, customer)).methodName,
+            rewrite().rewrite(element, emptyList(), listOf(orderId, customer)).methodName,
         )
         assertEquals(
             "process[orderId: 42; customer: 7]",
-            rewrite(paramsFormat = "[\$name: \$id; ...]").rewrite(element, null, listOf(orderId, customer)).methodName,
+            rewrite(paramsFormat = "[\$name: \$id; ...]").rewrite(element, emptyList(), listOf(orderId, customer)).methodName,
         )
     }
 
     @Test
     fun `params format without repetition marker repeats the whole template`() {
         val format = rewrite(paramsFormat = "{\$name=\$id}")
-        assertEquals("process{orderId=42}", format.rewrite(element, null, listOf(orderId)).methodName)
-        assertEquals("process{orderId=42},{customer=7}", format.rewrite(element, null, listOf(orderId, customer)).methodName)
+        assertEquals("process{orderId=42}", format.rewrite(element, emptyList(), listOf(orderId)).methodName)
+        assertEquals("process{orderId=42},{customer=7}", format.rewrite(element, emptyList(), listOf(orderId, customer)).methodName)
     }
 
     @Test
     fun `all parameter ids are shown`() {
         val ids = (1..6).map { NamedId("p$it", "$it") }
-        assertEquals("process{p1=1, p2=2, p3=3, p4=4, p5=5, p6=6}", rewrite().rewrite(element, null, ids).methodName)
+        assertEquals("process{p1=1, p2=2, p3=3, p4=4, p5=5, p6=6}", rewrite().rewrite(element, emptyList(), ids).methodName)
     }
 
     @Test
     fun `double dollar is a literal dollar`() {
-        val result = rewrite(receiverFormat = "\$\$\$id").rewrite(element, receiver, emptyList())
+        val result = rewrite(receiverFormat = "\$\$\$id").rewrite(element, listOf(receiver), emptyList())
         assertEquals("com.hafnium.ObjectClass\$123", result.className)
     }
 
@@ -161,22 +161,34 @@ class FrameFormatTest {
     }
 
     @Test
+    fun `several receiver ids repeat like parameters`() {
+        val tenant = NamedId("tenant", "acme")
+        assertEquals("com.hafnium.ObjectClass{tenant=acme, objectId=123}", rewrite().rewrite(element, listOf(tenant, receiver), emptyList()).className)
+        assertEquals("com.hafnium.ObjectClass[acme|123]",
+            rewrite(receiverFormat = "[\$id|...]").rewrite(element, listOf(tenant, receiver), emptyList()).className)
+        // Without "...", the whole template repeats, separated by commas.
+        assertEquals("com.hafnium.ObjectClass<acme>,<123>",
+            rewrite(receiverFormat = "<\$id>").rewrite(element, listOf(tenant, receiver), emptyList()).className)
+        assertTrue(assertThrows<ConfigException> { rewrite(receiverFormat = "{...}") }.message!!.startsWith("receiverFormat must contain"))
+    }
+
+    @Test
     fun `native method location is kept`() {
         val native = StackTraceElement("com.hafnium.ObjectClass", "process", "ObjectClass.java", -2)
-        assertEquals("com.hafnium.ObjectClass{objectId=123}.process(Native Method)", rewrite().rewrite(native, receiver, emptyList()).toString())
+        assertEquals("com.hafnium.ObjectClass{objectId=123}.process(Native Method)", rewrite().rewrite(native, listOf(receiver), emptyList()).toString())
     }
 
     @Test
     fun `class loader and module prefix are kept`() {
         val inModule = StackTraceElement("my-loader", "my.module", "1.0", "com.hafnium.ObjectClass", "process", "ObjectClass.java", 13)
-        val result = rewrite().rewrite(inModule, receiver, emptyList())
+        val result = rewrite().rewrite(inModule, listOf(receiver), emptyList())
         assertEquals("my-loader/my.module@1.0/com.hafnium.ObjectClass{objectId=123}.process(ObjectClass.java:13)", result.toString())
     }
 
     @Test
     fun `real frames of application classes have no prefix`() {
         val real = Throwable().stackTrace[0]
-        val result = rewrite().rewrite(real, receiver, emptyList())
+        val result = rewrite().rewrite(real, listOf(receiver), emptyList())
         assertEquals(real.toString().replace("${real.className}.", "${real.className}{objectId=123}."), result.toString())
     }
 }

@@ -11,8 +11,8 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
 - `debug` (boolean, default `false`);
 - `[augment]`: `frameFormat`, `receiverFormat`, `paramsFormat` (strings), `maxIdLength` (integer
   between 2 and 10000, default 64), and the tables:
-  - `[augment.receiver]` (class name or class pattern → field name, `method()`, `"@"` for the class's
-    `@StackTraceId`, or `"-"` for no receiver id), which decides the receiver ids;
+  - `[augment.receiver]` (class name or class pattern → field name, `method()`, a list of them, `"@"` for
+    the class's `@StackTraceId` members, or `"-"` for no receiver id), which decides the receiver ids;
   - `[augment.params]` (`"<class pattern>.<method pattern>"` → array of parameter names and 0-based
     indexes from 0 to 255, the JVM's maximum number of parameters, each optionally followed by `#` to hash the value
     (an index is then written as a string, e.g. `"2#"`), `"@"` for the method's parameter annotations, or `"-"` for none;
@@ -69,7 +69,8 @@ of range, an invalid `[augment.receiver]` or `[augment.params]` entry, an invali
 `receiverFormat` or `paramsFormat` (see the frame format specification), or an unknown key in any
 section, including keys in the wrong section (such as `maxIdLength` at the top level). An `[augment.receiver]` entry SHALL
 be invalid when its key contains characters other than identifier characters, `$`, `.`, `*` and `?`, or
-when its value is not a field name, a `method()`, `"@"` or `"-"`. An `[augment.params]` entry SHALL be invalid
+when its value is not a field name, a `method()`, a non-empty list of them without duplicates, `"@"` or
+`"-"`. An `[augment.params]` entry SHALL be invalid
 when its key has no class or no method part, when a part contains characters other than identifier
 characters, `$`, `.` (class part only), `*` and `?`, or when its value is neither `"@"`, `"-"` nor a non-empty
 array of parameter names and indexes, each optionally followed by `#` (`"*"`, `"@"` and `"-"` are not allowed
@@ -96,7 +97,7 @@ inside the array, and `"*"` is not allowed as the value). The message SHALL name
 - **THEN** it is rejected with a message naming the key and its line
 
 #### Scenario: Invalid class entry
-- **GIVEN** `[augment.receiver]` with `"com.acme.Order" = "@id"`, or `"com.acme.Ord+er" = "@"`
+- **GIVEN** `[augment.receiver]` with `"com.acme.Order" = "@id"`, `"com.acme.Order" = []`, `"com.acme.Order" = ["id", "@"]`, or `"com.acme.Ord+er" = "@"`
 - **WHEN** the configuration is loaded
 - **THEN** it is rejected with a message naming the key and its line
 

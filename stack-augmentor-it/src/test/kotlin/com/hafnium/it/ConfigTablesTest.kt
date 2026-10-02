@@ -1,5 +1,6 @@
 package com.hafnium.it
 
+import com.hafnium.it.fixtures.MultiKeyed
 import com.hafnium.it.fixtures.Overridden
 import com.hafnium.it.fixtures.ignored.Ignored
 import com.hafnium.it.outside.ClassParamsViaMethods
@@ -11,6 +12,7 @@ import com.thirdparty.InventoryAudit
 import com.thirdparty.InventoryService
 import com.thirdparty.Ledger1
 import com.thirdparty.Ledger12
+import com.thirdparty.OrderLine
 import com.thirdparty.SavingsAccount
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -32,6 +34,17 @@ class ConfigTablesTest {
         val frame = frame("SavingsAccount(\"S-1\").withdraw()", SavingsAccount("S-1")) { it.withdraw() }
         assertEquals("com.thirdparty.SavingsAccount{number=S-1}", frame.className)
         assertEquals("withdraw", frame.methodName)
+    }
+
+    @Test
+    fun `a list of members gives several receiver ids`() {
+        val frame = frame("OrderLine(\"acme\", 3).cancel()", OrderLine("acme", 3)) { it.cancel() }
+        assertEquals("com.thirdparty.OrderLine{tenant=acme, lineId=3}", frame.className)
+    }
+
+    @Test
+    fun `several @StackTraceId members give several receiver ids`() {
+        assertEquals("com.hafnium.it.fixtures.MultiKeyed{tenant=acme, orderId=42}", frame("MultiKeyed().fail()", MultiKeyed()) { it.fail() }.className)
     }
 
     @Test

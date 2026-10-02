@@ -125,13 +125,14 @@ With the configuration in `src/main/resources`, one file serves both phases: the
 
 The two kinds of ids are configured independently: `[augment.receiver]` decides the receiver ids, `[augment.params]` the parameter ids. Neither table affects the other. Which classes and methods get instrumented is not configured directly: whatever either table needs is instrumented behind the scenes.
 
-**Receiver id**: the object a frame runs on. It comes from the deciding `[augment.receiver]` entry of the class that declares the frame's method, and is read from the object. An entry applies only to the classes whose names it matches, not to their subclasses. The entry names:
+**Receiver ids**: the object a frame runs on. They come from the deciding `[augment.receiver]` entry of the class that declares the frame's method, and are read from the object. An entry applies only to the classes whose names it matches, not to their subclasses. The entry names:
 
 - a field, or a no-argument `method()`, looked up in that class and its superclasses (for an interface: in it and the interfaces it extends); a method or getter is also found as a default method of an implemented interface; a name without a field, such as a Kotlin property of an interface, uses the property's getter (`code` reads `getCode()`);
-- `"@"`: the `@StackTraceId` on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`; or
+- a list of them, e.g. `["tenant", "lineId()"]`: one id each, in this order, e.g. `OrderLine{tenant=acme, lineId=3}.cancel`. A member that is missing is left out, with the same warning as for a single one;
+- `"@"`: every `@StackTraceId` on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`, one id each: fields first, in declaration order, then methods by name, starting with the class itself and then its superclasses; or
 - `"-"`: nothing, so the class gets no receiver id. Its parameter ids are not affected.
 
-When several entries match a class, the most specific one decides: an exact class name beats any pattern, and among patterns the one with the most characters other than `*` and `?` wins. So `"com.acme.Order" = "getId()"` overrides `"com.acme.**" = "@"` for `Order`, and `"com.acme.generated.**" = "-"` takes the generated classes out of `"com.acme.**" = "@"`. A class without a deciding entry, or without the member it names, gets no receiver id.
+When several entries match a class, the most specific one decides: an exact class name beats any pattern, and among patterns the one with the most characters other than `*` and `?` wins. So `"com.acme.Order" = "getId()"` overrides `"com.acme.**" = "@"` for `Order`, and `"com.acme.generated.**" = "-"` takes the generated classes out of `"com.acme.**" = "@"`. A class without a deciding entry, or without the members it names, gets no receiver id. Every id is the member's value as text, from `toString()`.
 
 So a subclass shows the id of its superclass's entry in the frames of the methods it inherits, and an entry of its own only affects the methods it declares, which are instrumented only with such an entry:
 
@@ -195,7 +196,7 @@ debug = false
 # How frames look: read at runtime, in both modes (these are the defaults).
 [augment]
 frameFormat = "$class$receiver.$method$params"
-receiverFormat = "{$name=$id}"
+receiverFormat = "{$name=$id, ...}"
 paramsFormat = "{$name=$id, ...}"
 maxIdLength = 64
 
@@ -204,7 +205,7 @@ maxIdLength = 64
 # Keys may use wildcards: '*' within one package (or name), '**' across packages, '?' one character.
 
 # Receiver ids: "@" for the class's @StackTraceId (without an "@" entry, it is not used), or, for classes you
-# cannot annotate, a field or a no-argument method ending in "()"; "-" for none. An entry applies to the
+# cannot annotate, a field or a no-argument method ending in "()", or a list of them; "-" for none. An entry applies to the
 # classes it matches, not to their subclasses; the most specific entry wins.
 [augment.receiver]
 "com.hafnium.**" = "@"
@@ -212,6 +213,7 @@ maxIdLength = 64
 "com.acme.orders.*" = "@"
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"
+"com.thirdparty.OrderLine" = ["tenant", "lineId()"]  # several ids
 "com.thirdparty.**.*Account" = "number"
 
 # Parameter ids: "<class>.<method>" = parameter names and 0-based indexes, a "#" after one to show its value
@@ -237,10 +239,10 @@ An invalid configuration stops the JVM (or the build) at startup. The message na
 | Template | Placeholders |
 |---|---|
 | `frameFormat` | `$class`, `$simpleClass`, `$method`, `$receiver`, `$params` |
-| `receiverFormat` | `$name`, `$id`. Renders empty when the frame has no receiver id. |
+| `receiverFormat` | `$name`, `$id`, and `...` to mark repetition. Renders empty when the frame has no receiver id. |
 | `paramsFormat` | `$name`, `$id`, and `...` to mark repetition. Renders empty when the method has no parameter ids. |
 
-- **`paramsFormat`** is split as follows. The text before the first placeholder and the text after `...` wrap the list. The part from the first to the last placeholder is repeated for each parameter. The text between the last placeholder and `...` separates the items. So `[$name: $id; ...]` renders `[orderId: 42; customer: 7]`.
+- **`receiverFormat` and `paramsFormat`** are split as follows. The text before the first placeholder and the text after `...` wrap the list. The part from the first to the last placeholder is repeated for each id. The text between the last placeholder and `...` separates the items. So `[$name: $id; ...]` renders `[orderId: 42; customer: 7]`. Without `...`, the whole template is repeated, separated by `,`: `<$id>` renders `<acme>,<3>` for two receiver ids.
 - **In all three templates**, placeholders start with `$` and everything else is literal, braces included; `$$` is a literal `$`. A placeholder name ends at the first character that is not a letter or digit, so `$class$receiver.$method$params` needs no separators. When letters or digits follow directly, write the name in braces: `${method}X` renders `processX`, while `$methodX` is rejected as an unknown placeholder. A brace without a `$` before it is literal. `(` and `)` are not allowed, because IDEs find a frame's file and line by the `(File.java:12)` at its end; ids have theirs replaced by `{` and `}` for the same reason.
 - **`frameFormat` must contain `.$method` (or `.${method}`) exactly once**, because the JDK always prints `<class>.<method>(<file>:<line>)`.
 
@@ -251,7 +253,7 @@ Examples:
 | defaults | `com.hafnium.ObjectClass{objectId=1}.process{orderId=42}(ObjectClass.java:13)` |
 | `frameFormat = "$class.$method$receiver$params"` | `com.hafnium.ObjectClass.process{objectId=1}{orderId=42}(ObjectClass.java:13)` |
 | `receiverFormat = "<$id>"` | `com.hafnium.ObjectClass<1>.process{orderId=42}(ObjectClass.java:13)` |
-| `receiverFormat = "[$name=$id]"`, `paramsFormat = "[$name=$id, ...]"` | `com.hafnium.ObjectClass[objectId=1].process[orderId=42](ObjectClass.java:13)` |
+| `receiverFormat = "[$name=$id, ...]"`, `paramsFormat = "[$name=$id, ...]"` | `com.hafnium.ObjectClass[objectId=1].process[orderId=42](ObjectClass.java:13)` |
 
 ## How it works
 

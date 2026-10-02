@@ -10,6 +10,13 @@ class Customer(private val customerId: String) {
     fun rename(): Nothing = throw IllegalStateException("cannot rename")
 }
 
+/** A list of receiver ids: ["tenant", "lineId()"]. */
+class OrderLine(private val tenant: String, private val lineId: Int) {
+    fun lineId(): Int = lineId
+
+    fun cancel(): Nothing = throw IllegalStateException("cannot cancel")
+}
+
 class OrderService {
     fun process(order: Order, quantity: Int, note: String): Nothing = throw IllegalStateException("cannot process")
 }

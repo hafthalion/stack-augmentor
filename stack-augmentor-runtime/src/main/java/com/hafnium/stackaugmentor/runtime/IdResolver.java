@@ -11,8 +11,10 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Turns objects into ids: receivers through the id source of a class, looked up once and cached, and arguments
@@ -77,14 +79,15 @@ public final class IdResolver {
 
     private final AugmentorConfig config;
 
-    private final ClassValue<Source> sources = new ClassValue<>() {
+    private final ClassValue<List<Source>> sources = new ClassValue<>() {
         @Override
-        protected Source computeValue(Class<?> type) {
-            Source source = findSource(type);
+        protected List<Source> computeValue(Class<?> type) {
+            List<Source> found = List.copyOf(findSources(type));
             if (Log.isDebug()) {
-                Log.debug(() -> "id source of " + type.getName() + ": " + (source != null ? source.description() : "none"));
+                Log.debug(() -> "id sources of " + type.getName() + ": " + (found.isEmpty() ? "none"
+                        : found.stream().map(Source::description).collect(Collectors.joining("; "))));
             }
-            return source;
+            return found;
         }
     };
 
@@ -92,22 +95,30 @@ public final class IdResolver {
         this.config = config;
     }
 
-    /** {@link #receiverId(Object, String)} for a method that the object's own class declares. */
-    public NamedId receiverId(Object target) {
-        return receiverId(target, target.getClass().getName());
+    /** {@link #receiverIds(Object, String)} for a method that the object's own class declares. */
+    public List<NamedId> receiverIds(Object target) {
+        return receiverIds(target, target.getClass().getName());
     }
 
     /**
-     * The id of the object a frame runs on, or {@code null} if there is no id source. The id source is that of the
+     * The ids of the object a frame runs on, one per id source, in the configured order; empty if there is no id
+     * source. The id sources are those of the
      * class declaring the frame's method, not of the object's runtime class: a subclass, e.g. a proxy or a mock, shows
-     * the id of the class whose method it runs, and a default method shows the id of its interface's entry. Its member
-     * is read from the object.
+     * the ids of the class whose method it runs, and a default method shows the ids of its interface's entry. Their
+     * members are read from the object.
      *
      * @param declaringClass the name of the class that declares the method
      */
-    public NamedId receiverId(Object target, String declaringClass) {
-        Source source = sources.get(declaringClass(target.getClass(), declaringClass));
-        return source != null ? new NamedId(source.name(), read(source, target)) : null;
+    public List<NamedId> receiverIds(Object target, String declaringClass) {
+        List<Source> found = sources.get(declaringClass(target.getClass(), declaringClass));
+        if (found.isEmpty()) {
+            return List.of();
+        }
+        List<NamedId> ids = new ArrayList<>(found.size());
+        for (Source source : found) {
+            ids.add(new NamedId(source.name(), read(source, target)));
+        }
+        return ids;
     }
 
     /**
@@ -202,52 +213,71 @@ public final class IdResolver {
 
     /**
      * The deciding {@code [augment.receiver]} entry: the most specific entry that matches the class's own name; entries
-     * of superclasses do not apply. Its field or method, or with {@code "@"} its {@code @StackTraceId}, is looked up in
-     * the class and its superclasses, or in an interface and the interfaces it extends. Without a deciding entry, or with {@code "-"}, the class has no id source, even
-     * if it is annotated.
+     * of superclasses do not apply. Its fields and methods, or with {@code "@"} its {@code @StackTraceId} members, are
+     * looked up in the class and its superclasses, or in an interface and the interfaces it extends. Without a deciding
+     * entry, or with {@code "-"}, the class has no id source, even if it is annotated.
      */
-    private Source findSource(Class<?> type) {
+    private List<Source> findSources(Class<?> type) {
         AugmentorConfig.ClassEntry entry = config.classEntry(type.getName());
-        return entry != null ? sourceFor(type, entry) : null;
+        if (entry == null) {
+            return List.of();
+        }
+        return switch (entry.spec()) {
+            case IdSpec.Annotations annotations -> annotatedSources(type);
+            case IdSpec.Excluded excluded -> List.of();
+            case IdSpec.MemberSpec spec -> sources(type, entry, List.of(spec));
+            case IdSpec.MemberList list -> sources(type, entry, list.members());
+        };
+    }
+
+    /** The configured members that are found; a missing one is reported and left out. */
+    private List<Source> sources(Class<?> owner, AugmentorConfig.ClassEntry entry, List<IdSpec.MemberSpec> members) {
+        List<Source> found = new ArrayList<>(members.size());
+        for (IdSpec.MemberSpec member : members) {
+            Source source = sourceFor(owner, entry, member);
+            if (source != null) {
+                found.add(source);
+            }
+        }
+        return found;
     }
 
     /**
-     * {@code @StackTraceId} on a field or a no-argument method; a Kotlin property annotated in the primary constructor
-     * has it on its field. A member that cannot be made accessible is skipped.
+     * Every {@code @StackTraceId} on a field or a no-argument method, one id each: per class, nearest first, its fields
+     * in declaration order, then its methods by name. A Kotlin property annotated in the primary constructor has it on
+     * its field. A member that cannot be made accessible is skipped, and so is one whose label a nearer one already
+     * has, e.g. a field hidden by a subclass's field of the same name.
      */
-    private Source annotatedSource(Class<?> type) {
+    private List<Source> annotatedSources(Class<?> type) {
+        List<Source> found = new ArrayList<>();
         for (Class<?> owner : lookupOrder(type)) {
             for (Field field : owner.getDeclaredFields()) {
                 if (!Modifier.isStatic(field.getModifiers()) && idAnnotation(field) != null) {
-                    Source source = fieldSource(field, field.getName());
-                    if (source != null) {
-                        return source;
-                    }
+                    addUnlabelled(found, fieldSource(field, field.getName()));
                 }
             }
-            for (Method method : owner.getDeclaredMethods()) {
+            Method[] methods = owner.getDeclaredMethods();
+            Arrays.sort(methods, Comparator.comparing(Method::getName));
+            for (Method method : methods) {
                 if (idAnnotation(method) != null
                         && isUsableIdMethod(Modifier.isStatic(method.getModifiers()), method.getParameterCount(), method.isSynthetic())) {
-                    Source source = methodSource(method, method.getName());
-                    if (source != null) {
-                        return source;
-                    }
+                    addUnlabelled(found, methodSource(method, method.getName()));
                 }
             }
         }
-        return null;
+        return found;
     }
 
-    private Source sourceFor(Class<?> owner, AugmentorConfig.ClassEntry entry) {
+    private static void addUnlabelled(List<Source> found, Source source) {
+        if (source != null && found.stream().noneMatch(it -> it.name().equals(source.name()))) {
+            found.add(source);
+        }
+    }
+
+    private Source sourceFor(Class<?> owner, AugmentorConfig.ClassEntry entry, IdSpec.MemberSpec memberSpec) {
         String member;
         Lookup lookup = new Lookup();
-        switch (entry.spec()) {
-            case IdSpec.Annotations annotations -> {
-                return annotatedSource(owner);
-            }
-            case IdSpec.Excluded excluded -> {
-                return null;
-            }
+        switch (memberSpec) {
             case IdSpec.MethodSpec spec -> {
                 member = "method " + spec.memberName() + "()";
                 for (Class<?> type : methodLookupOrder(owner)) {

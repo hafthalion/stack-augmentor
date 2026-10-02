@@ -93,7 +93,7 @@ public final class ThrowHandler implements Dispatch.Handler {
         }
         cursors.set(thrown, index + 1);
 
-        NamedId receiverId = self != null ? resolver.receiverId(self, owner) : null;
+        List<NamedId> receiverIds = self != null ? resolver.receiverIds(self, owner) : List.of();
         List<NamedId> paramIds = new ArrayList<>();
         if (paramValues != null && paramNames != null) {
             for (int i = 0; i < paramNames.length; i++) {
@@ -105,11 +105,11 @@ public final class ThrowHandler implements Dispatch.Handler {
                         : new NamedId(name, resolver.paramId(paramValues[i])));
             }
         }
-        if (receiverId == null && paramIds.isEmpty()) {
+        if (receiverIds.isEmpty() && paramIds.isEmpty()) {
             return;
         }
 
-        stackTraces.write(thrown, trace, index, format.rewrite(trace[index], receiverId, paramIds));
+        stackTraces.write(thrown, trace, index, format.rewrite(trace[index], receiverIds, paramIds));
     }
 
     /**

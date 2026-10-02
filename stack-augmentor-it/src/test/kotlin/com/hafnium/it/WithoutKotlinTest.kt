@@ -69,7 +69,7 @@ class WithoutKotlinTest {
         assertTrue(result.output.contains("[stack-augmentor] DEBUG agent: configuration "), result.output)
         assertTrue(result.output.contains("[stack-augmentor] DEBUG agent: [augment] frameFormat="), result.output)
         assertTrue(result.output.contains("[stack-augmentor] DEBUG instrumenting com.hafnium.it.fixtures.JavaFixture"), result.output)
-        assertTrue(result.output.contains("[stack-augmentor] DEBUG id source of com.hafnium.it.fixtures.JavaFixture"), result.output)
+        assertTrue(result.output.contains("[stack-augmentor] DEBUG id sources of com.hafnium.it.fixtures.JavaFixture"), result.output)
         assertNoKotlin(result.output)
     }
 

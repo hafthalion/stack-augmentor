@@ -25,15 +25,18 @@ receiver id.
 - **THEN** that frame shows the receiver id `code=…` and no parameter ids
 
 ### Requirement: Receiver id from an annotated member
-The system SHALL use a non-static field or a non-static, no-argument method annotated with
-`@StackTraceId` (`com.hafnium.stackaugmentor.StackTraceId`) as the receiver id of the objects of a class
-whose deciding `[augment.receiver]` entry is `"@"` (see "Annotations in use"). The
-annotated member SHALL be looked up in the class that the deciding entry matched and in its superclasses.
+The system SHALL use every non-static field and every non-static, no-argument method annotated with
+`@StackTraceId` (`com.hafnium.stackaugmentor.StackTraceId`) as a receiver id of the objects of a class
+whose deciding `[augment.receiver]` entry is `"@"` (see "Annotations in use"), one id per member. The
+annotated members SHALL be looked up in the class that the deciding entry matched and in its superclasses,
+and shown in this order: per class, the class itself first, then its superclasses, nearest first; within a
+class, its fields in declaration order, then its methods by name. A member whose label a member shown
+before it already has, such as a superclass field hidden by a field of the same name, SHALL be left out.
 In Kotlin, a property annotated in the primary constructor has the annotation on its field, because
 `@StackTraceId` does not target parameters. A static member, a method with parameters and a synthetic method
 SHALL NOT be id sources, even when annotated, and SHALL NOT make a class count as annotated when the
 instrumentation decides which classes to change. A member that cannot be made accessible SHALL be skipped with a
-warning, and the lookup SHALL continue with the next annotated member. The annotation SHALL be matched by its class name, so that a copy of the API loaded by
+warning, and the others SHALL still be used. The annotation SHALL be matched by its class name, so that a copy of the API loaded by
 another class loader is also recognised.
 
 #### Scenario: Annotated method with parameters
@@ -51,6 +54,11 @@ another class loader is also recognised.
 - **WHEN** an exception leaves one of its instance methods
 - **THEN** that frame shows the receiver id `key=k-1`
 
+#### Scenario: Several annotated members
+- **GIVEN** a class with `@StackTraceId val tenant = "acme"` and `@StackTraceId val orderId = 42`, matched by an `"@"` entry
+- **WHEN** an exception leaves one of its instance methods
+- **THEN** that frame shows the receiver ids `{tenant=acme, orderId=42}`
+
 #### Scenario: Inherited annotation
 - **GIVEN** a class `Derived`, matched by an `"@"` entry, extending a class that declares `@StackTraceId val baseId = "b1"`
 - **WHEN** an exception leaves a method of `Derived`
@@ -65,7 +73,10 @@ another class loader is also recognised.
 The system SHALL use the `[augment.receiver]` configuration table to choose the receiver id source of a
 class. A key SHALL be a class name or a class pattern with the globs `*` (within one package segment),
 `**` (across segments) and `?` (one character). A value SHALL be a field name, a no-argument method written
-with `()`, `"@"` for the class's `@StackTraceId`, or `"-"` for none. An entry SHALL apply only to the
+with `()`, a non-empty list of them without duplicates, `"@"` for the class's `@StackTraceId` members, or
+`"-"` for none. A list SHALL give one receiver id per member, in the listed order; a member that is not found
+SHALL be reported as a single one is and left out, while the others are still shown. Every receiver id SHALL
+be the member's value as text, from `toString()`. An entry SHALL apply only to the
 classes whose names it matches, not to their subclasses. The receiver id of a frame SHALL come from the
 deciding entry of the class that declares the frame's method, read from the object the method runs on,
 whatever the object's runtime class: a subclass, including one generated at runtime (a proxy, a mock, an
@@ -89,6 +100,11 @@ name starting with `is`), with the configured name as the label.
 - **GIVEN** `"com.thirdparty.Order" = "getOrderNumber()"` in `[augment.receiver]`
 - **WHEN** an exception leaves a method of an `Order` with order number 4711
 - **THEN** that frame shows the receiver id `getOrderNumber=4711`
+
+#### Scenario: List of members of a third-party class
+- **GIVEN** `"com.thirdparty.OrderLine" = ["tenant", "lineId()"]` in `[augment.receiver]`
+- **WHEN** an exception leaves a method of an `OrderLine` with tenant `acme` and line id 3
+- **THEN** that frame shows the receiver ids `{tenant=acme, lineId=3}`
 
 #### Scenario: Default method of an implemented interface
 - **GIVEN** `"com.acme.Order" = "getId()"`, where the Java class `Order` implements `Identified`, whose default method `getId()` returns `id-7`

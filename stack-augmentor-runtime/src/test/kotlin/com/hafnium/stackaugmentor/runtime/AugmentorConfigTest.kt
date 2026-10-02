@@ -20,7 +20,7 @@ class AugmentorConfigTest {
     fun defaults() {
         assertEquals(AugmentorConfig(), parse(""))
         assertEquals("\$class\$receiver.\$method\$params", AugmentorConfig().frameFormat())
-        assertEquals("{\$name=\$id}", AugmentorConfig().receiverFormat())
+        assertEquals("{\$name=\$id, ...}", AugmentorConfig().receiverFormat())
         assertEquals("{\$name=\$id, ...}", AugmentorConfig().paramsFormat())
         assertFalse(AugmentorConfig().hasAugmentEntries())
         assertNull(AugmentorConfig().classEntry("any.pkg.Class"))
@@ -160,6 +160,20 @@ class AugmentorConfigTest {
     }
 
     @Test
+    fun `a receiver entry may list several fields and methods`() {
+        val config = parse("[augment.receiver]\n\"com.acme.OrderLine\" = [\"tenant\", \"lineId()\"]")
+        assertEquals(
+            IdSpec.MemberList(listOf(IdSpec.FieldSpec("tenant"), IdSpec.MethodSpec("lineId"))),
+            config.classEntry("com.acme.OrderLine")?.spec(),
+        )
+        assertEquals("com.acme.OrderLine=[tenant, lineId()]", config.classesDescription())
+        assertEquals("test.toml, line 2: must list at least one field or method", error("[augment.receiver]\n\"com.acme.A\" = []"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = [\"id\", \"@\"]").contains("invalid receiver id '@'"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = [\"id\", 1]").contains("invalid receiver id '1'"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = [\"id\", \"id()\"]").contains("'id()' is listed twice"))
+    }
+
+    @Test
     fun `syntax errors report their position`() {
         val message = error("[augment]\nmaxIdLength = ")
         assertTrue(message.startsWith("Invalid TOML in test.toml:"), message)
@@ -206,7 +220,8 @@ class AugmentorConfigTest {
     @Test
     fun `invalid classes and methods entries`() {
         assertEquals(
-            "test.toml, line 3: must be a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), \"@\" for its @StackTraceId, or \"-\" for no receiver id, was get-id()",
+            "test.toml, line 3: must be a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), a list of them (e.g. [\"tenant\", \"getOrderId()\"]), " +
+                "\"@\" for its @StackTraceId members, or \"-\" for no receiver id, was get-id()",
             error("debug = false\n[augment.receiver]\n\"com.acme.Order\" = \"get-id()\""),
         )
         assertTrue(error("[augment.receiver]\n\"com.acme.Order\" = 5").contains("must be a field name"))
