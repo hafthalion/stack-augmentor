@@ -60,7 +60,11 @@ public final class ThrowHandler implements Dispatch.Handler {
 
     /** For {@code ServiceLoader}: build-time instrumentation. */
     public ThrowHandler() {
-        this(runtimeConfig());
+        this(runtimeConfig(), runtimeStackTraces());
+    }
+
+    private ThrowHandler(AugmentorConfig config, StackTraces stackTraces) {
+        this(new IdResolver(config), FrameFormat.create(config), stackTraces);
     }
 
     @Override
@@ -179,6 +183,20 @@ public final class ThrowHandler implements Dispatch.Handler {
             Log.warn(Startup.RUNTIME + ": " + NO_RUNTIME_CONFIG);
         }
         return config;
+    }
+
+    /**
+     * For build-time instrumentation, no agent opens {@code java.lang}: frames are written in place only if the application
+     * was started with {@code --add-opens java.base/java.lang=ALL-UNNAMED}, otherwise the trace is copied.
+     */
+    static StackTraces runtimeStackTraces() {
+        try {
+            return StackTraces.inPlace();
+        } catch (IllegalAccessException | RuntimeException e) {
+            Log.debug(() -> Startup.RUNTIME + ": stack traces are copied for every frame, because java.lang is not open "
+                    + "(--add-opens java.base/java.lang=ALL-UNNAMED): " + e);
+            return StackTraces.copying();
+        }
     }
 
     /**

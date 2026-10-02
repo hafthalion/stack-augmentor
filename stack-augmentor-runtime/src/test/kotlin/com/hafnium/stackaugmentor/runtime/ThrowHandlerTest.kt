@@ -3,6 +3,7 @@ package com.hafnium.stackaugmentor.runtime
 import com.hafnium.stackaugmentor.StackTraceId
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -26,6 +27,11 @@ class ThrowHandlerTest {
         target.fail()
     } catch (e: IllegalStateException) {
         e
+    }
+
+    @Test
+    fun `build-time handler copies the trace when java lang is not open`() {
+        assertSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces())
     }
 
     @Test

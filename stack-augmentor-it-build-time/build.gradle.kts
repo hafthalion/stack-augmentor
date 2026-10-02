@@ -43,3 +43,17 @@ tasks.matching { it.name == "byteBuddyKotlin" }.configureEach {
     inputs.file(stackAugmentorConfig)
     inputs.files(configurations.named("byteBuddy")).withNormalizer(ClasspathNormalizer::class.java)
 }
+
+// The same tests with java.lang open, as with --add-opens java.base/java.lang=ALL-UNNAMED in an application: then the
+// handler writes frames into the exception's own stack trace instead of copying it.
+val testOpenJavaLang = tasks.register<Test>("testOpenJavaLang") {
+    description = "Runs the integration tests with java.lang open to the runtime classes."
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    jvmArgs("--add-opens", "java.base/java.lang=ALL-UNNAMED")
+}
+
+tasks.check {
+    dependsOn(testOpenJavaLang)
+}
