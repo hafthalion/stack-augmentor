@@ -1,5 +1,6 @@
 package com.hafnium.it.buildtime
 
+import com.hafnium.it.buildtime.configured.Crate
 import com.hafnium.it.buildtime.configured.InventoryAudit
 import com.hafnium.it.buildtime.configured.InventoryService
 import com.hafnium.it.buildtime.configured.Order
@@ -47,6 +48,9 @@ class BuildTimeInstrumentationTest {
     fun `constructors show their parameter ids`() {
         val e = assertThrows<IllegalArgumentException> { Shipment(4711, 0.0, "fragile") }
         assertEquals(listOf("com.hafnium.it.buildtime.configured.Shipment.<init>{orderId=4711, weight=0.0}"), frames(e, 1))
+
+        val beforeSuper = assertThrows<IllegalArgumentException> { Crate(4712, -1.0) }
+        assertEquals(listOf("com.hafnium.it.buildtime.configured.Crate.<init>{orderId=4712, weight=-1.0}"), frames(beforeSuper, 1))
     }
 
     @Test

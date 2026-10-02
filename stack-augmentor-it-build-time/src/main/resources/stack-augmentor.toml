@@ -39,3 +39,4 @@ maxIdLength = 64
 "com.hafnium.it.buildtime.configured.InventoryAudit.*" = "-"                    # ... except InventoryAudit's
 "com.hafnium.it.buildtime.configured.Customer.notify" = ["email#"]              # hashed
 "com.hafnium.it.buildtime.configured.Shipment.<init>" = ["orderId", "weight"]   # constructors: "<init>"
+"com.hafnium.it.buildtime.configured.Crate.<init>" = ["orderId", "weight"]

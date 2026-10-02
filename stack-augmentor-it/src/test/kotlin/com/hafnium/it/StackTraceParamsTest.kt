@@ -1,6 +1,7 @@
 package com.hafnium.it
 
 import com.hafnium.it.fixtures.Accounts
+import com.hafnium.it.fixtures.Crate
 import com.hafnium.it.fixtures.DerivedInventory
 import com.hafnium.it.fixtures.ExpressParcel
 import com.hafnium.it.fixtures.Forgetful
@@ -115,6 +116,13 @@ class StackTraceParamsTest {
     fun `a delegating constructor shows its ids for exceptions from its own body`() {
         val pallet = report.thrown<IllegalArgumentException>("Pallet(\"\", 1L)") { Pallet("", 1L) }
         assertEquals("<init>{label=, size=1}", pallet.method(0))
+    }
+
+    @Test
+    fun `an exception while computing the arguments of super gets the ids`() {
+        val crate = report.thrown<IllegalArgumentException>("Crate(null, 3)") { Crate(null, 3) }
+        assertEquals("com.hafnium.it.fixtures.Crate", crate.stackTrace[0].className)
+        assertEquals("<init>{code=null, size=3}", crate.method())
     }
 
     @Test

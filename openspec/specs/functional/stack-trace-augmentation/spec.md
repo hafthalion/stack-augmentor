@@ -15,10 +15,9 @@ cases:
 
 Constructors that are not synthetic SHALL be instrumented when they have at least one parameter id, for
 those ids only: they SHALL never get a receiver id. ByteBuddy's advice cannot catch exceptions in
-constructors, so the system SHALL add its own handler that covers the constructor body after the
-`super(...)` or `this(...)` call, passes the parameter ids with the method name `<init>`, and rethrows the
-exception unchanged. Exceptions thrown before that call ends (in the called constructor, or while its
-arguments are computed) SHALL leave the frame unchanged.
+constructors, so the system SHALL add its own handlers, covering the code before and the code after the
+`super(...)` or `this(...)` call, that pass the parameter ids with the method name `<init>` and rethrow the
+exception unchanged. Exceptions thrown inside the called constructor SHALL leave the frame unchanged.
 
 #### Scenario: Constructor with parameter ids
 - **GIVEN** `class Shipment(@StackTraceParam val orderId: Long, val weight: Int)` whose `init` block calls
@@ -26,8 +25,13 @@ arguments are computed) SHALL leave the frame unchanged.
 - **WHEN** `Shipment(42, 0)` throws
 - **THEN** its frame shows `Shipment.<init>{orderId=42}`
 
+#### Scenario: Exception while computing the arguments of super(...)
+- **GIVEN** `class Crate @StackTraceParams constructor(code: String?) : Parcel(requireNotNull(code))`
+- **WHEN** `Crate(null)` throws
+- **THEN** its frame shows `Crate.<init>{code=null}`
+
 #### Scenario: Exception from the superclass constructor
-- **GIVEN** a constructor with parameter ids whose `super(...)` call throws
+- **GIVEN** a constructor with parameter ids whose superclass constructor throws
 - **WHEN** the stack trace is inspected
 - **THEN** that constructor's frame is unchanged
 

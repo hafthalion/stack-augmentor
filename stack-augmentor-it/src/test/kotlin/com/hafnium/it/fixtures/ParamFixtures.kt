@@ -85,8 +85,11 @@ open class Parcel(code: String) {
     }
 }
 
-/** The superclass constructor throws: before this constructor's body, so this frame gets no ids. */
+/** The superclass constructor throws: inside the super(...) call, so this frame gets no ids. */
 class ExpressParcel @StackTraceParams constructor(code: String, val priority: Int) : Parcel(code)
+
+/** Computing the argument of super(...) throws: before the call, so this frame gets its ids. */
+class Crate @StackTraceParams constructor(code: String?, val size: Int) : Parcel(requireNotNull(code) { "code" })
 
 /** A secondary constructor delegating to the primary one: it gets ids only for exceptions from its own body. */
 class Pallet @StackTraceParams constructor(val size: Int) {
