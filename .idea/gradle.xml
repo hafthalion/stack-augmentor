@@ -12,12 +12,15 @@
             <option value="$PROJECT_DIR$/examples" />
             <option value="$PROJECT_DIR$/examples/build-time" />
             <option value="$PROJECT_DIR$/examples/java-agent" />
+            <option value="$PROJECT_DIR$/examples/live-agent" />
             <option value="$PROJECT_DIR$/stack-augmentor-agent" />
             <option value="$PROJECT_DIR$/stack-augmentor-api" />
             <option value="$PROJECT_DIR$/stack-augmentor-build-plugin" />
             <option value="$PROJECT_DIR$/stack-augmentor-instrument" />
             <option value="$PROJECT_DIR$/stack-augmentor-instrument-bridge" />
             <option value="$PROJECT_DIR$/stack-augmentor-it" />
+            <option value="$PROJECT_DIR$/stack-augmentor-it-build-time" />
+            <option value="$PROJECT_DIR$/stack-augmentor-native" />
             <option value="$PROJECT_DIR$/stack-augmentor-runtime" />
           </set>
         </option>
