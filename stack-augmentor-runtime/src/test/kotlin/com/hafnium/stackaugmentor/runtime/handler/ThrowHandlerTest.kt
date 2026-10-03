@@ -33,8 +33,15 @@ class ThrowHandlerTest {
     }
 
     @Test
-    fun `build-time handler copies the trace when java lang is not open`() {
-        assertSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces())
+    fun `build-time handler copies the trace by default`() {
+        assertSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces(AugmentorConfig()))
+    }
+
+    @Test
+    fun `build-time handler refuses in-place modification when java lang is not open`() {
+        val config = AugmentorConfig.builder().inPlaceModification(true).build()
+        val e = assertThrows(ConfigException::class.java) { ThrowHandler.runtimeStackTraces(config) }
+        assertTrue(e.message!!.contains("--add-opens java.base/java.lang=ALL-UNNAMED"), e.message)
     }
 
     @Test

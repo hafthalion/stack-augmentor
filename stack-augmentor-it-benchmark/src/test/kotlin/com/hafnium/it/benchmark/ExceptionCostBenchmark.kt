@@ -33,7 +33,7 @@ class ExceptionCostBenchmark {
     private fun write(directory: File, scenario: Scenario, logged: Boolean, measurement: Measurement, log: String) {
         directory.mkdirs()
         File(directory, "${mode.id}.tsv").appendText(
-            listOf(scenario.name, logged, measurement.median, measurement.min, measurement.max, measurement.batch).joinToString("\t") + "\n"
+            listOf(scenario.name, logged, measurement.median, measurement.min, measurement.max, measurement.batch, measurement.batches).joinToString("\t") + "\n"
         )
         if (logged) {
             File(directory, "${mode.id}-${scenario.name}.log").writeText(log)
