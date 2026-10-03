@@ -1,8 +1,6 @@
 plugins {
     // Only for the Java toolchain, whose JDK provides the JVMTI headers.
     `java-base`
-    // Only to show IntelliJ where the copied headers are, see jdkHeaders.
-    idea
 }
 
 // The native library of the agent's live-stack mode (see src/main/c). It is not part of the agent jar: the JVM must load
@@ -29,25 +27,19 @@ val library = layout.buildDirectory.file("native/$libraryName")
 
 // The JDK's JNI and JVMTI headers, with the platform's jni_md.h next to them, in one folder at a fixed place in the
 // project: the compiler and the IDE (.idea/c_cpp_properties.json) both read them from there.
-val jdkIncludeDir = layout.buildDirectory.dir("jdk-include")
 val jdkHeaders = tasks.register<Sync>("jdkHeaders") {
     description = "Copies the JDK's JNI and JVMTI headers to build/jdk-include."
     group = "build"
     val jdkInclude = jdk.map { it.dir("include") }
     from(jdkInclude) { include("*.h") }
     from(jdkInclude.map { it.dir(includeDir) })
-    into(jdkIncludeDir)
+    into(layout.buildDirectory.dir("jdk-include"))
 }
 
-// IntelliJ excludes the build folder, so the headers are marked as generated sources. Its Gradle import takes these
-// from the idea plugin, and only for a main source set, which this module otherwise does not need.
-sourceSets.create("main")
-idea {
-    module {
-        val headers = jdkIncludeDir.get().asFile
-        sourceDirs.add(headers)
-        generatedSourceDirs.add(headers)
-    }
+// IntelliJ excludes the build folder, but shows the headers as a source folder of the main source set, which this
+// module otherwise does not need. compileJava finds no Java files there.
+sourceSets.create("main") {
+    java.srcDir(jdkHeaders)
 }
 
 val compileNative = tasks.register<Exec>("compileNative") {
