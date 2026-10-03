@@ -6,6 +6,7 @@
 
 # Print diagnostics to stderr (default: false).
 debug = false
+inPlaceModification = false
 
 # How frames look, at runtime (these are the defaults, see the README).
 [augment]
