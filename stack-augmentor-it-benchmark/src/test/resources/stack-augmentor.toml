@@ -1,0 +1,6 @@
+# The benchmark's frames: Configured shows its name and its depth parameter, Plain shows nothing.
+[augment.receiver]
+"com.hafnium.it.benchmark.Configured" = "@"
+
+[augment.params]
+"com.hafnium.it.benchmark.Configured.*" = "@"

@@ -65,9 +65,12 @@ public final class ClassInstrumentation {
                 .installOn(instrumentation);
     }
 
+    /** Copies stack traces even when {@code java.lang} is open, to compare the two ways: {@code -Dstackaugmentor.copyStackTraces=true}. */
+    static final String COPY_PROPERTY = "stackaugmentor.copyStackTraces";
+
     /** In place if {@code java.lang} is open, otherwise the copying way. */
     private static StackTraces stackTraces(boolean javaLangOpen) {
-        if (!javaLangOpen) {
+        if (!javaLangOpen || Boolean.getBoolean(COPY_PROPERTY)) {
             return StackTraces.copying();
         }
         try {
