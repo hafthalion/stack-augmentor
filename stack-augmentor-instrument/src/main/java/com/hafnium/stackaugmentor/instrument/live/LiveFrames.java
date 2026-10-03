@@ -14,7 +14,7 @@ import java.util.stream.Stream;
 
 /**
  * The live-stack mode's handler. When the VM records the stack trace of a throwable, the frames it recorded are still
- * on the stack: it keeps those of the configured classes, with their local variables, so the receiver and the
+ * on the stack: for the configured methods, it keeps a copy of their local variables, so the receiver and the
  * arguments. When the stack trace array is created from the recorded frames, which happens once, when the trace is
  * first read or printed, it turns them into ids and rewrites those frames in that array.
  *
@@ -23,16 +23,24 @@ import java.util.stream.Stream;
  * care.
  *
  * <p>Most exceptions are never printed, so creating one costs as little as possible: a walk that sees only the classes
- * of the frames, and, only if one of them may show ids, a walk that reads the local variables down to it. Which method
- * a frame runs, what it shows and the ids are worked out only when the trace is read.
+ * of the frames, and, only if one of them may show ids, a walk that reads the local variables down to it. The ids are
+ * worked out only when the trace is read.
+ *
+ * <p>No walked frame is kept: a live frame also holds its operand stack, which references the throwable while its
+ * constructor runs (after {@code new X()}), and a kept frame would keep the throwable from ever being collected. The
+ * copied local variables hold the throwable itself only as {@link #SELF}.
  */
 public final class LiveFrames implements LiveDispatch.Handler {
 
     /** Shown for an argument that the JIT optimized away (scalar replacement): it reads as {@code null}. */
     public static final String UNKNOWN = "?";
 
-    /** A frame of a configured class, as the walk returned it, at its position in the trace. */
-    record Kept(int index, StackWalker.StackFrame frame) {
+    /** Stands for the throwable in the copied local variables, e.g. in its own constructors' frames. */
+    private static final Object SELF = new Object();
+
+    /** A frame of a configured method at its position in the trace, with a copy of its local variables. */
+    record Kept(int index, FrameSpecs.Spec spec, Object[] locals, boolean compiled, String className, String methodName,
+                int lineNumber) {
     }
 
     /** The ids of one frame, at its position in the trace. */
@@ -82,12 +90,9 @@ public final class LiveFrames implements LiveDispatch.Handler {
         }
         List<Captured> captured = new ArrayList<>(kept.size());
         for (Kept frame : kept) {
-            FrameSpecs.Spec spec = specs.of(frame.frame());
-            if (spec != FrameSpecs.NONE) {
-                Captured ids = ids(frame.frame(), spec, frame.index());
-                if (ids != null) {
-                    captured.add(ids);
-                }
+            Captured ids = ids(frame, thrown);
+            if (ids != null) {
+                captured.add(ids);
             }
         }
         rewrite(trace, captured);
@@ -138,7 +143,7 @@ public final class LiveFrames implements LiveDispatch.Handler {
         return -1;
     }
 
-    /** Keeps the frames of the classes that may show ids, down to {@code last}, with their position in the trace. */
+    /** Keeps the frames of the configured methods, down to {@code last}, with their position in the trace. */
     private List<Kept> keep(Stream<StackWalker.StackFrame> frames, Throwable thrown, int last) {
         Iterator<StackWalker.StackFrame> iterator = frames.iterator();
         int position = 0;
@@ -165,16 +170,37 @@ public final class LiveFrames implements LiveDispatch.Handler {
         List<Kept> kept = new ArrayList<>();
         for (int index = 0; frame != null && position <= last; index++, position++) {
             if (specs.mayShowIds(frame.getDeclaringClass())) {
-                kept.add(new Kept(index, frame));
+                FrameSpecs.Spec spec = specs.of(frame);
+                if (spec != FrameSpecs.NONE) {
+                    kept.add(new Kept(index, spec, copy(live.locals(frame), thrown), live.compiled(frame), frame.getClassName(),
+                            frame.getMethodName(), frame.getLineNumber()));
+                }
             }
             frame = iterator.hasNext() ? iterator.next() : null;
         }
         return kept;
     }
 
-    private Captured ids(StackWalker.StackFrame frame, FrameSpecs.Spec spec, int index) {
-        Object[] locals = live.locals(frame);
-        boolean compiled = live.compiled(frame);
+    /** The local variables, with {@link #SELF} for the throwable. */
+    private static Object[] copy(Object[] locals, Throwable thrown) {
+        Object[] copy = locals.clone();
+        for (int i = 0; i < copy.length; i++) {
+            if (copy[i] == thrown) {
+                copy[i] = SELF;
+            }
+        }
+        return copy;
+    }
+
+    private Captured ids(Kept frame, Throwable thrown) {
+        Object[] locals = frame.locals().clone();
+        for (int i = 0; i < locals.length; i++) {
+            if (locals[i] == SELF) {
+                locals[i] = thrown;
+            }
+        }
+        FrameSpecs.Spec spec = frame.spec();
+        boolean compiled = frame.compiled();
         List<NamedId> receiverIds = List.of();
         if (spec.receiver()) {
             Object self = locals.length > 0 ? locals[0] : null;
@@ -190,7 +216,7 @@ public final class LiveFrames implements LiveDispatch.Handler {
         if (receiverIds.isEmpty() && paramIds.isEmpty()) {
             return null;
         }
-        return new Captured(index, frame.getClassName(), frame.getMethodName(), frame.getLineNumber(), receiverIds, List.copyOf(paramIds));
+        return new Captured(frame.index(), frame.className(), frame.methodName(), frame.lineNumber(), receiverIds, List.copyOf(paramIds));
     }
 
     private String paramId(Object[] locals, FrameSpecs.Param param, boolean compiled) {
