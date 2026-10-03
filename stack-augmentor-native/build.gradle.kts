@@ -28,17 +28,17 @@ val library = layout.buildDirectory.file("native/$libraryName")
 // The JDK's JNI and JVMTI headers, with the platform's jni_md.h next to them, in one folder at a fixed place in the
 // project: the compiler and the IDE (.idea/c_cpp_properties.json) both read them from there.
 val jdkHeaders = tasks.register<Sync>("jdkHeaders") {
-    description = "Copies the JDK's JNI and JVMTI headers to build/jdk-include."
+    description = "Copies the JDK's JNI and JVMTI headers to build/jdk/c."
     group = "build"
     val jdkInclude = jdk.map { it.dir("include") }
     from(jdkInclude) { include("*.h") }
     from(jdkInclude.map { it.dir(includeDir) })
-    into(layout.buildDirectory.dir("jdk-include"))
+    into(layout.buildDirectory.dir("jdk/c"))
 }
 
-// IntelliJ excludes the build folder, but shows the headers as a source folder of the main source set, which this
-// module otherwise does not need. compileJava finds no Java files there.
-sourceSets.create("main") {
+// IntelliJ excludes the build folder, but shows the headers as a source folder of a source set of their own.
+// compileJdkJava finds no Java files there.
+sourceSets.create("jdk") {
     java.srcDir(jdkHeaders)
 }
 
