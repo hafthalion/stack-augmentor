@@ -57,7 +57,8 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
         .trace:hover, .trace:focus { color: var(--fg); }
         #tip { position: fixed; z-index: 10; display: none; max-width: min(900px, calc(100vw - 32px)); max-height: 70vh; overflow: auto;
           background: var(--head); border: 1px solid var(--line); padding: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, .25); text-align: left; }
-        #tip-title { margin: 0 0 6px; font-size: 13px; font-weight: 600; white-space: normal; }
+        #tip-title { margin: 0 0 4px; font-size: 16px; font-weight: 600; color: var(--fg); white-space: normal; }
+        #tip-description { margin: 0 0 8px; font-size: 13px; white-space: normal; }
         #tip-trace { margin: 0; padding: 0; border: 0; white-space: pre; }
         dt { font-weight: 600; margin-top: 8px; } dd { margin: 2px 0 0 0; color: var(--muted); }
         details { margin: 6px 0; } summary { cursor: pointer; }
@@ -93,10 +94,13 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
                 } else {
                     append(format(m.median))
                     traceExcerpt(results, mode, scenario)?.let {
-                        val title = "${mode.title}: ${scenario.title}, " +
-                            if (logged) "logged" else "not logged (the trace of the logged run; this run does not format it)"
+                        val title = "${mode.title}: ${scenario.title}, ${if (logged) "logged" else "not logged"}"
+                        val description = (if (logged) "" else "The trace of the logged run; this run does not format it. ") +
+                            "--> marks the frame that caught the exception. The bottom and top $TRACE_FRAMES frames of the " +
+                            "${Scenario.FRAMES}-frame stack are shown" + if (scenario.configuredEvery > 0) ", and the first configured frame." else "."
                         append("<button type=\"button\" class=\"trace\" aria-label=\"Stack trace\" data-title=\"")
-                            .append(attribute(title)).append("\" data-trace=\"").append(attribute(it)).append("\">&#x2630;</button>")
+                            .append(attribute(title)).append("\" data-description=\"").append(attribute(description))
+                            .append("\" data-trace=\"").append(attribute(it)).append("\">&#x2630;</button>")
                     }
                     if (mode != Mode.PLAIN && plain != null) {
                         val ratio = m.median / plain.median
@@ -112,7 +116,7 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
             append("</tr>\n")
         }
     }
-    append("</tbody></table></div>\n<div id=\"tip\" role=\"dialog\"><p id=\"tip-title\"></p><pre id=\"tip-trace\"></pre></div>\n")
+    append("</tbody></table></div>\n<div id=\"tip\" role=\"dialog\"><p id=\"tip-title\"></p><p id=\"tip-description\"></p><pre id=\"tip-trace\"></pre></div>\n")
     append(SORT_SCRIPT)
     append("<h2>Columns</h2>\n<dl>\n")
     column("Caught", "Where the exception is caught. It is always created at the bottom, in the deepest of the ${Scenario.FRAMES} " +
@@ -199,6 +203,7 @@ private val SORT_SCRIPT = """
       const tip = document.getElementById("tip");
       const show = (button) => {
         document.getElementById("tip-title").textContent = button.dataset.title;
+        document.getElementById("tip-description").textContent = button.dataset.description;
         document.getElementById("tip-trace").textContent = button.dataset.trace;
         tip.style.display = "block";
         const box = button.getBoundingClientRect();
