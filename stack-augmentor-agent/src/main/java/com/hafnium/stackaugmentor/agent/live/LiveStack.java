@@ -35,8 +35,6 @@ import static net.bytebuddy.matcher.ElementMatchers.none;
  */
 public final class LiveStack {
 
-    private static final int DEFAULT_MAX_DEPTH = 1024;
-
     private LiveStack() {
     }
 
@@ -67,11 +65,10 @@ public final class LiveStack {
         if (problem != null) {
             return problem;
         }
-        int maxDepth = vmOption("MaxJavaStackTraceDepth", DEFAULT_MAX_DEPTH);
         boolean eliminatedAllocations = vmOption("EliminateAllocations", 1) != 0;
         TypeMatching matching = new TypeMatching(config, new IdParameters(config));
         LiveFrames handler = new LiveFrames(live, new FrameSpecs(config, matching), new IdResolver(config), format,
-                maxDepth <= 0 ? Integer.MAX_VALUE : maxDepth, eliminatedAllocations);
+                eliminatedAllocations);
 
         AtomicBoolean probed = new AtomicBoolean();
         LiveDispatch.install(new ProbeHandler(probed));
@@ -96,7 +93,7 @@ public final class LiveStack {
         // Classes instrumented at build time still call the handler: the live stack already covers their frames.
         Dispatch.install((self, thrown, owner, method, paramValues, paramNames) -> {
         });
-        Log.debug(() -> "agent: reading frames from the live stack (native library version " + version + "), stack trace depth " + maxDepth + (eliminatedAllocations
+        Log.debug(() -> "agent: reading frames from the live stack (native library version " + version + ")" + (eliminatedAllocations
                 ? ", an object argument the JIT optimized away shows as '" + LiveFrames.UNKNOWN + "' (-XX:-EliminateAllocations avoids that)"
                 : ""));
         return null;
