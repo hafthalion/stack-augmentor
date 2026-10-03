@@ -15,6 +15,7 @@ import com.hafnium.stackaugmentor.runtime.ids.IdResolver;
 import com.sun.management.HotSpotDiagnosticMXBean;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.agent.builder.ResettableClassFileTransformer;
+import net.bytebuddy.utility.nullability.NeverNull;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.management.ManagementFactory;
@@ -81,7 +82,11 @@ public final class LiveStack {
             LiveDispatch.install(null);
             return "cannot add code to java.lang.Throwable: " + e;
         }
-        new ProbeException();
+
+        try {
+            throw new ProbeException();
+        } catch (ProbeException _) {
+        }
         if (!probed.get()) {
             LiveDispatch.install(null);
             transformer.reset(instrumentation, AgentBuilder.RedefinitionStrategy.RETRANSFORMATION);
@@ -106,8 +111,8 @@ public final class LiveStack {
                 .with(AgentBuilder.InjectionStrategy.Disabled.INSTANCE)
                 .with(new AgentBuilder.Listener.Adapter() {
                     @Override
-                    public void onError(String typeName, ClassLoader classLoader, net.bytebuddy.utility.JavaModule module, boolean loaded,
-                                        Throwable throwable) {
+                    public void onError(@NeverNull String typeName, ClassLoader classLoader, net.bytebuddy.utility.JavaModule module, boolean loaded,
+                                        @NeverNull Throwable throwable) {
                         Log.error("agent: cannot add code to " + typeName + ": " + throwable);
                     }
                 })

@@ -1,6 +1,5 @@
 .gradle/
+.kotlin/
 /build/
 /*/build/
 /examples/*/build/
-*.iml
-.kotlin/
