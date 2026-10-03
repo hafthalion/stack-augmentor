@@ -29,7 +29,7 @@ instrumentation needs the application to open it (`--add-opens java.base/java.la
 (the agent stops the JVM; build-time instrumentation installs no handler), instead of silently copying. A trace the application replaced
 after it was read SHALL NOT be overwritten by an in-place write. With copying, an exception that leaves N
 instrumented frames costs O(N × trace length); the JVM caps the trace length
-(`-XX:MaxJavaStackTraceDepth`, 1024 by default). The README SHALL state this cost with measured numbers.
+(`-XX:MaxJavaStackTraceDepth`, 1024 by default). The documentation (`docs/limitations.md`) SHALL state this cost with measured numbers.
 
 #### Scenario: Deep recursion with the agent
 - **GIVEN** the Java agent with `inPlaceModification = true` and a trace of more than 1000 frames
