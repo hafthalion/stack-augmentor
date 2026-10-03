@@ -28,6 +28,8 @@ import java.util.stream.Collectors;
  *
  * <pre>{@code
  * debug = false
+ * inPlaceModification = false  # write frames into the exception's own stack trace instead of copying it; needs
+ *                              # java.lang open (the agent opens it), otherwise startup fails
  *
  * [augment]                   # how frames look
  * frameFormat = "$class$receiver.$method$params"
@@ -67,6 +69,8 @@ public final class AugmentorConfig {
     public static final String DEFAULT_PARAMS_FORMAT = "{$name=$id, ...}";
     public static final int DEFAULT_MAX_ID_LENGTH = 64;
     public static final String CONFIG_PROPERTY = "stackaugmentor.config";
+    /** Overrides {@code inPlaceModification} of the file: {@code -Dstackaugmentor.inPlaceModification=true}. */
+    public static final String IN_PLACE_MODIFICATION_PROPERTY = "stackaugmentor.inPlaceModification";
 
     /** The value that stands for "use the annotations", in both tables. */
     public static final String ANNOTATIONS = "@";
@@ -84,6 +88,7 @@ public final class AugmentorConfig {
     private final String paramsFormat;
     private final int maxIdLength;
     private final boolean debug;
+    private final boolean inPlaceModification;
 
     /** An {@code [augment.receiver]} entry: the key as written, and the id source it names. */
     public record ClassEntry(String key, IdSpec spec) {
@@ -109,7 +114,7 @@ public final class AugmentorConfig {
     /** The defaults: no class or method entries, so nothing gets ids. */
     public AugmentorConfig() {
         this(Map.of(), Map.of(), DEFAULT_FRAME_FORMAT, DEFAULT_RECEIVER_FORMAT, DEFAULT_PARAMS_FORMAT,
-                DEFAULT_MAX_ID_LENGTH, false);
+                DEFAULT_MAX_ID_LENGTH, false, false);
     }
 
     /**
@@ -119,7 +124,7 @@ public final class AugmentorConfig {
      */
     public AugmentorConfig(Map<String, IdSpec> classes, Map<String, List<ParamRef>> methods,
                            String frameFormat, String receiverFormat, String paramsFormat, int maxIdLength,
-                           boolean debug) {
+                           boolean debug, boolean inPlaceModification) {
         this.classes = Collections.unmodifiableMap(new LinkedHashMap<>(classes));
         Map<String, List<ParamRef>> methodsCopy = new LinkedHashMap<>();
         methods.forEach((target, refs) -> methodsCopy.put(target, List.copyOf(refs)));
@@ -129,6 +134,7 @@ public final class AugmentorConfig {
         this.paramsFormat = Objects.requireNonNull(paramsFormat, "paramsFormat");
         this.maxIdLength = maxIdLength;
         this.debug = debug;
+        this.inPlaceModification = inPlaceModification;
 
         List<ClassPattern> classPatterns = new ArrayList<>();
         this.classes.forEach((key, spec) -> {
@@ -185,6 +191,15 @@ public final class AugmentorConfig {
 
     public boolean debug() {
         return debug;
+    }
+
+    /**
+     * Whether the handler writes frames into the exception's own stack trace instead of copying it: the
+     * {@code inPlaceModification} key, unless the system property {@value #IN_PLACE_MODIFICATION_PROPERTY} is set.
+     */
+    public boolean inPlaceModification() {
+        String property = System.getProperty(IN_PLACE_MODIFICATION_PROPERTY);
+        return property != null ? Boolean.parseBoolean(property.trim()) : inPlaceModification;
     }
 
     /** The {@code [augment.receiver]} entries for the debug log, e.g. {@code com.acme.**=@, com.acme.Order=getId()}. */
@@ -384,19 +399,20 @@ public final class AugmentorConfig {
                 && receiverFormat.equals(that.receiverFormat)
                 && paramsFormat.equals(that.paramsFormat)
                 && maxIdLength == that.maxIdLength
-                && debug == that.debug;
+                && debug == that.debug
+                && inPlaceModification == that.inPlaceModification;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug);
+        return Objects.hash(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug, inPlaceModification);
     }
 
     @Override
     public String toString() {
         return "AugmentorConfig[classes=" + classes + ", methods=" + methods
                 + ", frameFormat=" + frameFormat + ", receiverFormat=" + receiverFormat + ", paramsFormat=" + paramsFormat
-                + ", maxIdLength=" + maxIdLength + ", debug=" + debug + "]";
+                + ", maxIdLength=" + maxIdLength + ", debug=" + debug + ", inPlaceModification=" + inPlaceModification + "]";
     }
 
     /** Starts from the defaults; every setter replaces one value. */
@@ -409,6 +425,7 @@ public final class AugmentorConfig {
         private String paramsFormat = DEFAULT_PARAMS_FORMAT;
         private int maxIdLength = DEFAULT_MAX_ID_LENGTH;
         private boolean debug;
+        private boolean inPlaceModification;
 
         private Builder() {
         }
@@ -448,8 +465,14 @@ public final class AugmentorConfig {
             return this;
         }
 
+        public Builder inPlaceModification(boolean inPlaceModification) {
+            this.inPlaceModification = inPlaceModification;
+            return this;
+        }
+
         public AugmentorConfig build() {
-            return new AugmentorConfig(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug);
+            return new AugmentorConfig(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug,
+                    inPlaceModification);
         }
     }
 
@@ -460,7 +483,7 @@ public final class AugmentorConfig {
         private static final List<String> CLASSES = List.of("augment", "receiver");
         private static final List<String> METHODS = List.of("augment", "params");
 
-        private static final List<String> ROOT_KEYS = List.of("debug", "augment");
+        private static final List<String> ROOT_KEYS = List.of("debug", "inPlaceModification", "augment");
         private static final List<String> AUGMENT_KEYS = List.of("frameFormat", "receiverFormat", "paramsFormat", "maxIdLength",
                 "receiver", "params");
 
@@ -519,6 +542,10 @@ public final class AugmentorConfig {
             Boolean debug = value(List.of("debug"), Boolean.class, "true or false");
             if (debug != null) {
                 config.debug(debug);
+            }
+            Boolean inPlaceModification = value(List.of("inPlaceModification"), Boolean.class, "true or false");
+            if (inPlaceModification != null) {
+                config.inPlaceModification(inPlaceModification);
             }
             AugmentorConfig result = config.build();
             checkFormats(result);

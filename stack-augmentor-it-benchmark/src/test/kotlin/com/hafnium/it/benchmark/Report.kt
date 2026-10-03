@@ -5,7 +5,8 @@ import java.util.Locale
 
 /**
  * Writes the HTML report of the benchmark: `Report <results directory> <report file>`. One row per scenario and
- * whether the exception was logged, one column per mode, and the start of a logged trace of each.
+ * whether the exception was logged, one column per mode, and the start of a logged trace of each. Clicking a column
+ * header sorts the table by it.
  */
 fun main(args: Array<String>) {
     val results = File(args[0])
@@ -22,7 +23,7 @@ private fun read(file: File): Map<Row, Measurement> = if (!file.exists()) emptyM
     .filter { it.isNotBlank() }
     .associate { line ->
         val f = line.split('\t')
-        Row(Scenario.valueOf(f[0]), f[1].toBoolean()) to Measurement(f[2].toDouble(), f[3].toDouble(), f[4].toDouble(), f[5].toInt())
+        Row(Scenario.valueOf(f[0]), f[1].toBoolean()) to Measurement(f[2].toDouble(), f[3].toDouble(), f[4].toDouble(), f[5].toInt(), f[6].toInt())
     }
 
 private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): String = buildString {
@@ -40,16 +41,23 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
         @media (prefers-color-scheme: dark) {
           :root { --fg: #e6edf3; --muted: #8d96a0; --bg: #0d1117; --line: #30363d; --head: #161b22; --good: #3fb950; --bad: #f85149; }
         }
-        body { font: 15px/1.5 system-ui, sans-serif; color: var(--fg); background: var(--bg); margin: 0 auto; padding: 24px 16px; max-width: 1100px; }
+        body { font: 15px/1.5 system-ui, sans-serif; color: var(--fg); background: var(--bg); margin: 0 auto; padding: 24px 16px; max-width: 1300px; }
         h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 17px; margin: 32px 0 8px; }
         p { color: var(--muted); margin: 4px 0; }
         .scroll { overflow-x: auto; }
         table { border-collapse: collapse; width: 100%; margin-top: 12px; }
-        th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: right; vertical-align: top; }
-        th { background: var(--head); font-weight: 600; }
-        th:first-child, td:first-child { text-align: left; }
-        .ratio { display: block; font-size: 12px; color: var(--muted); }
+        th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: right; vertical-align: top; white-space: nowrap; }
+        th { white-space: normal; }
+        th { background: var(--head); font-weight: 600; cursor: pointer; user-select: none; }
+        th[aria-sort="ascending"]::after { content: " \25B2"; } th[aria-sort="descending"]::after { content: " \25BC"; }
+        th.text, td.text { text-align: left; }
+        .ratio { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; }
         .worse { color: var(--bad); } .same { color: var(--good); }
+        .trace { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 0 0 4px; font: inherit; }
+        .trace:hover, .trace:focus { color: var(--fg); }
+        #tip { position: fixed; z-index: 10; display: none; max-width: min(900px, calc(100vw - 32px)); max-height: 60vh; overflow: auto;
+          margin: 0; box-shadow: 0 4px 16px rgba(0, 0, 0, .25); text-align: left; white-space: pre; }
+        dt { font-weight: 600; margin-top: 8px; } dd { margin: 2px 0 0 0; color: var(--muted); }
         details { margin: 6px 0; } summary { cursor: pointer; }
         pre { font-size: 12px; background: var(--head); border: 1px solid var(--line); padding: 8px; overflow-x: auto; }
         </style>
@@ -58,55 +66,88 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
         <h1>Exception cost in a ${Scenario.FRAMES}-frame stack</h1>
         <p>Microseconds per exception: created, caught and, if logged, turned into text with <code>stackTraceToString()</code>.
         Median of the measured batches after a warm-up; each mode runs in its own JVM. ${escape(environment)}</p>
-        <p>Bottom: the deepest frame, where the exception is created. Near the bottom: caught 3 frames above it. Near the top:
-        caught 3 frames below the outermost frame of the stack, so it leaves almost all of them. Configured frames show
-        their receiver id and the depth parameter.</p>
+        <p>The exception is always created at the bottom, in the deepest frame. Near the bottom: caught 3 frames above it.
+        Near the top: caught 3 frames below the outermost frame of the stack, so it leaves almost all of them. Configured
+        frames show their receiver id and the depth parameter. Click a column header to sort; click &#x2630; to see
+        the start of the logged stack trace.</p>
         """.trimIndent()
     )
-    append("\n<div class=\"scroll\"><table>\n<tr><th>Scenario</th><th>Logged</th>")
+    append("\n<div class=\"scroll\"><table id=\"results\">\n<thead><tr><th class=\"text\">Caught</th><th>Configured frames</th>")
+    append("<th class=\"text\">Logged</th>")
     Mode.entries.forEach { append("<th>").append(escape(it.title)).append("</th>") }
-    append("</tr>\n")
+    append("</tr></thead>\n<tbody>\n")
     for (scenario in Scenario.entries) {
         for (logged in listOf(true, false)) {
             val row = Row(scenario, logged)
             val plain = measured[Mode.PLAIN]?.get(row)
-            append("<tr><td>").append(escape(scenario.title)).append("</td><td>").append(if (logged) "yes" else "no").append("</td>")
+            append("<tr><td class=\"text\">").append(scenario.caught).append("</td>")
+            append("<td data-sort=\"${scenario.configuredPercent}\">").append(scenario.configuredPercent).append("%</td>")
+            append("<td class=\"text\">").append(if (logged) "yes" else "no").append("</td>")
             for (mode in Mode.entries) {
                 val m = measured[mode]?.get(row)
-                append("<td>")
+                append("<td data-sort=\"").append(m?.median?.let { String.format(Locale.ROOT, "%.3f", it) } ?: "").append("\">")
                 if (m == null) {
                     append("&mdash;")
                 } else {
                     append(format(m.median))
+                    traceExcerpt(results, mode, scenario)?.let {
+                        append("<button type=\"button\" class=\"trace\" aria-label=\"Stack trace\" data-trace=\"")
+                            .append(escape(it).replace("\"", "&quot;")).append("\">&#x2630;</button>")
+                    }
                     if (mode != Mode.PLAIN && plain != null) {
                         val ratio = m.median / plain.median
                         val css = if (ratio < 1.5) "same" else "worse"
                         append("<span class=\"ratio $css\">").append(String.format(Locale.ROOT, "%.1f× no agent", ratio)).append("</span>")
                     }
                     append("<span class=\"ratio\">").append(format(m.min)).append("–").append(format(m.max)).append("</span>")
+                    append("<span class=\"ratio\">").append(String.format(Locale.ROOT, "n = %,d (%d × %,d)", m.samples, m.batches, m.batch))
+                        .append("</span>")
                 }
                 append("</td>")
             }
             append("</tr>\n")
         }
     }
-    append("</table></div>\n")
-    append("<p>The small numbers under each time are its ratio to no agent and the range of the batches. &mdash; means the mode did not run, e.g. live-stack mode without the native library.</p>\n")
+    append("</tbody></table></div>\n<pre id=\"tip\" role=\"tooltip\"></pre>\n")
+    append(SORT_SCRIPT)
+    append("<h2>Columns</h2>\n<dl>\n")
+    column("Caught", "Where the exception is caught. It is always created at the bottom, in the deepest of the ${Scenario.FRAMES} " +
+        "frames. Near the bottom: 3 frames above that, so it leaves only 3 frames. Near the top: 3 frames below the outermost " +
+        "frame, so it leaves almost all of them.")
+    column("Configured frames", "The share of the ${Scenario.FRAMES} frames whose method is configured to show ids (receiver id and " +
+        "depth parameter): every 4th frame, or none. The others are methods of an unconfigured class.")
+    column("Logged", "Yes: after it is caught, the exception is turned into text with stackTraceToString(), which reads the " +
+        "whole stack trace, as logging does. No: it is only created, thrown and caught.")
+    Mode.entries.forEach { column(it.title, it.description) }
+    append("</dl>\n<p>Each time is the median in microseconds per exception, measured in its own JVM after a warm-up. " +
+        "The small numbers under it are its ratio to no agent, the range of the measured batches, and the sample size: n = the number of measured exceptions (batches × exceptions per batch), not counting the warm-up; &#x2630; shows the " +
+        "start of that mode's logged stack trace. &mdash; means the mode did not run, e.g. the live-stack mode without the " +
+        "native library.</p>\n")
 
     append("<h2>Logged traces</h2>\n<p>The first lines of one logged trace, and its first configured frame.</p>\n")
     for (scenario in Scenario.entries) {
         append("<details><summary>").append(escape(scenario.title)).append("</summary>\n")
         for (mode in Mode.entries) {
-            val log = File(results, "${mode.id}-${scenario.name}.log").takeIf { it.exists() }?.readLines() ?: continue
-            val head = log.take(6)
-            val configured = log.withIndex().firstOrNull { it.value.contains("Configured{") }
-            val lines = if (configured == null || configured.index < head.size) head
-            else head + "\t... ${configured.index - head.size} more lines ..." + configured.value
-            append("<p>").append(escape(mode.title)).append("</p><pre>").append(escape(lines.joinToString("\n"))).append("</pre>\n")
+            val lines = traceExcerpt(results, mode, scenario) ?: continue
+            append("<p>").append(escape(mode.title)).append("</p><pre>").append(escape(lines)).append("</pre>\n")
         }
         append("</details>\n")
     }
     append("</body>\n</html>\n")
+}
+
+private fun StringBuilder.column(name: String, description: String) {
+    append("<dt>").append(escape(name)).append("</dt><dd>").append(escape(description)).append("</dd>\n")
+}
+
+/** The first lines of the trace logged in [mode] and [scenario], and its first configured frame; null if none was logged. */
+private fun traceExcerpt(results: File, mode: Mode, scenario: Scenario): String? {
+    val log = File(results, "${mode.id}-${scenario.name}.log").takeIf { it.exists() }?.readLines() ?: return null
+    val head = log.take(6)
+    val configured = log.withIndex().firstOrNull { it.value.contains("Configured{") }
+    val lines = if (configured == null || configured.index < head.size) head
+    else head + "\t... ${configured.index - head.size} more lines ..." + configured.value
+    return lines.joinToString("\n")
 }
 
 private fun format(micros: Double): String = when {
@@ -116,3 +157,52 @@ private fun format(micros: Double): String = when {
 }
 
 private fun escape(text: String): String = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+/** Sorts the results table by the clicked column: by `data-sort` where a cell has it, otherwise by its text. */
+private val SORT_SCRIPT = """
+    <script>
+    (() => {
+      const table = document.getElementById("results");
+      const headers = [...table.tHead.rows[0].cells];
+      const key = (row, i) => {
+        const cell = row.cells[i];
+        if (!cell.hasAttribute("data-sort")) return cell.textContent;
+        const value = cell.getAttribute("data-sort");
+        return value === "" ? Infinity : Number(value);
+      };
+      const tip = document.getElementById("tip");
+      const show = (button) => {
+        tip.textContent = button.dataset.trace;
+        tip.style.display = "block";
+        const box = button.getBoundingClientRect();
+        const left = Math.max(16, Math.min(box.left, window.innerWidth - tip.offsetWidth - 16));
+        const below = box.bottom + 4 + tip.offsetHeight <= window.innerHeight;
+        tip.style.left = left + "px";
+        tip.style.top = (below ? box.bottom + 4 : Math.max(4, box.top - 4 - tip.offsetHeight)) + "px";
+      };
+      let shown = null;
+      const hide = () => { tip.style.display = "none"; shown = null; };
+      table.querySelectorAll(".trace").forEach(button => button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (shown === button) { hide(); } else { show(button); shown = button; }
+      }));
+      tip.addEventListener("click", event => event.stopPropagation());
+      document.addEventListener("click", hide);
+      document.addEventListener("keydown", event => { if (event.key === "Escape") hide(); });
+      window.addEventListener("scroll", event => { if (event.target !== tip) hide(); }, true);
+      headers.forEach((th, i) => th.addEventListener("click", () => {
+        const ascending = th.getAttribute("aria-sort") !== "ascending";
+        headers.forEach(h => h.removeAttribute("aria-sort"));
+        th.setAttribute("aria-sort", ascending ? "ascending" : "descending");
+        const body = table.tBodies[0];
+        const rows = [...body.rows].sort((a, b) => {
+          const x = key(a, i), y = key(b, i);
+          const order = typeof x === "number" ? x - y : x.localeCompare(y);
+          return ascending ? order : -order;
+        });
+        rows.forEach(row => body.appendChild(row));
+      }));
+    })();
+    </script>
+
+""".trimIndent() + "\n"

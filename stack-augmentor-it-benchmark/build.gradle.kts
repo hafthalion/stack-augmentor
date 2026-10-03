@@ -5,7 +5,7 @@ plugins {
 // Benchmark: how long an exception takes in a 1000-frame stack without the agent, with it (frames written in place, or
 // the whole trace copied for every frame) and in its live-stack mode. Each mode runs the same tests in its own JVM;
 // `./gradlew :stack-augmentor-it-benchmark:benchmark` runs them all and writes build/reports/benchmark/index.html.
-// `test` only checks, with short measurements and without the agent, that the benchmark runs.
+// The project build only compiles it: `test` is off, the benchmark runs only when one of its tasks is called.
 
 val agent = configurations.create("agent") {
     isCanBeConsumed = false
@@ -30,9 +30,7 @@ dependencies {
 }
 
 tasks.test {
-    systemProperty("benchmark.warmupMillis", "50")
-    systemProperty("benchmark.batchMillis", "10")
-    systemProperty("benchmark.batches", "1")
+    enabled = false
 }
 
 val results = layout.buildDirectory.dir("benchmark")
@@ -61,8 +59,8 @@ val benchmarkTasks = modes.map { mode ->
                 listOf("-javaagent:${agentJar.singleFile.absolutePath}=config=${config.asFile.absolutePath}")
             })
         }
-        if (mode == "agentCopying") {
-            systemProperty("stackaugmentor.copyStackTraces", "true")
+        if (mode == "agentInPlace") {
+            systemProperty("stackaugmentor.inPlaceModification", "true")
         }
         if (mode == "live") {
             val library = nativeLibrary

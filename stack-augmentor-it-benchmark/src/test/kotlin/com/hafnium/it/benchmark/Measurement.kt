@@ -1,7 +1,13 @@
 package com.hafnium.it.benchmark
 
-/** Microseconds per run of a measured action: the median of the batches, and their range. */
-data class Measurement(val median: Double, val min: Double, val max: Double, val batch: Int) {
+/**
+ * Microseconds per run of a measured action: the median of the batches, and their range. [batch] runs in each of
+ * [batches] batches.
+ */
+data class Measurement(val median: Double, val min: Double, val max: Double, val batch: Int, val batches: Int) {
+
+    /** How many runs were measured. */
+    val samples: Int get() = batch * batches
 
     companion object {
         private val warmupMillis = System.getProperty("benchmark.warmupMillis", "2000").toLong()
@@ -23,7 +29,7 @@ data class Measurement(val median: Double, val min: Double, val max: Double, val
                 repeat(batch) { action() }
                 (System.nanoTime() - batchStart) / 1000.0 / batch
             }.sorted()
-            return Measurement(micros[micros.size / 2], micros.first(), micros.last(), batch)
+            return Measurement(micros[micros.size / 2], micros.first(), micros.last(), batch, batches)
         }
     }
 }

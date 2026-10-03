@@ -22,11 +22,11 @@ public final class Startup {
     }
 
     /**
-     * The configuration from {@code loader}. An invalid one is also printed as an error, naming the file, the key and
-     * the line, and then thrown: whoever calls the component, e.g. the ByteBuddy Gradle plugin or {@code ServiceLoader},
-     * may not show the exception's message.
+     * The configuration from {@code loader}, or what follows from it. An invalid one is also printed as an error, naming
+     * the file, the key and the line, and then thrown: whoever calls the component, e.g. the ByteBuddy Gradle plugin or
+     * {@code ServiceLoader}, may not show the exception's message.
      */
-    public static AugmentorConfig load(String component, Supplier<AugmentorConfig> loader) {
+    public static <T> T load(String component, Supplier<T> loader) {
         try {
             return loader.get();
         } catch (ConfigException e) {

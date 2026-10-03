@@ -21,28 +21,35 @@ The work done when an exception leaves an instrumented method SHALL be limited t
 search of its stack trace from the last handled frame, one walk of the current thread's stack to find the
 exiting method's caller when a frame of the same class and method is found, the id lookups for the frame,
 and one write of the rewritten frame. The id source of each class SHALL be looked up once and cached.
-The Java agent SHALL open `java.lang` to the runtime classes and write the frame into the throwable's own
-stack trace array, so no trace is copied. The handler of build-time instrumentation SHALL do the same when
-the application opened `java.lang` to it (`--add-opens java.base/java.lang=ALL-UNNAMED`). Otherwise the
-trace is copied once (`getStackTrace`) and written back once (`setStackTrace`). A trace the application replaced
+By default the trace SHALL be copied once (`getStackTrace`) and written back once (`setStackTrace`). With
+`inPlaceModification = true` the handler SHALL write the frame into the throwable's own stack trace array, so
+no trace is copied; this needs `java.lang` open to the runtime classes. The Java agent SHALL open it; build-time
+instrumentation needs the application to open it (`--add-opens java.base/java.lang=ALL-UNNAMED`). If
+`inPlaceModification` is set and `java.lang` is not open, the component SHALL report an error and fail to start
+(the agent stops the JVM; build-time instrumentation installs no handler), instead of silently copying. A trace the application replaced
 after it was read SHALL NOT be overwritten by an in-place write. With copying, an exception that leaves N
 instrumented frames costs O(N × trace length); the JVM caps the trace length
 (`-XX:MaxJavaStackTraceDepth`, 1024 by default). The README SHALL state this cost with measured numbers.
 
 #### Scenario: Deep recursion with the agent
-- **GIVEN** the Java agent and a trace of more than 1000 frames
+- **GIVEN** the Java agent with `inPlaceModification = true` and a trace of more than 1000 frames
 - **WHEN** an exception leaves an instrumented method
 - **THEN** its stack trace is not copied: the frame is replaced in the throwable's own array
 
 #### Scenario: Deep recursion with build-time instrumentation
-- **GIVEN** build-time instrumentation in an application started with `--add-opens java.base/java.lang=ALL-UNNAMED`
+- **GIVEN** build-time instrumentation with `inPlaceModification = true` in an application started with `--add-opens java.base/java.lang=ALL-UNNAMED`
 - **WHEN** an exception leaves an instrumented method
 - **THEN** its stack trace is not copied: the frame is replaced in the throwable's own array
 
-#### Scenario: Build-time instrumentation without java.lang open
-- **GIVEN** build-time instrumentation in an application started without that option
+#### Scenario: Default copying
+- **GIVEN** the agent or build-time instrumentation without `inPlaceModification`
 - **WHEN** an exception leaves an instrumented method
-- **THEN** the frame is still rewritten, by copying the trace and writing it back with `setStackTrace`
+- **THEN** the frame is rewritten by copying the trace and writing it back with `setStackTrace`
+
+#### Scenario: In-place modification without java.lang open
+- **GIVEN** build-time instrumentation with `inPlaceModification = true` in an application started without `--add-opens`
+- **WHEN** the first exception leaves an instrumented method
+- **THEN** an error names `--add-opens java.base/java.lang=ALL-UNNAMED`, and stack traces stay unchanged
 
 #### Scenario: Repeated exceptions of one class
 - **GIVEN** a class whose id source is an annotated field

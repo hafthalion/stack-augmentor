@@ -1,5 +1,8 @@
 package com.hafnium.stackaugmentor.runtime.handler;
 
+import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
+import com.hafnium.stackaugmentor.runtime.config.ConfigException;
+
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 
@@ -9,7 +12,8 @@ import java.lang.invoke.VarHandle;
  * <p>{@link #copying()} uses the public API: {@code getStackTrace} and {@code setStackTrace} each copy the whole
  * trace, so every instrumented frame an exception leaves costs time proportional to the trace length.
  * {@link #inPlace()} replaces the one element in the throwable's own array instead, which needs
- * {@code java.lang} to be open to this module; the Java agent opens it through {@code Instrumentation}.
+ * {@code java.lang} to be open to this module; the Java agent opens it through {@code Instrumentation}. Copying is the
+ * default, see {@link #configured}.
  */
 public abstract sealed class StackTraces {
 
@@ -39,6 +43,23 @@ public abstract sealed class StackTraces {
      */
     public static StackTraces inPlace() throws IllegalAccessException {
         return new InPlace();
+    }
+
+    /**
+     * Copying, or in place if the configuration asks for it ({@link AugmentorConfig#inPlaceModification()}).
+     *
+     * @param notOpen how to open {@code java.lang}, for the error message
+     * @throws ConfigException if in-place modification is asked for, but {@code java.lang} is not open to this module
+     */
+    public static StackTraces configured(AugmentorConfig config, String notOpen) {
+        if (!config.inPlaceModification()) {
+            return COPYING;
+        }
+        try {
+            return inPlace();
+        } catch (IllegalAccessException | RuntimeException e) {
+            throw new ConfigException("inPlaceModification needs java.lang open to stack-augmentor, " + notOpen + " (" + e + ")");
+        }
     }
 
     private static final class Copying extends StackTraces {

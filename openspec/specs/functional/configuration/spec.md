@@ -9,6 +9,9 @@ configurations are reported.
 ### Requirement: File format and structure
 The configuration SHALL be a TOML file ending in `.toml`, with these keys:
 - `debug` (boolean, default `false`);
+- `inPlaceModification` (boolean, default `false`): write rewritten frames into the throwable's own stack
+  trace instead of copying it, see the performance spec; the system property
+  `stackaugmentor.inPlaceModification` SHALL override it;
 - `[augment]`: `frameFormat`, `receiverFormat`, `paramsFormat` (strings), `maxIdLength` (integer
   between 2 and 10000, default 64), and the tables:
   - `[augment.receiver]` (class name or class pattern → field name, `method()`, a list of them, `"@"` for
@@ -130,7 +133,7 @@ server or a fat jar, the runtime jar can be loaded by a parent of the applicatio
 ### Requirement: Sections by phase
 What gets instrumented SHALL NOT be configured directly: the agent, when classes are loaded, and the build
 plugin, at build time, SHALL instrument the classes and methods that `[augment.receiver]` and
-`[augment.params]` need. The formats in `[augment]` and `debug` SHALL be read at runtime in both modes, and
+`[augment.params]` need. The formats in `[augment]`, `debug` and `inPlaceModification` SHALL be read at runtime in both modes, and
 so SHALL `[augment.receiver]`, to find the receiver id sources of instrumented classes. One
 file SHALL be usable for both phases of build-time instrumentation.
 
