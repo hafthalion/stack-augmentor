@@ -71,7 +71,7 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
         <p>The exception is always created at the bottom, in the deepest frame. Near the bottom: caught 3 frames above it.
         Near the top: caught 3 frames below the outermost frame of the stack, so it leaves almost all of them. Configured
         frames show their receiver id and the depth parameter. Click a column header to sort; click &#x2630; to see
-        the start of the logged stack trace.</p>
+        the bottom and top 10 frames of the logged stack trace, where --&gt; marks the frame that caught the exception.</p>
         """.trimIndent()
     )
     append("\n<div class=\"scroll\"><table id=\"results\">\n<thead><tr><th class=\"text\">Caught</th><th>Configured frames</th>")
@@ -144,18 +144,36 @@ private fun StringBuilder.column(name: String, description: String) {
     append("<dt>").append(escape(name)).append("</dt><dd>").append(escape(description)).append("</dd>\n")
 }
 
-private const val TRACE_LINES = 20
+private const val TRACE_FRAMES = 10
 
 private fun attribute(text: String): String = escape(text).replace("\"", "&quot;")
 
-/** The first lines of the trace logged in [mode] and [scenario], and its first configured frame; null if none was logged. */
+/**
+ * The trace logged in [mode] and [scenario]: the exception, the [TRACE_FRAMES] bottom and top frames of the benchmark's
+ * stack, its first configured frame and the frame that caught the exception, marked with an arrow; null if none was
+ * logged. The frames below the benchmark's stack (the test framework) are left out.
+ */
 private fun traceExcerpt(results: File, mode: Mode, scenario: Scenario): String? {
     val log = File(results, "${mode.id}-${scenario.name}.log").takeIf { it.exists() }?.readLines() ?: return null
-    val head = log.take(TRACE_LINES)
-    val configured = log.withIndex().firstOrNull { it.value.contains("Configured{") }
-    val lines = if (configured == null || configured.index < head.size) head
-    else head + "\t... ${configured.index - head.size} more lines ..." + configured.value
-    return lines.joinToString("\n")
+    // Line 0 is the exception, then one line per frame from depth 0 upwards.
+    val caught = scenario.catchAt + 1
+    val configured = log.indexOfFirst { it.contains("Configured{") }
+    val bottom = 0..TRACE_FRAMES
+    val top = Scenario.FRAMES - TRACE_FRAMES + 1..Scenario.FRAMES
+    val shown = (bottom + top + listOf(configured, caught)).filter { it in log.indices }.toSortedSet()
+    return buildList {
+        var previous = -1
+        for (index in shown) {
+            if (index > previous + 1) {
+                add("    \t... ${index - previous - 1} more lines ...")
+            }
+            add((if (index == caught) "--> " else "    ") + log[index])
+            previous = index
+        }
+        if (previous < log.size - 1) {
+            add("    \t... ${log.size - 1 - previous} more lines (the benchmark's caller and the test framework)")
+        }
+    }.joinToString("\n")
 }
 
 private fun format(micros: Double): String = when {

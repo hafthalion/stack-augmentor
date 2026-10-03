@@ -13,6 +13,9 @@ enum class Scenario(val configuredEvery: Int, val caughtNearTop: Boolean) {
     /** Where the exception is caught: near the bottom (3 frames above where it is created) or near the top. */
     val caught: String get() = if (caughtNearTop) "near the top" else "near the bottom"
 
+    /** The depth of the frame that catches the exception; depth 0 creates it. */
+    val catchAt: Int get() = if (caughtNearTop) FRAMES - 3 else 3
+
     /** The share of the frames that are configured, e.g. 25%. */
     val configuredPercent: Int get() = if (configuredEvery == 0) 0 else 100 / configuredEvery
 
