@@ -1,6 +1,6 @@
 # Stack Augmentor
 
-Shows **which object** (and optionally **which arguments**) each frame of a stack trace was running on, either with a Java agent or by instrumenting your classes at build time:
+Shows **which object** (and optionally **which arguments**) each frame of a stack trace was running on:
 
 ```
 Exception in thread "main" java.lang.Exception: An error has occurred
@@ -8,19 +8,34 @@ Exception in thread "main" java.lang.Exception: An error has occurred
 	at com.hafnium.Main.main(Main.kt:15)
 ```
 
-Ids come from annotations (`@StackTraceId` on a field or method for the object, `@StackTraceParam` and `@StackTraceParams` for arguments), or from an external configuration for classes you cannot change. Classes without either are left alone.
+The ids come from annotations on your classes (`@StackTraceId`, `@StackTraceParam`, `@StackTraceParams`), or from a configuration file for classes you cannot change. Classes without either stay as they are. It works for Java and Kotlin; the library itself is Java and does not need the Kotlin runtime.
 
-It works for Java and Kotlin classes. The library is written in Java, so it does not need the Kotlin runtime; only the examples and tests use Kotlin.
+## Three ways to use it
 
-## Two ways to use it
+| | Java agent | Java agent, live stack (experimental) | Build-time instrumentation |
+|---|---|---|---|
+| Start | `-javaagent:stack-augmentor-agent.jar=config=<file>` | the same, plus `-agentpath:<native library>` | nothing: the ByteBuddy Gradle plugin changes your compiled classes |
+| Frames with ids | the frames the exception leaves | every frame on the stack when the exception is created, including the one that catches it | the frames the exception leaves |
+| Third-party classes | yes, from the configuration | yes, from the configuration | no, only the classes of the project being built |
+| Cost | a few µs per configured frame the exception leaves | every exception pays a stack walk, more with configured frames | as the agent |
+| Needs at runtime | the agent jar | the agent jar and the native library | `stack-augmentor-runtime` on the classpath |
+| Example | `./gradlew :examples:java-agent:run` | `./gradlew :examples:live-agent:run` | `./gradlew :examples:build-time:run` |
 
-| | Java agent | Build-time instrumentation |
-|---|---|---|
-| How | `-javaagent:stack-augmentor-agent.jar` at startup | The ByteBuddy Gradle plugin changes your compiled classes |
-| Classes | Your classes and libraries | Only the classes of the project being built |
-| `[augment.receiver]` / `[augment.params]` for third-party classes | Yes | No |
-| At runtime | The agent jar (self-contained) | `stack-augmentor-runtime` on the classpath (with tomlj; no ByteBuddy, no Kotlin) |
-| Example | `./gradlew :examples:java-agent:run` | `./gradlew :examples:build-time:run` |
+An application with classes instrumented at build time can also run with the agent, in either mode.
+
+## Options
+
+| Option | Where | Default | What it does |
+|---|---|---|---|
+| Configuration file | `-javaagent:...=config=<file>`, `-Dstackaugmentor.config=<file>`, or (build-time) `stack-augmentor.toml` on the classpath | none: nothing is augmented | the TOML file with everything below |
+| `[augment.receiver]` | configuration | empty | which classes show a receiver id, and where it comes from |
+| `[augment.params]` | configuration | empty | which methods show parameter ids, and which parameters |
+| `[augment]` | configuration | see [Formats](#formats) | how frames look: `frameFormat`, `receiverFormat`, `paramsFormat`, `maxIdLength` |
+| `debug` | configuration | `false` | prints what gets instrumented and where each id comes from |
+| `inPlaceModification` | configuration, or `-Dstackaugmentor.inPlaceModification=true` | `false` | writes each frame into the exception's own stack trace instead of copying the trace; faster for deep stacks, needs `java.lang` open (see [Limitations](#limitations)) |
+| Live stack | `-agentpath:<native library>` | off | the agent reads ids from the live stack instead of instrumenting classes (see [below](#experimental-reading-frames-from-the-live-stack)) |
+
+See [Configuration](#configuration) for the file in full.
 
 ## Quick start: Java agent
 
@@ -62,7 +77,7 @@ Use it in your own application:
    }
    ```
 
-2. Say which classes use their annotations, in `stack-augmentor.toml` (see [Configuration](#configuration)). The receiver ids and the parameter ids are configured separately:
+2. Say which classes use their annotations, in `stack-augmentor.toml`. Receiver ids and parameter ids are configured separately:
 
    ```toml
    [augment.receiver]      # receiver ids: @StackTraceId
@@ -78,7 +93,7 @@ Use it in your own application:
    java -javaagent:stack-augmentor-agent-<version>.jar=config=stack-augmentor.toml -jar app.jar
    ```
 
-   `-Dstackaugmentor.config=<path>` works as well. Without a configuration, or without `[augment.receiver]` and `[augment.params]` entries, nothing is augmented, and the agent prints a warning.
+   Without a configuration, or with empty `[augment.receiver]` and `[augment.params]`, nothing is augmented and the agent prints a warning.
 
 ## Quick start: build-time instrumentation
 
@@ -117,9 +132,10 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 }
 ```
 
-After compiling, the ByteBuddy Gradle plugin applies `ByteBuddyPlugin` to the project's classes (Java and Kotlin), instrumenting the classes and methods that the `[augment.receiver]` and `[augment.params]` entries of the given configuration need, as the agent does. Without the configuration argument, nothing is instrumented and the build prints a warning. No agent is needed at runtime: the application needs only `stack-augmentor-api` and `stack-augmentor-runtime`, which bring the bridge and tomlj, but neither ByteBuddy nor the Kotlin runtime. Libraries are not changed, so entries for third-party classes don't apply here.
-
-With the configuration in `src/main/resources`, one file serves both phases: the build plugin reads `[augment.receiver]` and `[augment.params]`, and at runtime `[augment]` (with `[augment.receiver]`, for receiver ids), `debug` and `inPlaceModification` are read from `stack-augmentor.toml` on the classpath (or from `-Dstackaugmentor.config=<file>`); when the runtime jar's class loader does not see it, e.g. in an application server, the context class loader of the first throwing thread is asked. At runtime, the `[augment.receiver]` entries apply as with the agent: a class without a matching entry gets no receiver id, even if it is annotated. Without a runtime configuration, a warning says so, and frames show only the parameter ids chosen at build time. An invalid runtime configuration is printed as an error naming the file, the key and the line, and stack traces then stay unchanged.
+- **At build time**, the plugin instruments the classes and methods that `[augment.receiver]` and `[augment.params]` need. Without the configuration argument, nothing is instrumented and the build prints a warning.
+- **At runtime**, the application needs only `stack-augmentor-api` and `stack-augmentor-runtime` (no agent, no ByteBuddy, no Kotlin). The runtime reads `stack-augmentor.toml` from the classpath, or the file in `-Dstackaugmentor.config`, for `[augment]`, `[augment.receiver]` (receiver ids), `debug` and `inPlaceModification`. In an application server it also asks the context class loader of the first throwing thread.
+- **One file serves both** when it is in `src/main/resources`.
+- Without a runtime configuration, a warning says so and frames show only the parameter ids chosen at build time. An invalid one is printed as an error, and stack traces stay unchanged.
 
 ## Where ids come from
 
@@ -193,10 +209,8 @@ The configuration is a TOML file (ending in `.toml`). `[augment]` sets how frame
 # where each id comes from, and config entries or annotations that have no effect.
 debug = false
 
-# Write each rewritten frame into the exception's own stack trace instead of copying the whole trace for every
-# frame. Needs java.lang open to stack-augmentor: the agent opens it; with build-time instrumentation, start the
-# application with --add-opens java.base/java.lang=ALL-UNNAMED. Otherwise startup fails with an error.
-# -Dstackaugmentor.inPlaceModification=true|false overrides this value.
+# Write each frame into the exception's own stack trace instead of copying the trace (see Limitations).
+# -Dstackaugmentor.inPlaceModification=true|false overrides it.
 inPlaceModification = false
 
 # How frames look: read at runtime, in both modes (these are the defaults).
@@ -236,9 +250,11 @@ maxIdLength = 64
 "com.thirdparty.Shipment.<init>" = ["orderId"]       # constructors: <init>
 ```
 
-Quote class names in `[augment.receiver]` and `[augment.params]`. Without quotes, TOML treats each `.` as a nested table; the agent accepts that too, but the quoted form is the clear one. Keys with wildcards must be quoted. Broad wildcards such as `"com.**.*" = "@"` make the agent instrument many classes, which costs time when they are loaded; `debug = true` lists every instrumented class, and the annotations it ignores. A missing field or method is a warning for exact class names, and only a debug message for patterns. Startup messages name their source: `agent:`, `build plugin:` or `runtime:` (the handler of build-time instrumentation), and with `debug = true` each of them lists its configuration file, both tables and the `[augment]` values. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.
-
-An invalid configuration stops the JVM (or the build) at startup. The message names the key and its line, e.g. `stack-augmentor.toml, line 3: maxIdLength must be between 2 and 10000, was 1`. Unknown keys are rejected, so a typo doesn't go unnoticed.
+- **Quote class names.** Without quotes TOML reads each `.` as a nested table; that works too, but keys with wildcards must be quoted. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.
+- **Keep wildcards narrow.** `"com.**.*" = "@"` makes the agent instrument many classes, which slows down class loading.
+- **`debug = true`** lists the configuration, every instrumented class and the annotations that have no effect. Messages start with their source: `agent:`, `build plugin:` or `runtime:` (build-time instrumentation at runtime).
+- **Missing members** are a warning for exact class names, and a debug message for patterns.
+- **An invalid configuration stops the JVM (or the build) at startup**, naming the key and its line, e.g. `stack-augmentor.toml, line 3: maxIdLength must be between 2 and 10000, was 1`. Unknown keys are rejected, so typos don't go unnoticed.
 
 ### Formats
 
@@ -268,7 +284,7 @@ The agent (ByteBuddy, shaded), or the ByteBuddy build plugin, adds exit advice t
 - static methods that have id parameters;
 - constructors that have id parameters. ByteBuddy's advice cannot catch exceptions in constructors, so these get handlers of stack-augmentor's own (`ConstructorExit`): one around the code before the `super(...)` or `this(...)` call and one around the code after it, each passing the id arguments without a receiver and rethrowing the exception. On a normal return they run no code at all.
 
-When an exception leaves such a method, the advice passes `this`, the id arguments and their labels to `Dispatch` (in `stack-augmentor-instrument-bridge`), which hands them to the handler. The handler finds that method's frame in the exception's stack trace and replaces it, so every printer and logger shows the ids. The agent opens `java.lang` to its own classes at startup, so it replaces the one element in the exception's own trace array. Build-time instrumentation does the same when the application is started with `--add-opens java.base/java.lang=ALL-UNNAMED`; without it, the handler copies the trace and writes it back with `setStackTrace`. The advice is inlined, so on a normal return it costs one null check: the argument array is only built on the exception path. A test checks that normal calls allocate nothing.
+When an exception leaves such a method, the advice passes `this`, the id arguments and their labels to `Dispatch` (in `stack-augmentor-instrument-bridge`), which hands them to the handler. The handler finds the method's frame in the exception's stack trace and replaces it, so every printer and logger shows the ids. By default it copies the trace and writes it back with `setStackTrace`; with `inPlaceModification = true` it replaces the one element in the exception's own array. On a normal return the inlined advice costs one null check and allocates nothing (a test checks that).
 
 - **Java agent:** the bridge is appended to the bootstrap class loader, so every class loader can see it, and the agent installs the handler at startup.
 - **Build time:** the bridge is an ordinary dependency (through `stack-augmentor-runtime`), and `Dispatch` finds the runtime's handler with `ServiceLoader` when the first exception needs it.
@@ -276,33 +292,39 @@ When an exception leaves such a method, the advice passes `this`, the id argumen
 
 ## Experimental: reading frames from the live stack
 
-The agent can also work without instrumenting any class: start the JVM with the native library `stack-augmentor-native` as well, before the agent or after it:
+The agent can also work without instrumenting any class. Start the JVM with the native library as well:
 
 ```
 java -agentpath:/path/to/libstackaugmentor.so -javaagent:stack-augmentor-agent-<version>.jar=config=stack-augmentor.toml -jar app.jar
 ```
 
-`./gradlew :stack-augmentor-native:compileNative` builds it into `stack-augmentor-native/build/native/` with the platform's C compiler: `libstackaugmentor.so` on Linux, `libstackaugmentor.dylib` on macOS (`cc`), `stackaugmentor.dll` on Windows (MinGW `gcc`). It compiles against the JDK's headers, which it first copies to `stack-augmentor-native/jdk-include` (ignored by git), where `.idea/c_cpp_properties.json` points IntelliJ as well. The library only asks the JVM, while it starts, to keep the local variables of JIT-compiled code readable (the JVMTI capability `can_access_local_variables`); that cannot be done later, so it cannot be part of the agent jar.
+- **Building the library:** `./gradlew :stack-augmentor-native:compileNative` builds it into `stack-augmentor-native/build/native/` with the platform's C compiler: `libstackaugmentor.so` on Linux, `libstackaugmentor.dylib` on macOS (`cc`), `stackaugmentor.dll` on Windows (MinGW `gcc`). It first copies the JDK's headers to `stack-augmentor-native/jdk-include` (ignored by git), where `.idea/c_cpp_properties.json` points IntelliJ too.
+- **Why a native library:** it asks the JVM at startup to keep the local variables of JIT-compiled code readable (the JVMTI capability `can_access_local_variables`). That can't be done later, so the agent jar can't do it.
+- **How it works:** the agent adds code to `java.lang.Throwable` only. When a new exception records its stack trace, its frames are still on the stack, so the agent reads the receiver and arguments of the configured methods there (with the JDK-internal `java.lang.LiveStackFrame`). The ids are written into the stack trace when it is first read or printed. Configuration and formats are the same.
 
-The agent then adds code to `java.lang.Throwable` only. When the JVM records the stack trace of a new exception, its frames are still on the stack: for the configured methods, the agent reads the receiver and the arguments from the live stack (with the JDK-internal `java.lang.LiveStackFrame`) and turns them into ids right away. They are written into the stack trace once, when it is first read or printed. The configuration and the formats are the same. Differences from instrumenting classes:
+Differences from instrumenting classes:
 
 - **Every frame on the stack when the exception is created gets ids**, also the method that catches it and the frames below.
 - **Constructors show their parameter ids also for exceptions from `super(...)` or `this(...)`.** Still no receiver id.
 - **Ids are read when the exception is created**, not when it leaves each method.
-- **Every exception pays a stack walk**, also when no frame is configured: measured with JDK 25 on a Linux container, about 4 µs for a 10-frame stack and 13 µs for a 100-frame one, plus 2 to 4 µs per configured frame. Exceptions created while a class loads, such as a class loader's `ClassNotFoundException`, are skipped.
+- **Every exception pays a stack walk**, also when no frame is configured: measured with JDK 25 on a Linux container, about 4 µs for a 10-frame stack and 13 µs for a 100-frame one, plus 2 to 4 µs per configured frame. `stack-augmentor-it-benchmark` compares the modes at 1000 frames. Exceptions created while a class loads, such as a class loader's `ClassNotFoundException`, are skipped.
 - **An object argument that the JIT optimized away reads as `null`, and is shown as `?`**, e.g. a boxed `Integer` created in compiled code and never stored (scalar replacement). `-XX:-EliminateAllocations` turns that optimization off, at some cost; a receiver optimized away shows no receiver id.
 - **It relies on JDK internals.** If they are missing or behave differently, the agent says so and instruments classes as usual. There is no build-time equivalent.
 
-`./gradlew :examples:live-agent:run` runs an example in this mode: a shop that logs the exceptions of three requests, where every frame shows its ids. `./gradlew :examples:live-agent:runInstrumented` runs it with the agent alone, which shows ids only on the frames the exceptions left: none for an exception that is logged without being thrown.
-
-`./gradlew :stack-augmentor-it:testLiveStack` runs the integration tests in this mode; without a C compiler it is skipped, except on CI.
+- `./gradlew :examples:live-agent:run`: a shop that logs the exceptions of three requests, where every frame shows its ids.
+- `./gradlew :examples:live-agent:runInstrumented`: the same with the agent alone, which shows ids only on the frames the exceptions left.
+- `./gradlew :stack-augmentor-it:testLiveStack`: the integration tests in this mode; skipped without a C compiler, except on CI.
 
 ## Limitations
 
 - **Only frames the exception passed through get ids.** If an exception is caught and logged in method `m`, then `m` and the frames below it show no ids. Not so when the agent reads frames from the live stack (see above).
-- **Constructors get parameter ids only, and not for exceptions from `super(...)` itself.** They never show a receiver id. An exception thrown inside the superclass constructor, or the one called with `this(...)`, leaves the calling constructor's frame unchanged: the JVM's verifier accepts no exception handler around that call, so stack-augmentor's handlers cover only the code before and after it. Reading frames from the live stack covers it (see above).
-- **An exception instance that is thrown more than once keeps the ids of its first throw.** Its stack trace is recorded once, when it is created, so a preallocated exception that is thrown repeatedly shows the ids of the first time it left each method, and later throws add none.
-- **Each instrumented frame an exception leaves costs a few microseconds.** The handler walks the top of the current stack to find the caller, which costs about a microsecond whatever the depth. By default it also copies the stack trace twice (`getStackTrace`, `setStackTrace`), so the cost grows with the number of instrumented frames times the trace length; the JVM keeps at most 1024 frames in a trace (`-XX:MaxJavaStackTraceDepth`), which bounds it. With `inPlaceModification = true` the handler writes the frame into the exception's own array and copies nothing, which is recommended when deeply recursive methods are instrumented. It needs `java.lang` open: the agent opens it, and build-time instrumentation needs an application started with `--add-opens java.base/java.lang=ALL-UNNAMED` (or with `Add-Opens: java.base/java.lang` in the manifest of an executable jar); without it, startup fails with an error. Measured with JDK 25 on a Linux container, agent on vs off: an exception passing 5 instrumented frames in a 100-frame stack took 33 µs instead of 21 µs; one passing a recursion of 1000 instrumented frames took 1.8 ms instead of 0.16 ms (3.8 ms when copying). Normal returns are not affected; avoid instrumenting deeply recursive methods that throw often.
+- **Constructors get parameter ids only, and not for exceptions from inside `super(...)` or `this(...)`.** The JVM's verifier allows no exception handler around that call, so the calling constructor's frame stays unchanged. The live stack mode covers it.
+- **An exception thrown more than once keeps the ids of its first throw.** Its stack trace is recorded once, when it is created.
+- **Each instrumented frame an exception leaves costs a few microseconds.** Normal returns cost nothing.
+  - The handler walks the top of the stack to find the caller: about a microsecond, whatever the depth.
+  - By default it also copies the stack trace (`getStackTrace`, `setStackTrace`), so the cost grows with the trace length, up to the JVM's 1024 frames (`-XX:MaxJavaStackTraceDepth`).
+  - `inPlaceModification = true` writes the frame into the exception's own trace and copies nothing; use it when deeply recursive methods are instrumented. It needs `java.lang` open: the agent opens it; with build-time instrumentation, start the application with `--add-opens java.base/java.lang=ALL-UNNAMED` (or `Add-Opens: java.base/java.lang` in an executable jar's manifest). Otherwise startup fails with an error.
+  - Measured with JDK 25 on a Linux container, agent on vs off: an exception passing 5 instrumented frames in a 100-frame stack took 33 µs instead of 21 µs; one passing a recursion of 1000 instrumented frames took 1.8 ms in place and 3.8 ms copying, instead of 0.16 ms.
 - **Parameter values are read when the exception leaves the method.** A parameter that was reassigned shows its new value.
 - **Class and method names in the `StackTraceElement`s change.** Tools that parse stack traces (IDE links, error grouping) may not recognise the changed frames.
 - **With the agent, the JVM prints `Sharing is only supported for boot loader classes because bootstrap classpath has been appended`** at startup. This is expected, because the agent extends the bootstrap class path; add `-Xshare:off` to silence it.
