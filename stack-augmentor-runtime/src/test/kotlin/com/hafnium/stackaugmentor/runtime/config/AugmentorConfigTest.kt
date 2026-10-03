@@ -24,6 +24,7 @@ class AugmentorConfigTest {
         assertEquals("{\$name=\$id, ...}", AugmentorConfig().paramsFormat())
         assertFalse(AugmentorConfig().hasAugmentEntries())
         assertNull(AugmentorConfig().classEntry("any.pkg.Class"))
+        assertFalse(AugmentorConfig().inPlaceModification())
     }
 
     @Test
@@ -31,6 +32,7 @@ class AugmentorConfigTest {
         val config = parse(
             """
             debug = true
+            inPlaceModification = true
 
             [augment.receiver]
             "com.hafnium.**" = "@"
@@ -68,12 +70,27 @@ class AugmentorConfigTest {
                 .paramsFormat("[\$name: \$id; ...]")
                 .maxIdLength(32)
                 .debug(true)
+                .inPlaceModification(true)
                 .build(),
             config,
         )
         assertEquals(listOf(ParamRef.ByName("orderId"), ParamRef.ByIndex(2)), config.paramRefs("com.thirdparty.OrderService", "process"))
         assertEquals(listOf(ParamRef.Annotations()), config.paramRefs("com.hafnium.Legacy", "run"))
         assertTrue(config.hasAugmentEntries())
+    }
+
+    @Test
+    fun `the system property overrides inPlaceModification of the file`() {
+        val property = AugmentorConfig.IN_PLACE_MODIFICATION_PROPERTY
+        try {
+            System.setProperty(property, "true")
+            assertTrue(parse("").inPlaceModification())
+            System.setProperty(property, "false")
+            assertFalse(parse("inPlaceModification = true").inPlaceModification())
+        } finally {
+            System.clearProperty(property)
+        }
+        assertTrue(parse("inPlaceModification = true").inPlaceModification())
     }
 
     @Test
@@ -189,6 +206,7 @@ class AugmentorConfigTest {
         assertTrue(error("augment.maxIdLength = \"64\"").contains("'augment.maxIdLength' must be an integer"))
         assertTrue(error("augment.maxIdLength = 1.5").contains("'augment.maxIdLength' must be an integer"))
         assertTrue(error("debug = \"yes\"").contains("'debug' must be true or false"))
+        assertTrue(error("inPlaceModification = 1").contains("'inPlaceModification' must be true or false"))
         assertTrue(error("augment = \"x\"").contains("'augment' must be a table"))
         assertTrue(error("[augment]\nreceiver = \"x\"").contains("'augment.receiver' must be a table"))
     }
@@ -211,9 +229,9 @@ class AugmentorConfigTest {
                 "params",
             error("[augment]\nframe = \"\$class.\$method\""),
         )
-        assertTrue(error("[other]\nx = 1").contains("unknown key 'other'; allowed: debug, augment"))
+        assertTrue(error("[other]\nx = 1").contains("unknown key 'other'; allowed: debug, inPlaceModification, augment"))
         // Keys in the wrong place are rejected, not silently ignored.
-        assertTrue(error("maxIdLength = 64").contains("unknown key 'maxIdLength'; allowed: debug, augment"))
+        assertTrue(error("maxIdLength = 64").contains("unknown key 'maxIdLength'; allowed: debug, inPlaceModification, augment"))
         assertTrue(error("[augment.other]\nx = 1").contains("unknown key 'other' in [augment]"))
     }
 

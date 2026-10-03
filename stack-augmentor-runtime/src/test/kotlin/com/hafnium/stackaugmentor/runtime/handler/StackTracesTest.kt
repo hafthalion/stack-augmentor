@@ -1,5 +1,6 @@
 package com.hafnium.stackaugmentor.runtime.handler
 
+import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotSame
 import org.junit.jupiter.api.Assertions.assertSame
@@ -77,7 +78,13 @@ class StackTracesTest {
     }
 
     @Test
-    fun `build-time handler writes in place when the application opens java lang`() {
-        assertNotSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces())
+    fun `build-time handler writes in place when configured and the application opens java lang`() {
+        val config = AugmentorConfig.builder().inPlaceModification(true).build()
+        assertNotSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces(config))
+    }
+
+    @Test
+    fun `build-time handler copies by default even when java lang is open`() {
+        assertSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces(AugmentorConfig()))
     }
 }

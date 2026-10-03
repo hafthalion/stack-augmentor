@@ -7,6 +7,7 @@ import com.hafnium.stackaugmentor.instrument.advice.ExitAdviceFactory;
 import com.hafnium.stackaugmentor.instrument.bridge.Dispatch;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
+import com.hafnium.stackaugmentor.runtime.config.Startup;
 import com.hafnium.stackaugmentor.runtime.handler.StackTraces;
 import com.hafnium.stackaugmentor.runtime.handler.ThrowHandler;
 import com.hafnium.stackaugmentor.runtime.ids.FrameFormat;
@@ -32,7 +33,9 @@ public final class ClassInstrumentation {
 
     /** Installs the handler, and instruments the configured classes that are loaded now or later. */
     public static void install(Instrumentation instrumentation, AugmentorConfig config, FrameFormat format, boolean javaLangOpen) {
-        Dispatch.install(new ThrowHandler(new IdResolver(config), format, stackTraces(javaLangOpen)));
+        StackTraces stackTraces = Startup.load(Startup.AGENT, () -> StackTraces.configured(config,
+                javaLangOpen ? "but it is not" : "but the agent cannot open it"));
+        Dispatch.install(new ThrowHandler(new IdResolver(config), format, stackTraces));
 
         IdParameters parameters = new IdParameters(config);
         TypeMatching matching = new TypeMatching(config, parameters);
@@ -65,19 +68,4 @@ public final class ClassInstrumentation {
                 .installOn(instrumentation);
     }
 
-    /** Copies stack traces even when {@code java.lang} is open, to compare the two ways: {@code -Dstackaugmentor.copyStackTraces=true}. */
-    static final String COPY_PROPERTY = "stackaugmentor.copyStackTraces";
-
-    /** In place if {@code java.lang} is open, otherwise the copying way. */
-    private static StackTraces stackTraces(boolean javaLangOpen) {
-        if (!javaLangOpen || Boolean.getBoolean(COPY_PROPERTY)) {
-            return StackTraces.copying();
-        }
-        try {
-            return StackTraces.inPlace();
-        } catch (RuntimeException | IllegalAccessException e) {
-            Log.debug(() -> "agent: stack traces are copied for every frame, because java.lang cannot be opened: " + e);
-            return StackTraces.copying();
-        }
-    }
 }
