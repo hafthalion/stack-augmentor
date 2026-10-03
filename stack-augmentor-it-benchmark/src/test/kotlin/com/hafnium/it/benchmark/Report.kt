@@ -55,8 +55,10 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
         .worse { color: var(--bad); } .same { color: var(--good); }
         .trace { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 0 0 4px; font: inherit; }
         .trace:hover, .trace:focus { color: var(--fg); }
-        #tip { position: fixed; z-index: 10; display: none; max-width: min(900px, calc(100vw - 32px)); max-height: 60vh; overflow: auto;
-          margin: 0; box-shadow: 0 4px 16px rgba(0, 0, 0, .25); text-align: left; white-space: pre; }
+        #tip { position: fixed; z-index: 10; display: none; max-width: min(900px, calc(100vw - 32px)); max-height: 70vh; overflow: auto;
+          background: var(--head); border: 1px solid var(--line); padding: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, .25); text-align: left; }
+        #tip-title { margin: 0 0 6px; font-size: 13px; font-weight: 600; white-space: normal; }
+        #tip-trace { margin: 0; padding: 0; border: 0; white-space: pre; }
         dt { font-weight: 600; margin-top: 8px; } dd { margin: 2px 0 0 0; color: var(--muted); }
         details { margin: 6px 0; } summary { cursor: pointer; }
         pre { font-size: 12px; background: var(--head); border: 1px solid var(--line); padding: 8px; overflow-x: auto; }
@@ -91,8 +93,10 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
                 } else {
                     append(format(m.median))
                     traceExcerpt(results, mode, scenario)?.let {
-                        append("<button type=\"button\" class=\"trace\" aria-label=\"Stack trace\" data-trace=\"")
-                            .append(escape(it).replace("\"", "&quot;")).append("\">&#x2630;</button>")
+                        val title = "${mode.title}: ${scenario.title}, " +
+                            if (logged) "logged" else "not logged (the trace of the logged run; this run does not format it)"
+                        append("<button type=\"button\" class=\"trace\" aria-label=\"Stack trace\" data-title=\"")
+                            .append(attribute(title)).append("\" data-trace=\"").append(attribute(it)).append("\">&#x2630;</button>")
                     }
                     if (mode != Mode.PLAIN && plain != null) {
                         val ratio = m.median / plain.median
@@ -108,7 +112,7 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
             append("</tr>\n")
         }
     }
-    append("</tbody></table></div>\n<pre id=\"tip\" role=\"tooltip\"></pre>\n")
+    append("</tbody></table></div>\n<div id=\"tip\" role=\"dialog\"><p id=\"tip-title\"></p><pre id=\"tip-trace\"></pre></div>\n")
     append(SORT_SCRIPT)
     append("<h2>Columns</h2>\n<dl>\n")
     column("Caught", "Where the exception is caught. It is always created at the bottom, in the deepest of the ${Scenario.FRAMES} " +
@@ -140,10 +144,14 @@ private fun StringBuilder.column(name: String, description: String) {
     append("<dt>").append(escape(name)).append("</dt><dd>").append(escape(description)).append("</dd>\n")
 }
 
+private const val TRACE_LINES = 20
+
+private fun attribute(text: String): String = escape(text).replace("\"", "&quot;")
+
 /** The first lines of the trace logged in [mode] and [scenario], and its first configured frame; null if none was logged. */
 private fun traceExcerpt(results: File, mode: Mode, scenario: Scenario): String? {
     val log = File(results, "${mode.id}-${scenario.name}.log").takeIf { it.exists() }?.readLines() ?: return null
-    val head = log.take(6)
+    val head = log.take(TRACE_LINES)
     val configured = log.withIndex().firstOrNull { it.value.contains("Configured{") }
     val lines = if (configured == null || configured.index < head.size) head
     else head + "\t... ${configured.index - head.size} more lines ..." + configured.value
@@ -172,7 +180,8 @@ private val SORT_SCRIPT = """
       };
       const tip = document.getElementById("tip");
       const show = (button) => {
-        tip.textContent = button.dataset.trace;
+        document.getElementById("tip-title").textContent = button.dataset.title;
+        document.getElementById("tip-trace").textContent = button.dataset.trace;
         tip.style.display = "block";
         const box = button.getBoundingClientRect();
         const left = Math.max(16, Math.min(box.left, window.innerWidth - tip.offsetWidth - 16));
