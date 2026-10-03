@@ -46,6 +46,7 @@ import java.util.concurrent.Executors
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
@@ -414,6 +415,26 @@ class StackTraceIdsTest {
         assertEquals("inner{step=3}", e.stackTrace[0].methodName)
         assertEquals("inner{step=3}", e.stackTrace[0].methodName)
         assertTrue(e.printed().contains("Layers{layer=layers}.inner{step=3}("), e.printed())
+    }
+
+    @Test
+    fun `an exception that is never printed can be garbage-collected`() {
+        // Thrown right by a configured method: while its constructor runs, the frame of that method references it.
+        val unread = unreadException()
+        repeat(50) {
+            if (unread.get() == null) {
+                return
+            }
+            System.gc()
+            Thread.sleep(10)
+        }
+        assertNull(unread.get(), "the exception is still reachable")
+    }
+
+    private fun unreadException(): java.lang.ref.WeakReference<Throwable> = try {
+        Layers().inner(3)
+    } catch (e: IllegalStateException) {
+        java.lang.ref.WeakReference(e)
     }
 
     @Test
