@@ -319,6 +319,7 @@ The library modules are written in Java and don't depend on the Kotlin runtime; 
 | `examples/live-agent` | Demo of the agent's live-stack mode, where every frame of the logged stack traces shows its ids |
 | `stack-augmentor-it-build-time` | Integration tests for build-time instrumentation: fixtures instrumented by the build plugin, run without an agent, and again with it (`testWithAgent`) |
 | `examples/build-time` | The same demo with build-time instrumentation (the stand-ins are compiled with it) |
+| `stack-augmentor-it-benchmark` | Benchmark of exceptions 1000 frames deep without stack-augmentor, with the agent writing frames in place, with the agent copying stack traces (`-Dstackaugmentor.copyStackTraces=true`), and in the live-stack mode; `./gradlew :stack-augmentor-it-benchmark:benchmark` writes an HTML report to `build/reports/benchmark/index.html` (`test` only checks that it runs) |
 
 The packages under `com.hafnium.stackaugmentor` show which way of working uses which code:
 
