@@ -40,19 +40,52 @@ public final class FrameSpecs {
     /** Frames that show no ids. */
     static final Spec NONE = new Spec(false, Object.class, List.of());
 
-    /** For the classes none of whose frames show ids. */
-    private static final Map<MethodKey, Spec> IRRELEVANT = Map.of();
+    /** What is known about the frames of one class. */
+    static final class ClassInfo {
 
-    private record MethodKey(String name, MethodType type) {
+        /** Whether it is a class loader: while one runs, a class may be being loaded. */
+        final boolean loader;
+        /** Whether an entry names the class, so that its frames may show ids. */
+        final boolean relevant;
+        /** By the JVM's object for the method ({@link LiveStackFrames#method}), which is unique per method. */
+        private final Map<Object, Spec> byMethod = new ConcurrentHashMap<>();
+        /** By the number the JVM's backtrace gives the method; null where not seen yet. */
+        private volatile Spec[] byNumber = new Spec[0];
+
+        ClassInfo(boolean loader, boolean relevant) {
+            this.loader = loader;
+            this.relevant = relevant;
+        }
+
+        /** The spec of the method with this backtrace number: {@link #NONE}, or null if not known yet. */
+        Spec byNumber(int number) {
+            if (!relevant) {
+                return NONE;
+            }
+            Spec[] specs = byNumber;
+            return number < specs.length ? specs[number] : null;
+        }
+
+        void learn(int number, Spec spec) {
+            Spec[] specs = byNumber;
+            if (number < specs.length && specs[number] == spec) {
+                return;
+            }
+            synchronized (this) {
+                Spec[] copy = Arrays.copyOf(byNumber, Math.max(byNumber.length, number + 1));
+                copy[number] = spec;
+                byNumber = copy;
+            }
+        }
     }
 
     private final AugmentorConfig config;
     private final TypeMatching matching;
 
-    private final ClassValue<Map<MethodKey, Spec>> byClass = new ClassValue<>() {
+    private final ClassValue<ClassInfo> byClass = new ClassValue<>() {
         @Override
-        protected Map<MethodKey, Spec> computeValue(Class<?> type) {
-            return relevant(type) ? new ConcurrentHashMap<>() : IRRELEVANT;
+        protected ClassInfo computeValue(Class<?> type) {
+            return new ClassInfo(ClassLoader.class.isAssignableFrom(type), relevant(type));
         }
     };
 
@@ -61,18 +94,24 @@ public final class FrameSpecs {
         this.matching = matching;
     }
 
-    /** The ids that this frame shows; needs {@link StackWalker.Option#RETAIN_CLASS_REFERENCE}. */
-    Spec of(StackWalker.StackFrame frame) {
-        Class<?> type = frame.getDeclaringClass();
-        Map<MethodKey, Spec> methods = byClass.get(type);
-        if (methods == IRRELEVANT) {
+    ClassInfo of(Class<?> type) {
+        return byClass.get(type);
+    }
+
+    /**
+     * The ids that this frame of a class of {@code info} shows; needs {@link StackWalker.Option#RETAIN_CLASS_REFERENCE}.
+     * {@code method} is the JVM's object for the frame's method: only the first frame of a method needs its name and type.
+     */
+    Spec of(StackWalker.StackFrame frame, ClassInfo info, Object method) {
+        if (!info.relevant) {
             return NONE;
         }
-        MethodKey method = new MethodKey(frame.getMethodName(), frame.getMethodType());
-        Spec spec = methods.get(method);
+        Spec spec = info.byMethod.get(method);
         if (spec == null) {
-            spec = named(type.getName(), method.name()) ? spec(type, method.name(), method.type()) : NONE;
-            methods.putIfAbsent(method, spec);
+            Class<?> type = frame.getDeclaringClass();
+            String name = frame.getMethodName();
+            spec = named(type.getName(), name) ? spec(type, name, frame.getMethodType()) : NONE;
+            info.byMethod.putIfAbsent(method, spec);
         }
         return spec;
     }
