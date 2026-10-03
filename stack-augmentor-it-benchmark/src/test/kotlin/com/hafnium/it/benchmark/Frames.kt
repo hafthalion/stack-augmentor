@@ -24,7 +24,7 @@ class Stack(val scenario: Scenario, private val logged: Boolean) {
 
     val configured = Configured("service")
     val plain = Plain()
-    val catchAt = if (scenario.caughtNearTop) Scenario.FRAMES - 3 else 3
+    val catchAt = scenario.catchAt
 
     /** What the last caught exception was logged as; only kept to use it. */
     var lastLog: String = ""
