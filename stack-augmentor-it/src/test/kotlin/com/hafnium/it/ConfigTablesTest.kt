@@ -48,7 +48,7 @@ class ConfigTablesTest {
     }
 
     @Test
-    fun `a ? in a pattern matches one character`() {
+    fun `a question mark in a pattern matches one character`() {
         assertEquals("com.thirdparty.Ledger1{code=L-1}", frame("Ledger1(\"L-1\").close()", Ledger1("L-1")) { it.close() }.className)
         assertEquals("com.thirdparty.Ledger12", frame("Ledger12(\"L-12\").close()", Ledger12("L-12")) { it.close() }.className)
     }
@@ -67,7 +67,7 @@ class ConfigTablesTest {
     }
 
     @Test
-    fun `a "-" class entry drops the receiver id only`() {
+    fun `a '-' class entry drops the receiver id only`() {
         val frame = frame("Ignored().fail(3)", Ignored()) { it.fail(3) }
         assertEquals("com.hafnium.it.fixtures.ignored.Ignored", frame.className)
         // The parameter annotations are enabled by [augment.params], independently.
@@ -75,7 +75,7 @@ class ConfigTablesTest {
     }
 
     @Test
-    fun `a "-" method entry ignores the less specific entries`() {
+    fun `a '-' method entry ignores the less specific entries`() {
         assertEquals("purge", frame("InventoryAudit().purge(\"x-1\")", InventoryAudit()) { it.purge("x-1") }.methodName)
         assertEquals("log{reason=disk full}", frame("InventoryAudit().log(\"disk full\", 2)", InventoryAudit()) { it.log("disk full", 2) }.methodName)
         assertEquals("reserve{sku=x-1, count=2}", frame("InventoryService().reserve(\"x-1\", 2)", InventoryService()) { it.reserve("x-1", 2) }.methodName)

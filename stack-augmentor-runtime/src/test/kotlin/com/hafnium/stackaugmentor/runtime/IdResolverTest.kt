@@ -133,7 +133,7 @@ class IdResolverTest {
     }
 
     @Test
-    fun `annotations are only used with an "@" entry`() {
+    fun `annotations are only used with an '@' entry`() {
         assertNull(resolver().receiverId(Annotated()))
         assertNull(resolver("com.acme.**" to annotations).receiverId(Annotated()))
         assertEquals(NamedId("objectId", "a-1"), resolver(name(Annotated::class.java) to annotations).receiverId(Annotated()))
@@ -221,7 +221,7 @@ class IdResolverTest {
     }
 
     @Test
-    fun `a "-" entry ignores the class, without a warning`() {
+    fun `a '-' entry ignores the class, without a warning`() {
         val err = ByteArrayOutputStream()
         System.setErr(PrintStream(err, true, Charsets.UTF_8))
         val resolver = resolver(here to annotations, name(Annotated::class.java) to IdSpec.Excluded())

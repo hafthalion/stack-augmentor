@@ -195,7 +195,7 @@ class InheritanceTest {
         }
 
         @Test
-        fun `a "-" entry leaves the subclass's own method unchanged`() {
+        fun `a '-' entry leaves the subclass's own method unchanged`() {
             assertEquals(
                 "com.hafnium.it.inheritance.DiscontinuedOrder",
                 frame("DiscontinuedOrder(\"z-1\").discontinue()", DiscontinuedOrder("z-1"), "discontinue") { it.discontinue() }.className,
@@ -203,7 +203,7 @@ class InheritanceTest {
         }
 
         @Test
-        fun `a "-" entry does not affect the methods it inherits`() {
+        fun `a '-' entry does not affect the methods it inherits`() {
             assertEquals("$order{id=z-1}", frame("DiscontinuedOrder(\"z-1\").ship()", DiscontinuedOrder("z-1"), "ship") { it.ship() }.className)
         }
     }
@@ -386,17 +386,17 @@ class InheritanceTest {
         }
 
         @Test
-        fun `a more specific "-" pattern wins over a broader pattern`() {
+        fun `a more specific '-' pattern wins over a broader pattern`() {
             assertEquals("$ranked.excluded.Dropped", frame("Dropped(\"x-1\").drop()", Dropped("x-1"), "drop") { it.drop() }.className)
         }
 
         @Test
-        fun `a method inherited by a class excluded by a "-" pattern shows the superclass's id`() {
+        fun `a method inherited by a class excluded by a '-' pattern shows the superclass's id`() {
             assertEquals("$ranked.Account{code=x-1}", frame("Dropped(\"x-1\").close()", Dropped("x-1"), "close") { it.close() }.className)
         }
 
         @Test
-        fun `an entry without wildcards wins over a "-" pattern`() {
+        fun `an entry without wildcards wins over a '-' pattern`() {
             assertEquals("$ranked.excluded.Kept{code=k-1}", frame("Kept(\"k-1\").keep()", Kept("k-1"), "keep") { it.keep() }.className)
         }
 
