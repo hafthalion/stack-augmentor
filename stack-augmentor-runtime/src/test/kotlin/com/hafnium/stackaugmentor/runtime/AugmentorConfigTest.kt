@@ -296,7 +296,7 @@ class AugmentorConfigTest {
     }
 
     @Test
-    fun `the most specific entry decides, "-" included`() {
+    fun `the most specific entry decides, '-' included`() {
         val config = parse(
             """
             [augment.receiver]

@@ -104,7 +104,7 @@ class ThrowHandlerTest {
     }
 
     @Test
-    fun `an "@" entry uses the annotations`() {
+    fun `an '@' entry uses the annotations`() {
         val target = Annotated()
         val thrown = thrownBy(target)
         val config = AugmentorConfig.builder().classes(mapOf(Annotated::class.java.name to IdSpec.Annotations())).build()
