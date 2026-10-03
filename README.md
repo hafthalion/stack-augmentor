@@ -17,7 +17,7 @@ The ids come from annotations on your classes (`@StackTraceId`, `@StackTracePara
 | Start | `-javaagent:stack-augmentor-agent.jar=config=<file>` | the same, plus `-agentpath:<native library>` | nothing: the ByteBuddy Gradle plugin changes your compiled classes |
 | Frames with ids | the frames the exception leaves | every frame on the stack when the exception is created, including the one that catches it | the frames the exception leaves |
 | Third-party classes | yes, from the configuration | yes, from the configuration | no, only the classes of the project being built |
-| Cost | a few µs per configured frame the exception leaves | every exception pays a stack walk, more with configured frames | as the agent |
+| Cost | a few µs per configured frame the exception leaves | exceptions pay a walk of the live stack down to the last configured frame | as the agent |
 | Needs at runtime | the agent jar | the agent jar and the native library | `stack-augmentor-runtime` on the classpath |
 | Example | `./gradlew :examples:java-agent:run` | `./gradlew :examples:live-agent:run` | `./gradlew :examples:build-time:run` |
 
