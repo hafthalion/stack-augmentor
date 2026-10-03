@@ -19,6 +19,7 @@
             <option value="$PROJECT_DIR$/stack-augmentor-instrument" />
             <option value="$PROJECT_DIR$/stack-augmentor-instrument-bridge" />
             <option value="$PROJECT_DIR$/stack-augmentor-it" />
+            <option value="$PROJECT_DIR$/stack-augmentor-it-benchmark" />
             <option value="$PROJECT_DIR$/stack-augmentor-it-build-time" />
             <option value="$PROJECT_DIR$/stack-augmentor-native" />
             <option value="$PROJECT_DIR$/stack-augmentor-runtime" />

@@ -1,3 +1,8 @@
+# Print diagnostics to stderr (default: false): the configuration, which classes and methods get
+# instrumented and why, where each id comes from, and config entries or annotations that have no effect.
+debug = false
+inPlaceModification = true
+
 # Every class of the example takes its ids from its annotations, so every frame of its stack traces can show
 # them; the formats are the defaults. The configuration is the same whether or not the agent reads the frames
 # from the live stack (see examples/java-agent for all the options).
