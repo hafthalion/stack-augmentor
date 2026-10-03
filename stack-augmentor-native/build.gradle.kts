@@ -25,10 +25,22 @@ val jdk = javaToolchains.compilerFor { languageVersion = JavaLanguageVersion.of(
 val source = layout.projectDirectory.file("src/main/c/stack_augmentor.c")
 val library = layout.buildDirectory.file("native/$libraryName")
 
+// The JDK's JNI and JVMTI headers, with the platform's jni_md.h next to them, in one folder at a fixed place in the
+// project: the compiler and the IDE (.idea/c_cpp_properties.json) both read them from there.
+val jdkHeaders = tasks.register<Sync>("jdkHeaders") {
+    description = "Copies the JDK's JNI and JVMTI headers to build/jdk-include."
+    group = "build"
+    val jdkInclude = jdk.map { it.dir("include") }
+    from(jdkInclude) { include("*.h") }
+    from(jdkInclude.map { it.dir(includeDir) })
+    into(layout.buildDirectory.dir("jdk-include"))
+}
+
 val compileNative = tasks.register<Exec>("compileNative") {
     description = "Compiles the native library of the agent's live-stack mode."
     group = "build"
     inputs.file(source).withPropertyName("source")
+    inputs.files(jdkHeaders).withPropertyName("headers")
     inputs.property("compiler", compiler)
     outputs.file(library).withPropertyName("library")
     val found = compilerFound
@@ -46,14 +58,13 @@ val compileNative = tasks.register<Exec>("compileNative") {
         library.get().asFile.parentFile.mkdirs()
     }
     executable = compiler
+    val headers = jdkHeaders.map { it.destinationDir }
     argumentProviders.add(CommandLineArgumentProvider {
-        val include = jdk.get().dir("include").asFile
         listOfNotNull(
             "-O2",
             "-shared",
             if (windows) null else "-fPIC",
-            "-I${include.absolutePath}",
-            "-I${include.resolve(includeDir).absolutePath}",
+            "-I${headers.get().absolutePath}",
             "-o",
             library.get().asFile.absolutePath,
             source.asFile.absolutePath,
