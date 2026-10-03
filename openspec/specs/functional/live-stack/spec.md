@@ -25,8 +25,10 @@ naming the reason, change nothing, and instrument classes as usual.
 ### Requirement: Capturing ids from the live stack
 In this mode the agent SHALL add code only to `java.lang.Throwable`: when the JVM has recorded a stack trace, for each
 frame of that trace whose method an entry selects, as decided by the same rules as for instrumentation, it SHALL read
-the receiver and the selected arguments from the live stack and turn them into ids right away. Exceptions created while
-a class is being loaded SHALL be skipped. The ids SHALL be written into the throwable's stack trace array when that is
+the receiver and the selected arguments from the live stack and keep them; it SHALL turn them into ids only when the
+throwable's stack trace array is created. Creating a throwable SHALL cost no more than a walk over the classes of the
+frames and, only if one of them may show ids, a walk that reads local variables down to the last such frame.
+Exceptions created while a class is being loaded SHALL be skipped. The ids SHALL be written into the throwable's stack trace array when that is
 created from the recorded frames, once, and SHALL not be written if the application replaced the stack trace.
 The configuration and the formats SHALL be the same as with instrumentation.
 
