@@ -26,14 +26,19 @@ val source = layout.projectDirectory.file("src/main/c/stack_augmentor.c")
 val library = layout.buildDirectory.file("native/$libraryName")
 
 // The JDK's JNI and JVMTI headers, with the platform's jni_md.h next to them, in one folder at a fixed place in the
-// project: the compiler and the IDE (.idea/c_cpp_properties.json) both read them from there.
+// project: the compiler and the IDE (.idea/c_cpp_properties.json) both read them from there. Outside the build folder,
+// which IntelliJ excludes; ignored by git, and removed by clean.
 val jdkHeaders = tasks.register<Sync>("jdkHeaders") {
-    description = "Copies the JDK's JNI and JVMTI headers to build/jdk-include."
+    description = "Copies the JDK's JNI and JVMTI headers to jdk-include."
     group = "build"
     val jdkInclude = jdk.map { it.dir("include") }
     from(jdkInclude) { include("*.h") }
     from(jdkInclude.map { it.dir(includeDir) })
-    into(layout.buildDirectory.dir("jdk-include"))
+    into(layout.projectDirectory.dir("jdk-include"))
+}
+
+tasks.clean {
+    delete(jdkHeaders)
 }
 
 val compileNative = tasks.register<Exec>("compileNative") {

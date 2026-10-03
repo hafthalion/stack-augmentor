@@ -3,7 +3,7 @@
         {
             "name": "CLion",
             "includePath": [
-                "${workspaceFolder}/stack-augmentor-native/build/jdk-include"
+                "${workspaceFolder}/stack-augmentor-native/jdk-include"
             ],
             "cStandard": "c17",
             "cppStandard": "c++20"
