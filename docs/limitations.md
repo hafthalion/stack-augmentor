@@ -12,6 +12,7 @@
   - An exception with a cause or suppressed exceptions also gets their traces read for each such frame, to give the frames they share the same ids (copying: one more copy of each of their traces).
   - Measured with JDK 25 on a Linux container, agent on vs off: an exception passing 5 instrumented frames in a 100-frame stack took 33 µs instead of 21 µs; one passing a recursion of 1000 instrumented frames took 1.8 ms in place and 3.8 ms copying, instead of 0.16 ms.
 - **A cause created in an earlier call with the very same frames below** (same methods and lines, e.g. a stored exception from the previous loop iteration) gets the ids of the call that the wrapping exception leaves in those shared frames.
+- **A cause or suppressed exception attached after the wrapper left some frames** (`initCause` or `addSuppressed` called later, e.g. in a caller) keeps those frames without ids. Only the frames the wrapper leaves after that get copied into it.
 - **Parameter values are read when the exception leaves the method.** A parameter that was reassigned shows its new value.
 - **Class and method names in the `StackTraceElement`s change.** Tools that parse stack traces (IDE links, error grouping) may not recognise the changed frames.
 - **With the agent, the JVM prints `Sharing is only supported for boot loader classes because bootstrap classpath has been appended`** at startup. This is expected, because the agent extends the bootstrap class path; add `-Xshare:off` to silence it.
