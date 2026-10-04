@@ -114,7 +114,7 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
                         append("<span class=\"ratio $css\">").append(String.format(Locale.ROOT, "%.1f× no agent", ratio)).append("</span>")
                     }
                     append("<span class=\"ratio\">").append(format(m.min)).append("–").append(format(m.max)).append("</span>")
-                    append("<span class=\"ratio\">").append(String.format(Locale.ROOT, "%d × %,d", m.batches, m.batch))
+                    append("<span class=\"ratio\">").append(String.format(Locale.ROOT, "n = %d × %,d", m.batches, m.batch))
                         .append("</span>")
                 }
                 append("</td>")
@@ -141,7 +141,7 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
         "whole stack trace, as logging does. No: it is only created, thrown and caught.")
     Mode.entries.forEach { column(it.title, it.description) }
     append("</dl>\n<p>Each time is the median in microseconds per exception, measured in its own JVM after a warm-up. " +
-        "The small numbers under it are its ratio to no agent, the range of the measured batches, and the sample size: batches × exceptions per batch, not counting the warm-up; &#x2630; shows the " +
+        "The small numbers under it are its ratio to no agent, the range of the measured batches, and the sample size: n = batches × exceptions per batch, not counting the warm-up; &#x2630; shows the " +
         "start of that mode's logged stack trace. &mdash; means the mode did not run, e.g. the live-stack mode without the " +
         "native library.</p>\n")
 

@@ -3,8 +3,15 @@ package com.hafnium.it.benchmark
 import com.hafnium.stackaugmentor.StackTraceId
 import com.hafnium.stackaugmentor.StackTraceParam
 
-class BenchmarkException(cause: BenchmarkException? = null) :
-    RuntimeException(if (cause == null) "thrown at the bottom of the stack" else "wrapping the exception from below", cause)
+/** Thrown at the bottom of the stack, or wrapping the one from below: then [wraps] counts the wrappings, from 1. */
+class BenchmarkException private constructor(cause: BenchmarkException?, val wraps: Int) : RuntimeException(
+    if (cause == null) "thrown at the bottom of the stack" else "wrap $wraps: wrapping the exception from below",
+    cause,
+) {
+    constructor() : this(null, 0)
+
+    constructor(cause: BenchmarkException) : this(cause, cause.wraps + 1)
+}
 
 /** A frame that shows ids: the receiver's name and the depth. */
 class Configured(@StackTraceId private val name: String) {
