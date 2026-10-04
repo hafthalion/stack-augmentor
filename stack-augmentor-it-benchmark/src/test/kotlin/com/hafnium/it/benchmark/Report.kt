@@ -74,9 +74,9 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
         ${Scenario.FRAMES} frames together. The exception is always created at the bottom, in the deepest frame. Near the bottom: caught 3 frames above it.
         Near the top: caught 3 frames below the outermost frame of the stack, so it leaves almost all of them. Configured
         frames show their receiver id and the depth parameter, which counts from 1 at the top of the stack. Click a column header to sort; click &#x2630; to see
-        the first and last 10 frames of the logged stack trace, or the whole trace as printStackTrace prints it. With a cause
-        chain, the excerpt starts with the deepest exception, and each exception that wrapped it follows as "Rethrown as:" with
-        its first 10 frames, the last one also with its last 10.</p>
+        the first and last 10 frames of the logged stack trace, or the whole trace as printStackTrace prints it. The excerpt is
+        formatted with the API's RootCauseFirst: with a cause chain, it starts with the deepest exception, and each exception
+        that wrapped it follows as "Wrapped by:" with the first 10 of the frames it adds, the last one also with its last 10.</p>
         """.trimIndent()
     )
     append("\n<div class=\"scroll\"><table id=\"results\">\n<thead><tr><th class=\"text\">Caught</th><th>Configured frames</th>")
@@ -100,8 +100,8 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
                     traceExcerpt(results, mode, scenario)?.let {
                         val title = "${mode.title}: ${scenario.title}, ${if (logged) "logged" else "not logged"}"
                         val description = (if (logged) "" else "The trace of the logged run; this run does not format it. ") +
-                            (if (scenario.causes > 0) "The deepest exception comes first, then each exception that wrapped it, " +
-                                "with its first $TRACE_FRAMES frames; the last one also with its last $TRACE_FRAMES frames."
+                            (if (scenario.causes > 0) "Root cause first (RootCauseFirst): the deepest exception, then each exception that wrapped it as " +
+                                "\"Wrapped by:\", with the first $TRACE_FRAMES of the frames it adds; the last one also with its last $TRACE_FRAMES frames."
                             else "The first and last $TRACE_FRAMES frames of the stack trace.")
                         append("<button type=\"button\" class=\"trace\" aria-label=\"Stack trace\" data-title=\"")
                             .append(attribute(title)).append("\" data-description=\"").append(attribute(description))
@@ -188,57 +188,31 @@ private fun json(text: String): String = buildString {
 
 private fun attribute(text: String): String = escape(text).replace("\"", "&quot;")
 
-/** One exception of a printed trace: its first line, and its frames without the shared ones a cause leaves out. */
-private class Printed(val header: String, val frames: List<String>, val omitted: Int)
-
-/** Splits what printStackTrace printed into the exception and its causes, outermost first. */
-private fun parse(log: List<String>): List<Printed> {
-    val starts = log.indices.filter { it == 0 || log[it].startsWith("Caused by: ") }
-    return starts.mapIndexed { n, start ->
-        val end = starts.getOrElse(n + 1) { log.size }
-        val lines = log.subList(start + 1, end)
-        val more = lines.lastOrNull()?.let { MORE.matchEntire(it) }
-        Printed(
-            log[start].removePrefix("Caused by: "),
-            (if (more != null) lines.dropLast(1) else lines).map { it.trim() },
-            more?.groupValues?.get(1)?.toInt() ?: 0,
-        )
-    }
-}
-
 /**
- * The trace logged in [mode] and [scenario], deepest exception first, then each exception that wrapped it as
- * "Rethrown as:": the first [TRACE_FRAMES] frames of each, from the frame that created it upwards, and of the last one
- * also its last [TRACE_FRAMES] frames, the top of the stack. Null if no trace was logged.
+ * The trace logged in [mode] and [scenario], as RootCauseFirst formats it: the deepest exception first, then each
+ * exception that wrapped it as "Wrapped by:", each with the first [TRACE_FRAMES] of the frames it adds, the last one also
+ * with its last [TRACE_FRAMES] frames, the top of the stack. Null if no trace was logged.
  */
 private fun traceExcerpt(results: File, mode: Mode, scenario: Scenario): String? {
-    val log = File(results, "${mode.id}-${scenario.name}.log").takeIf { it.exists() }?.readLines() ?: return null
-    val printed = parse(log)
-    // The whole stacks: a cause's left-out frames are the last ones of the exception it caused.
-    val stacks = mutableListOf<List<String>>()
-    for (exception in printed) {
-        val enclosing = stacks.lastOrNull().orEmpty()
-        stacks += exception.frames + enclosing.takeLast(exception.omitted)
-    }
+    val log = File(results, "${logKey(mode, scenario)}.root-first.log").takeIf { it.exists() }?.readLines() ?: return null
+    // Each exception: its header, then its frames; the line of the frames it shares with its wrapper is left out.
+    val starts = log.indices.filter { !log[it].startsWith("\t") && log[it].isNotEmpty() }
     return buildList {
-        for (n in printed.indices.reversed()) {
-            add((if (n == printed.lastIndex) "" else "Rethrown as: ") + printed[n].header)
-            val stack = stacks[n]
+        starts.forEachIndexed { n, start ->
+            add(log[start])
+            val frames = log.subList(start + 1, starts.getOrElse(n + 1) { log.size }).filter { it.startsWith("\tat ") }
             // The outermost exception, printed last, also shows its last frames: the top of the stack.
-            val last = if (n == 0) TRACE_FRAMES else 0
-            if (stack.size <= TRACE_FRAMES + last) {
-                stack.forEach { add("\t" + it) }
+            val last = if (n == starts.lastIndex) TRACE_FRAMES else 0
+            if (frames.size <= TRACE_FRAMES + last) {
+                addAll(frames)
             } else {
-                stack.take(TRACE_FRAMES).forEach { add("\t" + it) }
-                add("\t... ${stack.size - TRACE_FRAMES - last} more frames")
-                stack.takeLast(last).forEach { add("\t" + it) }
+                addAll(frames.take(TRACE_FRAMES))
+                add("\t... ${frames.size - TRACE_FRAMES - last} more frames")
+                addAll(frames.takeLast(last))
             }
         }
     }.joinToString("\n")
 }
-
-/** The line where a printed cause leaves out the frames it shares with the exception it caused. */
-private val MORE = Regex("""\s*\.\.\. (\d+) more""")
 
 private fun format(micros: Double): String = when {
     micros >= 100 -> String.format(Locale.ROOT, "%,.0f µs", micros)

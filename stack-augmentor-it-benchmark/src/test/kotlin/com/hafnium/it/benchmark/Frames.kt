@@ -38,6 +38,10 @@ class Stack(val scenario: Scenario, private val logged: Boolean) {
     /** What the last caught exception was logged as; only kept to use it. */
     var lastLog: String = ""
         private set
+
+    /** The last exception caught in a logged run, for the report's excerpt. */
+    var lastLogged: BenchmarkException? = null
+        private set
     private var unlogged = 0
 
     /** Runs the stack once: one exception created, caught and logged or not. */
@@ -73,6 +77,7 @@ class Stack(val scenario: Scenario, private val logged: Boolean) {
         if (logged) {
             // What a logger does with it.
             lastLog = e.stackTraceToString()
+            lastLogged = e
         } else {
             unlogged += System.identityHashCode(e) and 1
         }

@@ -1,5 +1,6 @@
 package com.hafnium.it.benchmark
 
+import com.hafnium.stackaugmentor.RootCauseFirst
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.params.ParameterizedTest
@@ -29,16 +30,18 @@ class ExceptionCostBenchmark {
             assertEquals(scenario.configuredEvery > 0 && mode != Mode.PLAIN, configured, stack.lastLog.lines().take(3).joinToString("\n"))
         }
         assertTrue(measurement.median > 0)
-        results?.let { write(it, scenario, logged, measurement, stack.lastLog) }
+        results?.let { write(it, scenario, logged, measurement, stack) }
     }
 
-    private fun write(directory: File, scenario: Scenario, logged: Boolean, measurement: Measurement, log: String) {
+    private fun write(directory: File, scenario: Scenario, logged: Boolean, measurement: Measurement, stack: Stack) {
         directory.mkdirs()
         File(directory, "${mode.id}.tsv").appendText(
             listOf(scenario.name, logged, measurement.median, measurement.min, measurement.max, measurement.batch, measurement.batches).joinToString("\t") + "\n"
         )
         if (logged) {
-            File(directory, "${mode.id}-${scenario.name}.log").writeText(log)
+            File(directory, "${mode.id}-${scenario.name}.log").writeText(stack.lastLog)
+            // Root cause first, for the report's excerpt; not part of what is measured.
+            File(directory, "${mode.id}-${scenario.name}.root-first.log").writeText(RootCauseFirst.format(stack.lastLogged!!))
         }
         if (mode == Mode.PLAIN) {
             File(directory, "environment.txt").writeText(
