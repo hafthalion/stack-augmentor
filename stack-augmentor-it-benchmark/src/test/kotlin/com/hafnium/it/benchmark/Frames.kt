@@ -17,7 +17,7 @@ class Plain {
 }
 
 /**
- * A stack of [Scenario.frames] frames, each a `step` of [Configured] or [Plain], with depths from 0 at the top: the
+ * A stack of [Scenario.frames] frames, each a `step` of [Configured] or [Plain], with depths from 1 at the top: the
  * exception is created in the deepest frame, at depth [Scenario.bottom], wrapped in new ones every [Scenario.wrapEvery] frames if the scenario has causes, and
  * caught in the frame at depth [catchAt]. The functions that link the frames are
  * inlined, so every frame of the stack is a `step`.
@@ -34,7 +34,7 @@ class Stack(val scenario: Scenario, private val logged: Boolean) {
     private var unlogged = 0
 
     /** Runs the stack once: one exception created, caught and logged or not. */
-    fun run(): Int = call(0)
+    fun run(): Int = call(1)
 
     inline fun call(depth: Int): Int =
         // Counted from the bottom, so that the deepest frame, which creates the exception, is configured.
