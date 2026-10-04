@@ -38,6 +38,20 @@ subprojects {
             }
         }
     }
+    // The examples: their jar names the main class and, as the jars installDist puts next to it in lib, the
+    // classpath, so that `java -jar lib/<example>.jar` runs them.
+    plugins.withId("application") {
+        val mainClass = extensions.getByType<JavaApplication>().mainClass
+        val runtimeClasspath = configurations.named("runtimeClasspath")
+        tasks.named<Jar>("jar") {
+            manifest {
+                attributes(
+                    "Main-Class" to mainClass,
+                    "Class-Path" to runtimeClasspath.map { classpath -> classpath.joinToString(" ") { it.name } },
+                )
+            }
+        }
+    }
     if (name in publishedModules) {
         plugins.withType<JavaPlugin> {
             tasks.named<JavaCompile>("compileJava") {

@@ -5,13 +5,13 @@
 #
 #   java-agent  the Java agent instruments classes, ids from annotations and from
 #               stack-augmentor.toml, and a simple cause chain printed both ways:
-#                 java -javaagent:<agent jar>=config=<stack-augmentor.toml> -cp <classpath> <main class>
+#                 java -javaagent:<agent jar>=config=<stack-augmentor.toml> -jar <example jar>
 #   live-agent  twice: with the agent alone, and in the agent's live-stack mode with the
 #               native library as well, which shows ids on every frame:
-#                 java -agentpath:<native library> -javaagent:<agent jar>=config=<stack-augmentor.toml> -cp <classpath> <main class>
+#                 java -agentpath:<native library> -javaagent:<agent jar>=config=<stack-augmentor.toml> -jar <example jar>
 #               Without a C compiler (cc or gcc) there is no native library, and only the first runs.
 #   build-time  classes instrumented when they were built, no agent:
-#                 java -cp <classpath> <main class>
+#                 java -jar <example jar>
 #
 # Builds everything first (including the tests), plus the example's lib folder.
 # Options after the example name are passed to the JVM, e.g.  ./run.sh live-agent -Xshare:off
@@ -53,14 +53,10 @@ case "$1" in
         ;;
 esac
 
-# The example is the Gradle module examples/$EXAMPLE.
-case "$EXAMPLE" in
-    java-agent) MAIN=com.hafnium.examples.agent.Main ;;
-    live-agent) MAIN=com.hafnium.examples.live.Main ;;
-    build-time) MAIN=com.hafnium.examples.buildtime.Main ;;
-esac
+# The example is the Gradle module examples/$EXAMPLE. Its jar's manifest names the main class and the other jars
+# in its lib folder.
 CONFIG=examples/$EXAMPLE/stack-augmentor.toml
-CLASSPATH="examples/$EXAMPLE/build/install/$EXAMPLE/lib/*"
+JAR=examples/$EXAMPLE/build/install/$EXAMPLE/lib/$EXAMPLE-0.1.0-SNAPSHOT.jar
 
 if ! ./gradlew build ":examples:$EXAMPLE:installDist"; then
     echo "Build FAILED. Test reports: stack-augmentor-*/build/reports/tests"
@@ -72,19 +68,19 @@ case "$EXAMPLE" in
         echo
         echo "=== Java agent: $AGENT_JAR"
         echo
-        java "$@" "-javaagent:$AGENT_JAR=config=$CONFIG" -cp "$CLASSPATH" "$MAIN"
+        java "$@" "-javaagent:$AGENT_JAR=config=$CONFIG" -jar "$JAR"
         ;;
     build-time)
         echo
         echo "=== Build-time instrumentation, no agent"
         echo
-        java "$@" -cp "$CLASSPATH" "$MAIN"
+        java "$@" -jar "$JAR"
         ;;
     live-agent)
         echo
         echo "=== 1. Agent alone, instrumenting classes: $AGENT_JAR"
         echo
-        java "$@" "-javaagent:$AGENT_JAR=config=$CONFIG" -cp "$CLASSPATH" "$MAIN"
+        java "$@" "-javaagent:$AGENT_JAR=config=$CONFIG" -jar "$JAR"
         echo
         if [ ! -f "$NATIVE_LIB" ]; then
             echo "=== 2. Live-stack mode skipped: no $NATIVE_LIB, which needs a C compiler"
@@ -92,6 +88,6 @@ case "$EXAMPLE" in
         fi
         echo "=== 2. Live-stack mode: $AGENT_JAR with $NATIVE_LIB"
         echo
-        java "$@" "-agentpath:$NATIVE_LIB" "-javaagent:$AGENT_JAR=config=$CONFIG" -cp "$CLASSPATH" "$MAIN"
+        java "$@" "-agentpath:$NATIVE_LIB" "-javaagent:$AGENT_JAR=config=$CONFIG" -jar "$JAR"
         ;;
 esac

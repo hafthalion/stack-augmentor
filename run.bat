@@ -5,13 +5,13 @@ rem Without an example name, it asks which one to run.
 rem
 rem   java-agent  the Java agent instruments classes, ids from annotations and from
 rem               stack-augmentor.toml, and a simple cause chain printed both ways:
-rem                 java -javaagent:<agent jar>=config=<stack-augmentor.toml> -cp <classpath> <main class>
+rem                 java -javaagent:<agent jar>=config=<stack-augmentor.toml> -jar <example jar>
 rem   live-agent  twice: with the agent alone, and in the agent's live-stack mode with the
 rem               native library as well, which shows ids on every frame:
-rem                 java -agentpath:<native library> -javaagent:<agent jar>=config=<stack-augmentor.toml> -cp <classpath> <main class>
+rem                 java -agentpath:<native library> -javaagent:<agent jar>=config=<stack-augmentor.toml> -jar <example jar>
 rem               Without MinGW gcc on the PATH there is no native library, and only the first runs.
 rem   build-time  classes instrumented when they were built, no agent:
-rem                 java -cp <classpath> <main class>
+rem                 java -jar <example jar>
 rem
 rem Builds everything first (including the tests), plus the example's lib folder.
 rem Options after the example name are passed to the JVM, e.g.  run.bat live-agent -Xshare:off
@@ -49,13 +49,11 @@ rem Everything after the example name goes to the JVM.
 for /f "tokens=1,*" %%a in ("%*") do set JVM_ARGS=%%b
 
 :build
-rem The example is the Gradle module examples\%EXAMPLE%.
+rem The example is the Gradle module examples\%EXAMPLE%. Its jar's manifest names the main class and the other
+rem jars in its lib folder.
 set PROJECT=%EXAMPLE%
-if /i "%EXAMPLE%"=="java-agent" set MAIN=com.hafnium.examples.agent.Main
-if /i "%EXAMPLE%"=="live-agent" set MAIN=com.hafnium.examples.live.Main
-if /i "%EXAMPLE%"=="build-time" set MAIN=com.hafnium.examples.buildtime.Main
 set CONFIG=examples\%PROJECT%\stack-augmentor.toml
-set CLASSPATH=examples\%PROJECT%\build\install\%PROJECT%\lib\*
+set JAR=examples\%PROJECT%\build\install\%PROJECT%\lib\%PROJECT%-0.1.0-SNAPSHOT.jar
 
 call "%~dp0gradlew.bat" build :examples:%PROJECT%:installDist
 if %ERRORLEVEL% neq 0 (
@@ -69,7 +67,7 @@ if /i "%EXAMPLE%"=="build-time" goto buildTime
 echo.
 echo === 1. Agent alone, instrumenting classes: %AGENT_JAR%
 echo.
-java %JVM_ARGS% -javaagent:%AGENT_JAR%=config=%CONFIG% -cp "%CLASSPATH%" %MAIN%
+java %JVM_ARGS% -javaagent:%AGENT_JAR%=config=%CONFIG% -jar "%JAR%"
 if %ERRORLEVEL% neq 0 (
     endlocal & exit /b 1
 )
@@ -78,7 +76,7 @@ echo.
 if not exist "%NATIVE_LIB%" goto noNativeLibrary
 echo === 2. Live-stack mode: %AGENT_JAR% with %NATIVE_LIB%
 echo.
-java %JVM_ARGS% "-agentpath:%NATIVE_LIB%" -javaagent:%AGENT_JAR%=config=%CONFIG% -cp "%CLASSPATH%" %MAIN%
+java %JVM_ARGS% "-agentpath:%NATIVE_LIB%" -javaagent:%AGENT_JAR%=config=%CONFIG% -jar "%JAR%"
 if %ERRORLEVEL% neq 0 (
     endlocal & exit /b 1
 )
@@ -92,7 +90,7 @@ endlocal & exit /b 0
 echo.
 echo === Java agent: %AGENT_JAR%
 echo.
-java %JVM_ARGS% -javaagent:%AGENT_JAR%=config=%CONFIG% -cp "%CLASSPATH%" %MAIN%
+java %JVM_ARGS% -javaagent:%AGENT_JAR%=config=%CONFIG% -jar "%JAR%"
 if %ERRORLEVEL% neq 0 (
     endlocal & exit /b 1
 )
@@ -102,7 +100,7 @@ endlocal & exit /b 0
 echo.
 echo === Build-time instrumentation, no agent
 echo.
-java %JVM_ARGS% -cp "%CLASSPATH%" %MAIN%
+java %JVM_ARGS% -jar "%JAR%"
 if %ERRORLEVEL% neq 0 (
     endlocal & exit /b 1
 )
