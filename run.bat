@@ -15,6 +15,7 @@ rem                 java -cp <classpath> <main class>
 rem
 rem Builds everything first (including the tests), plus the example's lib folder.
 rem Options after the example name are passed to the JVM, e.g.  run.bat live-agent -Xshare:off
+rem The same as run.sh on Linux and macOS.
 
 setlocal
 cd /d "%~dp0"
