@@ -17,8 +17,8 @@ class Plain {
 }
 
 /**
- * A stack of [Scenario.frames] frames, each a `step` of [Configured] or [Plain]: the exception is created in the frame
- * at depth 0, the deepest one, wrapped in new ones every [Scenario.wrapEvery] frames if the scenario has causes, and
+ * A stack of [Scenario.frames] frames, each a `step` of [Configured] or [Plain], with depths from 0 at the top: the
+ * exception is created in the deepest frame, at depth [Scenario.bottom], wrapped in new ones every [Scenario.wrapEvery] frames if the scenario has causes, and
  * caught in the frame at depth [catchAt]. The functions that link the frames are
  * inlined, so every frame of the stack is a `step`.
  */
@@ -34,27 +34,28 @@ class Stack(val scenario: Scenario, private val logged: Boolean) {
     private var unlogged = 0
 
     /** Runs the stack once: one exception created, caught and logged or not. */
-    fun run(): Int = call(scenario.frames - 1)
+    fun run(): Int = call(0)
 
     inline fun call(depth: Int): Int =
-        if (scenario.configuredEvery > 0 && depth % scenario.configuredEvery == 0) configured.step(depth, this) else plain.step(depth, this)
+        // Counted from the bottom, so that the deepest frame, which creates the exception, is configured.
+        if (scenario.configuredEvery > 0 && (scenario.bottom - depth) % scenario.configuredEvery == 0) configured.step(depth, this) else plain.step(depth, this)
 
     inline fun next(depth: Int): Int {
-        if (depth == 0) {
+        if (depth == scenario.bottom) {
             throw BenchmarkException()
         }
-        if (scenario.wrapEvery > 0 && depth % scenario.wrapEvery == 0 && depth <= scenario.outermostCreatedAt) {
+        if (scenario.wrapsAt(depth)) {
             return try {
-                call(depth - 1) + 1
+                call(depth + 1) + 1
             } catch (e: BenchmarkException) {
                 throw BenchmarkException(e)
             }
         }
         if (depth != catchAt) {
-            return call(depth - 1) + 1
+            return call(depth + 1) + 1
         }
         return try {
-            call(depth - 1) + 1
+            call(depth + 1) + 1
         } catch (e: BenchmarkException) {
             caught(e)
             0
