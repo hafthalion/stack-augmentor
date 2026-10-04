@@ -1,8 +1,8 @@
 package com.hafnium.it.benchmark
 
 /**
- * Where in a stack of [frames] frames the exception is caught, and which frames show ids. The exception is always
- * created at the bottom, in the deepest frame. With [causes], it is wrapped on its way up: every [wrapEvery] frames, a
+ * Where in a stack of [frames] frames the exception is caught, and which frames show ids. Depths count from 0 at the
+ * top of the stack to [bottom]. The exception is always created at the bottom, in the deepest frame. With [causes], it is wrapped on its way up: every [wrapEvery] frames, a
  * frame catches it and throws a new exception with it as the cause, so the caught one has a chain of [causes] causes.
  * The stack is then shallower, so that the stack traces of the whole chain hold [FRAMES] frames together, as the single
  * exception's does.
@@ -31,11 +31,17 @@ enum class Scenario(val configuredEvery: Int, val caughtNearTop: Boolean, val ca
     /** The depth of the stack. */
     val frames: Int get() = if (causes == 0) FRAMES else (causes + 1) * wrapEvery
 
-    /** The depth of the frame that creates the outermost exception, the one that is caught. */
-    val outermostCreatedAt: Int get() = causes * wrapEvery
+    /** The depth of the deepest frame, which creates the exception. */
+    val bottom: Int get() = frames - 1
 
-    /** The depth of the frame that catches the exception; depth 0 creates it. */
-    val catchAt: Int get() = if (caughtNearTop) frames - 3 else 3
+    /** The depth of the frame that creates the outermost exception, the one that is caught. */
+    val outermostCreatedAt: Int get() = bottom - causes * wrapEvery
+
+    /** Whether the frame at [depth] wraps the exception from below in a new one. */
+    fun wrapsAt(depth: Int): Boolean = causes > 0 && depth < bottom && depth >= outermostCreatedAt && (bottom - depth) % wrapEvery == 0
+
+    /** The depth of the frame that catches the exception: 3 frames above the bottom, or 2 below the top. */
+    val catchAt: Int get() = if (caughtNearTop) 2 else bottom - 3
 
     /** The share of the frames that are configured, e.g. 25%. */
     val configuredPercent: Int get() = if (configuredEvery == 0) 0 else 100 / configuredEvery
