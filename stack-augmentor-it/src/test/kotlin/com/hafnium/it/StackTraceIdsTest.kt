@@ -34,6 +34,7 @@ import com.hafnium.it.outside.DerivedOutside
 import com.hafnium.it.outside.ParamsOnly
 import com.hafnium.it.report.FrameReport
 import com.hafnium.it.report.ReceiverEntries
+import com.hafnium.stackaugmentor.ExceptionFormat
 import com.thirdparty.Customer
 import com.thirdparty.Order
 import com.thirdparty.OrderService
@@ -258,6 +259,21 @@ class StackTraceIdsTest {
         assertEquals(e.stackTrace[outer], cause[shared])
         val printed = e.printed()
         assertTrue(printed.contains("\t... ${e.stackTrace.size - outer} more"), printed)
+    }
+
+    @Test
+    fun `root cause first prints the shared frames once, with their ids`() {
+        val e = report.thrown<RuntimeException, _>("Layers().outerWrap()", Layers()) { it.outerWrap() }
+        val lines = ExceptionFormat.rootCauseFirst(e).lines()
+        assertEquals("java.lang.IllegalStateException: inner 2", lines[0])
+        assertTrue(lines[1].startsWith("\tat com.hafnium.it.fixtures.Layers{layer=layers}.inner"), lines[1])
+        val wrapped = lines.indexOf("Wrapped by: java.lang.RuntimeException: wrapped")
+        // The cause leaves out what it shares with the wrapper: all but its own frames, inner and wrap.
+        val common = e.cause!!.stackTrace.size - (wrapped - 2)
+        assertEquals("\t... $common common frames omitted", lines[wrapped - 1])
+        val outer = lines.filter { it.contains(".outerWrap") }
+        assertEquals(listOf("\tat ${e.stackTrace.first { it.methodName == "outerWrap" }}"), outer)
+        assertTrue(outer.single().contains("Layers{layer=layers}"), outer.single())
     }
 
     @Test
