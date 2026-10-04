@@ -65,12 +65,18 @@ exception that left them.
 When the system rewrites a frame of an exception, it SHALL write the same rewritten frame into each of its
 causes and suppressed exceptions, and theirs, whose trace has an equal frame at the same distance from the
 bottom with equal frames below it. Printed traces SHALL then still collapse the shared frames into
-`... N more`, as without augmentation.
+`... N more`, as without augmentation. A frame of the same method at that place but at another line, the same
+call, e.g. where the method caught the cause it wraps, SHALL get the same ids with its own line.
 
 #### Scenario: Wrapped exception with an instrumented caller
 - **GIVEN** `outer()` calls `wrap()`, which catches the exception of `inner(2)` and throws `RuntimeException("wrapped", cause)`
 - **WHEN** the wrapper leaves `outer()` and is printed
 - **THEN** the cause's `outer` frame shows the same ids as the wrapper's, and the cause section ends with `... N more` as without augmentation
+
+#### Scenario: Frame that caught the cause
+- **GIVEN** `wrap()` catches the exception of `inner(2)` and throws `RuntimeException("wrapped", cause)`
+- **WHEN** the wrapper leaves `wrap()`
+- **THEN** the cause's `wrap` frame, at the line of the call to `inner(2)`, shows the same ids as the wrapper's `wrap` frame
 
 #### Scenario: Suppressed exception
 - **GIVEN** `outerClosing()` calls `closing()`, where `inner(3)` throws and closing the resource throws too
