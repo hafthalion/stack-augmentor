@@ -1,7 +1,8 @@
 #!/bin/sh
-# Builds the project and runs one of the examples, the same way an application would:
+# Builds the project and runs one of the examples, the same way an application would, or the benchmark:
 #   ./run.sh [example] [JVM options]     example: java-agent, live-agent or build-time, the modules in examples
-# Without an example name, it asks which one to run.
+#   ./run.sh benchmark
+# Without an argument, it asks which one to run.
 #
 #   java-agent  the Java agent instruments classes, ids from annotations and from
 #               stack-augmentor.toml, and a simple cause chain printed both ways:
@@ -12,6 +13,8 @@
 #               Without a C compiler (cc or gcc) there is no native library, and only the first runs.
 #   build-time  classes instrumented when they were built, no agent:
 #                 java -jar <example jar>
+#   benchmark   the exception cost benchmark (stack-augmentor-it-benchmark) in every mode, one JVM each; writes
+#               stack-augmentor-it-benchmark/build/reports/benchmark/index.html. Takes a few minutes.
 #
 # Builds everything first (including the tests), plus the example's lib folder.
 # Options after the example name are passed to the JVM, e.g.  ./run.sh live-agent -Xshare:off
@@ -27,6 +30,9 @@ case "$(uname -s)" in
 esac
 
 case "$1" in
+    benchmark)
+        EXAMPLE=$1
+        ;;
     java-agent|live-agent|build-time)
         EXAMPLE=$1
         # Everything after the example name goes to the JVM.
@@ -38,20 +44,28 @@ case "$1" in
         echo "  1. java-agent  Java agent, with a cause chain"
         echo "  2. live-agent  Java agent alone, then in the live-stack mode"
         echo "  3. build-time  build-time instrumentation, no agent"
-        printf "Example [1-3]: "
+        echo "  4. benchmark   exception cost in every mode, a few minutes"
+        printf "Example [1-4]: "
         read -r choice
         case "$choice" in
             1) EXAMPLE=java-agent ;;
             2) EXAMPLE=live-agent ;;
             3) EXAMPLE=build-time ;;
+            4) EXAMPLE=benchmark ;;
             *) echo "No such example: $choice"; exit 1 ;;
         esac
         ;;
     *)
-        echo "Unknown example: $1. Use java-agent, live-agent or build-time."
+        echo "Unknown example: $1. Use java-agent, live-agent, build-time or benchmark."
         exit 1
         ;;
 esac
+
+if [ "$EXAMPLE" = benchmark ]; then
+    # Runs each mode in a JVM of its own, the same way as the examples, and writes the report.
+    ./gradlew :stack-augmentor-it-benchmark:benchmark
+    exit
+fi
 
 # The example is the Gradle module examples/$EXAMPLE. Its jar's manifest names the main class and the other jars
 # in its lib folder.
