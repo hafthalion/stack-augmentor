@@ -66,13 +66,15 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
         </style>
         </head>
         <body>
-        <h1>Exception cost in a ${Scenario.FRAMES}-frame stack</h1>
+        <h1>Exception cost with ${Scenario.FRAMES} stack trace frames</h1>
         <p>Microseconds per exception: created, caught and, if logged, turned into text with <code>stackTraceToString()</code>.
         Median of the measured batches after a warm-up; each mode runs in its own JVM. ${escape(environment)}</p>
-        <p>The exception is always created at the bottom, in the deepest frame. Near the bottom: caught 3 frames above it.
+        <p>The stack has ${Scenario.FRAMES} frames, or fewer with a cause chain, so that its exceptions' stack traces hold
+        ${Scenario.FRAMES} frames together. The exception is always created at the bottom, in the deepest frame. Near the bottom: caught 3 frames above it.
         Near the top: caught 3 frames below the outermost frame of the stack, so it leaves almost all of them. Configured
         frames show their receiver id and the depth parameter. Click a column header to sort; click &#x2630; to see
-        the bottom and top 10 frames of the logged stack trace, where --&gt; marks the frame that caught the exception.</p>
+        the bottom and top 10 frames of the logged stack trace, where --&gt; marks the frame that caught the exception, or the whole
+        trace as printStackTrace prints it.</p>
         """.trimIndent()
     )
     append("\n<div class=\"scroll\"><table id=\"results\">\n<thead><tr><th class=\"text\">Caught</th><th>Configured frames</th>")
@@ -97,10 +99,11 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
                         val title = "${mode.title}: ${scenario.title}, ${if (logged) "logged" else "not logged"}"
                         val description = (if (logged) "" else "The trace of the logged run; this run does not format it. ") +
                             "--> marks the frame that caught the exception. The bottom and top $TRACE_FRAMES frames of the " +
-                            "${Scenario.FRAMES}-frame stack are shown" + if (scenario.configuredEvery > 0) ", and the first configured frame." else "."
+                            "${scenario.frames}-frame stack are shown" + if (scenario.configuredEvery > 0) ", and the first configured frame." else "."
                         append("<button type=\"button\" class=\"trace\" aria-label=\"Stack trace\" data-title=\"")
                             .append(attribute(title)).append("\" data-description=\"").append(attribute(description))
-                            .append("\" data-trace=\"").append(attribute(it)).append("\">&#x2630;</button>")
+                            .append("\" data-trace=\"").append(attribute(it)).append("\" data-log=\"").append(logKey(mode, scenario))
+                            .append("\">&#x2630;</button>")
                     }
                     if (mode != Mode.PLAIN && plain != null) {
                         val ratio = m.median / plain.median
@@ -116,16 +119,20 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
             append("</tr>\n")
         }
     }
-    append("</tbody></table></div>\n<div id=\"tip\" role=\"dialog\"><p id=\"tip-title\"></p><p id=\"tip-description\"></p><pre id=\"tip-trace\"></pre></div>\n")
+    append("</tbody></table></div>\n<div id=\"tip\" role=\"dialog\"><p id=\"tip-title\"></p><p id=\"tip-description\"></p>")
+    append("<p><button type=\"button\" id=\"tip-whole\"></button></p><pre id=\"tip-trace\"></pre></div>\n")
+    append(logs(results))
     append(SORT_SCRIPT)
     append("<h2>Columns</h2>\n<dl>\n")
-    column("Caught", "Where the exception is caught. It is always created at the bottom, in the deepest of the ${Scenario.FRAMES} " +
-        "frames. Near the bottom: 3 frames above that, so it leaves only 3 frames. Near the top: 3 frames below the outermost " +
-        "frame, so it leaves almost all of them. With a cause chain, the exception is created at the bottom too, and every ${Scenario.CAUSES_PLAIN.wrapEvery} frames " +
-        "a frame catches it and throws a new exception with it as the cause; the outermost one is caught near the top. " +
-        "Every exception leaves its ${Scenario.CAUSES_PLAIN.wrapEvery} frames, and the causes share the frames below with the " +
-        "exceptions that wrap them, which printing collapses into \"... N more\".")
-    column("Configured frames", "The share of the ${Scenario.FRAMES} frames whose method is configured to show ids (receiver id and " +
+    column("Caught", "Where the exception is caught. It is always created at the bottom, in the deepest frame of the " +
+        "stack. Near the bottom: 3 frames above that, so it leaves only 3 frames. Near the top: 3 frames below the outermost " +
+        "frame, so it leaves almost all of them. With a cause chain, the stack has ${Scenario.CAUSES_PLAIN.frames} frames, " +
+        "and every ${Scenario.CAUSES_PLAIN.wrapEvery} frames a frame catches the exception and throws a new one with it as the cause; " +
+        "the outermost one is caught near the top. The stack traces of the ${Scenario.CAUSES_PLAIN.causes + 1} exceptions then " +
+        "hold ${Scenario.FRAMES} frames together, as a single exception's does. Each exception leaves its " +
+        "${Scenario.CAUSES_PLAIN.wrapEvery} frames, and the causes share the frames below with the exceptions that wrap them, " +
+        "which printing collapses into \"... N more\".")
+    column("Configured frames", "The share of the frames whose method is configured to show ids (receiver id and " +
         "depth parameter): every 4th frame, or none. The others are methods of an unconfigured class.")
     column("Logged", "Yes: after it is caught, the exception is turned into text with stackTraceToString(), which reads the " +
         "whole stack trace, as logging does. No: it is only created, thrown and caught.")
@@ -153,6 +160,38 @@ private fun StringBuilder.column(name: String, description: String) {
 
 private const val TRACE_FRAMES = 10
 
+private fun logKey(mode: Mode, scenario: Scenario): String = "${mode.id}-${scenario.name}"
+
+/**
+ * The logged traces, whole, as a JSON object by [logKey], for the popup's "whole trace" view: each is embedded once,
+ * not in every button that shows it.
+ */
+private fun logs(results: File): String = buildString {
+    append("<script type=\"application/json\" id=\"logs\">{")
+    val entries = Mode.entries.flatMap { mode -> Scenario.entries.map { mode to it } }.mapNotNull { (mode, scenario) ->
+        File(results, "${logKey(mode, scenario)}.log").takeIf { it.exists() }?.let { logKey(mode, scenario) to it.readText() }
+    }
+    entries.forEachIndexed { i, (key, log) ->
+        if (i > 0) append(',')
+        append(json(key)).append(':').append(json(log))
+    }
+    append("}</script>\n")
+}
+
+/** A JSON string; "<" is escaped too, so that no "</script>" ends the script element early. */
+private fun json(text: String): String = buildString {
+    append('"')
+    for (c in text) {
+        when {
+            c == '"' -> append("\\\"")
+            c == '\\' -> append("\\\\")
+            c == '<' || c < ' ' -> append(String.format(Locale.ROOT, "\\u%04x", c.code))
+            else -> append(c)
+        }
+    }
+    append('"')
+}
+
 private fun attribute(text: String): String = escape(text).replace("\"", "&quot;")
 
 /**
@@ -165,7 +204,7 @@ private fun attribute(text: String): String = escape(text).replace("\"", "&quot;
 private fun traceExcerpt(results: File, mode: Mode, scenario: Scenario): String? {
     val log = File(results, "${mode.id}-${scenario.name}.log").takeIf { it.exists() }?.readLines() ?: return null
     // Line 0 is the exception, then one line per frame from the depth that created it upwards.
-    val frames = Scenario.FRAMES - scenario.outermostCreatedAt
+    val frames = scenario.frames - scenario.outermostCreatedAt
     val caught = scenario.catchAt - scenario.outermostCreatedAt + 1
     val configured = log.indexOfFirst { it.contains("Configured{") }
     val bottom = 0..TRACE_FRAMES
@@ -214,10 +253,22 @@ private val SORT_SCRIPT = """
         return value === "" ? Infinity : Number(value);
       };
       const tip = document.getElementById("tip");
+      const logs = JSON.parse(document.getElementById("logs").textContent);
+      const whole = document.getElementById("tip-whole");
+      let showsWhole = false;
+      const fill = (button) => {
+        const log = logs[button.dataset.log];
+        whole.hidden = log === undefined;
+        whole.textContent = showsWhole ? "Show the excerpt" : "Show the whole trace, as printStackTrace prints it";
+        document.getElementById("tip-description").textContent = showsWhole
+          ? "The whole logged trace, with the causes and the frames below the benchmark (the test framework)."
+          : button.dataset.description;
+        document.getElementById("tip-trace").textContent = showsWhole && log !== undefined ? log : button.dataset.trace;
+      };
       const show = (button) => {
         document.getElementById("tip-title").textContent = button.dataset.title;
-        document.getElementById("tip-description").textContent = button.dataset.description;
-        document.getElementById("tip-trace").textContent = button.dataset.trace;
+        fill(button);
+        tip.scrollTop = 0;
         tip.style.display = "block";
         const box = button.getBoundingClientRect();
         const left = Math.max(16, Math.min(box.left, window.innerWidth - tip.offsetWidth - 16));
@@ -226,7 +277,8 @@ private val SORT_SCRIPT = """
         tip.style.top = (below ? box.bottom + 4 : Math.max(4, box.top - 4 - tip.offsetHeight)) + "px";
       };
       let shown = null;
-      const hide = () => { tip.style.display = "none"; shown = null; };
+      const hide = () => { tip.style.display = "none"; shown = null; showsWhole = false; };
+      whole.addEventListener("click", () => { showsWhole = !showsWhole; show(shown); });
       table.querySelectorAll(".trace").forEach(button => button.addEventListener("click", (event) => {
         event.stopPropagation();
         if (shown === button) { hide(); } else { show(button); shown = button; }
