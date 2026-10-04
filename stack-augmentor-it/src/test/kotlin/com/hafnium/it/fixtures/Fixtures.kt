@@ -166,6 +166,22 @@ class Layers {
     } catch (e: IllegalStateException) {
         throw RuntimeException("wrapped", e)
     }
+
+    /** An instrumented frame below the catch in [wrap]: the wrapper and its cause share it. */
+    fun outerWrap(): Nothing = wrap()
+
+    /** [Closer.close] throws too: its exception is suppressed in the one from [inner]. */
+    fun closing(): Nothing = Closer().use { inner(3) }
+
+    /** An instrumented frame below [closing]: the exception and its suppressed one share it. */
+    fun outerClosing(): Nothing = closing()
+}
+
+class Closer : AutoCloseable {
+    @StackTraceId
+    val name = "closer"
+
+    override fun close(): Unit = throw IllegalArgumentException("close failed")
 }
 
 fun staticWithParam(@StackTraceParam code: Int): Nothing = throw IllegalStateException("static $code")

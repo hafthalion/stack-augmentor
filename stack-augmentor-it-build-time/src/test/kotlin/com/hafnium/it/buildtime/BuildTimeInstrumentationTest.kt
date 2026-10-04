@@ -45,6 +45,17 @@ class BuildTimeInstrumentationTest {
     }
 
     @Test
+    fun `a cause shows the ids of the frames it shares with the wrapper`() {
+        val e = assertThrows<RuntimeException> { Wrapping("w-1").outer() }
+        val outer = e.stackTrace.indexOfFirst { it.methodName == "outer" }
+        assertEquals("com.hafnium.it.buildtime.Wrapping{name=w-1}", e.stackTrace[outer].className)
+        val cause = e.cause!!.stackTrace
+        assertEquals("com.hafnium.it.buildtime.Wrapping{name=w-1}.inner", "${cause[0].className}.${cause[0].methodName}")
+        // The same element, so that printing collapses it and the frames below into "... N more".
+        assertEquals(e.stackTrace[outer], cause[cause.size - (e.stackTrace.size - outer)])
+    }
+
+    @Test
     fun `constructors show their parameter ids`() {
         val e = assertThrows<IllegalArgumentException> { Shipment(4711, 0.0, "fragile") }
         assertEquals(listOf("com.hafnium.it.buildtime.configured.Shipment.<init>{orderId=4711, weight=0.0}"), frames(e, 1))
