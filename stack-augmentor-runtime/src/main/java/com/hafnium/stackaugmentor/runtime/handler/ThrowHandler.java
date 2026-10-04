@@ -12,16 +12,13 @@ import com.hafnium.stackaugmentor.runtime.ids.NamedId;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.lang.ref.WeakReference;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Called when an exception leaves an instrumented method: finds that method's frame in the
@@ -55,6 +52,12 @@ public final class ThrowHandler implements Dispatch.Handler {
      * downwards, so the search continues from there; this keeps recursive calls apart.
      */
     private final WeakIdentityMap<Throwable, Integer> cursors = new WeakIdentityMap<>();
+
+    /**
+     * Per cause or suppressed exception, the exception whose frames below the last shared frame it was found to share,
+     * see {@link #sharesBelow}. Weakly referenced: a cause must not keep the exception that wraps it alive.
+     */
+    private final WeakIdentityMap<Throwable, WeakReference<Throwable>> shared = new WeakIdentityMap<>();
 
     public ThrowHandler(IdResolver resolver, FrameFormat format, StackTraces stackTraces) {
         this.resolver = resolver;
@@ -140,32 +143,59 @@ public final class ThrowHandler implements Dispatch.Handler {
      */
     private void rewriteShared(Throwable thrown, StackTraceElement[] trace, int index, StackTraceElement original) {
         int below = trace.length - index - 1;
-        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-        seen.add(thrown);
-        ArrayDeque<Throwable> pending = new ArrayDeque<>();
-        addRelated(thrown, seen, pending);
-        while (!pending.isEmpty()) {
-            Throwable related = pending.poll();
-            StackTraceElement[] relatedTrace = stackTraces.read(related);
-            int relatedIndex = relatedTrace.length - below - 1;
-            if (relatedIndex >= 0 && relatedTrace[relatedIndex].equals(original)
-                    && Arrays.equals(relatedTrace, relatedIndex + 1, relatedTrace.length, trace, index + 1, trace.length)) {
-                stackTraces.write(related, relatedTrace, relatedIndex, trace[index]);
+        List<Throwable> related = new ArrayList<>();
+        related.add(thrown);
+        addRelated(thrown, related);
+        for (int r = 1; r < related.size(); r++) {
+            Throwable other = related.get(r);
+            StackTraceElement[] otherTrace = stackTraces.read(other);
+            int otherIndex = otherTrace.length - below - 1;
+            if (otherIndex >= 0 && otherTrace[otherIndex].equals(original)
+                    && sharesBelow(thrown, trace, index, other, otherTrace, otherIndex)) {
+                stackTraces.write(other, otherTrace, otherIndex, trace[index]);
             }
-            addRelated(related, seen, pending);
+            addRelated(other, related);
         }
     }
 
-    private static void addRelated(Throwable throwable, Set<Throwable> seen, ArrayDeque<Throwable> pending) {
+    /**
+     * Whether the frames below {@code otherTrace[otherIndex]} are those below {@code trace[index]}. Frames unwind from
+     * the top of the trace downwards, so once they are, they stay so for the following frames of {@code thrown}, which
+     * are further down: then only the frame itself is compared, and not all the frames below it again.
+     */
+    private boolean sharesBelow(Throwable thrown, StackTraceElement[] trace, int index, Throwable other,
+            StackTraceElement[] otherTrace, int otherIndex) {
+        WeakReference<Throwable> sharedWith = shared.get(other);
+        if (sharedWith != null && sharedWith.get() == thrown) {
+            return true;
+        }
+        if (!Arrays.equals(otherTrace, otherIndex + 1, otherTrace.length, trace, index + 1, trace.length)) {
+            return false;
+        }
+        shared.set(other, new WeakReference<>(thrown));
+        return true;
+    }
+
+    /** Adds the cause and the suppressed exceptions of {@code throwable} that are not in {@code related} yet. */
+    private static void addRelated(Throwable throwable, List<Throwable> related) {
         Throwable cause = throwable.getCause();
-        if (cause != null && seen.add(cause)) {
-            pending.add(cause);
+        if (cause != null && !containsIdentical(related, cause)) {
+            related.add(cause);
         }
         for (Throwable suppressed : throwable.getSuppressed()) {
-            if (seen.add(suppressed)) {
-                pending.add(suppressed);
+            if (!containsIdentical(related, suppressed)) {
+                related.add(suppressed);
             }
         }
+    }
+
+    private static boolean containsIdentical(List<Throwable> throwables, Throwable throwable) {
+        for (Throwable each : throwables) {
+            if (each == throwable) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
