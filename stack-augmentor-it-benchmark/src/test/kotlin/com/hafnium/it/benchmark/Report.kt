@@ -75,7 +75,7 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
         Near the top: caught 3 frames below the outermost frame of the stack, so it leaves almost all of them. Configured
         frames show their receiver id and the depth parameter, which counts from 1 at the top of the stack. Click a column header to sort; click &#x2630; to see
         the first and last 10 frames of the logged stack trace, or the whole trace as printStackTrace prints it. The excerpt is
-        formatted with the API's RootCauseFirst: with a cause chain, it starts with the deepest exception, and each exception
+        formatted with the API's ExceptionFormat.rootCauseFirst: with a cause chain, it starts with the deepest exception, and each exception
         that wrapped it follows as "Wrapped by:" with the first 10 of the frames it adds, the last one also with its last 10.</p>
         """.trimIndent()
     )
@@ -100,7 +100,7 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
                     traceExcerpt(results, mode, scenario)?.let {
                         val title = "${mode.title}: ${scenario.title}, ${if (logged) "logged" else "not logged"}"
                         val description = (if (logged) "" else "The trace of the logged run; this run does not format it. ") +
-                            (if (scenario.causes > 0) "Root cause first (RootCauseFirst): the deepest exception, then each exception that wrapped it as " +
+                            (if (scenario.causes > 0) "Root cause first (ExceptionFormat.rootCauseFirst): the deepest exception, then each exception that wrapped it as " +
                                 "\"Wrapped by:\", with the first $TRACE_FRAMES of the frames it adds; the last one also with its last $TRACE_FRAMES frames."
                             else "The first and last $TRACE_FRAMES frames of the stack trace.")
                         append("<button type=\"button\" class=\"trace\" aria-label=\"Stack trace\" data-title=\"")
@@ -189,7 +189,7 @@ private fun json(text: String): String = buildString {
 private fun attribute(text: String): String = escape(text).replace("\"", "&quot;")
 
 /**
- * The trace logged in [mode] and [scenario], as RootCauseFirst formats it: the deepest exception first, then each
+ * The trace logged in [mode] and [scenario], as ExceptionFormat.rootCauseFirst formats it: the deepest exception first, then each
  * exception that wrapped it as "Wrapped by:", each with the first [TRACE_FRAMES] of the frames it adds, the last one also
  * with its last [TRACE_FRAMES] frames, the top of the stack. Null if no trace was logged.
  */
