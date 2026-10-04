@@ -2,16 +2,30 @@ package com.hafnium.it.benchmark
 
 /**
  * Where in a stack of [FRAMES] frames the exception is caught, and which frames show ids. The exception is always created
- * at the bottom, in the deepest frame.
+ * at the bottom, in the deepest frame. With [causes], it is wrapped on its way up: every [FRAMES] / ([causes] + 1)
+ * frames, a frame catches it and throws a new exception with it as the cause, so the caught one has a chain of
+ * [causes] causes.
  */
-enum class Scenario(val configuredEvery: Int, val caughtNearTop: Boolean) {
+enum class Scenario(val configuredEvery: Int, val caughtNearTop: Boolean, val causes: Int = 0) {
     BOTTOM_CONFIGURED(4, false),
     BOTTOM_PLAIN(0, false),
     TOP_CONFIGURED(4, true),
-    TOP_PLAIN(0, true);
+    TOP_PLAIN(0, true),
+    CAUSES_CONFIGURED(4, true, 3),
+    CAUSES_PLAIN(0, true, 3);
 
     /** Where the exception is caught: near the bottom (3 frames above where it is created) or near the top. */
-    val caught: String get() = if (caughtNearTop) "near the top" else "near the bottom"
+    val caught: String get() = when {
+        causes > 0 -> "near the top, ${causes + 1} × ${wrapEvery}-frame cause chain"
+        caughtNearTop -> "near the top"
+        else -> "near the bottom"
+    }
+
+    /** How many frames apart the exceptions of the cause chain are created, or 0 without causes. */
+    val wrapEvery: Int get() = if (causes == 0) 0 else FRAMES / (causes + 1)
+
+    /** The depth of the frame that creates the outermost exception, the one that is caught. */
+    val outermostCreatedAt: Int get() = causes * wrapEvery
 
     /** The depth of the frame that catches the exception; depth 0 creates it. */
     val catchAt: Int get() = if (caughtNearTop) FRAMES - 3 else 3
