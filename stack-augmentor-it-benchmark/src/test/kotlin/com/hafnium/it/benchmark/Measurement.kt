@@ -6,9 +6,6 @@ package com.hafnium.it.benchmark
  */
 data class Measurement(val median: Double, val min: Double, val max: Double, val batch: Int, val batches: Int) {
 
-    /** How many runs were measured. */
-    val samples: Int get() = batch * batches
-
     companion object {
         private val warmupMillis = System.getProperty("benchmark.warmupMillis", "2000").toLong()
         private val batchMillis = System.getProperty("benchmark.batchMillis", "500").toLong()
