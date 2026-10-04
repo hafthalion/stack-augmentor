@@ -121,7 +121,10 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
     append("<h2>Columns</h2>\n<dl>\n")
     column("Caught", "Where the exception is caught. It is always created at the bottom, in the deepest of the ${Scenario.FRAMES} " +
         "frames. Near the bottom: 3 frames above that, so it leaves only 3 frames. Near the top: 3 frames below the outermost " +
-        "frame, so it leaves almost all of them.")
+        "frame, so it leaves almost all of them. With a cause chain, the exception is created at the bottom too, and every ${Scenario.CAUSES_PLAIN.wrapEvery} frames " +
+        "a frame catches it and throws a new exception with it as the cause; the outermost one is caught near the top. " +
+        "Every exception leaves its ${Scenario.CAUSES_PLAIN.wrapEvery} frames, and the causes share the frames below with the " +
+        "exceptions that wrap them, which printing collapses into \"... N more\".")
     column("Configured frames", "The share of the ${Scenario.FRAMES} frames whose method is configured to show ids (receiver id and " +
         "depth parameter): every 4th frame, or none. The others are methods of an unconfigured class.")
     column("Logged", "Yes: after it is caught, the exception is turned into text with stackTraceToString(), which reads the " +
@@ -155,16 +158,23 @@ private fun attribute(text: String): String = escape(text).replace("\"", "&quot;
 /**
  * The trace logged in [mode] and [scenario]: the exception, the [TRACE_FRAMES] bottom and top frames of the benchmark's
  * stack, its first configured frame and the frame that caught the exception, marked with an arrow; null if none was
- * logged. The frames below the benchmark's stack (the test framework) are left out.
+ * logged. The frames below the benchmark's stack (the test framework) are left out. With causes, the trace starts at
+ * the frame that created the outermost exception, and each "Caused by" is shown with its first frame and its
+ * "... N more" line.
  */
 private fun traceExcerpt(results: File, mode: Mode, scenario: Scenario): String? {
     val log = File(results, "${mode.id}-${scenario.name}.log").takeIf { it.exists() }?.readLines() ?: return null
-    // Line 0 is the exception, then one line per frame from depth 0 upwards.
-    val caught = scenario.catchAt + 1
+    // Line 0 is the exception, then one line per frame from the depth that created it upwards.
+    val frames = Scenario.FRAMES - scenario.outermostCreatedAt
+    val caught = scenario.catchAt - scenario.outermostCreatedAt + 1
     val configured = log.indexOfFirst { it.contains("Configured{") }
     val bottom = 0..TRACE_FRAMES
-    val top = Scenario.FRAMES - TRACE_FRAMES + 1..Scenario.FRAMES
-    val shown = (bottom + top + listOf(configured, caught)).filter { it in log.indices }.toSortedSet()
+    val top = frames - TRACE_FRAMES + 1..frames
+    val causes = log.indices.filter { log[it].startsWith("Caused by: ") }.flatMap { cause ->
+        val more = (cause + 1 until log.size).firstOrNull { MORE.matches(log[it]) }
+        listOfNotNull(cause, cause + 1, more)
+    }
+    val shown = (bottom + top + causes + listOf(configured, caught)).filter { it in log.indices }.toSortedSet()
     return buildList {
         var previous = -1
         for (index in shown) {
@@ -179,6 +189,9 @@ private fun traceExcerpt(results: File, mode: Mode, scenario: Scenario): String?
         }
     }.joinToString("\n")
 }
+
+/** The line where a printed cause leaves out the frames it shares with the exception it caused. */
+private val MORE = Regex("""\s*\.\.\. \d+ more""")
 
 private fun format(micros: Double): String = when {
     micros >= 100 -> String.format(Locale.ROOT, "%,.0f µs", micros)
