@@ -154,4 +154,4 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 - [Limitations](docs/limitations.md): the details, with measured costs
 - [How it works](docs/how-it-works.md): the instrumentation, the modules and packages
 
-Build and test with `./gradlew build`. On Windows, `run.bat` builds the project and runs the live-stack demo (`examples/live-agent`) twice: with the agent alone, and in the live-stack mode if MinGW `gcc` built the native library. This needs JDK 25.
+Build and test with `./gradlew build`. On Windows, `run.bat [agent|live|build-time]` builds the project and runs one of the examples, and asks which one without an argument: `agent` is `examples/java-agent`, with a simple cause chain printed by `printStackTrace` and root cause first; `live` runs `examples/live-agent` twice, with the agent alone and in the live-stack mode if MinGW `gcc` built the native library; `build-time` is `examples/build-time`, without an agent. This needs JDK 25.

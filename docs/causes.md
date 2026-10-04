@@ -37,6 +37,8 @@ Wrapped by: java.lang.IllegalStateException: order 42 not saved
 
 Read from the top, the frames follow the stack upwards, each printed once. Suppressed exceptions follow the frames of the exception they were suppressed in, indented and headed `Suppressed:`, with their own causes again root first. A circular cause chain stops at `[CIRCULAR REFERENCE: ...]`, as in the JDK.
 
+`./gradlew :examples:java-agent:run` prints a cause chain both ways.
+
 For `java.util.logging`, e.g.:
 
 ```java
