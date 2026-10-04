@@ -17,9 +17,9 @@ enum class Scenario(val configuredEvery: Int, val caughtNearTop: Boolean, val ca
 
     /** Where the exception is caught: near the bottom (3 frames above where it is created) or near the top. */
     val caught: String get() = when {
-        causes > 0 -> "near the top, ${causes + 1} exceptions in a $frames-frame stack"
-        caughtNearTop -> "near the top"
-        else -> "near the bottom"
+        causes > 0 -> "near the top, ${causes + 1} exceptions chain"
+        caughtNearTop -> "near the top, single exception"
+        else -> "near the bottom, single exception"
     }
 
     /**
