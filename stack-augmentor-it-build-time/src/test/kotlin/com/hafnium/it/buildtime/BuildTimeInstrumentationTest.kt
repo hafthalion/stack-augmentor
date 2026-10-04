@@ -7,6 +7,7 @@ import com.hafnium.it.buildtime.configured.Order
 import com.hafnium.it.buildtime.configured.OrderService
 import com.hafnium.it.buildtime.configured.Shipment
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
@@ -53,6 +54,10 @@ class BuildTimeInstrumentationTest {
         assertEquals("com.hafnium.it.buildtime.Wrapping{name=w-1}.inner", "${cause[0].className}.${cause[0].methodName}")
         // The same element, so that printing collapses it and the frames below into "... N more".
         assertEquals(e.stackTrace[outer], cause[cause.size - (e.stackTrace.size - outer)])
+        // The frame where wrap caught the cause: the same call as the wrapper's, at another line.
+        val wrap = cause.single { it.methodName == "wrap" }
+        assertEquals("com.hafnium.it.buildtime.Wrapping{name=w-1}", wrap.className)
+        assertTrue(wrap.lineNumber != e.stackTrace.single { it.methodName == "wrap" }.lineNumber)
     }
 
     @Test

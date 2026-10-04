@@ -16,7 +16,7 @@ object Main {
         printStackTraceOf { OrderService(InventoryService(InventoryAudit())).process(Order(4711), 3, "rush") }
 
         // A simple cause chain: the frames the cause shares with the wrapper show the same ids in both, so
-        // "... N more" still collapses them. The cause's submit frame has no ids: the cause never left submit.
+        // "... N more" still collapses them. The cause's submit frame, where submit caught it, shows them too.
         try {
             Shop("shop-1").buy(4712)
         } catch (e: CheckoutException) {

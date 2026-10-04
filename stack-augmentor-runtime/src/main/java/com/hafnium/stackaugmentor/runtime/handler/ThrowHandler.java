@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Called when an exception leaves an instrumented method: finds that method's frame in the
@@ -131,7 +132,7 @@ public final class ThrowHandler implements Dispatch.Handler {
         StackTraceElement original = trace[index];
         stackTraces.write(thrown, trace, index, format.rewrite(original, receiverIds, paramIds));
         if (thrown.getCause() != null || thrown.getSuppressed().length > 0) {
-            rewriteShared(thrown, trace, index, original);
+            rewriteShared(thrown, trace, index, original, receiverIds, paramIds);
         }
     }
 
@@ -139,9 +140,11 @@ public final class ThrowHandler implements Dispatch.Handler {
      * Writes the rewritten frame {@code trace[index]} of {@code thrown} also into those of its causes and suppressed
      * exceptions, and theirs, that share the frame: the same frame at the same distance from the bottom, with the same
      * frames below it. Printed traces then still collapse the shared frames into {@code ... N more}, which compares
-     * frames with {@code equals}.
+     * frames with {@code equals}. A frame of the same call at another line, e.g. where the method caught the cause that
+     * it wraps, gets the same ids with its own line.
      */
-    private void rewriteShared(Throwable thrown, StackTraceElement[] trace, int index, StackTraceElement original) {
+    private void rewriteShared(Throwable thrown, StackTraceElement[] trace, int index, StackTraceElement original,
+            List<NamedId> receiverIds, List<NamedId> paramIds) {
         int below = trace.length - index - 1;
         List<Throwable> related = new ArrayList<>();
         related.add(thrown);
@@ -150,9 +153,11 @@ public final class ThrowHandler implements Dispatch.Handler {
             Throwable other = related.get(r);
             StackTraceElement[] otherTrace = stackTraces.read(other);
             int otherIndex = otherTrace.length - below - 1;
-            if (otherIndex >= 0 && otherTrace[otherIndex].equals(original)
+            if (otherIndex >= 0 && sameMethod(otherTrace[otherIndex], original)
                     && sharesBelow(thrown, trace, index, other, otherTrace, otherIndex)) {
-                stackTraces.write(other, otherTrace, otherIndex, trace[index]);
+                StackTraceElement frame = otherTrace[otherIndex];
+                stackTraces.write(other, otherTrace, otherIndex,
+                        frame.equals(original) ? trace[index] : format.rewrite(frame, receiverIds, paramIds));
             }
             addRelated(other, related);
         }
@@ -174,6 +179,13 @@ public final class ThrowHandler implements Dispatch.Handler {
         }
         shared.set(other, new WeakReference<>(thrown));
         return true;
+    }
+
+    /** Whether both frames are of the same method, at any line. */
+    private static boolean sameMethod(StackTraceElement a, StackTraceElement b) {
+        return a.getClassName().equals(b.getClassName()) && a.getMethodName().equals(b.getMethodName())
+                && Objects.equals(a.getFileName(), b.getFileName()) && Objects.equals(a.getModuleName(), b.getModuleName())
+                && Objects.equals(a.getClassLoaderName(), b.getClassLoaderName());
     }
 
     /** Adds the cause and the suppressed exceptions of {@code throwable} that are not in {@code related} yet. */

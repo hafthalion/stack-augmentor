@@ -257,6 +257,10 @@ class StackTraceIdsTest {
         val shared = cause.size - (e.stackTrace.size - outer)
         // The same element, so that printing collapses it and the frames below into "... N more".
         assertEquals(e.stackTrace[outer], cause[shared])
+        // The frame where wrap caught the cause: the same call as the wrapper's, at another line.
+        val wrap = cause.single { it.methodName == "wrap" }
+        assertEquals("com.hafnium.it.fixtures.Layers{layer=layers}", wrap.className)
+        assertTrue(wrap.lineNumber != e.stackTrace.single { it.methodName == "wrap" }.lineNumber)
         val printed = e.printed()
         assertTrue(printed.contains("\t... ${e.stackTrace.size - outer} more"), printed)
     }
