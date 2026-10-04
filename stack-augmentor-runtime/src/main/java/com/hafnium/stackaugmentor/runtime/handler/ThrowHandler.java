@@ -14,9 +14,14 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Called when an exception leaves an instrumented method: finds that method's frame in the
@@ -120,7 +125,47 @@ public final class ThrowHandler implements Dispatch.Handler {
             return;
         }
 
-        stackTraces.write(thrown, trace, index, format.rewrite(trace[index], receiverIds, paramIds));
+        StackTraceElement original = trace[index];
+        stackTraces.write(thrown, trace, index, format.rewrite(original, receiverIds, paramIds));
+        if (thrown.getCause() != null || thrown.getSuppressed().length > 0) {
+            rewriteShared(thrown, trace, index, original);
+        }
+    }
+
+    /**
+     * Writes the rewritten frame {@code trace[index]} of {@code thrown} also into those of its causes and suppressed
+     * exceptions, and theirs, that share the frame: the same frame at the same distance from the bottom, with the same
+     * frames below it. Printed traces then still collapse the shared frames into {@code ... N more}, which compares
+     * frames with {@code equals}.
+     */
+    private void rewriteShared(Throwable thrown, StackTraceElement[] trace, int index, StackTraceElement original) {
+        int below = trace.length - index - 1;
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        seen.add(thrown);
+        ArrayDeque<Throwable> pending = new ArrayDeque<>();
+        addRelated(thrown, seen, pending);
+        while (!pending.isEmpty()) {
+            Throwable related = pending.poll();
+            StackTraceElement[] relatedTrace = stackTraces.read(related);
+            int relatedIndex = relatedTrace.length - below - 1;
+            if (relatedIndex >= 0 && relatedTrace[relatedIndex].equals(original)
+                    && Arrays.equals(relatedTrace, relatedIndex + 1, relatedTrace.length, trace, index + 1, trace.length)) {
+                stackTraces.write(related, relatedTrace, relatedIndex, trace[index]);
+            }
+            addRelated(related, seen, pending);
+        }
+    }
+
+    private static void addRelated(Throwable throwable, Set<Throwable> seen, ArrayDeque<Throwable> pending) {
+        Throwable cause = throwable.getCause();
+        if (cause != null && seen.add(cause)) {
+            pending.add(cause);
+        }
+        for (Throwable suppressed : throwable.getSuppressed()) {
+            if (seen.add(suppressed)) {
+                pending.add(suppressed);
+            }
+        }
     }
 
     /**

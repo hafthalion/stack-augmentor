@@ -248,6 +248,29 @@ class StackTraceIdsTest {
     }
 
     @Test
+    fun `a cause shows the ids of the frames it shares with the wrapper`() {
+        val e = report.thrown<RuntimeException, _>("Layers().outerWrap()", Layers()) { it.outerWrap() }
+        val outer = e.stackTrace.indexOfFirst { it.methodName == "outerWrap" }
+        assertEquals("com.hafnium.it.fixtures.Layers{layer=layers}", e.stackTrace[outer].className)
+        val cause = e.cause!!.stackTrace
+        val shared = cause.size - (e.stackTrace.size - outer)
+        // The same element, so that printing collapses it and the frames below into "... N more".
+        assertEquals(e.stackTrace[outer], cause[shared])
+        val printed = e.printed()
+        assertTrue(printed.contains("\t... ${e.stackTrace.size - outer} more"), printed)
+    }
+
+    @Test
+    fun `a suppressed exception shows the ids of the frames it shares`() {
+        val e = report.thrown<IllegalStateException, _>("Layers().outerClosing()", Layers()) { it.outerClosing() }
+        val outer = e.stackTrace.indexOfFirst { it.methodName == "outerClosing" }
+        assertEquals("com.hafnium.it.fixtures.Layers{layer=layers}", e.stackTrace[outer].className)
+        val suppressed = e.suppressed.single().stackTrace
+        assertEquals("com.hafnium.it.fixtures.Closer{name=closer}", suppressed[0].className)
+        assertEquals(e.stackTrace[outer], suppressed[suppressed.size - (e.stackTrace.size - outer)])
+    }
+
+    @Test
     fun `exceptions without a writable stack trace are left alone`() {
         val e = report.thrown<NoTraceException, _>("NoTrace().fail()", NoTrace()) { it.fail() }
         assertEquals(0, e.stackTrace.size)

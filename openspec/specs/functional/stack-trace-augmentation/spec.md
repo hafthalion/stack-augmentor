@@ -48,7 +48,8 @@ exception unchanged. Exceptions thrown inside the called constructor SHALL leave
 ### Requirement: Capture when an exception leaves a method
 The system SHALL capture the receiver and parameter ids when an exception leaves an instrumented method,
 reading the parameters' values at that moment. Frames of methods the exception did not leave, such as the
-method that caught it and the frames below, SHALL be left unchanged.
+method that caught it and the frames below, SHALL be left unchanged, except for frames shared with an
+exception that left them.
 
 #### Scenario: Caught and returned exception
 - **GIVEN** `inner(1)` throws and its caller `catchAndReturn()` catches the exception
@@ -59,6 +60,22 @@ method that caught it and the frames below, SHALL be left unchanged.
 - **GIVEN** `wrap()` catches the exception of `inner(2)` and throws `RuntimeException("wrapped", cause)`
 - **WHEN** the wrapper is printed
 - **THEN** the wrapper's `wrap` frame and the cause's `inner` frame both show their ids
+
+### Requirement: Frames shared with causes and suppressed exceptions
+When the system rewrites a frame of an exception, it SHALL write the same rewritten frame into each of its
+causes and suppressed exceptions, and theirs, whose trace has an equal frame at the same distance from the
+bottom with equal frames below it. Printed traces SHALL then still collapse the shared frames into
+`... N more`, as without augmentation.
+
+#### Scenario: Wrapped exception with an instrumented caller
+- **GIVEN** `outer()` calls `wrap()`, which catches the exception of `inner(2)` and throws `RuntimeException("wrapped", cause)`
+- **WHEN** the wrapper leaves `outer()` and is printed
+- **THEN** the cause's `outer` frame shows the same ids as the wrapper's, and the cause section ends with `... N more` as without augmentation
+
+#### Scenario: Suppressed exception
+- **GIVEN** `outerClosing()` calls `closing()`, where `inner(3)` throws and closing the resource throws too
+- **WHEN** the exception leaves `outerClosing()`
+- **THEN** the suppressed exception's `outerClosing` frame shows the same ids as the exception's
 
 ### Requirement: Rewriting the frame
 The system SHALL find the frame of the method the exception left in the exception's own stack trace. It
