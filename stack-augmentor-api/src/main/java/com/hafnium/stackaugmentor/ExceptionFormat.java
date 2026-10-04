@@ -2,7 +2,6 @@ package com.hafnium.stackaugmentor;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -49,12 +48,11 @@ public final class ExceptionFormat {
         return out.toString();
     }
 
-    /** Writes the throwable as {@link #rootCauseFirst(Throwable)} formats it to {@code out}. */
-    public static void rootCauseFirst(Throwable throwable, Writer out) throws IOException {
-        rootCauseFirst(throwable, (Appendable) out);
-    }
-
-    private static void rootCauseFirst(Throwable throwable, Appendable out) throws IOException {
+    /**
+     * Appends the throwable as {@link #rootCauseFirst(Throwable)} formats it to {@code out}, e.g. a {@code Writer},
+     * {@code PrintStream} or {@code StringBuilder}.
+     */
+    public static void rootCauseFirst(Throwable throwable, Appendable out) throws IOException {
         append(out, throwable, new StackTraceElement[0], "", "", Collections.newSetFromMap(new IdentityHashMap<>()));
     }
 

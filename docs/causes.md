@@ -24,7 +24,7 @@ Both leave out the frames each exception shares with its wrapper: Logback as `..
 
 ## `ExceptionFormat.rootCauseFirst` in the API
 
-`com.hafnium.stackaugmentor.ExceptionFormat.rootCauseFirst(throwable)` in `stack-augmentor-api` returns the same order as Logback's `%rEx` as a `String`, for code that formats exceptions itself; `rootCauseFirst(throwable, writer)` writes it to a `Writer`:
+`com.hafnium.stackaugmentor.ExceptionFormat.rootCauseFirst(throwable)` in `stack-augmentor-api` returns the same order as Logback's `%rEx` as a `String`, for code that formats exceptions itself; `rootCauseFirst(throwable, out)` appends it to an `Appendable`, e.g. a `Writer`, `PrintStream` or `StringBuilder`:
 
 ```
 java.io.IOException: disk full
