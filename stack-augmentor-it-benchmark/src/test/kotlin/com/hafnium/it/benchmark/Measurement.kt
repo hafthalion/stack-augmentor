@@ -11,8 +11,8 @@ data class Measurement(val median: Double, val min: Double, val max: Double, val
 
     companion object {
         private val warmupMillis = System.getProperty("benchmark.warmupMillis", "2000").toLong()
-        private val batchMillis = System.getProperty("benchmark.batchMillis", "250").toLong()
-        private val batches = System.getProperty("benchmark.batches", "9").toInt()
+        private val batchMillis = System.getProperty("benchmark.batchMillis", "500").toLong()
+        private val batches = System.getProperty("benchmark.batches", "10").toInt()
 
         /** Runs the action until it is warmed up, then in batches of about the same time each. */
         fun of(action: () -> Unit): Measurement {
@@ -29,7 +29,9 @@ data class Measurement(val median: Double, val min: Double, val max: Double, val
                 repeat(batch) { action() }
                 (System.nanoTime() - batchStart) / 1000.0 / batch
             }.sorted()
-            return Measurement(micros[micros.size / 2], micros.first(), micros.last(), batch, batches)
+            // With an even number of batches, the mean of the two middle ones.
+            val median = (micros[(micros.size - 1) / 2] + micros[micros.size / 2]) / 2
+            return Measurement(median, micros.first(), micros.last(), batch, batches)
         }
     }
 }
