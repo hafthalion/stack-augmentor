@@ -1,10 +1,11 @@
 package com.hafnium.it.benchmark
 
 /**
- * Where in a stack of [FRAMES] frames the exception is caught, and which frames show ids. The exception is always created
- * at the bottom, in the deepest frame. With [causes], it is wrapped on its way up: every [FRAMES] / ([causes] + 1)
- * frames, a frame catches it and throws a new exception with it as the cause, so the caught one has a chain of
- * [causes] causes.
+ * Where in a stack of [frames] frames the exception is caught, and which frames show ids. The exception is always
+ * created at the bottom, in the deepest frame. With [causes], it is wrapped on its way up: every [wrapEvery] frames, a
+ * frame catches it and throws a new exception with it as the cause, so the caught one has a chain of [causes] causes.
+ * The stack is then shallower, so that the stack traces of the whole chain hold [FRAMES] frames together, as the single
+ * exception's does.
  */
 enum class Scenario(val configuredEvery: Int, val caughtNearTop: Boolean, val causes: Int = 0) {
     BOTTOM_CONFIGURED(4, false),
@@ -16,19 +17,25 @@ enum class Scenario(val configuredEvery: Int, val caughtNearTop: Boolean, val ca
 
     /** Where the exception is caught: near the bottom (3 frames above where it is created) or near the top. */
     val caught: String get() = when {
-        causes > 0 -> "near the top, ${causes + 1} × ${wrapEvery}-frame cause chain"
+        causes > 0 -> "near the top, ${causes + 1} exceptions in a $frames-frame stack"
         caughtNearTop -> "near the top"
         else -> "near the bottom"
     }
 
-    /** How many frames apart the exceptions of the cause chain are created, or 0 without causes. */
-    val wrapEvery: Int get() = if (causes == 0) 0 else FRAMES / (causes + 1)
+    /**
+     * How many frames apart the exceptions of the cause chain are created, or 0 without causes. Their stack traces hold
+     * wrapEvery, 2 × wrapEvery, ... frames: [FRAMES] together.
+     */
+    val wrapEvery: Int get() = if (causes == 0) 0 else 2 * FRAMES / ((causes + 1) * (causes + 2))
+
+    /** The depth of the stack. */
+    val frames: Int get() = if (causes == 0) FRAMES else (causes + 1) * wrapEvery
 
     /** The depth of the frame that creates the outermost exception, the one that is caught. */
     val outermostCreatedAt: Int get() = causes * wrapEvery
 
     /** The depth of the frame that catches the exception; depth 0 creates it. */
-    val catchAt: Int get() = if (caughtNearTop) FRAMES - 3 else 3
+    val catchAt: Int get() = if (caughtNearTop) frames - 3 else 3
 
     /** The share of the frames that are configured, e.g. 25%. */
     val configuredPercent: Int get() = if (configuredEvery == 0) 0 else 100 / configuredEvery
@@ -36,6 +43,7 @@ enum class Scenario(val configuredEvery: Int, val caughtNearTop: Boolean, val ca
     val title: String get() = "Caught $caught, ${if (configuredEvery == 0) "no frame" else "$configuredPercent% of the frames"} configured"
 
     companion object {
+        /** The frames of all stack traces of a run together. */
         const val FRAMES = 1000
     }
 }

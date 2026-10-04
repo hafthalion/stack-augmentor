@@ -20,7 +20,7 @@ class ExceptionCostBenchmark {
     @MethodSource("cases")
     fun exception(scenario: Scenario, logged: Boolean) {
         val stack = Stack(scenario, logged)
-        assertEquals(0, stack.run() - (Scenario.FRAMES - 1 - stack.catchAt), "the exception is caught where the scenario says")
+        assertEquals(0, stack.run() - (scenario.frames - 1 - stack.catchAt), "the exception is caught where the scenario says")
         val measurement = Measurement.of { stack.run() }
         if (logged) {
             val configured = stack.lastLog.lines().any { it.contains("Configured{") }
