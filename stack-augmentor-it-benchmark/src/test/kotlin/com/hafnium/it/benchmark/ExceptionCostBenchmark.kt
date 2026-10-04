@@ -20,8 +20,10 @@ class ExceptionCostBenchmark {
     @MethodSource("cases")
     fun exception(scenario: Scenario, logged: Boolean) {
         val stack = Stack(scenario, logged)
-        assertEquals(0, stack.run() - (scenario.frames - 1 - stack.catchAt), "the exception is caught where the scenario says")
-        val measurement = Measurement.of { stack.run() }
+        val measurement = onFreshThread {
+            assertEquals(0, stack.run() - (scenario.frames - 1 - stack.catchAt), "the exception is caught where the scenario says")
+            Measurement.of { stack.run() }
+        }
         if (logged) {
             val configured = stack.lastLog.lines().any { it.contains("Configured{") }
             assertEquals(scenario.configuredEvery > 0 && mode != Mode.PLAIN, configured, stack.lastLog.lines().take(3).joinToString("\n"))
@@ -44,6 +46,18 @@ class ExceptionCostBenchmark {
                     "${System.getProperty("os.name")} ${System.getProperty("os.arch")}, ${Runtime.getRuntime().availableProcessors()} cores"
             )
         }
+    }
+
+    /**
+     * Runs [action] on a new thread and returns its result: its stack has only a few frames below the benchmark's, while
+     * the test's own has about 150 of JUnit and Gradle, which every stack trace would hold, once per exception.
+     */
+    private fun <T> onFreshThread(action: () -> T): T {
+        var result: Result<T>? = null
+        val thread = Thread { result = runCatching(action) }
+        thread.start()
+        thread.join()
+        return result!!.getOrThrow()
     }
 
     companion object {

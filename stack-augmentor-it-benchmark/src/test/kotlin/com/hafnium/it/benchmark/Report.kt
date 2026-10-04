@@ -68,7 +68,8 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
         <body>
         <h1>Exception cost with ${Scenario.FRAMES} stack trace frames</h1>
         <p>Microseconds per exception: created, caught and, if logged, turned into text with <code>stackTraceToString()</code>.
-        Median of the measured batches after a warm-up; each mode runs in its own JVM. ${escape(environment)}</p>
+        Median of the measured batches after a warm-up; each mode runs in its own JVM, each scenario on a new thread, so that
+        only a few frames are below the benchmark's. ${escape(environment)}</p>
         <p>The stack has ${Scenario.FRAMES} frames, or fewer with a cause chain, so that its exceptions' stack traces hold
         ${Scenario.FRAMES} frames together. The exception is always created at the bottom, in the deepest frame. Near the bottom: caught 3 frames above it.
         Near the top: caught 3 frames below the outermost frame of the stack, so it leaves almost all of them. Configured
@@ -197,7 +198,7 @@ private fun attribute(text: String): String = escape(text).replace("\"", "&quot;
 /**
  * The trace logged in [mode] and [scenario]: the exception, the [TRACE_FRAMES] bottom and top frames of the benchmark's
  * stack, its first configured frame and the frame that caught the exception, marked with an arrow; null if none was
- * logged. The frames below the benchmark's stack (the test framework) are left out. With causes, the trace starts at
+ * logged. The frames below the benchmark's stack (its thread's) are left out. With causes, the trace starts at
  * the frame that created the outermost exception, and each "Caused by" is shown with its first frame and its
  * "... N more" line.
  */
@@ -224,7 +225,7 @@ private fun traceExcerpt(results: File, mode: Mode, scenario: Scenario): String?
             previous = index
         }
         if (previous < log.size - 1) {
-            add("    \t... ${log.size - 1 - previous} more lines (the benchmark's caller and the test framework)")
+            add("    \t... ${log.size - 1 - previous} more lines (the causes and the benchmark's thread)")
         }
     }.joinToString("\n")
 }
@@ -261,7 +262,7 @@ private val SORT_SCRIPT = """
         whole.hidden = log === undefined;
         whole.textContent = showsWhole ? "Show the excerpt" : "Show the whole trace, as printStackTrace prints it";
         document.getElementById("tip-description").textContent = showsWhole
-          ? "The whole logged trace, with the causes and the frames below the benchmark (the test framework)."
+          ? "The whole logged trace, with the causes and the frames below the benchmark."
           : button.dataset.description;
         document.getElementById("tip-trace").textContent = showsWhole && log !== undefined ? log : button.dataset.trace;
       };
