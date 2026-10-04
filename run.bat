@@ -1,7 +1,8 @@
 @echo off
-rem Builds the project and runs one of the examples, the same way an application would:
+rem Builds the project and runs one of the examples, the same way an application would, or the benchmark:
 rem   run.bat [example] [JVM options]     example: java-agent, live-agent or build-time, the modules in examples
-rem Without an example name, it asks which one to run.
+rem   run.bat benchmark
+rem Without an argument, it asks which one to run.
 rem
 rem   java-agent  the Java agent instruments classes, ids from annotations and from
 rem               stack-augmentor.toml, and a simple cause chain printed both ways:
@@ -12,6 +13,8 @@ rem                 java -agentpath:<native library> -javaagent:<agent jar>=conf
 rem               Without MinGW gcc on the PATH there is no native library, and only the first runs.
 rem   build-time  classes instrumented when they were built, no agent:
 rem                 java -jar <example jar>
+rem   benchmark   the exception cost benchmark (stack-augmentor-it-benchmark) in every mode, one JVM each; writes
+rem               stack-augmentor-it-benchmark\build\reports\benchmark\index.html. Takes a few minutes.
 rem
 rem Builds everything first (including the tests), plus the example's lib folder.
 rem Options after the example name are passed to the JVM, e.g.  run.bat live-agent -Xshare:off
@@ -31,8 +34,9 @@ if "%EXAMPLE%"=="" set JVM_ARGS=%*
 if /i "%EXAMPLE%"=="java-agent" (set EXAMPLE=java-agent& goto named)
 if /i "%EXAMPLE%"=="live-agent" (set EXAMPLE=live-agent& goto named)
 if /i "%EXAMPLE%"=="build-time" (set EXAMPLE=build-time& goto named)
+if /i "%EXAMPLE%"=="benchmark" goto benchmark
 if not "%EXAMPLE%"=="" (
-    echo Unknown example: %EXAMPLE%. Use java-agent, live-agent or build-time.
+    echo Unknown example: %EXAMPLE%. Use java-agent, live-agent, build-time or benchmark.
     endlocal & exit /b 1
 )
 
@@ -40,9 +44,19 @@ echo Which example?
 echo   1. java-agent  Java agent, with a cause chain
 echo   2. live-agent  Java agent alone, then in the live-stack mode
 echo   3. build-time  build-time instrumentation, no agent
-choice /c 123 /n /m "Example [1-3]: "
+echo   4. benchmark   exception cost in every mode, a few minutes
+choice /c 1234 /n /m "Example [1-4]: "
+if errorlevel 4 goto benchmark
 if errorlevel 3 (set EXAMPLE=build-time) else if errorlevel 2 (set EXAMPLE=live-agent) else (set EXAMPLE=java-agent)
 goto build
+
+:benchmark
+rem Runs each mode in a JVM of its own, the same way as the examples, and writes the report.
+call "%~dp0gradlew.bat" :stack-augmentor-it-benchmark:benchmark
+if %ERRORLEVEL% neq 0 (
+    endlocal & exit /b 1
+)
+endlocal & exit /b 0
 
 :named
 rem Everything after the example name goes to the JVM.
