@@ -1,6 +1,6 @@
 package com.hafnium.it.benchmark
 
-import com.hafnium.stackaugmentor.RootCauseFirst
+import com.hafnium.stackaugmentor.ExceptionFormat
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.params.ParameterizedTest
@@ -41,7 +41,7 @@ class ExceptionCostBenchmark {
         if (logged) {
             File(directory, "${mode.id}-${scenario.name}.log").writeText(stack.lastLog)
             // Root cause first, for the report's excerpt; not part of what is measured.
-            File(directory, "${mode.id}-${scenario.name}.root-first.log").writeText(RootCauseFirst.format(stack.lastLogged!!))
+            File(directory, "${mode.id}-${scenario.name}.root-first.log").writeText(ExceptionFormat.rootCauseFirst(stack.lastLogged!!))
         }
         if (mode == Mode.PLAIN) {
             File(directory, "environment.txt").writeText(

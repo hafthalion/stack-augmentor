@@ -2,9 +2,11 @@ package com.hafnium.stackaugmentor;
 
 import org.junit.jupiter.api.Test;
 
+import java.io.StringWriter;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class RootCauseFirstTest {
+class ExceptionFormatTest {
 
     @Test
     void printsTheRootCauseFirstAndEachWrapperWithTheFramesItAdds() {
@@ -22,7 +24,7 @@ class RootCauseFirstTest {
                 Wrapped by: java.lang.RuntimeException: outer
                 \tat T.a(T.java:1)
                 \tat T.main(T.java:1)
-                """, RootCauseFirst.format(outer));
+                """, ExceptionFormat.rootCauseFirst(outer));
     }
 
     @Test
@@ -38,7 +40,18 @@ class RootCauseFirstTest {
                 \tSuppressed: java.lang.IllegalStateException: closing
                 \t\tat T.close(T.java:1)
                 \t\t... 2 common frames omitted
-                """, RootCauseFirst.format(outer));
+                """, ExceptionFormat.rootCauseFirst(outer));
+    }
+
+    @Test
+    void writesTheSameToAWriter() throws Exception {
+        Exception root = exception(new IllegalArgumentException("root"), "b", "main");
+        Exception outer = exception(new RuntimeException("outer", root), "main");
+        StringWriter out = new StringWriter();
+
+        ExceptionFormat.rootCauseFirst(outer, out);
+
+        assertEquals(ExceptionFormat.rootCauseFirst(outer), out.toString());
     }
 
     @Test
@@ -53,7 +66,7 @@ class RootCauseFirstTest {
                 \t... 1 common frames omitted
                 Wrapped by: java.lang.RuntimeException: second
                 \tat T.a(T.java:1)
-                """, RootCauseFirst.format(second));
+                """, ExceptionFormat.rootCauseFirst(second));
     }
 
     private static <T extends Throwable> T exception(T throwable, String... methods) {

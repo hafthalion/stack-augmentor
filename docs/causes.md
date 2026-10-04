@@ -20,11 +20,11 @@ Both loggers print the root cause first with the `%rEx` (or `%rootException`) co
 
 Both leave out the frames each exception shares with its wrapper: Logback as `... N common frames omitted`, Log4j 2 as `... N more`; Log4j 2's `%rEx{filters(...)}` can also leave out the frames of given packages. Both read the stack traces with `getStackTrace()`, so they show the ids.
 
-`java.util.logging` has no such option; its `SimpleFormatter` prints what `printStackTrace` prints. Use a `Formatter` of your own with `RootCauseFirst` (below).
+`java.util.logging` has no such option; its `SimpleFormatter` prints what `printStackTrace` prints. Use a `Formatter` of your own with `ExceptionFormat.rootCauseFirst` (below).
 
-## `RootCauseFirst` in the API
+## `ExceptionFormat.rootCauseFirst` in the API
 
-`com.hafnium.stackaugmentor.RootCauseFirst.format(throwable)` in `stack-augmentor-api` returns the same order as Logback's `%rEx`, for code that formats exceptions itself:
+`com.hafnium.stackaugmentor.ExceptionFormat.rootCauseFirst(throwable)` in `stack-augmentor-api` returns the same order as Logback's `%rEx` as a `String`, for code that formats exceptions itself; `rootCauseFirst(throwable, writer)` writes it to a `Writer`:
 
 ```
 java.io.IOException: disk full
@@ -49,7 +49,7 @@ public class RootCauseFirstFormatter extends SimpleFormatter {
         }
         record.setThrown(null);
         try {
-            return super.format(record) + RootCauseFirst.format(thrown);
+            return super.format(record) + ExceptionFormat.rootCauseFirst(thrown);
         } finally {
             record.setThrown(thrown);
         }

@@ -1,5 +1,8 @@
 package com.hafnium.stackaugmentor;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -7,8 +10,10 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Formats a throwable with its causes in reverse order: the root cause first, then each exception that wrapped it as
- * {@code Wrapped by:}, e.g.
+ * Formats throwables for printing.
+ *
+ * <p>{@link #rootCauseFirst(Throwable)} prints a throwable with its causes in reverse order: the root cause first, then
+ * each exception that wrapped it as {@code Wrapped by:}, e.g.
  *
  * <pre>
  * java.io.IOException: disk full
@@ -28,24 +33,37 @@ import java.util.Set;
  * <p>Logback and Log4j 2 print the same order with the {@code %rEx} conversion word; this is for code that formats
  * exceptions itself, or logs through {@code java.util.logging}.
  */
-public final class RootCauseFirst {
+public final class ExceptionFormat {
 
-    private RootCauseFirst() {
+    private ExceptionFormat() {
     }
 
     /** The throwable with its causes and suppressed exceptions, root cause first, ending with a line break. */
-    public static String format(Throwable throwable) {
+    public static String rootCauseFirst(Throwable throwable) {
         StringBuilder out = new StringBuilder();
-        append(out, throwable, new StackTraceElement[0], "", "", Collections.newSetFromMap(new IdentityHashMap<>()));
+        try {
+            rootCauseFirst(throwable, out);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e); // a StringBuilder throws none
+        }
         return out.toString();
+    }
+
+    /** Writes the throwable as {@link #rootCauseFirst(Throwable)} formats it to {@code out}. */
+    public static void rootCauseFirst(Throwable throwable, Writer out) throws IOException {
+        rootCauseFirst(throwable, (Appendable) out);
+    }
+
+    private static void rootCauseFirst(Throwable throwable, Appendable out) throws IOException {
+        append(out, throwable, new StackTraceElement[0], "", "", Collections.newSetFromMap(new IdentityHashMap<>()));
     }
 
     /**
      * Appends {@code outermost} and its causes, root cause first, each line indented by {@code indent}, the first one
      * also headed by {@code prefix}. The frames that the outermost one shares with {@code enclosing} are left out.
      */
-    private static void append(StringBuilder out, Throwable outermost, StackTraceElement[] enclosing, String prefix,
-                               String indent, Set<Throwable> seen) {
+    private static void append(Appendable out, Throwable outermost, StackTraceElement[] enclosing, String prefix,
+                               String indent, Set<Throwable> seen) throws IOException {
         List<Throwable> chain = new ArrayList<>();
         Throwable circular = null;
         for (Throwable t = outermost; t != null; t = t.getCause()) {
@@ -57,7 +75,7 @@ public final class RootCauseFirst {
         }
         String header = prefix;
         if (circular != null) {
-            out.append(indent).append(header).append("[CIRCULAR REFERENCE: ").append(circular).append("]\n");
+            out.append(indent).append(header).append("[CIRCULAR REFERENCE: ").append(String.valueOf(circular)).append("]\n");
             header = "Wrapped by: ";
         }
         List<StackTraceElement[]> traces = new ArrayList<>();
@@ -68,12 +86,12 @@ public final class RootCauseFirst {
             Throwable t = chain.get(i);
             StackTraceElement[] trace = traces.get(i);
             int common = common(trace, i == 0 ? enclosing : traces.get(i - 1));
-            out.append(indent).append(header).append(t).append('\n');
+            out.append(indent).append(header).append(String.valueOf(t)).append('\n');
             for (int f = 0; f < trace.length - common; f++) {
-                out.append(indent).append("\tat ").append(trace[f]).append('\n');
+                out.append(indent).append("\tat ").append(String.valueOf(trace[f])).append('\n');
             }
             if (common > 0) {
-                out.append(indent).append("\t... ").append(common).append(" common frames omitted\n");
+                out.append(indent).append("\t... ").append(String.valueOf(common)).append(" common frames omitted\n");
             }
             for (Throwable suppressed : t.getSuppressed()) {
                 append(out, suppressed, trace, "Suppressed: ", indent + "\t", seen);

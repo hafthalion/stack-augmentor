@@ -149,7 +149,7 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 
 - [Where ids come from](docs/ids.md): receiver and parameter ids, subclasses, interfaces, constructors, hashed values
 - [Configuration](docs/configuration.md): the file in full, and the frame formats
-- [Causes, root cause first](docs/causes.md): `%rEx` in Logback and Log4j 2, and `RootCauseFirst` in the API
+- [Causes, root cause first](docs/causes.md): `%rEx` in Logback and Log4j 2, and `ExceptionFormat.rootCauseFirst` in the API
 - [Live stack](docs/live-stack.md): the experimental mode with the native library
 - [Limitations](docs/limitations.md): the details, with measured costs
 - [How it works](docs/how-it-works.md): the instrumentation, the modules and packages
