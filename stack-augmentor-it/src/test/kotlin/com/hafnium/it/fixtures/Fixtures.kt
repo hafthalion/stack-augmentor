@@ -277,3 +277,17 @@ class Prepared {
 
     fun viaShared(@StackTraceParam n: Int): Nothing = throwShared(n)
 }
+
+/** Recurses down to depth 0 and throws there, after parking the thread first if asked: ConcurrencyTest. */
+class Diver(@StackTraceId val name: String) {
+    fun dive(@StackTraceParam depth: Int, @StackTraceParam park: Boolean) {
+        if (depth == 0) {
+            if (park) {
+                // A virtual thread unmounts here and may continue on another carrier thread.
+                Thread.sleep(1)
+            }
+            throw IllegalStateException("bottom of $name")
+        }
+        dive(depth - 1, park)
+    }
+}
