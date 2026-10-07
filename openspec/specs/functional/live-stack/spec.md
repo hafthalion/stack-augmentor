@@ -11,7 +11,8 @@ The mode SHALL be used when the JVM was started with the native library `stack-a
 (`-agentpath:<library>`) next to the agent, in either order. The library SHALL acquire the JVMTI capability
 `can_access_local_variables` while the JVM starts, and SHALL never stop the JVM. The agent SHALL check that the
 library is loaded and has the version it expects, that the JDK's live stack frames hold the receiver and the arguments
-where it expects them, and that its code in `Throwable` runs. If any check fails, the agent SHALL print a warning
+where it expects them, that the frames the JVM records for a throwable (`Throwable.backtrace`) are laid out as it
+expects, and that its code in `Throwable` runs. If any check fails, the agent SHALL print a warning
 naming the reason, change nothing, and instrument classes as usual.
 
 #### Scenario: Agent without the library
@@ -26,7 +27,8 @@ naming the reason, change nothing, and instrument classes as usual.
 In this mode the agent SHALL add code only to `java.lang.Throwable`: when the JVM has recorded a stack trace, for each
 frame of that trace whose method an entry selects, as decided by the same rules as for instrumentation, it SHALL read
 the receiver and the selected arguments from the live stack and turn them into ids right away. Exceptions created while
-a class is being loaded SHALL be skipped. The ids SHALL be written into the throwable's stack trace array when that is
+a class is being loaded SHALL be skipped. The agent SHALL read the live stack only when a recorded frame belongs to a
+configured class, and only down to the last such frame. The ids SHALL be written into the throwable's stack trace array when that is
 created from the recorded frames, once, and SHALL not be written if the application replaced the stack trace.
 The configuration and the formats SHALL be the same as with instrumentation.
 

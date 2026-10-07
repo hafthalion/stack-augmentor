@@ -21,6 +21,10 @@ import java.util.stream.Stream;
  * <p>So it sees every frame of the trace, also those of constructors while they call {@code super(...)}, and of the
  * methods that catch the exception or called them, and it matches frames by position: recursion needs no special
  * care.
+ *
+ * <p>Reading the live stack costs most, so the recorded frames ({@link Backtrace}) decide first, without walking the
+ * stack, whether any frame may show ids, and down to which frame the walk must go. The walk then matches each frame
+ * to its recorded one by class and bytecode index, which also gives its position in the trace.
  */
 public final class LiveFrames implements LiveDispatch.Handler {
 
@@ -28,38 +32,35 @@ public final class LiveFrames implements LiveDispatch.Handler {
     public static final String UNKNOWN = "?";
 
     /** The ids of one frame, at its position in the trace. */
-    record Captured(int index, String className, String methodName, int lineNumber, List<NamedId> receiverIds, List<NamedId> paramIds) {
+    record Captured(int index, List<NamedId> receiverIds, List<NamedId> paramIds) {
     }
 
-    private final StackWalker plain;
     private final LiveStackFrames live;
     private final FrameSpecs specs;
     private final IdResolver resolver;
     private final FrameFormat format;
-    /** Frames beyond this depth are not in the trace: {@code -XX:MaxJavaStackTraceDepth}. */
-    private final int maxDepth;
     /** Whether a {@code null} object in a compiled frame may be one the JIT optimized away: {@code -XX:+EliminateAllocations}. */
     private final boolean eliminatedAllocations;
 
     /** The captured frames of the throwables whose stack trace array was not created yet. */
     private final WeakIdentityMap<Throwable, List<Captured>> pending = new WeakIdentityMap<>();
 
-    public LiveFrames(LiveStackFrames live, FrameSpecs specs, IdResolver resolver, FrameFormat format, int maxDepth,
+    public LiveFrames(LiveStackFrames live, FrameSpecs specs, IdResolver resolver, FrameFormat format,
                       boolean eliminatedAllocations) {
-        this.plain = live.plainWalker();
         this.live = live;
         this.specs = specs;
         this.resolver = resolver;
         this.format = format;
-        this.maxDepth = maxDepth;
         this.eliminatedAllocations = eliminatedAllocations;
     }
 
     @Override
     public void onFill(Throwable thrown) {
-        // Reading local variables is far slower than walking the stack: only when a frame shows ids, and only down to it.
-        int last = plain.walk(frames -> lastWithIds(frames, thrown));
-        List<Captured> captured = last < 0 ? List.of() : live.walker().walk(frames -> capture(frames, thrown, last));
+        // Reading the live stack is far slower than anything else: only when a frame may show ids, and only down to it.
+        Object backtrace = live.backtrace(thrown);
+        int last = lastWithIds(backtrace);
+        List<Captured> captured = last < 0 ? List.of()
+                : live.walker().walk(frames -> capture(frames, thrown, Backtrace.of(backtrace, last + 1)));
         if (captured.isEmpty()) {
             // Also when the application fills in the trace again.
             pending.remove(thrown);
@@ -72,7 +73,11 @@ public final class LiveFrames implements LiveDispatch.Handler {
     public void onTrace(Throwable thrown, StackTraceElement[] trace) {
         List<Captured> captured = pending.remove(thrown);
         if (captured != null) {
-            rewrite(trace, captured);
+            for (Captured frame : captured) {
+                if (frame.index() < trace.length) {
+                    trace[frame.index()] = format.rewrite(trace[frame.index()], frame.receiverIds(), frame.paramIds());
+                }
+            }
         }
     }
 
@@ -82,40 +87,83 @@ public final class LiveFrames implements LiveDispatch.Handler {
     }
 
     /**
-     * The trace index of the last frame that shows ids, or -1. Also -1 while a class is being loaded, e.g. for the
-     * {@code ClassNotFoundException}s of class loaders: looking at classes then could load the class being loaded again.
+     * From the recorded frames, without walking the stack: the index of the last frame that shows ids or whose method
+     * was not seen yet, or -1. The recorded frames end at {@code -XX:MaxJavaStackTraceDepth}, as the trace does. Also -1
+     * while a class is being loaded, e.g. for the {@code ClassNotFoundException}s of class loaders: looking at classes
+     * then could load the class being loaded again.
      */
-    private int lastWithIds(Stream<StackWalker.StackFrame> frames, Throwable thrown) {
-        Iterator<StackWalker.StackFrame> iterator = frames.iterator();
-        StackWalker.StackFrame frame = firstTraceFrame(iterator, thrown);
+    private int lastWithIds(Object backtrace) {
         int last = -1;
-        for (int index = 0; frame != null; index++) {
-            if (ClassLoader.class.isAssignableFrom(frame.getDeclaringClass())) {
-                return -1;
+        int index = 0;
+        for (Object chunk = backtrace; chunk != null; chunk = Backtrace.next(chunk)) {
+            Object[] classes = Backtrace.classes(chunk);
+            short[] methods = Backtrace.methods(chunk);
+            for (int k = 0; k < classes.length; k++, index++) {
+                Object type = classes[k];
+                if (type == null) {
+                    return last;
+                }
+                FrameSpecs.ClassInfo info = specs.of((Class<?>) type);
+                if (info.loader) {
+                    return -1;
+                }
+                if (info.byNumber(methods[k] & 0xFFFF) != FrameSpecs.NONE) {
+                    last = index;
+                }
             }
-            if (index < maxDepth && specs.of(frame) != FrameSpecs.NONE) {
-                last = index;
-            }
-            frame = iterator.hasNext() ? iterator.next() : null;
         }
         return last;
     }
 
-    private List<Captured> capture(Stream<StackWalker.StackFrame> frames, Throwable thrown, int last) {
+    /** How many recorded frames may be missing from the walk, should it leave out some. */
+    private static final int SEARCH = 8;
+
+    /**
+     * Walks the live stack down to the last of the recorded frames, and captures the ids of those of the configured
+     * methods. Each walked frame learns its method's spec for the recorded number of its method, see
+     * {@link #lastWithIds}.
+     */
+    private List<Captured> capture(Stream<StackWalker.StackFrame> frames, Throwable thrown, Backtrace recorded) {
         Iterator<StackWalker.StackFrame> iterator = frames.iterator();
         StackWalker.StackFrame frame = firstTraceFrame(iterator, thrown);
         List<Captured> captured = new ArrayList<>();
-        for (int index = 0; frame != null && index <= last; index++) {
-            FrameSpecs.Spec spec = specs.of(frame);
-            if (spec != FrameSpecs.NONE) {
-                Captured ids = ids(frame, spec, index);
-                if (ids != null) {
-                    captured.add(ids);
+        int index = 0;
+        while (frame != null && index < recorded.length) {
+            Class<?> type = frame.getDeclaringClass();
+            int bci = frame.isNativeMethod() ? -1 : frame.getByteCodeIndex();
+            int at = find(recorded, index, type, bci);
+            if (at >= 0) {
+                index = at;
+                FrameSpecs.ClassInfo info = specs.of(type);
+                if (info.relevant) {
+                    FrameSpecs.Spec spec = specs.of(frame, info, live.method(frame));
+                    info.learn(recorded.methods[index] & 0xFFFF, spec);
+                    if (spec != FrameSpecs.NONE) {
+                        Captured ids = ids(frame, spec, index);
+                        if (ids != null) {
+                            captured.add(ids);
+                        }
+                    }
                 }
+                index++;
             }
             frame = iterator.hasNext() ? iterator.next() : null;
         }
         return captured;
+    }
+
+    /** The index of the recorded frame at or after {@code from} that is this frame (a native one has no bci), or -1. */
+    private static int find(Backtrace recorded, int from, Class<?> type, int bci) {
+        int end = Math.min(recorded.length, from + SEARCH + 1);
+        for (int index = from; index < end; index++) {
+            if (recorded.classes[index] == type && (bci < 0 || recorded.bcis[index] == bci)) {
+                return index;
+            }
+        }
+        if (Log.isDebug()) {
+            Log.debug(() -> "live stack: a frame of " + type.getName() + " is not at position " + from + " of the stack trace, so it shows no ids");
+        }
+        return -1;
     }
 
     private Captured ids(StackWalker.StackFrame frame, FrameSpecs.Spec spec, int index) {
@@ -136,7 +184,7 @@ public final class LiveFrames implements LiveDispatch.Handler {
         if (receiverIds.isEmpty() && paramIds.isEmpty()) {
             return null;
         }
-        return new Captured(index, frame.getClassName(), frame.getMethodName(), frame.getLineNumber(), receiverIds, List.copyOf(paramIds));
+        return new Captured(index, receiverIds, List.copyOf(paramIds));
     }
 
     private String paramId(Object[] locals, FrameSpecs.Param param, boolean compiled) {
@@ -188,48 +236,5 @@ public final class LiveFrames implements LiveDispatch.Handler {
             frame = frames.hasNext() ? frames.next() : null;
         }
         return frame;
-    }
-
-    /**
-     * Rewrites the captured frames. Each is checked against the trace by class, method and line; if the walk saw frames
-     * that the trace leaves out, or the other way round, the nearest matching position is used.
-     */
-    private void rewrite(StackTraceElement[] trace, List<Captured> captured) {
-        int shift = 0;
-        for (Captured frame : captured) {
-            int index = find(trace, frame, frame.index() + shift);
-            if (index < 0) {
-                if (Log.isDebug()) {
-                    Log.debug(() -> "live stack: " + frame.className() + "." + frame.methodName() + " is not at position " + frame.index()
-                            + " of the stack trace, so it shows no ids");
-                }
-                continue;
-            }
-            shift = index - frame.index();
-            trace[index] = format.rewrite(trace[index], frame.receiverIds(), frame.paramIds());
-        }
-    }
-
-    private static final int SEARCH = 8;
-
-    private static int find(StackTraceElement[] trace, Captured frame, int expected) {
-        for (int distance = 0; distance <= SEARCH; distance++) {
-            if (matches(trace, expected + distance, frame)) {
-                return expected + distance;
-            }
-            if (distance > 0 && matches(trace, expected - distance, frame)) {
-                return expected - distance;
-            }
-        }
-        return -1;
-    }
-
-    private static boolean matches(StackTraceElement[] trace, int index, Captured frame) {
-        if (index < 0 || index >= trace.length) {
-            return false;
-        }
-        StackTraceElement element = trace[index];
-        return element.getLineNumber() == frame.lineNumber() && element.getMethodName().equals(frame.methodName())
-                && element.getClassName().equals(frame.className());
     }
 }
