@@ -447,7 +447,7 @@ class AugmentorConfigTest {
     class Derived : Base()
 
     @Test
-    fun `exceptions limits the throwables whose frames get ids, subclasses included`() {
+    fun `exceptions entries match the runtime class, the first matching entry wins`() {
         val all = AugmentorConfig()
         assertTrue(all.exceptions().isEmpty())
         assertTrue(all.augments(Error::class.java))
@@ -455,33 +455,47 @@ class AugmentorConfigTest {
 
         val config = parse(
             """
-            [augment]
-            exceptions = ["java.io.IOException", "com.hafnium.stackaugmentor.runtime.config.AugmentorConfigTest${'$'}Base", "java.util.concurrent.*Exception"]
+            [augment.exceptions]
+            "java.io.FileNotFoundException" = false
+            "java.io.*" = true
+            "com.hafnium.stackaugmentor.runtime.config.AugmentorConfigTest${'$'}Base" = true
+            "java.util.concurrent.**" = false
+            "java.**" = true
             """,
         )
         assertEquals(
-            listOf("java.io.IOException", "${Base::class.java.name}", "java.util.concurrent.*Exception"),
-            config.exceptions(),
+            listOf("java.io.FileNotFoundException", "java.io.*", Base::class.java.name, "java.util.concurrent.**", "java.**"),
+            config.exceptions().keys.toList(),
         )
+        assertEquals(
+            "java.io.FileNotFoundException=false, java.io.*=true, ${Base::class.java.name}=true, java.util.concurrent.**=false, java.**=true",
+            config.exceptionsDescription(),
+        )
+        assertFalse(config.augments(java.io.FileNotFoundException::class.java))
         assertTrue(config.augments(java.io.IOException::class.java))
-        assertTrue(config.augments(java.io.FileNotFoundException::class.java))
         assertTrue(config.augments(Base::class.java))
-        assertTrue(config.augments(Derived::class.java))
-        assertTrue(config.augments(java.util.concurrent.TimeoutException::class.java))
-        assertFalse(config.augments(RuntimeException::class.java))
-        assertFalse(config.augments(IllegalStateException::class.java))
+        // The runtime class only, not its superclasses.
+        assertFalse(config.augments(Derived::class.java))
+        assertFalse(config.augments(java.util.concurrent.TimeoutException::class.java))
+        assertTrue(config.augments(IllegalStateException::class.java))
+        // No entry matches.
+        assertFalse(config.augments(com.hafnium.stackaugmentor.runtime.config.ConfigException::class.java))
         assertNotEquals(all, config)
     }
 
     @Test
     fun `invalid exceptions entries`() {
-        assertTrue(error("[augment]\nexceptions = \"java.io.IOException\"").contains("'augment.exceptions' must be an array"))
+        assertTrue(error("[augment]\nexceptions = [\"java.io.IOException\"]").contains("'augment.exceptions' must be a table"))
         assertEquals(
-            "test.toml, line 2: exceptions must list at least one exception class or class pattern; leave it out for all exceptions",
-            error("[augment]\nexceptions = []"),
+            "test.toml, line 2: must be true to augment the exceptions of this class or class pattern, or false not to, was @",
+            error("[augment.exceptions]\n\"java.io.IOException\" = \"@\""),
         )
-        assertTrue(error("[augment]\nexceptions = [1]").contains("invalid exception '1'"))
-        assertTrue(error("[augment]\nexceptions = [\"java.io.IOException()\"]").contains("invalid exception 'java.io.IOException()'"))
-        assertTrue(error("[augment]\nexceptions = [\"a.B\", \"a.B\"]").contains("'a.B' is listed twice"))
+        assertTrue(
+            error("[augment.exceptions]\n\"java.io.IOException()\" = true")
+                .contains("[augment.exceptions] keys must name a class or a class pattern"),
+        )
+        assertTrue(
+            error("[augment.exceptions]\n\"a.B\" = true\na.B = false").contains("'a.B' is configured twice; it is already configured on line 2"),
+        )
     }
 }
