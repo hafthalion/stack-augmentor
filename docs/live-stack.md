@@ -17,7 +17,7 @@ Differences from instrumenting classes:
 - **Every frame on the stack when the exception is created gets ids**, also the method that catches it and the frames below.
 - **Constructors show their parameter ids also for exceptions from `super(...)` or `this(...)`.** Still no receiver id.
 - **Ids are read when the exception is created**, not when it leaves each method.
-- **Every exception pays a stack walk**, also when no frame is configured: measured with JDK 25 on a Linux container, about 4 µs for a 10-frame stack and 13 µs for a 100-frame one, plus 2 to 4 µs per configured frame. `stack-augmentor-it-benchmark` compares the modes at 1000 frames. Exceptions created while a class loads, such as a class loader's `ClassNotFoundException`, are skipped.
+- **Every exception pays a stack walk**, also when no frame is configured: measured with JDK 25 on a Linux container, about 4 µs for a 10-frame stack and 13 µs for a 100-frame one, plus 2 to 4 µs per configured frame. `stack-augmentor-it-benchmark` compares the modes at 1000 frames. Exceptions created while a class loads, such as a class loader's `ClassNotFoundException`, are skipped. So are exceptions that [`[augment.exceptions]`](configuration.md) gives no ids: they pay only a class check, cached per class.
 - **An object argument that the JIT optimized away reads as `null`, and is shown as `?`**, e.g. a boxed `Integer` created in compiled code and never stored (scalar replacement). `-XX:-EliminateAllocations` turns that optimization off, at some cost; a receiver optimized away shows no receiver id.
 - **It relies on JDK internals.** If they are missing or behave differently, the agent says so and instruments classes as usual. There is no build-time equivalent.
 

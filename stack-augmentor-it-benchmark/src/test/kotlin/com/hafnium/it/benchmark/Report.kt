@@ -88,7 +88,7 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
             val row = Row(scenario, logged)
             val plain = measured[Mode.PLAIN]?.get(row)
             append("<tr><td class=\"text\">").append(scenario.caught).append("</td>")
-            append("<td data-sort=\"${scenario.configuredPercent}\">").append(scenario.configuredPercent).append("%</td>")
+            append("<td data-sort=\"${scenario.configuredPercent}\">").append(escape(scenario.configuredText)).append("</td>")
             append("<td class=\"text\">").append(if (logged) "yes" else "no").append("</td>")
             for (mode in Mode.entries) {
                 val m = measured[mode]?.get(row)
@@ -136,7 +136,8 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
         "${Scenario.CAUSES_PLAIN.wrapEvery} frames, and the causes share the frames below with the exceptions that wrap them, " +
         "which printing collapses into \"... N more\".")
     column("Configured frames", "The share of the frames whose method is configured to show ids (receiver id and " +
-        "depth parameter): every 4th frame, or none. The others are methods of an unconfigured class.")
+        "depth parameter): every 4th frame, or none. The others are methods of an unconfigured class. \"Exception off\": the " +
+        "frames are configured, but the exceptions are of a class that [augment.exceptions] turns off, so no frame shows ids.")
     column("Logged", "Yes: after it is caught, the exception is turned into text with stackTraceToString(), which reads the " +
         "whole stack trace, as logging does. No: it is only created, thrown and caught.")
     Mode.entries.forEach { column(it.title, it.description) }
