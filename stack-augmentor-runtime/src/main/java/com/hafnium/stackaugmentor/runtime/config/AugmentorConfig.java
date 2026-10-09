@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
  * receiverFormat = "{$name=$id, ...}"
  * paramsFormat = "{$name=$id, ...}"
  * maxIdLength = 64
+ * exceptions = ["com.acme.**", "java.io.IOException"]  # only these exceptions and their subclasses; default: all
  *
  * [augment.receiver]           # receiver ids: a field, a "method()", a list of them, "@" for the @StackTraceId
  *                            # members, "-" for none
@@ -89,6 +90,24 @@ public final class AugmentorConfig {
     private final int maxIdLength;
     private final boolean debug;
     private final boolean inPlaceModification;
+    private final List<String> exceptions;
+    private final List<Pattern> exceptionPatterns;
+
+    /** Per throwable class, whether it or a superclass matches an {@code exceptions} entry. */
+    private final ClassValue<Boolean> augmentedExceptions = new ClassValue<>() {
+        @Override
+        protected Boolean computeValue(Class<?> type) {
+            for (Class<?> each = type; each != null; each = each.getSuperclass()) {
+                String name = each.getName();
+                for (Pattern pattern : exceptionPatterns) {
+                    if (pattern.matcher(name).matches()) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+    };
 
     /** An {@code [augment.receiver]} entry: the key as written, and the id source it names. */
     public record ClassEntry(String key, IdSpec spec) {
@@ -114,17 +133,19 @@ public final class AugmentorConfig {
     /** The defaults: no class or method entries, so nothing gets ids. */
     public AugmentorConfig() {
         this(Map.of(), Map.of(), DEFAULT_FRAME_FORMAT, DEFAULT_RECEIVER_FORMAT, DEFAULT_PARAMS_FORMAT,
-                DEFAULT_MAX_ID_LENGTH, false, false);
+                DEFAULT_MAX_ID_LENGTH, false, false, List.of());
     }
 
     /**
      * @param classes   receiver id sources by class name or class pattern: the {@code [augment.receiver]} table
      * @param methods   parameter ids by {@code "<class>.<method>"}, possibly with wildcards: the
      *                  {@code [augment.params]} table
+     * @param exceptions the throwable classes or class patterns whose frames get ids, with their subclasses: the
+     *                  {@code [augment] exceptions} list; empty for all throwables
      */
     public AugmentorConfig(Map<String, IdSpec> classes, Map<String, List<ParamRef>> methods,
                            String frameFormat, String receiverFormat, String paramsFormat, int maxIdLength,
-                           boolean debug, boolean inPlaceModification) {
+                           boolean debug, boolean inPlaceModification, List<String> exceptions) {
         this.classes = Collections.unmodifiableMap(new LinkedHashMap<>(classes));
         Map<String, List<ParamRef>> methodsCopy = new LinkedHashMap<>();
         methods.forEach((target, refs) -> methodsCopy.put(target, List.copyOf(refs)));
@@ -135,6 +156,8 @@ public final class AugmentorConfig {
         this.maxIdLength = maxIdLength;
         this.debug = debug;
         this.inPlaceModification = inPlaceModification;
+        this.exceptions = List.copyOf(exceptions);
+        this.exceptionPatterns = this.exceptions.stream().map(AugmentorConfig::globToRegex).toList();
 
         List<ClassPattern> classPatterns = new ArrayList<>();
         this.classes.forEach((key, spec) -> {
@@ -191,6 +214,24 @@ public final class AugmentorConfig {
 
     public boolean debug() {
         return debug;
+    }
+
+    /** The {@code [augment] exceptions} entries; empty when all throwables get ids. */
+    public List<String> exceptions() {
+        return exceptions;
+    }
+
+    /**
+     * Whether frames of throwables of this class get ids: without {@code [augment] exceptions} all do, otherwise those
+     * whose class or a superclass matches an entry, as a {@code catch} of that class would catch them.
+     */
+    public boolean augments(Class<? extends Throwable> type) {
+        return exceptions.isEmpty() || augmentedExceptions.get(type);
+    }
+
+    /** The {@code [augment] exceptions} entries for the debug log, e.g. {@code [com.acme.**, java.io.IOException]}. */
+    public String exceptionsDescription() {
+        return exceptions.isEmpty() ? "all" : "[" + String.join(", ", exceptions) + "]";
     }
 
     /**
@@ -400,19 +441,21 @@ public final class AugmentorConfig {
                 && paramsFormat.equals(that.paramsFormat)
                 && maxIdLength == that.maxIdLength
                 && debug == that.debug
-                && inPlaceModification == that.inPlaceModification;
+                && inPlaceModification == that.inPlaceModification
+                && exceptions.equals(that.exceptions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug, inPlaceModification);
+        return Objects.hash(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug, inPlaceModification,
+                exceptions);
     }
 
     @Override
     public String toString() {
         return "AugmentorConfig[classes=" + classes + ", methods=" + methods
                 + ", frameFormat=" + frameFormat + ", receiverFormat=" + receiverFormat + ", paramsFormat=" + paramsFormat
-                + ", maxIdLength=" + maxIdLength + ", debug=" + debug + ", inPlaceModification=" + inPlaceModification + "]";
+                + ", maxIdLength=" + maxIdLength + ", debug=" + debug + ", inPlaceModification=" + inPlaceModification + ", exceptions=" + exceptions + "]";
     }
 
     /** Starts from the defaults; every setter replaces one value. */
@@ -426,6 +469,7 @@ public final class AugmentorConfig {
         private int maxIdLength = DEFAULT_MAX_ID_LENGTH;
         private boolean debug;
         private boolean inPlaceModification;
+        private List<String> exceptions = List.of();
 
         private Builder() {
         }
@@ -470,9 +514,14 @@ public final class AugmentorConfig {
             return this;
         }
 
+        public Builder exceptions(List<String> exceptions) {
+            this.exceptions = exceptions;
+            return this;
+        }
+
         public AugmentorConfig build() {
             return new AugmentorConfig(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug,
-                    inPlaceModification);
+                    inPlaceModification, exceptions);
         }
     }
 
@@ -485,7 +534,7 @@ public final class AugmentorConfig {
 
         private static final List<String> ROOT_KEYS = List.of("debug", "inPlaceModification", "augment");
         private static final List<String> AUGMENT_KEYS = List.of("frameFormat", "receiverFormat", "paramsFormat", "maxIdLength",
-                "receiver", "params");
+                "exceptions", "receiver", "params");
 
         /** A class name or class pattern: dotted segments of identifier characters and wildcards. */
         private static final Pattern CLASS_PART = Pattern.compile("[\\p{L}\\p{N}_$*?]+(\\.[\\p{L}\\p{N}_$*?]+)*");
@@ -538,6 +587,11 @@ public final class AugmentorConfig {
             Long maxIdLength = value(plus(AUGMENT, "maxIdLength"), Long.class, "an integer");
             if (maxIdLength != null) {
                 config.maxIdLength(maxIdLength(maxIdLength));
+            }
+            TomlArray exceptions = value(plus(AUGMENT, "exceptions"), TomlArray.class,
+                    "an array of exception classes or class patterns, e.g. [\"com.acme.**\", \"java.io.IOException\"]");
+            if (exceptions != null) {
+                config.exceptions(exceptions(exceptions));
             }
             Boolean debug = value(List.of("debug"), Boolean.class, "true or false");
             if (debug != null) {
@@ -737,6 +791,26 @@ public final class AugmentorConfig {
             }
             throw error(path, "invalid parameter '" + ref + "': use a parameter name or a 0-based index from 0 to 255, "
                     + "optionally followed by # to hash the value, e.g. \"email#\" or \"1#\"");
+        }
+
+        /** The {@code exceptions} entries: class names or class patterns, each once. */
+        private List<String> exceptions(TomlArray array) {
+            List<String> path = plus(AUGMENT, "exceptions");
+            if (array.size() == 0) {
+                throw error(path, "exceptions must list at least one exception class or class pattern; leave it out for all exceptions");
+            }
+            List<String> exceptions = new ArrayList<>(array.size());
+            for (Object entry : array.toList()) {
+                if (!(entry instanceof String name) || !CLASS_PART.matcher(name).matches()) {
+                    throw error(path, "invalid exception '" + entry + "': use a class name or a class pattern, e.g. "
+                            + "\"java.io.IOException\" or \"com.acme.**\"; " + ALLOWED_CHARACTERS);
+                }
+                if (exceptions.contains(name)) {
+                    throw error(path, "'" + name + "' is listed twice");
+                }
+                exceptions.add(name);
+            }
+            return exceptions;
         }
 
         private int maxIdLength(long value) {

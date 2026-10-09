@@ -61,6 +61,24 @@ exception that left them.
 - **WHEN** the wrapper is printed
 - **THEN** the wrapper's `wrap` frame and the cause's `inner` frame both show their ids
 
+### Requirement: Only some exceptions
+With `[augment] exceptions`, the system SHALL capture and rewrite frames only of throwables whose class, or a
+superclass of it, matches an entry, as a `catch` of that class would catch them; entries SHALL use the class
+pattern wildcards of `[augment.receiver]`. The frames that other throwables leave SHALL be left unchanged, in
+their own traces and in those of their causes and suppressed exceptions; a frame that a listed throwable
+leaves SHALL still be written into the traces it shares, listed or not, so that printed traces still collapse. What gets instrumented SHALL NOT depend on it.
+This SHALL hold in both modes and in the live-stack mode. Without the key, all throwables SHALL get ids.
+
+#### Scenario: Exception not listed
+- **GIVEN** `exceptions = ["java.io.IOException"]` and a configured method that throws `IllegalStateException`
+- **WHEN** the stack trace is inspected
+- **THEN** its frame is unchanged
+
+#### Scenario: Subclass of a listed exception
+- **GIVEN** `exceptions = ["java.io.IOException"]` and a configured method that throws `FileNotFoundException`
+- **WHEN** the stack trace is inspected
+- **THEN** its frame shows the ids
+
 ### Requirement: Frames shared with causes and suppressed exceptions
 When the system rewrites a frame of an exception, it SHALL write the same rewritten frame into each of its
 causes and suppressed exceptions, and theirs, whose trace has an equal frame at the same distance from the

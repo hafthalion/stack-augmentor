@@ -85,6 +85,9 @@ public final class ThrowHandler implements Dispatch.Handler {
 
     @Override
     public void onThrow(Object self, Throwable thrown, String owner, String method, Object[] paramValues, String[] paramNames) {
+        if (!resolver.augments(thrown)) {
+            return;
+        }
         StackTraceElement[] trace = stackTraces.read(thrown);
         if (trace.length == 0) {
             return;

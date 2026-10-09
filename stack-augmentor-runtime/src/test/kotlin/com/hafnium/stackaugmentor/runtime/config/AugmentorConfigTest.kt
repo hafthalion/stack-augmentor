@@ -4,6 +4,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -225,8 +226,8 @@ class AugmentorConfigTest {
     @Test
     fun `unknown keys are rejected, in every section`() {
         assertEquals(
-            "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxIdLength, receiver, " +
-                "params",
+            "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxIdLength, " +
+                "exceptions, receiver, params",
             error("[augment]\nframe = \"\$class.\$method\""),
         )
         assertTrue(error("[other]\nx = 1").contains("unknown key 'other'; allowed: debug, inPlaceModification, augment"))
@@ -439,5 +440,48 @@ class AugmentorConfigTest {
         assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"@#\"").contains("must be an array"))
         assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"*#\"").contains("must be an array"))
         assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"order#\"").contains("must be an array"))
+    }
+
+    open class Base : RuntimeException()
+
+    class Derived : Base()
+
+    @Test
+    fun `exceptions limits the throwables whose frames get ids, subclasses included`() {
+        val all = AugmentorConfig()
+        assertTrue(all.exceptions().isEmpty())
+        assertTrue(all.augments(Error::class.java))
+        assertEquals("all", all.exceptionsDescription())
+
+        val config = parse(
+            """
+            [augment]
+            exceptions = ["java.io.IOException", "com.hafnium.stackaugmentor.runtime.config.AugmentorConfigTest${'$'}Base", "java.util.concurrent.*Exception"]
+            """,
+        )
+        assertEquals(
+            listOf("java.io.IOException", "${Base::class.java.name}", "java.util.concurrent.*Exception"),
+            config.exceptions(),
+        )
+        assertTrue(config.augments(java.io.IOException::class.java))
+        assertTrue(config.augments(java.io.FileNotFoundException::class.java))
+        assertTrue(config.augments(Base::class.java))
+        assertTrue(config.augments(Derived::class.java))
+        assertTrue(config.augments(java.util.concurrent.TimeoutException::class.java))
+        assertFalse(config.augments(RuntimeException::class.java))
+        assertFalse(config.augments(IllegalStateException::class.java))
+        assertNotEquals(all, config)
+    }
+
+    @Test
+    fun `invalid exceptions entries`() {
+        assertTrue(error("[augment]\nexceptions = \"java.io.IOException\"").contains("'augment.exceptions' must be an array"))
+        assertEquals(
+            "test.toml, line 2: exceptions must list at least one exception class or class pattern; leave it out for all exceptions",
+            error("[augment]\nexceptions = []"),
+        )
+        assertTrue(error("[augment]\nexceptions = [1]").contains("invalid exception '1'"))
+        assertTrue(error("[augment]\nexceptions = [\"java.io.IOException()\"]").contains("invalid exception 'java.io.IOException()'"))
+        assertTrue(error("[augment]\nexceptions = [\"a.B\", \"a.B\"]").contains("'a.B' is listed twice"))
     }
 }
