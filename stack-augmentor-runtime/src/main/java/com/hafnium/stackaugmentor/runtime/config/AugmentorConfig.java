@@ -36,7 +36,12 @@ import java.util.stream.Collectors;
  * receiverFormat = "{$name=$id, ...}"
  * paramsFormat = "{$name=$id, ...}"
  * maxIdLength = 64
- * exceptions = ["com.acme.**", "java.io.IOException"]  # only these exceptions and their subclasses; default: all
+ *
+ * [augment.exceptions]       # which throwables get ids, by their runtime class: true or false, the first matching
+ *                            # entry wins; without the table all do, with it those that no entry matches do not
+ * "com.acme.ControlFlowException" = false
+ * "com.acme.**" = true
+ * "java.io.IOException" = true
  *
  * [augment.receiver]           # receiver ids: a field, a "method()", a list of them, "@" for the @StackTraceId
  *                            # members, "-" for none
@@ -90,19 +95,22 @@ public final class AugmentorConfig {
     private final int maxIdLength;
     private final boolean debug;
     private final boolean inPlaceModification;
-    private final List<String> exceptions;
-    private final List<Pattern> exceptionPatterns;
+    private final Map<String, Boolean> exceptions;
 
-    /** Per throwable class, whether it or a superclass matches an {@code exceptions} entry. */
+    private record ExceptionPattern(Pattern pattern, boolean augmented) {
+    }
+
+    /** The {@code [augment.exceptions]} entries, in the order of the file. */
+    private final List<ExceptionPattern> exceptionPatterns;
+
+    /** Per throwable class, whether it gets ids: the value of the first {@code [augment.exceptions]} entry it matches. */
     private final ClassValue<Boolean> augmentedExceptions = new ClassValue<>() {
         @Override
         protected Boolean computeValue(Class<?> type) {
-            for (Class<?> each = type; each != null; each = each.getSuperclass()) {
-                String name = each.getName();
-                for (Pattern pattern : exceptionPatterns) {
-                    if (pattern.matcher(name).matches()) {
-                        return true;
-                    }
+            String name = type.getName();
+            for (ExceptionPattern entry : exceptionPatterns) {
+                if (entry.pattern().matcher(name).matches()) {
+                    return entry.augmented();
                 }
             }
             return false;
@@ -133,19 +141,20 @@ public final class AugmentorConfig {
     /** The defaults: no class or method entries, so nothing gets ids. */
     public AugmentorConfig() {
         this(Map.of(), Map.of(), DEFAULT_FRAME_FORMAT, DEFAULT_RECEIVER_FORMAT, DEFAULT_PARAMS_FORMAT,
-                DEFAULT_MAX_ID_LENGTH, false, false, List.of());
+                DEFAULT_MAX_ID_LENGTH, false, false, Map.of());
     }
 
     /**
      * @param classes   receiver id sources by class name or class pattern: the {@code [augment.receiver]} table
      * @param methods   parameter ids by {@code "<class>.<method>"}, possibly with wildcards: the
      *                  {@code [augment.params]} table
-     * @param exceptions the throwable classes or class patterns whose frames get ids, with their subclasses: the
-     *                  {@code [augment] exceptions} list; empty for all throwables
+     * @param exceptions whether throwables get ids, by class name or class pattern of their runtime class, in the
+     *                  order the first matching entry is looked for: the {@code [augment.exceptions]} table; empty for
+     *                  all throwables
      */
     public AugmentorConfig(Map<String, IdSpec> classes, Map<String, List<ParamRef>> methods,
                            String frameFormat, String receiverFormat, String paramsFormat, int maxIdLength,
-                           boolean debug, boolean inPlaceModification, List<String> exceptions) {
+                           boolean debug, boolean inPlaceModification, Map<String, Boolean> exceptions) {
         this.classes = Collections.unmodifiableMap(new LinkedHashMap<>(classes));
         Map<String, List<ParamRef>> methodsCopy = new LinkedHashMap<>();
         methods.forEach((target, refs) -> methodsCopy.put(target, List.copyOf(refs)));
@@ -156,8 +165,9 @@ public final class AugmentorConfig {
         this.maxIdLength = maxIdLength;
         this.debug = debug;
         this.inPlaceModification = inPlaceModification;
-        this.exceptions = List.copyOf(exceptions);
-        this.exceptionPatterns = this.exceptions.stream().map(AugmentorConfig::globToRegex).toList();
+        this.exceptions = Collections.unmodifiableMap(new LinkedHashMap<>(exceptions));
+        this.exceptionPatterns = this.exceptions.entrySet().stream()
+                .map(entry -> new ExceptionPattern(globToRegex(entry.getKey()), entry.getValue())).toList();
 
         List<ClassPattern> classPatterns = new ArrayList<>();
         this.classes.forEach((key, spec) -> {
@@ -216,22 +226,26 @@ public final class AugmentorConfig {
         return debug;
     }
 
-    /** The {@code [augment] exceptions} entries; empty when all throwables get ids. */
-    public List<String> exceptions() {
+    /** The {@code [augment.exceptions]} entries, in the order of the file; empty when all throwables get ids. */
+    public Map<String, Boolean> exceptions() {
         return exceptions;
     }
 
     /**
-     * Whether frames of throwables of this class get ids: without {@code [augment] exceptions} all do, otherwise those
-     * whose class or a superclass matches an entry, as a {@code catch} of that class would catch them.
+     * Whether frames of throwables of this runtime class get ids: without {@code [augment.exceptions]} all do, otherwise
+     * the value of the first entry that matches the class name decides, and a class that no entry matches gets none.
+     * Superclasses are not looked at, as for {@code [augment.receiver]}.
      */
     public boolean augments(Class<? extends Throwable> type) {
         return exceptions.isEmpty() || augmentedExceptions.get(type);
     }
 
-    /** The {@code [augment] exceptions} entries for the debug log, e.g. {@code [com.acme.**, java.io.IOException]}. */
+    /** The {@code [augment.exceptions]} entries for the debug log, e.g. {@code com.acme.Flow=false, com.acme.**=true}. */
     public String exceptionsDescription() {
-        return exceptions.isEmpty() ? "all" : "[" + String.join(", ", exceptions) + "]";
+        String text = exceptions.entrySet().stream()
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(Collectors.joining(", "));
+        return text.isEmpty() ? "all" : text;
     }
 
     /**
@@ -469,7 +483,7 @@ public final class AugmentorConfig {
         private int maxIdLength = DEFAULT_MAX_ID_LENGTH;
         private boolean debug;
         private boolean inPlaceModification;
-        private List<String> exceptions = List.of();
+        private Map<String, Boolean> exceptions = Map.of();
 
         private Builder() {
         }
@@ -514,7 +528,8 @@ public final class AugmentorConfig {
             return this;
         }
 
-        public Builder exceptions(List<String> exceptions) {
+        /** In the order the first matching entry is looked for, e.g. a {@link LinkedHashMap}. */
+        public Builder exceptions(Map<String, Boolean> exceptions) {
             this.exceptions = exceptions;
             return this;
         }
@@ -531,6 +546,7 @@ public final class AugmentorConfig {
         private static final List<String> AUGMENT = List.of("augment");
         private static final List<String> CLASSES = List.of("augment", "receiver");
         private static final List<String> METHODS = List.of("augment", "params");
+        private static final List<String> EXCEPTIONS = List.of("augment", "exceptions");
 
         private static final List<String> ROOT_KEYS = List.of("debug", "inPlaceModification", "augment");
         private static final List<String> AUGMENT_KEYS = List.of("frameFormat", "receiverFormat", "paramsFormat", "maxIdLength",
@@ -561,7 +577,7 @@ public final class AugmentorConfig {
             Map<String, IdSpec> classes = new LinkedHashMap<>();
             Map<String, List<String>> classPaths = new HashMap<>();
             for (Entry entry : entries(CLASSES)) {
-                String key = unique(classKey(entry.path()), entry.path(), classPaths);
+                String key = unique(classKey(entry.path(), CLASSES), entry.path(), classPaths);
                 classes.put(key, classSpec(entry.path(), entry.value()));
             }
             config.classes(classes);
@@ -588,11 +604,17 @@ public final class AugmentorConfig {
             if (maxIdLength != null) {
                 config.maxIdLength(maxIdLength(maxIdLength));
             }
-            TomlArray exceptions = value(plus(AUGMENT, "exceptions"), TomlArray.class,
-                    "an array of exception classes or class patterns, e.g. [\"com.acme.**\", \"java.io.IOException\"]");
-            if (exceptions != null) {
-                config.exceptions(exceptions(exceptions));
+            Map<String, Boolean> exceptions = new LinkedHashMap<>();
+            Map<String, List<String>> exceptionPaths = new HashMap<>();
+            for (Entry entry : entries(EXCEPTIONS)) {
+                String key = unique(classKey(entry.path(), EXCEPTIONS), entry.path(), exceptionPaths);
+                if (!(entry.value() instanceof Boolean augmented)) {
+                    throw error(entry.path(), "must be true to augment the exceptions of this class or class pattern, or "
+                            + "false not to, was " + entry.value());
+                }
+                exceptions.put(key, augmented);
             }
+            config.exceptions(exceptions);
             Boolean debug = value(List.of("debug"), Boolean.class, "true or false");
             if (debug != null) {
                 config.debug(debug);
@@ -649,9 +671,9 @@ public final class AugmentorConfig {
         }
 
         /**
-         * The entries of the {@code [augment.receiver]} or {@code [augment.params]} table, with their full key
-         * paths. Key paths make quoted ({@code "com.acme.Order"}) and unquoted ({@code com.acme.Order}, i.e. nested
-         * tables) class names equivalent.
+         * The entries of the {@code [augment.receiver]}, {@code [augment.params]} or {@code [augment.exceptions]} table,
+         * with their full key paths, in the order of the file. Key paths make quoted ({@code "com.acme.Order"}) and
+         * unquoted ({@code com.acme.Order}, i.e. nested tables) class names equivalent.
          */
         private List<Entry> entries(List<String> table) {
             TomlTable content = table(table);
@@ -664,6 +686,9 @@ public final class AugmentorConfig {
                 fullPath.addAll(path);
                 entries.add(new Entry(fullPath, Objects.requireNonNull(content.get(path))));
             }
+            // In the order of the file: tomlj's tables do not keep it, and in [augment.exceptions] it decides.
+            entries.sort(Comparator.comparing((Entry entry) -> toml.inputPositionOf(entry.path()),
+                    Comparator.nullsLast(Comparator.comparingInt(TomlPosition::line).thenComparingInt(TomlPosition::column))));
             return entries;
         }
 
@@ -686,10 +711,10 @@ public final class AugmentorConfig {
             return String.join(".", path.subList(table.size(), path.size()));
         }
 
-        private String classKey(List<String> path) {
-            String target = target(path, CLASSES);
+        private String classKey(List<String> path, List<String> table) {
+            String target = target(path, table);
             if (!CLASS_PART.matcher(target).matches()) {
-                throw error(path, "[" + name(CLASSES) + "] keys must name a class or a class pattern, e.g. \"com.acme.Order\" or "
+                throw error(path, "[" + name(table) + "] keys must name a class or a class pattern, e.g. \"com.acme.Order\" or "
                         + "\"com.acme.**\"; " + ALLOWED_CHARACTERS);
             }
             return target;
@@ -791,26 +816,6 @@ public final class AugmentorConfig {
             }
             throw error(path, "invalid parameter '" + ref + "': use a parameter name or a 0-based index from 0 to 255, "
                     + "optionally followed by # to hash the value, e.g. \"email#\" or \"1#\"");
-        }
-
-        /** The {@code exceptions} entries: class names or class patterns, each once. */
-        private List<String> exceptions(TomlArray array) {
-            List<String> path = plus(AUGMENT, "exceptions");
-            if (array.size() == 0) {
-                throw error(path, "exceptions must list at least one exception class or class pattern; leave it out for all exceptions");
-            }
-            List<String> exceptions = new ArrayList<>(array.size());
-            for (Object entry : array.toList()) {
-                if (!(entry instanceof String name) || !CLASS_PART.matcher(name).matches()) {
-                    throw error(path, "invalid exception '" + entry + "': use a class name or a class pattern, e.g. "
-                            + "\"java.io.IOException\" or \"com.acme.**\"; " + ALLOWED_CHARACTERS);
-                }
-                if (exceptions.contains(name)) {
-                    throw error(path, "'" + name + "' is listed twice");
-                }
-                exceptions.add(name);
-            }
-            return exceptions;
         }
 
         private int maxIdLength(long value) {

@@ -134,16 +134,16 @@ class ThrowHandlerTest {
     }
 
     @Test
-    fun `exceptions that are not listed keep their frames`() {
+    fun `exceptions that no entry augments keep their frames`() {
         val classes = mapOf(Annotated::class.java.name to IdSpec.Annotations())
         val target = Annotated()
         val skipped = thrownBy(target)
-        ThrowHandler(AugmentorConfig.builder().classes(classes).exceptions(listOf("java.io.IOException")).build())
+        ThrowHandler(AugmentorConfig.builder().classes(classes).exceptions(mapOf("java.lang.*" to false)).build())
             .onThrow(target, skipped, Annotated::class.java.name, "fail", null, null)
         assertEquals(Annotated::class.java.name, skipped.stackTrace[0].className)
 
         val augmented = thrownBy(target)
-        ThrowHandler(AugmentorConfig.builder().classes(classes).exceptions(listOf("java.lang.RuntimeException")).build())
+        ThrowHandler(AugmentorConfig.builder().classes(classes).exceptions(mapOf("java.lang.IllegalStateException" to true)).build())
             .onThrow(target, augmented, Annotated::class.java.name, "fail", null, null)
         assertEquals("${Annotated::class.java.name}{objectId=a-1}", augmented.stackTrace[0].className)
     }
