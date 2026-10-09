@@ -1,7 +1,7 @@
 # One file for both phases:
 # - [augment.receiver] and [augment.params] are read at build time by the ByteBuddy build plugin (see
 #   build.gradle.kts), which instruments the classes and methods they need;
-# - [augment], [augment.receiver] and debug are read at runtime, from the classpath
+# - [augment], [augment.receiver], [augment.exceptions] and debug are read at runtime, from the classpath
 #   (or from -Dstackaugmentor.config=<file>).
 
 # Print diagnostics to stderr (default: false).
@@ -39,3 +39,10 @@ maxIdLength = 64
 "com.thirdparty.Inventory*.*" = ["sku", "count"]                         # all methods of the Inventory* classes ...
 "com.thirdparty.InventoryAudit.*" = "-"                                  # ... except InventoryAudit's
 "com.thirdparty.Customer.notify" = ["email#"]                            # hashed
+
+# Which exceptions get ids, at runtime: true or false, the first matching entry wins, and an exception that no
+# entry matches gets none (without this table, all do). A class name also matches its subclasses, as instanceof
+# does; a pattern matches the exception's own class only.
+[augment.exceptions]
+"java.lang.IllegalArgumentException" = false             # this class and its subclasses: no ids
+"java.lang.*" = true                                     # these classes only, e.g. Exception, IllegalStateException
