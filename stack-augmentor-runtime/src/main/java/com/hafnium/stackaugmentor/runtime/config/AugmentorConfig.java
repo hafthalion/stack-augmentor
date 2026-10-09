@@ -37,11 +37,12 @@ import java.util.stream.Collectors;
  * paramsFormat = "{$name=$id, ...}"
  * maxIdLength = 64
  *
- * [augment.exceptions]       # which throwables get ids, by their runtime class: true or false, the first matching
- *                            # entry wins; without the table all do, with it those that no entry matches do not
+ * [augment.exceptions]       # which throwables get ids: true or false, the first matching entry wins; a class name
+ *                            # matches its subclasses too, a pattern the runtime class only; without the table all
+ *                            # throwables get ids, with it those that no entry matches do not
  * "com.acme.ControlFlowException" = false
  * "com.acme.**" = true
- * "java.io.IOException" = true
+ * "java.io.IOException" = true   # and its subclasses
  *
  * [augment.receiver]           # receiver ids: a field, a "method()", a list of them, "@" for the @StackTraceId
  *                            # members, "-" for none
@@ -97,7 +98,28 @@ public final class AugmentorConfig {
     private final boolean inPlaceModification;
     private final Map<String, Boolean> exceptions;
 
-    private record ExceptionPattern(Pattern pattern, boolean augmented) {
+    /** An {@code [augment.exceptions]} entry: a pattern, or for a class name without wildcards {@code null}. */
+    private record ExceptionPattern(String className, Pattern pattern, boolean augmented) {
+
+        boolean matches(Class<?> type) {
+            return pattern != null ? pattern.matcher(type.getName()).matches() : isInstance(type, className);
+        }
+
+        /** Whether the class, a superclass or an implemented interface has this name, as {@code instanceof} would say. */
+        private static boolean isInstance(Class<?> type, String name) {
+            if (type == null) {
+                return false;
+            }
+            if (type.getName().equals(name) || isInstance(type.getSuperclass(), name)) {
+                return true;
+            }
+            for (Class<?> each : type.getInterfaces()) {
+                if (isInstance(each, name)) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     /** The {@code [augment.exceptions]} entries, in the order of the file. */
@@ -107,9 +129,8 @@ public final class AugmentorConfig {
     private final ClassValue<Boolean> augmentedExceptions = new ClassValue<>() {
         @Override
         protected Boolean computeValue(Class<?> type) {
-            String name = type.getName();
             for (ExceptionPattern entry : exceptionPatterns) {
-                if (entry.pattern().matcher(name).matches()) {
+                if (entry.matches(type)) {
                     return entry.augmented();
                 }
             }
@@ -148,9 +169,9 @@ public final class AugmentorConfig {
      * @param classes   receiver id sources by class name or class pattern: the {@code [augment.receiver]} table
      * @param methods   parameter ids by {@code "<class>.<method>"}, possibly with wildcards: the
      *                  {@code [augment.params]} table
-     * @param exceptions whether throwables get ids, by class name or class pattern of their runtime class, in the
-     *                  order the first matching entry is looked for: the {@code [augment.exceptions]} table; empty for
-     *                  all throwables
+     * @param exceptions whether throwables get ids, by class name (with subclasses) or class pattern (of the runtime
+     *                  class), in the order the first matching entry is looked for: the {@code [augment.exceptions]}
+     *                  table; empty for all throwables
      */
     public AugmentorConfig(Map<String, IdSpec> classes, Map<String, List<ParamRef>> methods,
                            String frameFormat, String receiverFormat, String paramsFormat, int maxIdLength,
@@ -167,7 +188,9 @@ public final class AugmentorConfig {
         this.inPlaceModification = inPlaceModification;
         this.exceptions = Collections.unmodifiableMap(new LinkedHashMap<>(exceptions));
         this.exceptionPatterns = this.exceptions.entrySet().stream()
-                .map(entry -> new ExceptionPattern(globToRegex(entry.getKey()), entry.getValue())).toList();
+                .map(entry -> new ExceptionPattern(entry.getKey(), isPattern(entry.getKey()) ? globToRegex(entry.getKey()) : null,
+                        entry.getValue()))
+                .toList();
 
         List<ClassPattern> classPatterns = new ArrayList<>();
         this.classes.forEach((key, spec) -> {
@@ -233,8 +256,9 @@ public final class AugmentorConfig {
 
     /**
      * Whether frames of throwables of this runtime class get ids: without {@code [augment.exceptions]} all do, otherwise
-     * the value of the first entry that matches the class name decides, and a class that no entry matches gets none.
-     * Superclasses are not looked at, as for {@code [augment.receiver]}.
+     * the value of the first entry that matches decides, and a class that no entry matches gets none. An entry without
+     * wildcards matches its class and the subclasses, as {@code instanceof} does; a pattern matches the name of the
+     * runtime class only, as in {@code [augment.receiver]}.
      */
     public boolean augments(Class<? extends Throwable> type) {
         return exceptions.isEmpty() || augmentedExceptions.get(type);
