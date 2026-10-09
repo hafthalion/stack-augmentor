@@ -4,10 +4,17 @@ import com.hafnium.stackaugmentor.StackTraceId
 import com.hafnium.stackaugmentor.StackTraceParam
 
 /** Thrown at the bottom of the stack, or wrapping the one from below: then [wraps] counts the wrappings, from 1. */
-class BenchmarkException private constructor(cause: BenchmarkException?, val wraps: Int) : RuntimeException(
+open class BenchmarkException protected constructor(cause: BenchmarkException?, val wraps: Int) : RuntimeException(
     if (cause == null) "thrown at the bottom of the stack" else "wrap $wraps: wrapping the exception from below",
     cause,
 ) {
+    constructor() : this(null, 0)
+
+    constructor(cause: BenchmarkException) : this(cause, cause.wraps + 1)
+}
+
+/** The same, but of a class that `[augment.exceptions]` turns off: its frames get no ids. */
+class ExcludedException private constructor(cause: BenchmarkException?, wraps: Int) : BenchmarkException(cause, wraps) {
     constructor() : this(null, 0)
 
     constructor(cause: BenchmarkException) : this(cause, cause.wraps + 1)
@@ -53,13 +60,13 @@ class Stack(val scenario: Scenario, private val logged: Boolean) {
 
     inline fun next(depth: Int): Int {
         if (depth == scenario.bottom) {
-            throw BenchmarkException()
+            throw if (scenario.excluded) ExcludedException() else BenchmarkException()
         }
         if (scenario.wrapsAt(depth)) {
             return try {
                 call(depth + 1) + 1
             } catch (e: BenchmarkException) {
-                throw BenchmarkException(e)
+                throw if (scenario.excluded) ExcludedException(e) else BenchmarkException(e)
             }
         }
         if (depth != catchAt) {

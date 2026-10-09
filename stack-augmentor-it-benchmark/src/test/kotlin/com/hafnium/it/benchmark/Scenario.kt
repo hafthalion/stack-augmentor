@@ -5,14 +5,18 @@ package com.hafnium.it.benchmark
  * top of the stack to [bottom]. The exception is always created at the bottom, in the deepest frame. With [causes], it is wrapped on its way up: every [wrapEvery] frames, a
  * frame catches it and throws a new exception with it as the cause, so the caught one has a chain of [causes] causes.
  * The stack is then shallower, so that the stack traces of the whole chain hold [FRAMES] frames together, as the single
- * exception's does.
+ * exception's does. With [excluded], the frames are configured as usual, but the exceptions are of a class that
+ * `[augment.exceptions]` turns off, so they get no ids.
  */
-enum class Scenario(val configuredEvery: Int, val caughtNearTop: Boolean, val causes: Int = 0) {
+enum class Scenario(val configuredEvery: Int, val caughtNearTop: Boolean, val causes: Int = 0, val excluded: Boolean = false) {
     BOTTOM_CONFIGURED(4, false),
+    BOTTOM_EXCLUDED(4, false, excluded = true),
     BOTTOM_PLAIN(0, false),
     TOP_CONFIGURED(4, true),
+    TOP_EXCLUDED(4, true, excluded = true),
     TOP_PLAIN(0, true),
     CAUSES_CONFIGURED(4, true, 3),
+    CAUSES_EXCLUDED(4, true, 3, excluded = true),
     CAUSES_PLAIN(0, true, 3);
 
     /** Where the exception is caught: near the bottom (3 frames above where it is created) or near the top. */
@@ -46,7 +50,14 @@ enum class Scenario(val configuredEvery: Int, val caughtNearTop: Boolean, val ca
     /** The share of the frames that are configured, e.g. 25%. */
     val configuredPercent: Int get() = if (configuredEvery == 0) 0 else 100 / configuredEvery
 
-    val title: String get() = "Caught $caught, ${if (configuredEvery == 0) "no frame" else "$configuredPercent% of the frames"} configured"
+    /** Whether frames show ids at all: configured ones, and the exception's class not turned off. */
+    val showsIds: Boolean get() = configuredEvery > 0 && !excluded
+
+    /** The configured share for the report, e.g. "25%", or "25%, exception off". */
+    val configuredText: String get() = "$configuredPercent%" + if (excluded) ", exception off" else ""
+
+    val title: String get() = "Caught $caught, ${if (configuredEvery == 0) "no frame" else "$configuredPercent% of the frames"} configured" +
+        if (excluded) ", exception class turned off" else ""
 
     companion object {
         /** The frames of all stack traces of a run together. */
