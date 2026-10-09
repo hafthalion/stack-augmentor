@@ -49,18 +49,20 @@ maxIdLength = 64
 "com.thirdparty.UserService.invite" = ["user", "email#"]     # email hashed
 "com.thirdparty.Shipment.<init>" = ["orderId"]       # constructors: <init>
 
-# Which exceptions get ids, by their runtime class: true or false. The first entry that matches decides, in the
-# order of the file; an exception that no entry matches gets none. Superclasses are not looked at, as for
-# [augment.receiver]. Without this table, all exceptions get ids (the default).
+# Which exceptions get ids: true or false. The first entry that matches decides, in the order of the file; an
+# exception that no entry matches gets none. A class name matches the class and its subclasses, as instanceof
+# does; a pattern matches the name of the exception's runtime class only, as in [augment.receiver].
+# Without this table, all exceptions get ids (the default).
 [augment.exceptions]
-"com.acme.flow.**" = false                           # except these
+"java.io.FileNotFoundException" = false              # except this one
+"java.io.IOException" = true                         # and its subclasses
+"com.acme.flow.**" = false                           # these classes, not their subclasses elsewhere
 "com.acme.**" = true
-"java.io.IOException" = true                         # not its subclasses, e.g. FileNotFoundException
 ```
 
 - **Quote class names.** Without quotes TOML reads each `.` as a nested table; that works too, but keys with wildcards must be quoted. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.
 - **Keep wildcards narrow.** `"com.**.*" = "@"` makes the agent instrument many classes, which slows down class loading.
-- **`[augment.exceptions]`** is checked when an exception leaves a method, against the runtime class of the exception: classes still get instrumented as `[augment.receiver]` and `[augment.params]` say. To exclude only some exceptions, end the table with `"**" = true`. The frames that an exception without ids leaves stay as they are, also where its causes share them; a cause with ids wrapped in it keeps the ids of the frames it left itself. An exception with ids still writes its frames into the causes that share them, whatever their class, so printed traces still collapse into `... N more`.
+- **`[augment.exceptions]`** is checked when an exception leaves a method, against the class of the exception: classes still get instrumented as `[augment.receiver]` and `[augment.params]` say. To exclude only some exceptions, end the table with `"**" = true`. The frames that an exception without ids leaves stay as they are, also where its causes share them; a cause with ids wrapped in it keeps the ids of the frames it left itself. An exception with ids still writes its frames into the causes that share them, whatever their class, so printed traces still collapse into `... N more`.
 - **`debug = true`** lists the configuration, every instrumented class and the annotations that have no effect. Messages start with their source: `agent:`, `build plugin:` or `runtime:` (build-time instrumentation at runtime).
 - **Missing members** are a warning for exact class names, and a debug message for patterns.
 - **An invalid configuration stops the JVM (or the build) at startup**, naming the key and its line, e.g. `stack-augmentor.toml, line 3: maxIdLength must be between 2 and 10000, was 1`. Unknown keys are rejected, so typos don't go unnoticed.

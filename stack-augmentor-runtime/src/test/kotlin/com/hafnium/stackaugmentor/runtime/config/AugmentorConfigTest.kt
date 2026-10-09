@@ -447,7 +447,7 @@ class AugmentorConfigTest {
     class Derived : Base()
 
     @Test
-    fun `exceptions entries match the runtime class, the first matching entry wins`() {
+    fun `exceptions entries, the first matching entry wins`() {
         val all = AugmentorConfig()
         assertTrue(all.exceptions().isEmpty())
         assertTrue(all.augments(Error::class.java))
@@ -457,30 +457,36 @@ class AugmentorConfigTest {
             """
             [augment.exceptions]
             "java.io.FileNotFoundException" = false
-            "java.io.*" = true
-            "com.hafnium.stackaugmentor.runtime.config.AugmentorConfigTest${'$'}Base" = true
+            "java.io.IOException" = true
+            "com.hafnium.stackaugmentor.runtime.config.AugmentorConfigTest${'$'}Ba?e" = true
             "java.util.concurrent.**" = false
             "java.**" = true
             """,
         )
         assertEquals(
-            listOf("java.io.FileNotFoundException", "java.io.*", Base::class.java.name, "java.util.concurrent.**", "java.**"),
+            listOf("java.io.FileNotFoundException", "java.io.IOException", Base::class.java.name.dropLast(2) + "?e", "java.util.concurrent.**", "java.**"),
             config.exceptions().keys.toList(),
         )
         assertEquals(
-            "java.io.FileNotFoundException=false, java.io.*=true, ${Base::class.java.name}=true, java.util.concurrent.**=false, java.**=true",
+            "java.io.FileNotFoundException=false, java.io.IOException=true, ${Base::class.java.name.dropLast(2)}?e=true, " +
+                "java.util.concurrent.**=false, java.**=true",
             config.exceptionsDescription(),
         )
         assertFalse(config.augments(java.io.FileNotFoundException::class.java))
         assertTrue(config.augments(java.io.IOException::class.java))
+        // A class name matches its subclasses, as instanceof does.
+        assertTrue(config.augments(java.nio.file.NoSuchFileException::class.java))
         assertTrue(config.augments(Base::class.java))
-        // The runtime class only, not its superclasses.
+        // A pattern matches the runtime class only, not its superclasses.
         assertFalse(config.augments(Derived::class.java))
         assertFalse(config.augments(java.util.concurrent.TimeoutException::class.java))
         assertTrue(config.augments(IllegalStateException::class.java))
         // No entry matches.
-        assertFalse(config.augments(com.hafnium.stackaugmentor.runtime.config.ConfigException::class.java))
+        assertFalse(config.augments(ConfigException::class.java))
         assertNotEquals(all, config)
+
+        val byName = parse("[augment.exceptions]\n\"${Base::class.java.name}\" = true")
+        assertTrue(byName.augments(Derived::class.java))
     }
 
     @Test
