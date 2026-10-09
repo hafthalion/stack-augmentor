@@ -13,7 +13,9 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
   trace instead of copying it, see the performance spec; the system property
   `stackaugmentor.inPlaceModification` SHALL override it;
 - `[augment]`: `frameFormat`, `receiverFormat`, `paramsFormat` (strings), `maxIdLength` (integer
-  between 2 and 10000, default 64), and the tables:
+  between 2 and 10000, default 64), `exceptions` (array of class names or class patterns, at least one, each
+  once; default: all throwables), which limits the throwables whose frames get ids, see the stack trace
+  augmentation spec, and the tables:
   - `[augment.receiver]` (class name or class pattern → field name, `method()`, a list of them, `"@"` for
     the class's `@StackTraceId` members, or `"-"` for no receiver id), which decides the receiver ids;
   - `[augment.params]` (`"<class pattern>.<method pattern>"` → array of parameter names and 0-based
@@ -78,6 +80,11 @@ when its key has no class or no method part, when a part contains characters oth
 characters, `$`, `.` (class part only), `*` and `?`, or when its value is neither `"@"`, `"-"` nor a non-empty
 array of parameter names and indexes, each optionally followed by `#` (`"*"`, `"@"` and `"-"` are not allowed
 inside the array, and `"*"` is not allowed as the value). The message SHALL name the file, the key and its line.
+
+#### Scenario: Empty exceptions list
+- **GIVEN** `[augment]` with `exceptions = []` on line 2 of `stack-augmentor.toml`
+- **WHEN** it is loaded
+- **THEN** it is rejected with `stack-augmentor.toml, line 2: exceptions must list at least one exception class or class pattern; leave it out for all exceptions`
 
 #### Scenario: Value out of range
 - **GIVEN** `[augment]` with `maxIdLength = 1` on line 3 of `stack-augmentor.toml`

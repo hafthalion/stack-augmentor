@@ -98,6 +98,11 @@ public final class IdResolver {
         this.config = config;
     }
 
+    /** Whether frames of this throwable get ids: {@code [augment] exceptions}, see {@link AugmentorConfig#augments}. */
+    public boolean augments(Throwable thrown) {
+        return config.augments(thrown.getClass());
+    }
+
     /** {@link #receiverIds(Object, String)} for a method that the object's own class declares. */
     public List<NamedId> receiverIds(Object target) {
         return receiverIds(target, target.getClass().getName());

@@ -57,6 +57,11 @@ public final class LiveFrames implements LiveDispatch.Handler {
 
     @Override
     public void onFill(Throwable thrown) {
+        if (!resolver.augments(thrown)) {
+            // Also when the application fills in the trace again.
+            pending.remove(thrown);
+            return;
+        }
         // Reading local variables is far slower than walking the stack: only when a frame shows ids, and only down to it.
         int last = plain.walk(frames -> lastWithIds(frames, thrown));
         List<Captured> captured = last < 0 ? List.of() : live.walker().walk(frames -> capture(frames, thrown, last));
