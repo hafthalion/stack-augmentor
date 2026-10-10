@@ -4,7 +4,8 @@ plugins {
 
 // Benchmark: how long an exception takes in a 1000-frame stack without the agent, with it (frames written in place, or
 // the whole trace copied for every frame) and in its live-stack mode. Each mode runs the same tests in its own JVM;
-// `./gradlew :stack-augmentor-it-benchmark:benchmark` runs them all and writes build/reports/benchmark/index.html.
+// `./gradlew :stack-augmentor-it-benchmark:benchmark` runs them all and writes build/reports/benchmark/index.html, and
+// copies it to docs/benchmark/index.html: committed to master, the Reports workflow publishes it on GitHub Pages.
 // The project build only compiles it: `test` is off, the benchmark runs only when one of its tasks is called.
 
 val agent = configurations.create("agent") {
@@ -74,7 +75,7 @@ val benchmarkTasks = modes.map { mode ->
 benchmarkTasks.zipWithNext { first, second -> second.configure { mustRunAfter(first) } }
 
 tasks.register<JavaExec>("benchmark") {
-    description = "Runs the benchmark in every mode and writes build/reports/benchmark/index.html."
+    description = "Runs the benchmark in every mode, writes build/reports/benchmark/index.html and copies it to docs/benchmark."
     group = "benchmark"
     dependsOn(benchmarkTasks)
     classpath = sourceSets.test.get().runtimeClasspath
@@ -83,4 +84,12 @@ tasks.register<JavaExec>("benchmark") {
     args(results.get().asFile.absolutePath, report.get().asFile.absolutePath)
     outputs.file(report)
     outputs.upToDateWhen { false }
+    // For GitHub Pages: committed, the Reports workflow publishes it.
+    val published = rootProject.layout.projectDirectory.file("docs/benchmark/index.html").asFile
+    outputs.file(published)
+    doLast {
+        published.parentFile.mkdirs()
+        report.get().asFile.copyTo(published, overwrite = true)
+        println("Copied to $published: commit it to publish it on GitHub Pages")
+    }
 }

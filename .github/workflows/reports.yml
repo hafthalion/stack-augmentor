@@ -1,7 +1,8 @@
 name: Reports
 
 # Publishes the test and frame reports of each CI run on master to GitHub Pages: the frame reports under
-# frames/, each module's test report under tests/<module>/, and an index page that links them. It takes the
+# frames/, each module's test report under tests/<module>/, the committed benchmark report (docs/benchmark,
+# written by a local run of the benchmark task) under benchmark/, and an index page that links them. It takes the
 # test-reports archive that CI uploaded, so nothing is built again, and it never runs for pull requests.
 # Needs Pages enabled in the repository settings, with "GitHub Actions" as the source. GitHub runs it from
 # master's copy of this file.
@@ -42,6 +43,13 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
 
+      - name: Check out the committed benchmark report
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          path: repo
+          sparse-checkout: docs/benchmark
+
       - name: Collect the reports
         env:
           SHA: ${{ github.event.workflow_run.head_sha }}
@@ -56,6 +64,11 @@ jobs:
             # Their index links back to this site's index page.
             sed -i 's|<nav class="back"></nav>|<nav class="back"><a href="../index.html">← stack-augmentor reports</a></nav>|' site/frames/index.html
             links="<li><a href=\"frames/index.html\">Stack Trace Frame reports</a> (agent integration tests)</li>"
+          fi
+          if [ -f repo/docs/benchmark/index.html ]; then
+            mkdir -p site/benchmark
+            cp repo/docs/benchmark/index.html site/benchmark/index.html
+            links="$links<li><a href=\"benchmark/index.html\">Exception cost benchmark</a> (from the last committed local run)</li>"
           fi
           for report in $(cd reports && find . -path '*/build/reports/tests/test/index.html' | sort); do
             module=$(echo "$report" | sed -e 's|^\./||' -e 's|/build/reports/tests/test/index.html$||')
