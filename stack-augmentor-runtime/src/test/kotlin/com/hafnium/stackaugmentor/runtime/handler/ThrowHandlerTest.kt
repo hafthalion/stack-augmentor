@@ -132,4 +132,19 @@ class ThrowHandlerTest {
         // SHA-256 of "ann@example.com" starts with 71d4f55f; null stays null.
         assertEquals("fail{email=#71d4f55f, id=42, phone=null}", thrown.stackTrace[0].methodName)
     }
+
+    @Test
+    fun `exceptions that no entry augments keep their frames`() {
+        val classes = mapOf(Annotated::class.java.name to IdSpec.Annotations())
+        val target = Annotated()
+        val skipped = thrownBy(target)
+        ThrowHandler(AugmentorConfig.builder().classes(classes).exceptions(mapOf("java.lang.*" to false)).build())
+            .onThrow(target, skipped, Annotated::class.java.name, "fail", null, null)
+        assertEquals(Annotated::class.java.name, skipped.stackTrace[0].className)
+
+        val augmented = thrownBy(target)
+        ThrowHandler(AugmentorConfig.builder().classes(classes).exceptions(mapOf("java.lang.IllegalStateException" to true)).build())
+            .onThrow(target, augmented, Annotated::class.java.name, "fail", null, null)
+        assertEquals("${Annotated::class.java.name}{objectId=a-1}", augmented.stackTrace[0].className)
+    }
 }

@@ -34,3 +34,11 @@ maxIdLength = 64
 "com.thirdparty.Inventory*.*" = ["sku", "count"]                     # all methods of the Inventory* classes ...
 "com.thirdparty.InventoryAudit.*" = "-"                              # ... except InventoryAudit's
 "com.thirdparty.Customer.notify" = ["email#"]                        # hashed
+
+# Which exceptions get ids: true or false, the first matching entry wins, and an exception that no entry
+# matches gets none (without this table, all do). A class name also matches its subclasses, as instanceof
+# does; a pattern matches the exception's own class only.
+[augment.exceptions]
+"com.hafnium.examples.agent.CheckoutException" = true    # this class and its subclasses
+"java.lang.IllegalArgumentException" = false             # this class and its subclasses: no ids
+"java.lang.*" = true                                     # these classes only, e.g. Exception, IllegalStateException

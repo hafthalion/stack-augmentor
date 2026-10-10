@@ -37,6 +37,13 @@ import java.util.stream.Collectors;
  * paramsFormat = "{$name=$id, ...}"
  * maxIdLength = 64
  *
+ * [augment.exceptions]       # which throwables get ids: true or false, the first matching entry wins; a class name
+ *                            # matches its subclasses too, a pattern the runtime class only; without the table all
+ *                            # throwables get ids, with it those that no entry matches do not
+ * "com.acme.ControlFlowException" = false
+ * "com.acme.**" = true
+ * "java.io.IOException" = true   # and its subclasses
+ *
  * [augment.receiver]           # receiver ids: a field, a "method()", a list of them, "@" for the @StackTraceId
  *                            # members, "-" for none
  * "com.hafnium.**" = "@"
@@ -89,6 +96,47 @@ public final class AugmentorConfig {
     private final int maxIdLength;
     private final boolean debug;
     private final boolean inPlaceModification;
+    private final Map<String, Boolean> exceptions;
+
+    /** An {@code [augment.exceptions]} entry: a pattern, or for a class name without wildcards {@code null}. */
+    private record ExceptionPattern(String className, Pattern pattern, boolean augmented) {
+
+        boolean matches(Class<?> type) {
+            return pattern != null ? pattern.matcher(type.getName()).matches() : isInstance(type, className);
+        }
+
+        /** Whether the class, a superclass or an implemented interface has this name, as {@code instanceof} would say. */
+        private static boolean isInstance(Class<?> type, String name) {
+            if (type == null) {
+                return false;
+            }
+            if (type.getName().equals(name) || isInstance(type.getSuperclass(), name)) {
+                return true;
+            }
+            for (Class<?> each : type.getInterfaces()) {
+                if (isInstance(each, name)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    /** The {@code [augment.exceptions]} entries, in the order of the file. */
+    private final List<ExceptionPattern> exceptionPatterns;
+
+    /** Per throwable class, whether it gets ids: the value of the first {@code [augment.exceptions]} entry it matches. */
+    private final ClassValue<Boolean> augmentedExceptions = new ClassValue<>() {
+        @Override
+        protected Boolean computeValue(Class<?> type) {
+            for (ExceptionPattern entry : exceptionPatterns) {
+                if (entry.matches(type)) {
+                    return entry.augmented();
+                }
+            }
+            return false;
+        }
+    };
 
     /** An {@code [augment.receiver]} entry: the key as written, and the id source it names. */
     public record ClassEntry(String key, IdSpec spec) {
@@ -114,17 +162,20 @@ public final class AugmentorConfig {
     /** The defaults: no class or method entries, so nothing gets ids. */
     public AugmentorConfig() {
         this(Map.of(), Map.of(), DEFAULT_FRAME_FORMAT, DEFAULT_RECEIVER_FORMAT, DEFAULT_PARAMS_FORMAT,
-                DEFAULT_MAX_ID_LENGTH, false, false);
+                DEFAULT_MAX_ID_LENGTH, false, false, Map.of());
     }
 
     /**
      * @param classes   receiver id sources by class name or class pattern: the {@code [augment.receiver]} table
      * @param methods   parameter ids by {@code "<class>.<method>"}, possibly with wildcards: the
      *                  {@code [augment.params]} table
+     * @param exceptions whether throwables get ids, by class name (with subclasses) or class pattern (of the runtime
+     *                  class), in the order the first matching entry is looked for: the {@code [augment.exceptions]}
+     *                  table; empty for all throwables
      */
     public AugmentorConfig(Map<String, IdSpec> classes, Map<String, List<ParamRef>> methods,
                            String frameFormat, String receiverFormat, String paramsFormat, int maxIdLength,
-                           boolean debug, boolean inPlaceModification) {
+                           boolean debug, boolean inPlaceModification, Map<String, Boolean> exceptions) {
         this.classes = Collections.unmodifiableMap(new LinkedHashMap<>(classes));
         Map<String, List<ParamRef>> methodsCopy = new LinkedHashMap<>();
         methods.forEach((target, refs) -> methodsCopy.put(target, List.copyOf(refs)));
@@ -135,6 +186,11 @@ public final class AugmentorConfig {
         this.maxIdLength = maxIdLength;
         this.debug = debug;
         this.inPlaceModification = inPlaceModification;
+        this.exceptions = Collections.unmodifiableMap(new LinkedHashMap<>(exceptions));
+        this.exceptionPatterns = this.exceptions.entrySet().stream()
+                .map(entry -> new ExceptionPattern(entry.getKey(), isPattern(entry.getKey()) ? globToRegex(entry.getKey()) : null,
+                        entry.getValue()))
+                .toList();
 
         List<ClassPattern> classPatterns = new ArrayList<>();
         this.classes.forEach((key, spec) -> {
@@ -191,6 +247,29 @@ public final class AugmentorConfig {
 
     public boolean debug() {
         return debug;
+    }
+
+    /** The {@code [augment.exceptions]} entries, in the order of the file; empty when all throwables get ids. */
+    public Map<String, Boolean> exceptions() {
+        return exceptions;
+    }
+
+    /**
+     * Whether frames of throwables of this runtime class get ids: without {@code [augment.exceptions]} all do, otherwise
+     * the value of the first entry that matches decides, and a class that no entry matches gets none. An entry without
+     * wildcards matches its class and the subclasses, as {@code instanceof} does; a pattern matches the name of the
+     * runtime class only, as in {@code [augment.receiver]}.
+     */
+    public boolean augments(Class<? extends Throwable> type) {
+        return exceptions.isEmpty() || augmentedExceptions.get(type);
+    }
+
+    /** The {@code [augment.exceptions]} entries for the debug log, e.g. {@code com.acme.Flow=false, com.acme.**=true}. */
+    public String exceptionsDescription() {
+        String text = exceptions.entrySet().stream()
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(Collectors.joining(", "));
+        return text.isEmpty() ? "all" : text;
     }
 
     /**
@@ -400,19 +479,21 @@ public final class AugmentorConfig {
                 && paramsFormat.equals(that.paramsFormat)
                 && maxIdLength == that.maxIdLength
                 && debug == that.debug
-                && inPlaceModification == that.inPlaceModification;
+                && inPlaceModification == that.inPlaceModification
+                && exceptions.equals(that.exceptions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug, inPlaceModification);
+        return Objects.hash(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug, inPlaceModification,
+                exceptions);
     }
 
     @Override
     public String toString() {
         return "AugmentorConfig[classes=" + classes + ", methods=" + methods
                 + ", frameFormat=" + frameFormat + ", receiverFormat=" + receiverFormat + ", paramsFormat=" + paramsFormat
-                + ", maxIdLength=" + maxIdLength + ", debug=" + debug + ", inPlaceModification=" + inPlaceModification + "]";
+                + ", maxIdLength=" + maxIdLength + ", debug=" + debug + ", inPlaceModification=" + inPlaceModification + ", exceptions=" + exceptions + "]";
     }
 
     /** Starts from the defaults; every setter replaces one value. */
@@ -426,6 +507,7 @@ public final class AugmentorConfig {
         private int maxIdLength = DEFAULT_MAX_ID_LENGTH;
         private boolean debug;
         private boolean inPlaceModification;
+        private Map<String, Boolean> exceptions = Map.of();
 
         private Builder() {
         }
@@ -470,9 +552,15 @@ public final class AugmentorConfig {
             return this;
         }
 
+        /** In the order the first matching entry is looked for, e.g. a {@link LinkedHashMap}. */
+        public Builder exceptions(Map<String, Boolean> exceptions) {
+            this.exceptions = exceptions;
+            return this;
+        }
+
         public AugmentorConfig build() {
             return new AugmentorConfig(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug,
-                    inPlaceModification);
+                    inPlaceModification, exceptions);
         }
     }
 
@@ -482,10 +570,11 @@ public final class AugmentorConfig {
         private static final List<String> AUGMENT = List.of("augment");
         private static final List<String> CLASSES = List.of("augment", "receiver");
         private static final List<String> METHODS = List.of("augment", "params");
+        private static final List<String> EXCEPTIONS = List.of("augment", "exceptions");
 
         private static final List<String> ROOT_KEYS = List.of("debug", "inPlaceModification", "augment");
         private static final List<String> AUGMENT_KEYS = List.of("frameFormat", "receiverFormat", "paramsFormat", "maxIdLength",
-                "receiver", "params");
+                "exceptions", "receiver", "params");
 
         /** A class name or class pattern: dotted segments of identifier characters and wildcards. */
         private static final Pattern CLASS_PART = Pattern.compile("[\\p{L}\\p{N}_$*?]+(\\.[\\p{L}\\p{N}_$*?]+)*");
@@ -512,7 +601,7 @@ public final class AugmentorConfig {
             Map<String, IdSpec> classes = new LinkedHashMap<>();
             Map<String, List<String>> classPaths = new HashMap<>();
             for (Entry entry : entries(CLASSES)) {
-                String key = unique(classKey(entry.path()), entry.path(), classPaths);
+                String key = unique(classKey(entry.path(), CLASSES), entry.path(), classPaths);
                 classes.put(key, classSpec(entry.path(), entry.value()));
             }
             config.classes(classes);
@@ -539,6 +628,17 @@ public final class AugmentorConfig {
             if (maxIdLength != null) {
                 config.maxIdLength(maxIdLength(maxIdLength));
             }
+            Map<String, Boolean> exceptions = new LinkedHashMap<>();
+            Map<String, List<String>> exceptionPaths = new HashMap<>();
+            for (Entry entry : entries(EXCEPTIONS)) {
+                String key = unique(classKey(entry.path(), EXCEPTIONS), entry.path(), exceptionPaths);
+                if (!(entry.value() instanceof Boolean augmented)) {
+                    throw error(entry.path(), "must be true to augment the exceptions of this class or class pattern, or "
+                            + "false not to, was " + entry.value());
+                }
+                exceptions.put(key, augmented);
+            }
+            config.exceptions(exceptions);
             Boolean debug = value(List.of("debug"), Boolean.class, "true or false");
             if (debug != null) {
                 config.debug(debug);
@@ -595,9 +695,9 @@ public final class AugmentorConfig {
         }
 
         /**
-         * The entries of the {@code [augment.receiver]} or {@code [augment.params]} table, with their full key
-         * paths. Key paths make quoted ({@code "com.acme.Order"}) and unquoted ({@code com.acme.Order}, i.e. nested
-         * tables) class names equivalent.
+         * The entries of the {@code [augment.receiver]}, {@code [augment.params]} or {@code [augment.exceptions]} table,
+         * with their full key paths, in the order of the file. Key paths make quoted ({@code "com.acme.Order"}) and
+         * unquoted ({@code com.acme.Order}, i.e. nested tables) class names equivalent.
          */
         private List<Entry> entries(List<String> table) {
             TomlTable content = table(table);
@@ -610,6 +710,9 @@ public final class AugmentorConfig {
                 fullPath.addAll(path);
                 entries.add(new Entry(fullPath, Objects.requireNonNull(content.get(path))));
             }
+            // In the order of the file: tomlj's tables do not keep it, and in [augment.exceptions] it decides.
+            entries.sort(Comparator.comparing((Entry entry) -> toml.inputPositionOf(entry.path()),
+                    Comparator.nullsLast(Comparator.comparingInt(TomlPosition::line).thenComparingInt(TomlPosition::column))));
             return entries;
         }
 
@@ -632,10 +735,10 @@ public final class AugmentorConfig {
             return String.join(".", path.subList(table.size(), path.size()));
         }
 
-        private String classKey(List<String> path) {
-            String target = target(path, CLASSES);
+        private String classKey(List<String> path, List<String> table) {
+            String target = target(path, table);
             if (!CLASS_PART.matcher(target).matches()) {
-                throw error(path, "[" + name(CLASSES) + "] keys must name a class or a class pattern, e.g. \"com.acme.Order\" or "
+                throw error(path, "[" + name(table) + "] keys must name a class or a class pattern, e.g. \"com.acme.Order\" or "
                         + "\"com.acme.**\"; " + ALLOWED_CHARACTERS);
             }
             return target;

@@ -4,6 +4,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -225,8 +226,8 @@ class AugmentorConfigTest {
     @Test
     fun `unknown keys are rejected, in every section`() {
         assertEquals(
-            "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxIdLength, receiver, " +
-                "params",
+            "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxIdLength, " +
+                "exceptions, receiver, params",
             error("[augment]\nframe = \"\$class.\$method\""),
         )
         assertTrue(error("[other]\nx = 1").contains("unknown key 'other'; allowed: debug, inPlaceModification, augment"))
@@ -439,5 +440,68 @@ class AugmentorConfigTest {
         assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"@#\"").contains("must be an array"))
         assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"*#\"").contains("must be an array"))
         assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"order#\"").contains("must be an array"))
+    }
+
+    open class Base : RuntimeException()
+
+    class Derived : Base()
+
+    @Test
+    fun `exceptions entries, the first matching entry wins`() {
+        val all = AugmentorConfig()
+        assertTrue(all.exceptions().isEmpty())
+        assertTrue(all.augments(Error::class.java))
+        assertEquals("all", all.exceptionsDescription())
+
+        val config = parse(
+            """
+            [augment.exceptions]
+            "java.io.FileNotFoundException" = false
+            "java.io.IOException" = true
+            "com.hafnium.stackaugmentor.runtime.config.AugmentorConfigTest${'$'}Ba?e" = true
+            "java.util.concurrent.**" = false
+            "java.**" = true
+            """,
+        )
+        assertEquals(
+            listOf("java.io.FileNotFoundException", "java.io.IOException", Base::class.java.name.dropLast(2) + "?e", "java.util.concurrent.**", "java.**"),
+            config.exceptions().keys.toList(),
+        )
+        assertEquals(
+            "java.io.FileNotFoundException=false, java.io.IOException=true, ${Base::class.java.name.dropLast(2)}?e=true, " +
+                "java.util.concurrent.**=false, java.**=true",
+            config.exceptionsDescription(),
+        )
+        assertFalse(config.augments(java.io.FileNotFoundException::class.java))
+        assertTrue(config.augments(java.io.IOException::class.java))
+        // A class name matches its subclasses, as instanceof does.
+        assertTrue(config.augments(java.nio.file.NoSuchFileException::class.java))
+        assertTrue(config.augments(Base::class.java))
+        // A pattern matches the runtime class only, not its superclasses.
+        assertFalse(config.augments(Derived::class.java))
+        assertFalse(config.augments(java.util.concurrent.TimeoutException::class.java))
+        assertTrue(config.augments(IllegalStateException::class.java))
+        // No entry matches.
+        assertFalse(config.augments(ConfigException::class.java))
+        assertNotEquals(all, config)
+
+        val byName = parse("[augment.exceptions]\n\"${Base::class.java.name}\" = true")
+        assertTrue(byName.augments(Derived::class.java))
+    }
+
+    @Test
+    fun `invalid exceptions entries`() {
+        assertTrue(error("[augment]\nexceptions = [\"java.io.IOException\"]").contains("'augment.exceptions' must be a table"))
+        assertEquals(
+            "test.toml, line 2: must be true to augment the exceptions of this class or class pattern, or false not to, was @",
+            error("[augment.exceptions]\n\"java.io.IOException\" = \"@\""),
+        )
+        assertTrue(
+            error("[augment.exceptions]\n\"java.io.IOException()\" = true")
+                .contains("[augment.exceptions] keys must name a class or a class pattern"),
+        )
+        assertTrue(
+            error("[augment.exceptions]\n\"a.B\" = true\na.B = false").contains("'a.B' is configured twice; it is already configured on line 2"),
+        )
     }
 }

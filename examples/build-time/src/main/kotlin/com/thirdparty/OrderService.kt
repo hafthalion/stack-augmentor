@@ -20,6 +20,7 @@ class Customer(private val customerId: String) {
 
 class OrderService(private val inventory: InventoryService) {
     fun process(order: Order, quantity: Int, note: String) {
+        require(quantity > 0) { "quantity must be positive, was $quantity" }
         inventory.reserve("x-1", quantity, order)
     }
 }
