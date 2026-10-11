@@ -84,7 +84,7 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
     Mode.entries.forEach { append("<th>").append(escape(it.title)).append("</th>") }
     append("</tr></thead>\n<tbody>\n")
     for (scenario in Scenario.entries) {
-        for (logged in if (scenario.runsUnlogged) listOf(true, false) else listOf(true)) {
+        for (logged in listOf(true, false)) {
             val row = Row(scenario, logged)
             val plain = measured[Mode.PLAIN]?.get(row)
             append("<tr><td class=\"text\">").append(escape(scenario.useCase)).append("</td>")
@@ -128,7 +128,7 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
     append(SORT_SCRIPT)
     append("<h2>Columns</h2>\n<dl>\n")
     column("Use case", "Where the exception is caught. \"Exception off\": the frames are configured, but the exceptions " +
-        "are of a class that [augment.exceptions] turns off, so no frame shows ids; these are only measured logged. The " +
+        "are of a class that [augment.exceptions] turns off, so no frame shows ids. The " +
         "exception is always created at the bottom, in the deepest frame of the " +
         "stack. Near the bottom: 3 frames above that, so it leaves only 3 frames. Near the top: 3 frames below the outermost " +
         "frame, so it leaves almost all of them. With a cause chain, the stack has ${Scenario.CAUSES_PLAIN.frames} frames, " +

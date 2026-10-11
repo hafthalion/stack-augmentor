@@ -65,8 +65,6 @@ class ExceptionCostBenchmark {
 
     companion object {
         @JvmStatic
-        fun cases(): List<Arguments> = Scenario.entries.flatMap {
-            if (it.runsUnlogged) listOf(Arguments.of(it, true), Arguments.of(it, false)) else listOf(Arguments.of(it, true))
-        }
+        fun cases(): List<Arguments> = Scenario.entries.flatMap { listOf(Arguments.of(it, true), Arguments.of(it, false)) }
     }
 }
