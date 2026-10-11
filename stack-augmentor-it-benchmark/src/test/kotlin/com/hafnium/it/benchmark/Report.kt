@@ -79,16 +79,16 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
         that wrapped it follows as "Wrapped by:" with the first 10 of the frames it adds, the last one also with its last 10.</p>
         """.trimIndent()
     )
-    append("\n<div class=\"scroll\"><table id=\"results\">\n<thead><tr><th class=\"text\">Caught</th><th>Configured frames</th>")
+    append("\n<div class=\"scroll\"><table id=\"results\">\n<thead><tr><th class=\"text\">Use case</th><th>Configured frames</th>")
     append("<th class=\"text\">Logged</th>")
     Mode.entries.forEach { append("<th>").append(escape(it.title)).append("</th>") }
     append("</tr></thead>\n<tbody>\n")
     for (scenario in Scenario.entries) {
-        for (logged in listOf(true, false)) {
+        for (logged in if (scenario.runsUnlogged) listOf(true, false) else listOf(true)) {
             val row = Row(scenario, logged)
             val plain = measured[Mode.PLAIN]?.get(row)
-            append("<tr><td class=\"text\">").append(scenario.caught).append("</td>")
-            append("<td data-sort=\"${scenario.configuredPercent}\">").append(escape(scenario.configuredText)).append("</td>")
+            append("<tr><td class=\"text\">").append(escape(scenario.useCase)).append("</td>")
+            append("<td data-sort=\"${scenario.configuredPercent}\">").append(scenario.configuredPercent).append("%</td>")
             append("<td class=\"text\">").append(if (logged) "yes" else "no").append("</td>")
             for (mode in Mode.entries) {
                 val m = measured[mode]?.get(row)
@@ -127,7 +127,9 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
     append(logs(results))
     append(SORT_SCRIPT)
     append("<h2>Columns</h2>\n<dl>\n")
-    column("Caught", "Where the exception is caught. It is always created at the bottom, in the deepest frame of the " +
+    column("Use case", "Where the exception is caught. \"Exception off\": the frames are configured, but the exceptions " +
+        "are of a class that [augment.exceptions] turns off, so no frame shows ids; these are only measured logged. The " +
+        "exception is always created at the bottom, in the deepest frame of the " +
         "stack. Near the bottom: 3 frames above that, so it leaves only 3 frames. Near the top: 3 frames below the outermost " +
         "frame, so it leaves almost all of them. With a cause chain, the stack has ${Scenario.CAUSES_PLAIN.frames} frames, " +
         "and every ${Scenario.CAUSES_PLAIN.wrapEvery} frames a frame catches the exception and throws a new one with it as the cause; " +
@@ -136,8 +138,7 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
         "${Scenario.CAUSES_PLAIN.wrapEvery} frames, and the causes share the frames below with the exceptions that wrap them, " +
         "which printing collapses into \"... N more\".")
     column("Configured frames", "The share of the frames whose method is configured to show ids (receiver id and " +
-        "depth parameter): every 4th frame, or none. The others are methods of an unconfigured class. \"Exception off\": the " +
-        "frames are configured, but the exceptions are of a class that [augment.exceptions] turns off, so no frame shows ids.")
+        "depth parameter): every 4th frame, or none. The others are methods of an unconfigured class.")
     column("Logged", "Yes: after it is caught, the exception is turned into text with stackTraceToString(), which reads the " +
         "whole stack trace, as logging does. No: it is only created, thrown and caught.")
     Mode.entries.forEach { column(it.title, it.description) }
