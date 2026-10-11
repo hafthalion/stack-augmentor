@@ -143,7 +143,7 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
         "whole stack trace, as logging does. No: it is only created, thrown and caught.")
     Mode.entries.forEach { column(it.title, it.description) }
     append("</dl>\n<p>Each time is the median in microseconds per exception, measured in its own JVM after a warm-up: 2 s " +
-        "before the first case of a mode, which compiles the code all cases share, and 0.3 s before each of the others. " +
+        "before the first case of a mode, which compiles the code all cases share, and 0.3 s before each of the others, then 10 batches of about 0.2 s (the defaults). " +
         "The small numbers under it are its ratio to no agent, the range of the measured batches, and the sample size: n = batches × exceptions per batch, not counting the warm-up; &#x2630; shows the " +
         "start of that mode's logged stack trace. &mdash; means the mode did not run, e.g. the live-stack mode without the " +
         "native library.</p>\n")

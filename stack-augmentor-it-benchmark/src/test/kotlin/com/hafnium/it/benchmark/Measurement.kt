@@ -14,7 +14,7 @@ data class Measurement(val median: Double, val min: Double, val max: Double, val
          */
         private val laterWarmupMillis = System.getProperty("benchmark.laterWarmupMillis", "300").toLong()
         private var warmedUp = false
-        private val batchMillis = System.getProperty("benchmark.batchMillis", "500").toLong()
+        private val batchMillis = System.getProperty("benchmark.batchMillis", "200").toLong()
         private val batches = System.getProperty("benchmark.batches", "10").toInt()
 
         /** Runs the action until it is warmed up, then in batches of about the same time each. */
