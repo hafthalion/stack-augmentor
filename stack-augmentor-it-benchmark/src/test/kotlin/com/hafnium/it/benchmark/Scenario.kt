@@ -6,7 +6,7 @@ package com.hafnium.it.benchmark
  * frame catches it and throws a new exception with it as the cause, so the caught one has a chain of [causes] causes.
  * The stack is then shallower, so that the stack traces of the whole chain hold [FRAMES] frames together, as the single
  * exception's does. With [excluded], the frames are configured as usual, but the exceptions are of a class that
- * `[augment.exceptions]` turns off, so they get no ids; those exceptions are only measured logged.
+ * `[augment.exceptions]` turns off, so they get no ids.
  */
 enum class Scenario(val configuredEvery: Int, val caughtNearTop: Boolean, val causes: Int = 0, val excluded: Boolean = false) {
     BOTTOM_CONFIGURED(4, false),
@@ -55,9 +55,6 @@ enum class Scenario(val configuredEvery: Int, val caughtNearTop: Boolean, val ca
 
     /** The report's use case: where the exception is caught, and whether its class is turned off. */
     val useCase: String get() = caught + if (excluded) ", exception off" else ""
-
-    /** Whether the benchmark runs this scenario with an exception that is not logged: not with [excluded]. */
-    val runsUnlogged: Boolean get() = !excluded
 
     val title: String get() = "Caught $caught, ${if (configuredEvery == 0) "no frame" else "$configuredPercent% of the frames"} configured" +
         if (excluded) ", exception class turned off" else ""
