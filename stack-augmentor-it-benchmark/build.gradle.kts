@@ -7,6 +7,9 @@ plugins {
 // `./gradlew :stack-augmentor-it-benchmark:benchmark` runs them all and writes build/reports/benchmark/index.html, and
 // copies it to docs/benchmark/index.html: committed to master, the Reports workflow publishes it on GitHub Pages.
 // The project build only compiles it: `test` is off, the benchmark runs only when one of its tasks is called.
+// How long it measures can be set with Gradle properties, e.g. for a quick, rough run:
+// `./gradlew :stack-augmentor-it-benchmark:benchmark -Pbenchmark.warmupMillis=500 -Pbenchmark.laterWarmupMillis=100
+// -Pbenchmark.batchMillis=50 -Pbenchmark.batches=5` (defaults: 2000, 300, 200 and 10).
 
 val agent = configurations.create("agent") {
     isCanBeConsumed = false
@@ -40,6 +43,10 @@ val config = layout.projectDirectory.file("src/test/resources/stack-augmentor.to
 // The modes, as Mode in the tests names them.
 val modes = listOf("plain", "agentInPlace", "agentCopying", "live")
 
+// The measurement settings given as Gradle properties, passed on to the test JVMs.
+val measurementSettings = listOf("warmupMillis", "laterWarmupMillis", "batchMillis", "batches")
+    .mapNotNull { name -> providers.gradleProperty("benchmark.$name").orNull?.let { "benchmark.$name" to it } }
+
 val benchmarkTasks = modes.map { mode ->
     tasks.register<Test>("benchmark" + mode.replaceFirstChar { it.uppercase() }) {
         description = "Measures exceptions in a 1000-frame stack, mode $mode."
@@ -49,6 +56,7 @@ val benchmarkTasks = modes.map { mode ->
         outputs.upToDateWhen { false }
         val resultsDir = results.get().asFile
         systemProperty("benchmark.mode", mode)
+        measurementSettings.forEach { (name, value) -> systemProperty(name, value) }
         systemProperty("benchmark.results", resultsDir.absolutePath)
         doFirst {
             resultsDir.listFiles { file -> file.name.startsWith("$mode.") || file.name.startsWith("$mode-") }?.forEach { it.delete() }
