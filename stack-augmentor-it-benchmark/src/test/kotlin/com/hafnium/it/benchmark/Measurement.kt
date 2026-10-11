@@ -8,12 +8,19 @@ data class Measurement(val median: Double, val min: Double, val max: Double, val
 
     companion object {
         private val warmupMillis = System.getProperty("benchmark.warmupMillis", "2000").toLong()
+        /**
+         * The warm-up of every later measurement in the JVM: all cases run the same code, which the first one's
+         * warm-up has compiled, so the later ones only need the JIT to adapt to their case.
+         */
+        private val laterWarmupMillis = System.getProperty("benchmark.laterWarmupMillis", "300").toLong()
+        private var warmedUp = false
         private val batchMillis = System.getProperty("benchmark.batchMillis", "500").toLong()
         private val batches = System.getProperty("benchmark.batches", "10").toInt()
 
         /** Runs the action until it is warmed up, then in batches of about the same time each. */
         fun of(action: () -> Unit): Measurement {
-            val warmupEnd = System.nanoTime() + warmupMillis * 1_000_000
+            val warmupEnd = System.nanoTime() + (if (warmedUp) laterWarmupMillis else warmupMillis) * 1_000_000
+            warmedUp = true
             while (System.nanoTime() < warmupEnd) {
                 action()
             }
