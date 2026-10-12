@@ -70,7 +70,8 @@ and not its superclasses. A throwable that no entry matches SHALL get no ids. Th
 left unchanged, in their own traces and in those of their causes and suppressed exceptions; a frame that a
 throwable with ids leaves SHALL still be written into the traces it shares, whatever their class, so that
 printed traces still collapse. What gets instrumented SHALL NOT depend on it. This SHALL hold in both modes and
-in the live-stack mode. Without the table, all throwables SHALL get ids.
+in the live-stack mode. Without the table, all throwables SHALL get ids; an empty table SHALL match none, so
+that no throwable gets ids, as empty `[augment.receiver]` and `[augment.params]` tables give none.
 
 #### Scenario: First matching entry
 - **GIVEN** `"java.io.FileNotFoundException" = false` before `"java.io.IOException" = true`
@@ -84,6 +85,11 @@ in the live-stack mode. Without the table, all throwables SHALL get ids.
 
 #### Scenario: Subclass of a class matched by a pattern
 - **GIVEN** only `"java.io.IO*" = true` and a configured method that throws `FileNotFoundException`
+- **WHEN** the stack trace is inspected
+- **THEN** its frame is unchanged
+
+#### Scenario: Empty table
+- **GIVEN** an `[augment.exceptions]` table without entries and a configured method that throws
 - **WHEN** the stack trace is inspected
 - **THEN** its frame is unchanged
 

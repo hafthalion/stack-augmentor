@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -39,7 +40,7 @@ import java.util.stream.Collectors;
  *
  * [augment.exceptions]       # which throwables get ids: true or false, the first matching entry wins; a class name
  *                            # matches its subclasses too, a pattern the runtime class only; without the table all
- *                            # throwables get ids, with it those that no entry matches do not
+ *                            # throwables get ids, with it (even empty) those that no entry matches do not
  * "com.acme.ControlFlowException" = false
  * "com.acme.**" = true
  * "java.io.IOException" = true   # and its subclasses
@@ -96,6 +97,7 @@ public final class AugmentorConfig {
     private final int maxIdLength;
     private final boolean debug;
     private final boolean inPlaceModification;
+    /** {@code null} without an {@code [augment.exceptions]} table, so that all throwables get ids. */
     private final Map<String, Boolean> exceptions;
 
     /** An {@code [augment.exceptions]} entry: a pattern, or for a class name without wildcards {@code null}. */
@@ -162,7 +164,7 @@ public final class AugmentorConfig {
     /** The defaults: no class or method entries, so nothing gets ids. */
     public AugmentorConfig() {
         this(Map.of(), Map.of(), DEFAULT_FRAME_FORMAT, DEFAULT_RECEIVER_FORMAT, DEFAULT_PARAMS_FORMAT,
-                DEFAULT_MAX_ID_LENGTH, false, false, Map.of());
+                DEFAULT_MAX_ID_LENGTH, false, false, null);
     }
 
     /**
@@ -171,7 +173,7 @@ public final class AugmentorConfig {
      *                  {@code [augment.params]} table
      * @param exceptions whether throwables get ids, by class name (with subclasses) or class pattern (of the runtime
      *                  class), in the order the first matching entry is looked for: the {@code [augment.exceptions]}
-     *                  table; empty for all throwables
+     *                  table; {@code null} for all throwables, while an empty map matches none
      */
     public AugmentorConfig(Map<String, IdSpec> classes, Map<String, List<ParamRef>> methods,
                            String frameFormat, String receiverFormat, String paramsFormat, int maxIdLength,
@@ -186,8 +188,8 @@ public final class AugmentorConfig {
         this.maxIdLength = maxIdLength;
         this.debug = debug;
         this.inPlaceModification = inPlaceModification;
-        this.exceptions = Collections.unmodifiableMap(new LinkedHashMap<>(exceptions));
-        this.exceptionPatterns = this.exceptions.entrySet().stream()
+        this.exceptions = exceptions != null ? Collections.unmodifiableMap(new LinkedHashMap<>(exceptions)) : null;
+        this.exceptionPatterns = this.exceptions == null ? List.of() : this.exceptions.entrySet().stream()
                 .map(entry -> new ExceptionPattern(entry.getKey(), isPattern(entry.getKey()) ? globToRegex(entry.getKey()) : null,
                         entry.getValue()))
                 .toList();
@@ -249,27 +251,34 @@ public final class AugmentorConfig {
         return debug;
     }
 
-    /** The {@code [augment.exceptions]} entries, in the order of the file; empty when all throwables get ids. */
-    public Map<String, Boolean> exceptions() {
-        return exceptions;
+    /**
+     * The {@code [augment.exceptions]} entries, in the order of the file; empty without the table, when all
+     * throwables get ids. An empty table is present and empty: then no throwable gets ids.
+     */
+    public Optional<Map<String, Boolean>> exceptions() {
+        return Optional.ofNullable(exceptions);
     }
 
     /**
      * Whether frames of throwables of this runtime class get ids: without {@code [augment.exceptions]} all do, otherwise
-     * the value of the first entry that matches decides, and a class that no entry matches gets none. An entry without
+     * the value of the first entry that matches decides, and a class that no entry matches gets none (so with an empty
+     * table, none does). An entry without
      * wildcards matches its class and the subclasses, as {@code instanceof} does; a pattern matches the name of the
      * runtime class only, as in {@code [augment.receiver]}.
      */
     public boolean augments(Class<? extends Throwable> type) {
-        return exceptions.isEmpty() || augmentedExceptions.get(type);
+        return exceptions == null || augmentedExceptions.get(type);
     }
 
     /** The {@code [augment.exceptions]} entries for the debug log, e.g. {@code com.acme.Flow=false, com.acme.**=true}. */
     public String exceptionsDescription() {
+        if (exceptions == null) {
+            return "all";
+        }
         String text = exceptions.entrySet().stream()
                 .map(entry -> entry.getKey() + "=" + entry.getValue())
                 .collect(Collectors.joining(", "));
-        return text.isEmpty() ? "all" : text;
+        return text.isEmpty() ? "none" : text;
     }
 
     /**
@@ -480,7 +489,7 @@ public final class AugmentorConfig {
                 && maxIdLength == that.maxIdLength
                 && debug == that.debug
                 && inPlaceModification == that.inPlaceModification
-                && exceptions.equals(that.exceptions);
+                && Objects.equals(exceptions, that.exceptions);
     }
 
     @Override
@@ -507,7 +516,7 @@ public final class AugmentorConfig {
         private int maxIdLength = DEFAULT_MAX_ID_LENGTH;
         private boolean debug;
         private boolean inPlaceModification;
-        private Map<String, Boolean> exceptions = Map.of();
+        private Map<String, Boolean> exceptions;
 
         private Builder() {
         }
@@ -552,7 +561,10 @@ public final class AugmentorConfig {
             return this;
         }
 
-        /** In the order the first matching entry is looked for, e.g. a {@link LinkedHashMap}. */
+        /**
+         * In the order the first matching entry is looked for, e.g. a {@link LinkedHashMap}; {@code null} (the default)
+         * for all throwables, while an empty map matches none.
+         */
         public Builder exceptions(Map<String, Boolean> exceptions) {
             this.exceptions = exceptions;
             return this;
@@ -628,17 +640,20 @@ public final class AugmentorConfig {
             if (maxIdLength != null) {
                 config.maxIdLength(maxIdLength(maxIdLength));
             }
-            Map<String, Boolean> exceptions = new LinkedHashMap<>();
-            Map<String, List<String>> exceptionPaths = new HashMap<>();
-            for (Entry entry : entries(EXCEPTIONS)) {
-                String key = unique(classKey(entry.path(), EXCEPTIONS), entry.path(), exceptionPaths);
-                if (!(entry.value() instanceof Boolean augmented)) {
-                    throw error(entry.path(), "must be true to augment the exceptions of this class or class pattern, or "
-                            + "false not to, was " + entry.value());
+            if (table(EXCEPTIONS) != null) {
+                // Even an empty table counts: then no exception gets ids, as with empty receiver and params tables.
+                Map<String, Boolean> exceptions = new LinkedHashMap<>();
+                Map<String, List<String>> exceptionPaths = new HashMap<>();
+                for (Entry entry : entries(EXCEPTIONS)) {
+                    String key = unique(classKey(entry.path(), EXCEPTIONS), entry.path(), exceptionPaths);
+                    if (!(entry.value() instanceof Boolean augmented)) {
+                        throw error(entry.path(), "must be true to augment the exceptions of this class or class pattern, or "
+                                + "false not to, was " + entry.value());
+                    }
+                    exceptions.put(key, augmented);
                 }
-                exceptions.put(key, augmented);
+                config.exceptions(exceptions);
             }
-            config.exceptions(exceptions);
             Boolean debug = value(List.of("debug"), Boolean.class, "true or false");
             if (debug != null) {
                 config.debug(debug);
