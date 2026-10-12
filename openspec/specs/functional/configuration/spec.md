@@ -18,7 +18,8 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
     whose frames get ids, see the stack trace augmentation spec. Its entries SHALL be read in the order of the
     file. Without entries no throwable gets ids;
   - `[augment.receiver]` (class name or class pattern → field name, `method()`, a list of them, `"@"` for
-    the class's `@StackTraceId` members, or `"-"` for no receiver id), which decides the receiver ids;
+    the class's `@StackTraceId` members, or `"-"` for no receiver id), which decides the receiver ids, see the
+    id sources spec. Its entries SHALL be read in the order of the file, and the first that matches a class decides;
   - `[augment.params]` (`"<class pattern>.<method pattern>"` → array of parameter names and 0-based
     indexes from 0 to 255, the JVM's maximum number of parameters, each optionally followed by `#` to hash the value
     (an index is then written as a string, e.g. `"2#"`), `"@"` for the method's parameter annotations, or `"-"` for none;
@@ -55,7 +56,7 @@ replacing the other.
 - **THEN** the entry selects the parameter `order` and the second parameter of all methods of matching classes
 
 #### Scenario: Class entries
-- **GIVEN** `"com.acme.**" = "@"`, `"com.acme.legacy.*" = "getKey()"` and `"com.thirdparty.Customer" = "customerId"` in `[augment.receiver]`
+- **GIVEN** `"com.acme.legacy.*" = "getKey()"`, `"com.acme.**" = "@"` and `"com.thirdparty.Customer" = "customerId"` in `[augment.receiver]`, in this order
 - **WHEN** it is loaded
 - **THEN** the classes under `com.acme` use their `@StackTraceId`, classes directly in `com.acme.legacy` use `getKey()`, and `Customer` uses its `customerId` field, while no parameter annotations are used
 

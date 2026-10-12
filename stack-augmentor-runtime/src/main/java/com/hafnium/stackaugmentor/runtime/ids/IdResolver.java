@@ -220,13 +220,13 @@ public final class IdResolver {
     }
 
     /**
-     * The deciding {@code [augment.receiver]} entry: the most specific entry that matches the class's own name; entries
-     * of superclasses do not apply. Its fields and methods, or with {@code "@"} its {@code @StackTraceId} members, are
+     * The deciding {@code [augment.receiver]} entry: the first that matches the class, by its name for a pattern, or for
+     * a class name also as a superclass or an implemented interface ({@link AugmentorConfig#classEntry(Class)}). Its fields and methods, or with {@code "@"} its {@code @StackTraceId} members, are
      * looked up in the class and its superclasses, or in an interface and the interfaces it extends. Without a deciding
      * entry, or with {@code "-"}, the class has no id source, even if it is annotated.
      */
     private List<Source> findSources(Class<?> type) {
-        AugmentorConfig.ClassEntry entry = config.classEntry(type.getName());
+        AugmentorConfig.ClassEntry entry = config.classEntry(type);
         if (entry == null) {
             return List.of();
         }

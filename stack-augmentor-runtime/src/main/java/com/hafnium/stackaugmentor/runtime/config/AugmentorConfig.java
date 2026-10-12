@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -44,10 +46,11 @@ import java.util.stream.Collectors;
  * "com.acme.**" = true
  * "java.io.IOException" = true   # and its subclasses
  *
- * [augment.receiver]           # receiver ids: a field, a "method()", a list of them, "@" for the @StackTraceId
- *                            # members, "-" for none
- * "com.hafnium.**" = "@"
+ * [augment.receiver]         # receiver ids: a field, a "method()", a list of them, "@" for the @StackTraceId
+ *                            # members, "-" for none; the first matching entry wins, a class name matches its
+ *                            # subclasses too, a pattern the class only
  * "com.hafnium.generated.**" = "-"
+ * "com.hafnium.**" = "@"
  * "com.thirdparty.Order" = "getOrderNumber()"
  * "com.thirdparty.OrderLine" = ["tenant", "lineId()"]
  *
@@ -62,8 +65,9 @@ import java.util.stream.Collectors;
  *
  * <p>The two tables are independent: {@code [augment.receiver]} decides the receiver ids, {@code [augment.params]} the
  * parameter ids. Which methods get instrumented follows from both. Keys may use wildcards: {@code *} within one
- * package segment (or name), {@code **} across segments, {@code ?} one character. Where entries of one table overlap,
- * the most specific decides, see {@link #classEntry} and {@link #paramRefs}. Immutable. Equality covers the
+ * package segment (or name), {@code **} across segments, {@code ?} one character. Where entries of
+ * {@code [augment.receiver]} overlap, the first in the file decides, see {@link #classEntry(Class)}; in
+ * {@code [augment.params]} the most specific, see {@link #paramRefs}. Immutable. Equality covers the
  * configured values only.
  */
 public final class AugmentorConfig {
@@ -98,43 +102,39 @@ public final class AugmentorConfig {
     private final boolean inPlaceModification;
     private final Map<String, Boolean> exceptions;
 
-    /** An {@code [augment.exceptions]} entry: a pattern, or for a class name without wildcards {@code null}. */
-    private record ExceptionPattern(String className, Pattern pattern, boolean augmented) {
+    /**
+     * An entry of {@code [augment.exceptions]} or {@code [augment.receiver]}: a class pattern, which matches the name of
+     * the class only, or for a class name without wildcards {@code null}, which matches the class and its subclasses.
+     */
+    private record ClassKey<V>(String key, Pattern pattern, V value) {
 
-        boolean matches(Class<?> type) {
-            return pattern != null ? pattern.matcher(type.getName()).matches() : isInstance(type, className);
+        static <V> List<ClassKey<V>> of(Map<String, V> table) {
+            return table.entrySet().stream()
+                    .map(entry -> new ClassKey<>(entry.getKey(), isPattern(entry.getKey()) ? globToRegex(entry.getKey()) : null,
+                            entry.getValue()))
+                    .toList();
         }
 
-        /** Whether the class, a superclass or an implemented interface has this name, as {@code instanceof} would say. */
-        private static boolean isInstance(Class<?> type, String name) {
-            if (type == null) {
-                return false;
-            }
-            if (type.getName().equals(name) || isInstance(type.getSuperclass(), name)) {
-                return true;
-            }
-            for (Class<?> each : type.getInterfaces()) {
-                if (isInstance(each, name)) {
-                    return true;
+        /** The first entry that matches, in the order of the file, or {@code null}. */
+        static <V> ClassKey<V> first(List<ClassKey<V>> entries, String className, Predicate<String> isA) {
+            for (ClassKey<V> entry : entries) {
+                if (entry.pattern() != null ? entry.pattern().matcher(className).matches() : isA.test(entry.key())) {
+                    return entry;
                 }
             }
-            return false;
+            return null;
         }
     }
 
     /** The {@code [augment.exceptions]} entries, in the order of the file. */
-    private final List<ExceptionPattern> exceptionPatterns;
+    private final List<ClassKey<Boolean>> exceptionKeys;
 
     /** Per throwable class, whether it gets ids: the value of the first {@code [augment.exceptions]} entry it matches. */
     private final ClassValue<Boolean> augmentedExceptions = new ClassValue<>() {
         @Override
         protected Boolean computeValue(Class<?> type) {
-            for (ExceptionPattern entry : exceptionPatterns) {
-                if (entry.matches(type)) {
-                    return entry.augmented();
-                }
-            }
-            return false;
+            ClassKey<Boolean> entry = ClassKey.first(exceptionKeys, type.getName(), name -> isA(type, name));
+            return entry != null && entry.value();
         }
     };
 
@@ -147,11 +147,16 @@ public final class AugmentorConfig {
         }
     }
 
-    private record ClassPattern(Pattern pattern, ClassEntry entry) {
-    }
+    /** The {@code [augment.receiver]} entries, in the order of the file. */
+    private final List<ClassKey<IdSpec>> classKeys;
 
-    /** The {@code [augment.receiver]} entries with wildcards, most specific first. */
-    private final List<ClassPattern> classPatterns;
+    /** Per class, its deciding {@code [augment.receiver]} entry, if any. */
+    private final ClassValue<Optional<ClassEntry>> classEntries = new ClassValue<>() {
+        @Override
+        protected Optional<ClassEntry> computeValue(Class<?> type) {
+            return Optional.ofNullable(classEntry(type.getName(), name -> isA(type, name)));
+        }
+    };
 
     /** An {@code [augment.params]} entry with wildcards, matched against every class and method. */
     private record MethodPattern(String key, Pattern classPattern, Pattern methodPattern, List<ParamRef> refs) {
@@ -187,20 +192,8 @@ public final class AugmentorConfig {
         this.debug = debug;
         this.inPlaceModification = inPlaceModification;
         this.exceptions = Collections.unmodifiableMap(new LinkedHashMap<>(exceptions));
-        this.exceptionPatterns = this.exceptions.entrySet().stream()
-                .map(entry -> new ExceptionPattern(entry.getKey(), isPattern(entry.getKey()) ? globToRegex(entry.getKey()) : null,
-                        entry.getValue()))
-                .toList();
-
-        List<ClassPattern> classPatterns = new ArrayList<>();
-        this.classes.forEach((key, spec) -> {
-            if (isPattern(key)) {
-                classPatterns.add(new ClassPattern(globToRegex(key), new ClassEntry(key, spec)));
-            }
-        });
-        classPatterns.sort(Comparator.comparingInt((ClassPattern it) -> specificity(it.entry().key())).reversed()
-                .thenComparing(it -> it.entry().key()));
-        this.classPatterns = List.copyOf(classPatterns);
+        this.exceptionKeys = ClassKey.of(this.exceptions);
+        this.classKeys = ClassKey.of(this.classes);
 
         List<MethodPattern> methodPatterns = new ArrayList<>();
         this.methods.forEach((target, refs) -> {
@@ -323,21 +316,43 @@ public final class AugmentorConfig {
     }
 
     /**
-     * The most specific {@code [augment.receiver]} entry that matches exactly this class name, or {@code null}:
-     * an entry without wildcards, otherwise the pattern with the most characters other than {@code *} and
-     * {@code ?}, ties broken by key. Superclasses are not looked at: entries do not apply to subclasses.
+     * The deciding {@code [augment.receiver]} entry of a class, or {@code null}: the first entry in the order of the file
+     * that matches. An entry without wildcards matches its class and the subclasses, as {@code instanceof} does, so
+     * also the classes implementing an interface it names; a pattern matches the name of the class only. The class is
+     * the one that declares a frame's method.
      */
-    public ClassEntry classEntry(String className) {
-        IdSpec exact = classes.get(className);
-        if (exact != null) {
-            return new ClassEntry(className, exact);
+    public ClassEntry classEntry(Class<?> type) {
+        return classEntries.get(type).orElse(null);
+    }
+
+    /**
+     * {@link #classEntry(Class)} for a class known by its name, e.g. one that is being instrumented.
+     *
+     * @param isA whether the class has the given name, or one of its superclasses or the interfaces it implements,
+     *            directly or not, has it; see {@link #isA(Class, String)}
+     */
+    public ClassEntry classEntry(String className, Predicate<String> isA) {
+        ClassKey<IdSpec> entry = ClassKey.first(classKeys, className, isA);
+        return entry != null ? new ClassEntry(entry.key(), entry.value()) : null;
+    }
+
+    /**
+     * Whether the class, a superclass or an implemented interface has this name, as {@code instanceof} would say.
+     * Compares names, so it loads no class.
+     */
+    public static boolean isA(Class<?> type, String name) {
+        if (type == null) {
+            return false;
         }
-        for (ClassPattern pattern : classPatterns) {
-            if (pattern.pattern().matcher(className).matches()) {
-                return pattern.entry();
+        if (type.getName().equals(name) || isA(type.getSuperclass(), name)) {
+            return true;
+        }
+        for (Class<?> each : type.getInterfaces()) {
+            if (isA(each, name)) {
+                return true;
             }
         }
-        return null;
+        return false;
     }
 
     /**

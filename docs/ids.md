@@ -4,26 +4,26 @@
 
 The two kinds of ids are configured independently: `[augment.receiver]` decides the receiver ids, `[augment.params]` the parameter ids. Neither table affects the other. Which classes and methods get instrumented is not configured directly: whatever either table needs is instrumented behind the scenes.
 
-**Receiver ids**: the object a frame runs on. They come from the deciding `[augment.receiver]` entry of the class that declares the frame's method, and are read from the object. An entry applies only to the classes whose names it matches, not to their subclasses. The entry names:
+**Receiver ids**: the object a frame runs on. They come from the deciding `[augment.receiver]` entry of the class that declares the frame's method, and are read from the object. An entry with a class name applies to that class and its subclasses, and an interface's name to the classes implementing it; a pattern applies only to the classes whose names it matches, not to their subclasses. The entry names:
 
 - a field, or a no-argument `method()`, looked up in that class and its superclasses (for an interface: in it and the interfaces it extends); a method or getter is also found as a default method of an implemented interface; a name without a field, such as a Kotlin property of an interface, uses the property's getter (`code` reads `getCode()`);
 - a list of them, e.g. `["tenant", "lineId()"]`: one id each, in this order, e.g. `OrderLine{tenant=acme, lineId=3}.cancel`. A member that is missing is left out, with the same warning as for a single one;
 - `"@"`: every `@StackTraceId` on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`, one id each: fields first, in declaration order, then methods by name, starting with the class itself and then its superclasses; or
 - `"-"`: nothing, so the class gets no receiver id. Its parameter ids are not affected.
 
-When several entries match a class, the most specific one decides: an exact class name beats any pattern, and among patterns the one with the most characters other than `*` and `?` wins. So `"com.acme.Order" = "getId()"` overrides `"com.acme.**" = "@"` for `Order`, and `"com.acme.generated.**" = "-"` takes the generated classes out of `"com.acme.**" = "@"`. A class without a deciding entry, or without the members it names, gets no receiver id. Every id is the member's value as text, from `toString()`.
+When several entries match a class, the first one in the file decides, as in `[augment.exceptions]`, so put the more specific entries first: `"com.acme.Order" = "getId()"` before `"com.acme.**" = "@"` gives `Order` its `getId()`, and `"com.acme.generated.**" = "-"` before it takes the generated classes out. An entry after one that already matches a class does not apply to it. A class without a deciding entry, or without the members it names, gets no receiver id. Every id is the member's value as text, from `toString()`.
 
-So a subclass shows the id of its superclass's entry in the frames of the methods it inherits, and an entry of its own only affects the methods it declares, which are instrumented only with such an entry:
+So a subclass's own methods show the id of the first entry that matches the subclass, which may be its superclass's, while the methods it inherits show the id of the entry that matches the superclass:
 
 ```toml
 [augment.receiver]
+"com.acme.TrackedOrder" = "tracking"   # TrackedOrder extends Order: before Order's entry, which matches it too
 "com.acme.Order" = "id"
-"com.acme.TrackedOrder" = "tracking"   # TrackedOrder extends Order
 ```
 
-A `TrackedOrder` shows `Order{id=…}.ship` in the frame of `Order.ship()`, and `TrackedOrder{tracking=…}.track` in the frame of its own `track()`. The same holds for subclasses generated at runtime: a Spring CGLIB proxy `Order$$SpringCGLIB$$0`, a Hibernate proxy `Order$HibernateProxy$…`, a Mockito mock `Order$MockitoMock$…`, an anonymous subclass, or an enum constant with a body show `Order`'s id in `Order`'s frames, while their own overrides are not instrumented unless a pattern matches their names (`"com.acme.*"` matches `com.acme.Order$$SpringCGLIB$$0`, since `*` stops only at a `.`).
+A `TrackedOrder` shows `Order{id=…}.ship` in the frame of `Order.ship()`, and `TrackedOrder{tracking=…}.track` in the frame of its own `track()`. Without its own entry, `track()` would show `TrackedOrder{id=…}.track`, from `Order`'s entry. The same holds for subclasses generated at runtime: a Spring CGLIB proxy `Order$$SpringCGLIB$$0`, a Hibernate proxy `Order$HibernateProxy$…`, a Mockito mock `Order$MockitoMock$…`, an anonymous subclass, or an enum constant with a body show `Order`'s id in `Order`'s frames and in their own overrides. A pattern such as `"com.acme.*"` matches them only by name (it matches `com.acme.Order$$SpringCGLIB$$0`, since `*` stops only at a `.`, but not a subclass in another package).
 
-Default methods of interfaces work the same way: with `"com.acme.Labeled" = "label()"`, the frame of `Labeled.relabel()` shows `Labeled{label=…}` whatever class implements it, with `label()` called on the object. The implementing class's entry does not apply to it, and without an entry for `Labeled` the frame is unchanged. Bridge methods are never instrumented, including the one Kotlin compiles into each implementing class to call the default method, so its frame stays as it is.
+Default methods of interfaces work the same way: with `"com.acme.Labeled" = "label()"`, the frame of `Labeled.relabel()` shows `Labeled{label=…}` whatever class implements it, with `label()` called on the object. The implementing class's entry does not apply to it, and without an entry for `Labeled` the frame is unchanged. The interface's entry also matches the implementing classes, so their own methods show `label()` too, unless an earlier entry matches them. Bridge methods are never instrumented, including the one Kotlin compiles into each implementing class to call the default method, so its frame stays as it is.
 
 The label is the real field or method name (`{objectId=…}`, `{getKey=…}`); it cannot be changed.
 
@@ -38,7 +38,7 @@ There is no wildcard for the parameters themselves: each one is named, or select
 
 **Hashed parameter ids.** A `#` after a name or an index in `[augment.params]` (`["user", "email#", "2#"]`), or `@StackTraceParam(secret = true)` on the parameter (also under `@StackTraceParams`, which then shows the others as text), shows the value as a short hash instead of its text: `#` and the first 8 hex digits of the SHA-256 of the `toString()`, e.g. `invite{user=ann, email=#71d4f55f}`. The same value always gives the same hash, so a value can still be followed across log lines and incidents without appearing in them. `null` stays `null`. When a parameter is selected twice (by name and by index, or by both annotations), it is hashed if either hashes it. The hash is not salted: values from a small set, e.g. PINs, can be found by trying them all, so leave such parameters out rather than hashing them.
 
-The keys match the class that declares the method, not its subclasses. When several entries match a method, only the most specific one decides, as in `[augment.receiver]`: an exact `"<class>.<method>"` beats any pattern, and among patterns the one with the most characters other than `*` and `?` wins. Entries are not combined, so a more specific `"-"` takes a method out of a less specific entry:
+The keys match the class that declares the method, not its subclasses. When several entries match a method, only the most specific one decides (unlike `[augment.receiver]`, where the first one does): an exact `"<class>.<method>"` beats any pattern, and among patterns the one with the most characters other than `*` and `?` wins. Entries are not combined, so a more specific `"-"` takes a method out of a less specific entry:
 
 ```toml
 [augment.params]

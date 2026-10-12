@@ -142,13 +142,13 @@ class IdResolverTest {
     }
 
     @Test
-    fun `the most specific entry wins`() {
-        // An exact explicit entry beats an "@" pattern.
-        val exact = resolver(here to annotations, name(Annotated::class.java) to IdSpec.FieldSpec("customerId"))
+    fun `the first matching entry wins`() {
+        // An exact explicit entry before an "@" pattern.
+        val exact = resolver(name(Annotated::class.java) to IdSpec.FieldSpec("customerId"), here to annotations)
         assertEquals(NamedId("customerId", "c-1"), exact.receiverId(Annotated()))
-        // A longer "@" pattern beats a shorter explicit one.
-        val longer = resolver(here to IdSpec.FieldSpec("customerId"), name(Annotated::class.java).dropLast(3) + "*" to annotations)
-        assertEquals(NamedId("objectId", "a-1"), longer.receiverId(Annotated()))
+        // An "@" pattern before an exact explicit entry, however specific that is.
+        val first = resolver(here to annotations, name(Annotated::class.java) to IdSpec.FieldSpec("customerId"))
+        assertEquals(NamedId("objectId", "a-1"), first.receiverId(Annotated()))
     }
 
     @Test
@@ -158,9 +158,10 @@ class IdResolverTest {
     }
 
     @Test
-    fun `an entry does not apply to subclasses, but members are found in superclasses`() {
-        assertNull(resolver(name(BaseWithId::class.java) to annotations).receiverId(ChildOfBase()))
-        assertNull(resolver(name(BaseWithId::class.java) to IdSpec.FieldSpec("baseId")).receiverId(ChildOfBase()))
+    fun `a class name applies to subclasses, a pattern does not, and members are found in superclasses`() {
+        assertEquals(NamedId("baseId", "b1"), resolver(name(BaseWithId::class.java) to annotations).receiverId(ChildOfBase()))
+        assertEquals(NamedId("baseId", "b1"), resolver(name(BaseWithId::class.java) to IdSpec.FieldSpec("baseId")).receiverId(ChildOfBase()))
+        assertNull(resolver(name(BaseWithId::class.java).dropLast(1) + "?" to annotations).receiverId(ChildOfBase()))
         // An entry of the subclass itself finds the annotation or the field that the superclass declares.
         assertEquals(NamedId("baseId", "b1"), resolver(name(ChildOfBase::class.java) to annotations).receiverId(ChildOfBase()))
         assertEquals(NamedId("baseId", "b1"), resolver(name(ChildOfBase::class.java) to IdSpec.FieldSpec("baseId")).receiverId(ChildOfBase()))
@@ -171,10 +172,14 @@ class IdResolverTest {
         val resolver = resolver(name(BaseWithId::class.java) to IdSpec.FieldSpec("baseId"))
         // A method that BaseWithId declares, running on a ChildOfBase: the entry of BaseWithId applies.
         assertEquals(NamedId("baseId", "b1"), resolver.receiverId(ChildOfBase(), name(BaseWithId::class.java)))
-        // A method that ChildOfBase declares: it has no entry.
-        assertNull(resolver.receiverId(ChildOfBase(), name(ChildOfBase::class.java)))
-        // A declaring class outside the superclass chain, e.g. an interface with a default method: the runtime class.
-        assertNull(resolver.receiverId(ChildOfBase(), "com.acme.SomeInterface"))
+        // A method that ChildOfBase declares: the entry of BaseWithId matches it too.
+        assertEquals(NamedId("baseId", "b1"), resolver.receiverId(ChildOfBase(), name(ChildOfBase::class.java)))
+        val own = resolver(name(ChildOfBase::class.java) to IdSpec.Excluded(), name(BaseWithId::class.java) to IdSpec.FieldSpec("baseId"))
+        assertNull(own.receiverId(ChildOfBase(), name(ChildOfBase::class.java)))
+        assertEquals(NamedId("baseId", "b1"), own.receiverId(ChildOfBase(), name(BaseWithId::class.java)))
+        // A declaring class outside the superclass chain, e.g. an interface with a default method: the runtime class,
+        // which BaseWithId's entry matches.
+        assertEquals(NamedId("baseId", "b1"), resolver.receiverId(ChildOfBase(), "com.acme.SomeInterface"))
     }
 
     @Test
@@ -226,7 +231,7 @@ class IdResolverTest {
     fun `a '-' entry ignores the class, without a warning`() {
         val err = ByteArrayOutputStream()
         System.setErr(PrintStream(err, true, Charsets.UTF_8))
-        val resolver = resolver(here to annotations, name(Annotated::class.java) to IdSpec.Excluded())
+        val resolver = resolver(name(Annotated::class.java) to IdSpec.Excluded(), here to annotations)
         assertNull(resolver.receiverId(Annotated()))
         assertEquals(NamedId("computeKey", "k-2"), resolver.receiverId(ByMethod()))
         assertFalse(err.toString(Charsets.UTF_8).contains("WARN"), err.toString(Charsets.UTF_8))

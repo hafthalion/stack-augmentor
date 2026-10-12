@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -142,6 +143,14 @@ class ParameterSelectionTest {
         return parameters.select(type(type), method(type, method)).stream().map(IdParameter::encodedLabel).toList();
     }
 
+    /** Two {@code [augment.receiver]} entries in this order: the first matching one wins. */
+    private static Map<String, IdSpec> firstMatch(String key1, IdSpec spec1, String key2, IdSpec spec2) {
+        Map<String, IdSpec> classes = new LinkedHashMap<>();
+        classes.put(key1, spec1);
+        classes.put(key2, spec2);
+        return classes;
+    }
+
     private static AugmentorConfig classes(Map<String, IdSpec> classes) {
         return AugmentorConfig.builder().classes(classes).build();
     }
@@ -179,8 +188,8 @@ class ParameterSelectionTest {
     @Test
     void explicitClassEntryAndAtMethodEntry() {
         String explicit = Explicit.class.getName();
-        // The exact explicit entry beats the "@" pattern: no parameter annotations ...
-        AugmentorConfig classesOnly = classes(Map.of(HERE, ANNOTATIONS, explicit, new IdSpec.MethodSpec("getId")));
+        // The explicit entry before the "@" pattern wins: no parameter annotations ...
+        AugmentorConfig classesOnly = classes(firstMatch(explicit, new IdSpec.MethodSpec("getId"), HERE, ANNOTATIONS));
         IdParameters withoutMethods = new IdParameters(classesOnly);
         assertEquals(List.of(), labels(withoutMethods, Explicit.class, "fail"));
         assertEquals(List.of(), labels(withoutMethods, Explicit.class, "failAnnotated"));
@@ -269,7 +278,7 @@ class ParameterSelectionTest {
         String service = Service.class.getName();
         String explicit = Explicit.class.getName();
         AugmentorConfig config = AugmentorConfig.builder()
-                .classes(Map.of(HERE, ANNOTATIONS, explicit, new IdSpec.Excluded()))
+                .classes(firstMatch(explicit, new IdSpec.Excluded(), HERE, ANNOTATIONS))
                 .methods(Map.of(
                         HERE_METHODS, List.of(new ParamRef.ByIndex(0), new ParamRef.ByIndex(1)),
                         service + ".*", List.of(new ParamRef.Excluded()),

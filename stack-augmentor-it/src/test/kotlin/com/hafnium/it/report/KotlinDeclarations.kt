@@ -115,7 +115,7 @@ class KotlinDeclarations(
         val others = matching.drop(1)
         return listOf(
             "// [augment.receiver] \"${short(deciding.key)}\" = \"${deciding.value}\"" +
-                if (others.isEmpty()) "" else ", wins over " + others.joinToString(", ") { "\"${short(it.key)}\" = \"${it.value}\"" },
+                if (others.isEmpty()) "" else ", before " + others.joinToString(", ") { "\"${short(it.key)}\" = \"${it.value}\"" },
         )
     }
 

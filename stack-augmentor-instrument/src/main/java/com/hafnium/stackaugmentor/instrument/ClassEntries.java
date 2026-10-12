@@ -6,6 +6,7 @@ import net.bytebuddy.description.type.TypeDefinition;
 import net.bytebuddy.description.type.TypeDescription;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
@@ -13,8 +14,9 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 /**
- * Finds the deciding {@code [augment.receiver]} entry of a type: the most specific entry that matches the type's own
- * name. Entries of superclasses do not apply.
+ * Finds the deciding {@code [augment.receiver]} entry of a type: the first entry that matches it, a pattern by the
+ * type's own name, a class name also as a superclass or an implemented interface
+ * ({@link AugmentorConfig#classEntry(Class)}).
  */
 final class ClassEntries {
 
@@ -50,7 +52,7 @@ final class ClassEntries {
         if (last != null && last.type() == type) {
             return last.deciding();
         }
-        AugmentorConfig.ClassEntry entry = config.classEntry(type.getName());
+        AugmentorConfig.ClassEntry entry = config.classEntry(type.getName(), new SupertypeNames(type)::contains);
         Deciding deciding = entry != null ? new Deciding(type, entry) : null;
         cached = new Cached(type, deciding);
         return deciding;
@@ -60,6 +62,48 @@ final class ClassEntries {
     boolean annotationsUsed(TypeDescription type) {
         Deciding deciding = decide(type);
         return deciding != null && deciding.annotations();
+    }
+
+    /**
+     * The names of a type, its superclasses and the interfaces they implement, directly or not: collected when first
+     * asked for, as only an entry without wildcards needs them. A supertype that cannot be resolved is left out, with
+     * its own supertypes.
+     */
+    private static final class SupertypeNames {
+
+        private final TypeDescription type;
+        private Set<String> names;
+
+        SupertypeNames(TypeDescription type) {
+            this.type = type;
+        }
+
+        boolean contains(String name) {
+            if (names == null) {
+                names = new HashSet<>();
+                collect(type);
+            }
+            return names.contains(name);
+        }
+
+        private void collect(TypeDefinition current) {
+            List<TypeDefinition> supertypes = new ArrayList<>();
+            try {
+                TypeDescription erasure = current.asErasure();
+                if (!names.add(erasure.getName())) {
+                    return;
+                }
+                if (erasure.getSuperClass() != null) {
+                    supertypes.add(erasure.getSuperClass());
+                }
+                supertypes.addAll(erasure.getInterfaces());
+            } catch (RuntimeException e) {
+                // a type that cannot be resolved: its supertypes are left out
+            }
+            for (TypeDefinition supertype : supertypes) {
+                collect(supertype);
+            }
+        }
     }
 
     /**

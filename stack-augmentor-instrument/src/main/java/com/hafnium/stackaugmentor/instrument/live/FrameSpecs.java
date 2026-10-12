@@ -71,7 +71,7 @@ public final class FrameSpecs {
         MethodKey method = new MethodKey(frame.getMethodName(), frame.getMethodType());
         Spec spec = methods.get(method);
         if (spec == null) {
-            spec = named(type.getName(), method.name()) ? spec(type, method.name(), method.type()) : NONE;
+            spec = named(type, method.name()) ? spec(type, method.name(), method.type()) : NONE;
             methods.putIfAbsent(method, spec);
         }
         return spec;
@@ -89,15 +89,15 @@ public final class FrameSpecs {
         if (TypeMatching.isIgnoredName(name)) {
             return false;
         }
-        AugmentorConfig.ClassEntry entry = config.classEntry(name);
+        AugmentorConfig.ClassEntry entry = config.classEntry(type);
         return entry != null && !(entry.spec() instanceof IdSpec.Excluded) || config.hasParamEntries(name);
     }
 
     /** Whether an entry of either table names the method's class, so that its frames may show ids. */
-    private boolean named(String className, String methodName) {
-        AugmentorConfig.ClassEntry entry = config.classEntry(className);
+    private boolean named(Class<?> type, String methodName) {
+        AugmentorConfig.ClassEntry entry = config.classEntry(type);
         return entry != null && !(entry.spec() instanceof IdSpec.Excluded) && !methodName.equals(AugmentorConfig.CONSTRUCTOR)
-                || !config.paramRefs(className, methodName).isEmpty();
+                || !config.paramRefs(type.getName(), methodName).isEmpty();
     }
 
     private Spec spec(Class<?> type, String name, MethodType methodType) {

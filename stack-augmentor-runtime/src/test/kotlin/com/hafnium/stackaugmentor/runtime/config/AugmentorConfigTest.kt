@@ -11,6 +11,9 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.io.TempDir
 
+/** The deciding [augment.receiver] entry of a class known only by its name, without supertypes. */
+private fun AugmentorConfig.classEntry(className: String) = classEntry(className) { it == className }
+
 class AugmentorConfigTest {
 
     private fun parse(text: String) = AugmentorConfig.parse(text.trimIndent(), "test.toml")
@@ -143,17 +146,16 @@ class AugmentorConfigTest {
     }
 
     @Test
-    fun `class entries and their specificity`() {
+    fun `receiver entries, the first matching entry wins`() {
         val config = parse(
             """
             [augment.receiver]
             "com.hafnium.**" = "@"
-            "com.acme.**" = "@"
-            "com.acme.legacy.*" = "getKey()"
             "com.acme.Order" = "orderId"
+            "com.acme.legacy.*" = "getKey()"
+            "com.acme.**" = "@"
             "com.acme.Order?" = "number"
-            "com.tie.a*" = "first"
-            "com.tie.*b" = "second"
+            "com.acme.legacy.Thing" = "never"
             """,
         )
         val annotations = IdSpec.Annotations()
@@ -163,18 +165,50 @@ class AugmentorConfigTest {
         assertEquals(annotations, spec("com.hafnium.deep.pkg.ObjectClass\$Inner"))
         assertNull(spec("com.hafniumx.Other"))
         assertNull(spec("comXhafnium.Other"))
-        // Longer patterns are more specific: '*' stays within one package segment.
-        assertEquals(IdSpec.MethodSpec("getKey"), spec("com.acme.legacy.Thing"))
+        // '*' stays within one package segment.
+        assertEquals(IdSpec.MethodSpec("getKey"), spec("com.acme.legacy.Other"))
         assertEquals(annotations, spec("com.acme.legacy.sub.Thing"))
-        // An exact name beats every pattern.
+        // The first entry wins, however specific the later ones are.
         assertEquals(IdSpec.FieldSpec("orderId"), spec("com.acme.Order"))
-        assertEquals(IdSpec.FieldSpec("number"), spec("com.acme.Orders"))
-        // Equally specific patterns: the alphabetically first key.
-        assertEquals("com.tie.*b", config.classEntry("com.tie.ab")!!.key())
-        assertTrue(config.classEntry("com.tie.ab")!!.isPattern())
+        assertEquals(annotations, spec("com.acme.Orders"))
+        assertEquals(IdSpec.MethodSpec("getKey"), spec("com.acme.legacy.Thing"))
+        assertEquals("com.acme.legacy.*", config.classEntry("com.acme.legacy.Thing")!!.key())
+        assertTrue(config.classEntry("com.acme.legacy.Thing")!!.isPattern())
         assertFalse(config.classEntry("com.acme.Order")!!.isPattern())
 
         assertEquals(annotations, parse("augment.receiver.\"**\" = \"@\"").classEntry("any.pkg.Class")?.spec())
+    }
+
+    interface Identified
+
+    open class Entity : Identified
+
+    class Customer : Entity()
+
+    @Test
+    fun `a receiver class name matches its subclasses, a pattern the class only`() {
+        val entity = Entity::class.java.name
+        val identified = Identified::class.java.name
+        val config = parse(
+            """
+            [augment.receiver]
+            "${entity.dropLast(1)}?" = "-"
+            "$entity" = "id"
+            "$identified" = "key()"
+            """,
+        )
+        // The pattern matches Entity only; the class name matches Entity's subclasses too.
+        assertEquals(IdSpec.Excluded(), config.classEntry(Entity::class.java)!!.spec())
+        assertEquals(IdSpec.FieldSpec("id"), config.classEntry(Customer::class.java)!!.spec())
+        assertEquals(entity, config.classEntry(Customer::class.java)!!.key())
+        // An interface's name matches the interface and the classes implementing it.
+        assertEquals(IdSpec.MethodSpec("key"), config.classEntry(Identified::class.java)!!.spec())
+        assertEquals(IdSpec.MethodSpec("key"), parse("[augment.receiver]\n\"$identified\" = \"key()\"").classEntry(Customer::class.java)!!.spec())
+        assertNull(config.classEntry(String::class.java))
+        // By name: the predicate says which supertypes the class has.
+        assertEquals(IdSpec.FieldSpec("id"), config.classEntry("com.acme.Other") { it == "com.acme.Other" || it == entity }!!.spec())
+        assertTrue(AugmentorConfig.isA(Customer::class.java, identified))
+        assertFalse(AugmentorConfig.isA(Entity::class.java, Customer::class.java.name))
     }
 
     @Test
@@ -337,13 +371,13 @@ class AugmentorConfigTest {
     }
 
     @Test
-    fun `the most specific entry decides, '-' included`() {
+    fun `the first receiver entry and the most specific params entry decide, '-' included`() {
         val config = parse(
             """
             [augment.receiver]
-            "com.acme.**" = "@"
-            "com.acme.generated.**" = "-"
             "com.acme.generated.Keep" = "id"
+            "com.acme.generated.**" = "-"
+            "com.acme.**" = "@"
 
             [augment.params]
             "com.thirdparty.**.*Service.*" = [0]
@@ -354,7 +388,7 @@ class AugmentorConfigTest {
             "com.acme.generated.Gen.run" = [1]
             """,
         )
-        // [augment.receiver]: the most specific entry decides, "-" included.
+        // [augment.receiver]: the first matching entry decides, "-" included.
         assertEquals(IdSpec.Annotations(), config.classEntry("com.acme.Order").spec())
         assertEquals(IdSpec.Excluded(), config.classEntry("com.acme.generated.Gen").spec())
         assertEquals(IdSpec.FieldSpec("id"), config.classEntry("com.acme.generated.Keep").spec())
