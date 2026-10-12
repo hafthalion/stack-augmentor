@@ -1,6 +1,10 @@
 [augment]
 maxIdLength = 20
 
+# All throwables get ids (without an entry that is true, none would).
+[augment.exceptions]
+"**" = true
+
 # The two tables are independent: [augment.receiver] for the receiver ids, [augment.params] for the parameter ids.
 [augment.receiver]
 # The fixtures' receiver ids come from their @StackTraceId

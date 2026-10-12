@@ -16,7 +16,7 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
   between 2 and 10000, default 64), and the tables:
   - `[augment.exceptions]` (class name or class pattern → `true` or `false`), which decides the throwables
     whose frames get ids, see the stack trace augmentation spec. Its entries SHALL be read in the order of the
-    file. Without the table all throwables get ids; an empty table matches none;
+    file. Without entries no throwable gets ids;
   - `[augment.receiver]` (class name or class pattern → field name, `method()`, a list of them, `"@"` for
     the class's `@StackTraceId` members, or `"-"` for no receiver id), which decides the receiver ids;
   - `[augment.params]` (`"<class pattern>.<method pattern>"` → array of parameter names and 0-based
@@ -25,7 +25,7 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
     there is no wildcard value for the parameters), which decides the parameter ids. The method part `<init>`
     names the constructors; wildcards in the method part SHALL match it like any method name.
 
-  `[augment.receiver]` and `[augment.params]` default to empty. The tables SHALL be independent: no value in one table SHALL change what the
+  The tables default to empty. They SHALL be independent: no value in one table SHALL change what the
   other selects.
 
 Sections, dotted keys (`augment.maxIdLength = 32`) and inline tables SHALL be equivalent. Quoted and
