@@ -17,8 +17,8 @@ paramsFormat = "{$name=$id, ...}"
 maxIdLength = 64
 
 # Which exceptions get ids, at runtime: true or false, the first matching entry wins, and an exception that no
-# entry matches gets none (without this table, all do; with an empty one, none). A class name also matches its
-# subclasses, as instanceof does; a pattern matches the exception's own class only.
+# entry matches gets none (so without entries, none does). A class name also matches its subclasses, as
+# instanceof does; a pattern matches the exception's own class only.
 [augment.exceptions]
 "java.lang.IllegalArgumentException" = false             # this class and its subclasses: no ids
 "java.lang.*" = true                                     # these classes only, e.g. Exception, IllegalStateException

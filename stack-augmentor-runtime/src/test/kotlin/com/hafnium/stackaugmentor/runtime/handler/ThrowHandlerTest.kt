@@ -84,7 +84,7 @@ class ThrowHandlerTest {
 
     @Test
     fun `the context class loader provides the configuration that the runtime jar's loader does not see`(@TempDir dir: Path) {
-        Files.writeString(dir.resolve("stack-augmentor.toml"), "[augment.receiver]\n\"${Annotated::class.java.name}\" = \"@\"\n")
+        Files.writeString(dir.resolve("stack-augmentor.toml"), "[augment.exceptions]\n\"java.lang.Exception\" = true\n[augment.receiver]\n\"${Annotated::class.java.name}\" = \"@\"\n")
         val thread = Thread.currentThread()
         val originalLoader = thread.contextClassLoader
         val originalErr = System.err
@@ -117,7 +117,7 @@ class ThrowHandlerTest {
     fun `an '@' entry uses the annotations`() {
         val target = Annotated()
         val thrown = thrownBy(target)
-        val config = AugmentorConfig.builder().classes(mapOf(Annotated::class.java.name to IdSpec.Annotations())).build()
+        val config = AugmentorConfig.builder().classes(mapOf(Annotated::class.java.name to IdSpec.Annotations())).exceptions(mapOf("**" to true)).build()
         ThrowHandler(config).onThrow(target, thrown, Annotated::class.java.name, "fail", null, null)
         assertEquals("${Annotated::class.java.name}{objectId=a-1}", thrown.stackTrace[0].className)
     }
@@ -126,7 +126,7 @@ class ThrowHandlerTest {
     fun `a label ending in # shows a hash of the value`() {
         val target = Annotated()
         val thrown = thrownBy(target)
-        ThrowHandler(AugmentorConfig()).onThrow(
+        ThrowHandler(AugmentorConfig.builder().exceptions(mapOf("**" to true)).build()).onThrow(
             null, thrown, Annotated::class.java.name, "fail", arrayOf<Any?>("ann@example.com", 42, null), arrayOf("email#", "id", "phone#"),
         )
         // SHA-256 of "ann@example.com" starts with 71d4f55f; null stays null.

@@ -90,7 +90,7 @@ class IdResolverTest {
     fun restore() = System.setErr(originalErr)
 
     private fun resolver(vararg classes: Pair<String, IdSpec>) =
-        IdResolver(AugmentorConfig.builder().classes(classes.toMap()).maxIdLength(10).build())
+        IdResolver(AugmentorConfig.builder().classes(classes.toMap()).maxIdLength(10).exceptions(mapOf("**" to true)).build())
 
     private fun name(type: Class<*>) = type.name
 

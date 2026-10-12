@@ -28,7 +28,7 @@ An application with classes instrumented at build time can also run with the age
 | Option | Where | Default | What it does |
 |---|---|---|---|
 | Configuration file | `-javaagent:...=config=<file>`, `-Dstackaugmentor.config=<file>`, or (build-time) `stack-augmentor.toml` on the classpath | none: nothing is augmented | the TOML file with everything below |
-| `[augment.exceptions]` | configuration | all exceptions | which exceptions get ids: `true` or `false`, the first matching entry wins; a class name includes its subclasses; an empty table matches none |
+| `[augment.exceptions]` | configuration | empty: no exception gets ids | which exceptions get ids: `true` or `false`, the first matching entry wins; a class name includes its subclasses, so `"java.lang.Exception" = true` covers all exceptions and `"**" = true` all throwables |
 | `[augment.receiver]` | configuration | empty | which classes show a receiver id, and where it comes from |
 | `[augment.params]` | configuration | empty | which methods show parameter ids, and which parameters |
 | `[augment]` | configuration | see [Formats](docs/configuration.md#formats) | how frames look: `frameFormat`, `receiverFormat`, `paramsFormat`, `maxIdLength` |
@@ -78,9 +78,12 @@ Use it in your own application:
    }
    ```
 
-2. Say which classes use their annotations, in `stack-augmentor.toml`. Receiver ids and parameter ids are configured separately:
+2. Say which exceptions get ids and which classes use their annotations, in `stack-augmentor.toml`. Receiver ids and parameter ids are configured separately:
 
    ```toml
+   [augment.exceptions]    # without an entry that is true, no exception gets ids
+   "java.lang.Exception" = true
+
    [augment.receiver]      # receiver ids: @StackTraceId
    "com.acme.**" = "@"
 

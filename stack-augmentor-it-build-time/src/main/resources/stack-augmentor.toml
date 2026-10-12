@@ -1,7 +1,7 @@
 # One file for both phases:
 # - [augment.receiver] and [augment.params] are read at build time by the ByteBuddy build plugin (see
 #   build.gradle.kts), which instruments the classes and methods they need;
-# - [augment], [augment.receiver] and debug are read at runtime, from the classpath
+# - [augment], [augment.exceptions], [augment.receiver] and debug are read at runtime, from the classpath
 #   (or from -Dstackaugmentor.config=<file>).
 
 # Print diagnostics to stderr (default: false).
@@ -14,6 +14,10 @@ receiverFormat = "{$name=$id, ...}"
 paramsFormat = "{$name=$id, ...}"
 # Longer ids are cut off with "…".
 maxIdLength = 64
+
+# Which exceptions get ids, at runtime: all throwables (without an entry that is true, none would).
+[augment.exceptions]
+"**" = true
 
 # Only this project's classes are changed. The classes in com.hafnium.it.buildtime.configured have no
 # annotations: their ids come from the entries below.
