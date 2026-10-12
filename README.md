@@ -28,10 +28,10 @@ An application with classes instrumented at build time can also run with the age
 | Option | Where | Default | What it does |
 |---|---|---|---|
 | Configuration file | `-javaagent:...=config=<file>`, `-Dstackaugmentor.config=<file>`, or (build-time) `stack-augmentor.toml` on the classpath | none: nothing is augmented | the TOML file with everything below |
+| `[augment.exceptions]` | configuration | all exceptions | which exceptions get ids: `true` or `false`, the first matching entry wins; a class name includes its subclasses; an empty table matches none |
 | `[augment.receiver]` | configuration | empty | which classes show a receiver id, and where it comes from |
 | `[augment.params]` | configuration | empty | which methods show parameter ids, and which parameters |
 | `[augment]` | configuration | see [Formats](docs/configuration.md#formats) | how frames look: `frameFormat`, `receiverFormat`, `paramsFormat`, `maxIdLength` |
-| `[augment.exceptions]` | configuration | all exceptions | which exceptions get ids: `true` or `false`, the first matching entry wins; a class name includes its subclasses |
 | `debug` | configuration | `false` | prints what gets instrumented and where each id comes from |
 | `inPlaceModification` | configuration, or `-Dstackaugmentor.inPlaceModification=true` | `false` | writes each frame into the exception's own stack trace instead of copying the trace; faster for deep stacks, needs `java.lang` open (see [Limitations](docs/limitations.md)) |
 | Live stack | `-agentpath:<native library>` | off | the agent reads ids from the live stack instead of instrumenting classes (see [Live stack](docs/live-stack.md)) |

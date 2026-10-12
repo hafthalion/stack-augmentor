@@ -449,9 +449,18 @@ class AugmentorConfigTest {
     @Test
     fun `exceptions entries, the first matching entry wins`() {
         val all = AugmentorConfig()
-        assertTrue(all.exceptions().isEmpty())
+        assertTrue(all.exceptions().isEmpty)
         assertTrue(all.augments(Error::class.java))
         assertEquals("all", all.exceptionsDescription())
+
+        // An empty table matches no exception, as empty receiver and params tables give no ids.
+        for (empty in listOf(parse("[augment.exceptions]"), parse("augment.exceptions = {}"))) {
+            assertEquals(mapOf<String, Boolean>(), empty.exceptions().get())
+            assertFalse(empty.augments(Error::class.java))
+            assertFalse(empty.augments(RuntimeException::class.java))
+            assertEquals("none", empty.exceptionsDescription())
+            assertNotEquals(all, empty)
+        }
 
         val config = parse(
             """
@@ -465,7 +474,7 @@ class AugmentorConfigTest {
         )
         assertEquals(
             listOf("java.io.FileNotFoundException", "java.io.IOException", Base::class.java.name.dropLast(2) + "?e", "java.util.concurrent.**", "java.**"),
-            config.exceptions().keys.toList(),
+            config.exceptions().get().keys.toList(),
         )
         assertEquals(
             "java.io.FileNotFoundException=false, java.io.IOException=true, ${Base::class.java.name.dropLast(2)}?e=true, " +

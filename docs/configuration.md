@@ -20,6 +20,16 @@ receiverFormat = "{$name=$id, ...}"
 paramsFormat = "{$name=$id, ...}"
 maxIdLength = 64
 
+# Which exceptions get ids: true or false. The first entry that matches decides, in the order of the file; an
+# exception that no entry matches gets none. A class name matches the class and its subclasses, as instanceof
+# does; a pattern matches the name of the exception's runtime class only, as in [augment.receiver].
+# Without this table, all exceptions get ids (the default); an empty table matches none, so none do.
+[augment.exceptions]
+"java.io.FileNotFoundException" = false              # except this one
+"java.io.IOException" = true                         # and its subclasses
+"com.acme.flow.**" = false                           # these classes, not their subclasses elsewhere
+"com.acme.**" = true
+
 # Which receivers and parameters get ids: two independent tables. Read by the agent when classes load, or by
 # the build plugin at build time, which instrument whatever classes and methods they need.
 # Keys may use wildcards: '*' within one package (or name), '**' across packages, '?' one character.
@@ -48,16 +58,6 @@ maxIdLength = 64
 "com.thirdparty.**.AuditRepository.find*" = "-"      # except these
 "com.thirdparty.UserService.invite" = ["user", "email#"]     # email hashed
 "com.thirdparty.Shipment.<init>" = ["orderId"]       # constructors: <init>
-
-# Which exceptions get ids: true or false. The first entry that matches decides, in the order of the file; an
-# exception that no entry matches gets none. A class name matches the class and its subclasses, as instanceof
-# does; a pattern matches the name of the exception's runtime class only, as in [augment.receiver].
-# Without this table, all exceptions get ids (the default).
-[augment.exceptions]
-"java.io.FileNotFoundException" = false              # except this one
-"java.io.IOException" = true                         # and its subclasses
-"com.acme.flow.**" = false                           # these classes, not their subclasses elsewhere
-"com.acme.**" = true
 ```
 
 - **Quote class names.** Without quotes TOML reads each `.` as a nested table; that works too, but keys with wildcards must be quoted. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.

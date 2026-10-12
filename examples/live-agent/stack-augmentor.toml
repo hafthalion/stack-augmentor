@@ -3,6 +3,14 @@
 debug = false
 inPlaceModification = true
 
+# Only the example's exceptions get ids: in the live-stack mode the agent looks at the stack of every throwable
+# whose trace the VM records, also those the JDK creates and catches itself, unless no entry gives it ids. A class
+# name also matches its subclasses; the first matching entry wins.
+[augment.exceptions]
+"com.hafnium.examples.live.PaymentDeclinedException" = true
+"com.hafnium.examples.live.SlowCallWarning" = true
+"java.lang.IllegalArgumentException" = true              # the receipt's require(...)
+
 # Every class of the example takes its ids from its annotations, so every frame of its stack traces can show
 # them; the formats are the defaults. The configuration is the same whether or not the agent reads the frames
 # from the live stack (see examples/java-agent for all the options).
@@ -11,11 +19,3 @@ inPlaceModification = true
 
 [augment.params]
 "com.hafnium.examples.live.**.*" = "@"
-
-# Only the example's exceptions get ids: in the live-stack mode the agent looks at the stack of every throwable
-# whose trace the VM records, also those the JDK creates and catches itself, unless no entry gives it ids. A class
-# name also matches its subclasses; the first matching entry wins.
-[augment.exceptions]
-"com.hafnium.examples.live.PaymentDeclinedException" = true
-"com.hafnium.examples.live.SlowCallWarning" = true
-"java.lang.IllegalArgumentException" = true              # the receipt's require(...)

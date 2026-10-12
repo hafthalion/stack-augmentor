@@ -16,6 +16,13 @@ paramsFormat = "{$name=$id, ...}"
 # Longer ids are cut off with "…".
 maxIdLength = 64
 
+# Which exceptions get ids, at runtime: true or false, the first matching entry wins, and an exception that no
+# entry matches gets none (without this table, all do; with an empty one, none). A class name also matches its
+# subclasses, as instanceof does; a pattern matches the exception's own class only.
+[augment.exceptions]
+"java.lang.IllegalArgumentException" = false             # this class and its subclasses: no ids
+"java.lang.*" = true                                     # these classes only, e.g. Exception, IllegalStateException
+
 # Only this project's classes are changed: entries for real library classes don't apply. The com.thirdparty
 # classes here are stand-ins compiled with this project, so their entries do.
 # In keys, '*' matches within a package or name, '**' across packages, '?' one character.
@@ -39,10 +46,3 @@ maxIdLength = 64
 "com.thirdparty.Inventory*.*" = ["sku", "count"]                         # all methods of the Inventory* classes ...
 "com.thirdparty.InventoryAudit.*" = "-"                                  # ... except InventoryAudit's
 "com.thirdparty.Customer.notify" = ["email#"]                            # hashed
-
-# Which exceptions get ids, at runtime: true or false, the first matching entry wins, and an exception that no
-# entry matches gets none (without this table, all do). A class name also matches its subclasses, as instanceof
-# does; a pattern matches the exception's own class only.
-[augment.exceptions]
-"java.lang.IllegalArgumentException" = false             # this class and its subclasses: no ids
-"java.lang.*" = true                                     # these classes only, e.g. Exception, IllegalStateException

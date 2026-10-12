@@ -11,6 +11,14 @@ paramsFormat = "{$name=$id, ...}"
 # Longer ids are cut off with "…".
 maxIdLength = 64
 
+# Which exceptions get ids: true or false, the first matching entry wins, and an exception that no entry matches
+# gets none (without this table, all do; with an empty one, none). A class name also matches its subclasses, as
+# instanceof does; a pattern matches the exception's own class only.
+[augment.exceptions]
+"com.hafnium.examples.agent.CheckoutException" = true    # this class and its subclasses
+"java.lang.IllegalArgumentException" = false             # this class and its subclasses: no ids
+"java.lang.*" = true                                     # these classes only, e.g. Exception, IllegalStateException
+
 # The two tables below are independent: [augment.receiver] decides which receivers get ids,
 # [augment.params] which parameters. The agent instruments whatever classes and methods they need.
 # In keys, '*' matches within a package or name, '**' across packages, '?' one character.
@@ -34,11 +42,3 @@ maxIdLength = 64
 "com.thirdparty.Inventory*.*" = ["sku", "count"]                     # all methods of the Inventory* classes ...
 "com.thirdparty.InventoryAudit.*" = "-"                              # ... except InventoryAudit's
 "com.thirdparty.Customer.notify" = ["email#"]                        # hashed
-
-# Which exceptions get ids: true or false, the first matching entry wins, and an exception that no entry
-# matches gets none (without this table, all do). A class name also matches its subclasses, as instanceof
-# does; a pattern matches the exception's own class only.
-[augment.exceptions]
-"com.hafnium.examples.agent.CheckoutException" = true    # this class and its subclasses
-"java.lang.IllegalArgumentException" = false             # this class and its subclasses: no ids
-"java.lang.*" = true                                     # these classes only, e.g. Exception, IllegalStateException
