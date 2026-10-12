@@ -36,11 +36,12 @@ maxIdLength = 64
 # Keys may use wildcards: '*' within one package (or name), '**' across packages, '?' one character.
 
 # Receiver ids: "@" for the class's @StackTraceId (without an "@" entry, it is not used), or, for classes you
-# cannot annotate, a field or a no-argument method ending in "()", or a list of them; "-" for none. An entry applies to the
-# classes it matches, not to their subclasses; the most specific entry wins.
+# cannot annotate, a field or a no-argument method ending in "()", or a list of them; "-" for none. The first entry
+# that matches decides, in the order of the file, as in [augment.exceptions]: a class name matches the class and its
+# subclasses (an interface's name the classes implementing it), a pattern the name of the class only.
 [augment.receiver]
-"com.hafnium.**" = "@"
-"com.hafnium.generated.**" = "-"                     # except these
+"com.hafnium.generated.**" = "-"                     # these first ...
+"com.hafnium.**" = "@"                               # ... then the rest of com.hafnium
 "com.acme.orders.*" = "@"
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"

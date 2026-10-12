@@ -76,18 +76,21 @@ class. A key SHALL be a class name or a class pattern with the globs `*` (within
 with `()`, a non-empty list of them without duplicates, `"@"` for the class's `@StackTraceId` members, or
 `"-"` for none. A list SHALL give one receiver id per member, in the listed order; a member that is not found
 SHALL be reported as a single one is and left out, while the others are still shown. Every receiver id SHALL
-be the member's value as text, from `toString()`. An entry SHALL apply only to the
-classes whose names it matches, not to their subclasses. The receiver id of a frame SHALL come from the
-deciding entry of the class that declares the frame's method, read from the object the method runs on,
+be the member's value as text, from `toString()`. An entry without wildcards SHALL match the class it
+names and its subclasses, and for an interface the classes implementing it, as `instanceof` does, comparing
+names so that no class is loaded; a key with wildcards SHALL match the classes whose names it matches only,
+not their subclasses. When several entries match a class, the first in the order of the file SHALL decide,
+as in `[augment.exceptions]`, however specific the later ones are. The receiver id of a frame SHALL come from
+the deciding entry of the class that declares the frame's method, read from the object the method runs on,
 whatever the object's runtime class: a subclass, including one generated at runtime (a proxy, a mock, an
 anonymous class or an enum constant with a body), SHALL show the id of its superclass's entry in the frames
-of the methods it inherits. The methods that a subclass declares SHALL only get a receiver id from an entry
-that matches the subclass, which a pattern whose glob matches a generated class's name does. A default method
+of the methods it inherits. The methods that a subclass declares SHALL get their receiver id from the first
+entry that matches the subclass: an entry of its own, an entry without wildcards for a superclass or an
+implemented interface, or a pattern whose glob matches its name. A default method
 of an interface SHALL likewise show the id of the interface's deciding entry, read from the object,
 whatever entry the implementing class has; without an entry for the interface, its frame SHALL be
 unchanged. Bridge methods, including those Kotlin compiles into a class for each default method it
-inherits, SHALL NOT be instrumented, so their frames are unchanged. When several entries match a class, the most specific SHALL decide: an entry without wildcards beats any pattern, and among patterns, the one with the
-most characters other than `*` and `?` wins, with ties broken by the alphabetical order of the keys. A
+inherits, SHALL NOT be instrumented, so their frames are unchanged. A
 configured field or method SHALL be looked up in the matched class and its superclasses, including private
 members; for an interface, in the interface and the interfaces it extends, where an abstract method is
 called on the object. A configured method or getter that a class does not declare itself SHALL then be looked up
@@ -134,20 +137,27 @@ name starting with `is`), with the configured name as the label.
 - **WHEN** an exception leaves a method of a `com.thirdparty.SavingsAccount` with the field `number = "S-1"`
 - **THEN** that frame shows the receiver id `number=S-1`
 
-#### Scenario: Most specific entry wins
-- **GIVEN** `"com.acme.**" = "@"` and `"com.acme.Order" = "getId()"` in `[augment.receiver]`, and `com.acme.Order` with `@StackTraceId val code` and `fun getId()`
+#### Scenario: First matching entry wins
+- **GIVEN** `"com.acme.Order" = "getId()"` and then `"com.acme.**" = "@"` in `[augment.receiver]`, and `com.acme.Order` with `@StackTraceId val code` and `fun getId()`
 - **WHEN** an exception leaves a method of an `Order`
 - **THEN** that frame shows the receiver id `getId=…`, and `Order`'s `@StackTraceId` is not used
+- **AND** with the two entries the other way round, `"com.acme.**" = "@"` decides and the frame shows `code=…`
 
 #### Scenario: Subclass without an entry
-- **GIVEN** `"com.thirdparty.Order" = "getOrderNumber()"` and a subclass `com.acme.RushOrder` that no entry matches
+- **GIVEN** `"com.thirdparty.Order" = "getOrderNumber()"` and a subclass `com.acme.RushOrder` that no other entry matches
+- **WHEN** an exception leaves `Order.ship()`, called on a `RushOrder`, and separately `RushOrder.expedite()`
+- **THEN** the first frame shows `com.thirdparty.Order{getOrderNumber=…}`, and the second `com.acme.RushOrder{getOrderNumber=…}`
+
+#### Scenario: Subclass not matched by a pattern
+- **GIVEN** `"com.thirdparty.*" = "getOrderNumber()"` and a subclass `com.acme.RushOrder` of `com.thirdparty.Order` that no other entry matches
 - **WHEN** an exception leaves `Order.ship()`, called on a `RushOrder`, and separately `RushOrder.expedite()`
 - **THEN** the first frame shows the receiver id `getOrderNumber=…`, and the second frame is unchanged
 
 #### Scenario: Subclass with an entry of its own
-- **GIVEN** `"com.acme.Order" = "id"` and `"com.acme.TrackedOrder" = "tracking"`, where `TrackedOrder` extends `Order`
+- **GIVEN** `"com.acme.TrackedOrder" = "tracking"` and then `"com.acme.Order" = "id"`, where `TrackedOrder` extends `Order`
 - **WHEN** an exception leaves `Order.ship()`, called on a `TrackedOrder`, and separately `TrackedOrder.track()`
 - **THEN** the first frame shows `id=…`, and the second `tracking=…`
+- **AND** with `"com.acme.Order" = "id"` first, the second frame shows `id=…` too: `TrackedOrder`'s entry never decides
 
 #### Scenario: Subclass with an entry naming an inherited member
 - **GIVEN** `"com.acme.ExpressOrder" = "id"`, where `ExpressOrder` extends `Order`, which declares the field `id`
@@ -157,7 +167,7 @@ name starting with `is`), with the configured name as the label.
 #### Scenario: Generated subclass
 - **GIVEN** `"com.acme.Order" = "id"`, and a Spring CGLIB proxy `com.acme.Order$$SpringCGLIB$$0` that calls the real methods
 - **WHEN** an exception leaves `Order.ship()`, called on the proxy
-- **THEN** that frame shows `id=…`, and the frame of the proxy's own override is unchanged
+- **THEN** that frame shows `id=…`, and so does the frame of the proxy's own override
 
 #### Scenario: Default method of an interface
 - **GIVEN** `"com.acme.Labeled" = "label()"` and `"com.acme.Parcel" = "code"`, where the Kotlin class `Parcel` implements `Labeled` and inherits its default method `relabel()`
@@ -372,7 +382,7 @@ them.
 #### Scenario: Subclass of a class with an "@" entry
 - **GIVEN** `"com.hafnium.it.fixtures.**" = "@"`, and `com.hafnium.it.outside.DerivedOutside` extending `com.hafnium.it.fixtures.Base`, which declares `@StackTraceId val baseId = "b1"`
 - **WHEN** an exception leaves a method of `DerivedOutside`
-- **THEN** that frame shows no receiver id: `DerivedOutside` declares `fail()`, and the entry of `Base` does not apply to its subclasses
+- **THEN** that frame shows no receiver id: `DerivedOutside` declares `fail()`, and the pattern matches the names of the classes in `com.hafnium.it.fixtures` only, not their subclasses elsewhere
 
 #### Scenario: Matched class without annotations
 - **GIVEN** a class matched by an `"@"` entry that has no annotations, but overrides `toString()`

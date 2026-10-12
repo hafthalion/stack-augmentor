@@ -41,8 +41,8 @@ class Wide {
 }
 
 /**
- * Matched by the "@" entries of the fixtures, but more specific entries decide: its receiver id comes from
- * "getId()", and its parameter annotations are ignored ("-"), except those of failAnnotated, whose exact
+ * Matched by the "@" entries of the fixtures, but other entries decide: its receiver id comes from its own
+ * [augment.receiver] entry "getId()", which comes first, and its parameter annotations are ignored ("-"), except those of failAnnotated, whose exact
  * [augment.params] "@" entry is more specific still.
  */
 class Overridden {

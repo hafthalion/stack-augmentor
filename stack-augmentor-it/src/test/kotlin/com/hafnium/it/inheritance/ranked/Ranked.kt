@@ -1,9 +1,10 @@
 package com.hafnium.it.inheritance.ranked
 
-// Pattern precedence, see InheritanceTest. Entries: "com.hafnium.it.inheritance.ranked.**" = "code",
-// "...ranked.excluded.*" = "-", "...ranked.excluded.Kept" = "code" and "...ranked.special.*" = "tag".
+// Entry order, see InheritanceTest. Entries, in this order: "...ranked.excluded.Kept" = "code",
+// "...ranked.excluded.*" = "-", "...ranked.special.*" = "tag", "com.hafnium.it.inheritance.ranked.**" = "code" and
+// "...ranked.Account" = "-".
 
-/** Matched only by "ranked.**". */
+/** Matched by "ranked.**" first, and by its exact entry "-" too, which comes later. */
 open class Account(private val code: String) {
     fun close(): Nothing = throw IllegalStateException("cannot close $code")
 }

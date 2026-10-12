@@ -25,11 +25,11 @@ maxIdLength = 64
 
 # Receiver ids: "@" uses the class's @StackTraceId (without an "@" entry, it is not used). Classes you
 # cannot annotate name a method() or a field: an order is identified by its getOrderNumber() method, a
-# customer by its customerId field.
+# customer by its customerId field. The first matching entry wins, so they come before the "@" pattern.
 [augment.receiver]
-"com.hafnium.it.buildtime.**" = "@"
 "com.hafnium.it.buildtime.configured.Order" = "getOrderNumber()"
 "com.hafnium.it.buildtime.configured.Customer" = "customerId"
+"com.hafnium.it.buildtime.**" = "@"
 
 # Parameter ids, independently of the receivers: "@" uses the methods' @StackTraceParam and @StackTraceParams
 # annotations. Otherwise parameters are selected by name or 0-based index, "#" after one shows its value

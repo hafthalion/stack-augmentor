@@ -1,7 +1,8 @@
 package com.hafnium.it.inheritance
 
 // Receiver ids by inheritance, see InheritanceTest. Only the classes whose comment names an entry have one in
-// src/test/resources/stack-augmentor.toml. The classes are open, so that proxies and mocks can subclass them.
+// src/test/resources/stack-augmentor.toml; such an entry also matches the subclasses and implementing classes. The
+// classes are open, so that proxies and mocks can subclass them.
 
 /** Entry "id". */
 open class Order(private val id: String) {
@@ -15,7 +16,7 @@ open class Order(private val id: String) {
     }
 }
 
-/** No entry of its own. */
+/** No entry of its own: matched by Order's. */
 class RushOrder(id: String) : Order(id) {
     fun expedite(): Nothing = throw IllegalStateException("cannot expedite")
 }
@@ -30,7 +31,7 @@ class TrackedOrder(id: String, private val tracking: String) : Order(id) {
     fun track(): Nothing = throw IllegalStateException("cannot track $tracking")
 }
 
-/** No entry: a subclass of a subclass. */
+/** No entry: a subclass of a subclass, matched by the entry of ExpressOrder. */
 class SameDayOrder(id: String) : ExpressOrder(id) {
     fun hurry(): Nothing = throw IllegalStateException("cannot hurry")
 }

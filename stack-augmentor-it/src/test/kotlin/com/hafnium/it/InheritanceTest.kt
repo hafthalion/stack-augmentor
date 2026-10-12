@@ -49,10 +49,11 @@ import org.springframework.cglib.proxy.Enhancer
 import org.springframework.cglib.proxy.NoOp
 
 /**
- * [augment.receiver] entries apply to the classes they match, not to subclasses: see the inheritance entries in
- * src/test/resources/stack-augmentor.toml. A frame's receiver id comes from the entry of the class that declares its
- * method, read from the object: a subclass, e.g. a proxy or a mock, shows the id of Order in the frames of Order's
- * methods, but its own methods are only instrumented with an entry of its own. Runs with the agent.
+ * An [augment.receiver] entry without wildcards applies to its class and the subclasses, a pattern to the classes whose
+ * name it matches only, and the first matching entry wins: see the inheritance entries in
+ * src/test/resources/stack-augmentor.toml. A frame's receiver id comes from the entry that matches the class declaring
+ * its method, read from the object: a subclass, e.g. a proxy or a mock, shows the id of Order in the frames of Order's
+ * methods, and its own methods show it too unless an earlier entry matches the subclass. Runs with the agent.
  *
  * Each test makes one call. Its frames, as the test observed them, the receiver's types and the declarations of the
  * called method, as reflection reports them, are written by [FrameReport] to build/reports/frames/InheritanceTest.html
@@ -115,8 +116,8 @@ class InheritanceTest {
     inner class SubclassWithoutEntry {
 
         @Test
-        fun `a subclass's own method is not instrumented`() {
-            assertEquals("com.hafnium.it.inheritance.RushOrder", frame("RushOrder(\"r-1\").expedite()", RushOrder("r-1"), "expedite") { it.expedite() }.className)
+        fun `a subclass's own method shows the id of the superclass's entry`() {
+            assertEquals("com.hafnium.it.inheritance.RushOrder{id=r-1}", frame("RushOrder(\"r-1\").expedite()", RushOrder("r-1"), "expedite") { it.expedite() }.className)
         }
 
         @Test
@@ -138,8 +139,8 @@ class InheritanceTest {
         }
 
         @Test
-        fun `an enum constant's own override is not instrumented`() {
-            assertEquals("com.hafnium.it.inheritance.Priority\$HIGH", frame("Priority.HIGH.escalate()", Priority.HIGH, "escalate") { it.escalate() }.className)
+        fun `an enum constant's own override shows the enum's id`() {
+            assertEquals("com.hafnium.it.inheritance.Priority\$HIGH{code=h}", frame("Priority.HIGH.escalate()", Priority.HIGH, "escalate") { it.escalate() }.className)
         }
 
         @Test
@@ -153,8 +154,8 @@ class InheritanceTest {
     inner class SubclassOfSubclass {
 
         @Test
-        fun `the own method of a subclass without an entry is not instrumented`() {
-            assertEquals("com.hafnium.it.inheritance.SameDayOrder", frame("SameDayOrder(\"d-1\").hurry()", SameDayOrder("d-1"), "hurry") { it.hurry() }.className)
+        fun `the own method of a subclass without an entry shows the middle class's id`() {
+            assertEquals("com.hafnium.it.inheritance.SameDayOrder{id=d-1}", frame("SameDayOrder(\"d-1\").hurry()", SameDayOrder("d-1"), "hurry") { it.hurry() }.className)
         }
 
         @Test
@@ -234,8 +235,8 @@ class InheritanceTest {
         }
 
         @Test
-        fun `the implementation of an abstract method in a subclass without an entry is not instrumented`() {
-            assertEquals("com.hafnium.it.inheritance.SeaShipment", frame("SeaShipment(\"s-9\").route()", SeaShipment("s-9"), "route") { it.route() }.className)
+        fun `the implementation of an abstract method in a subclass without an entry shows the abstract class's id`() {
+            assertEquals("com.hafnium.it.inheritance.SeaShipment{id=s-9}", frame("SeaShipment(\"s-9\").route()", SeaShipment("s-9"), "route") { it.route() }.className)
         }
     }
 
@@ -251,19 +252,26 @@ class InheritanceTest {
         }
 
         @Test
-        fun `an override without an entry is unchanged, and the overridden method shows the superclass's id`() {
+        fun `an override without an entry and the overridden method both show the superclass entry's id`() {
             val trace = trace("ReturnOrder(\"x-1\").ship()", ReturnOrder("x-1"), "ship") { it.ship() }
             assertEquals("$order{id=x-1}", trace[0].className)
-            assertEquals("com.hafnium.it.inheritance.ReturnOrder", trace[1].className)
+            assertEquals("com.hafnium.it.inheritance.ReturnOrder{id=x-1}", trace[1].className)
         }
 
         @Test
-        fun `a generic override and its bridge method without an entry are unchanged`() {
+        fun `a generic override without an entry shows the superclass entry's id, and its bridge method is unchanged`() {
             val repository: Repository<Order> = OrderRepository()
             val trace = trace("(OrderRepository() as Repository<Order>).save(Order(\"o-9\"))", repository, "save") { it.save(Order("o-9")) }
-            assertEquals("com.hafnium.it.inheritance.Repository{name=orders}", trace[0].className)
-            val own = trace.filter { it.className.startsWith("com.hafnium.it.inheritance.OrderRepository") }
-            assertTrue(own.isNotEmpty() && own.all { it.className == "com.hafnium.it.inheritance.OrderRepository" }, own.toString())
+            val repositoryFrames = trace.takeWhile { !it.className.startsWith(InheritanceTest::class.java.name) }.map { it.className }
+            assertEquals(
+                listOf(
+                    "com.hafnium.it.inheritance.Repository{name=orders}",
+                    "com.hafnium.it.inheritance.OrderRepository{name=orders}",
+                    // The bridge save(Object), which calls save(Order).
+                    "com.hafnium.it.inheritance.OrderRepository",
+                ),
+                repositoryFrames.take(3),
+            )
         }
 
         @Test
@@ -375,18 +383,18 @@ class InheritanceTest {
     }
 
     @Nested
-    @DisplayName("Pattern precedence")
-    inner class PatternPrecedence {
+    @DisplayName("Entry order")
+    inner class EntryOrder {
 
         private val ranked = "com.hafnium.it.inheritance.ranked"
 
         @Test
-        fun `a class matched only by a broad pattern shows its id`() {
+        fun `a class matched first by a broad pattern shows its id, a later entry for the class does not apply`() {
             assertEquals("$ranked.Account{code=a-1}", frame("Account(\"a-1\").close()", Account("a-1"), "close") { it.close() }.className)
         }
 
         @Test
-        fun `a more specific '-' pattern wins over a broader pattern`() {
+        fun `a '-' pattern before a broader pattern wins`() {
             assertEquals("$ranked.excluded.Dropped", frame("Dropped(\"x-1\").drop()", Dropped("x-1"), "drop") { it.drop() }.className)
         }
 
@@ -396,12 +404,12 @@ class InheritanceTest {
         }
 
         @Test
-        fun `an entry without wildcards wins over a '-' pattern`() {
+        fun `an entry without wildcards before a '-' pattern wins`() {
             assertEquals("$ranked.excluded.Kept{code=k-1}", frame("Kept(\"k-1\").keep()", Kept("k-1"), "keep") { it.keep() }.className)
         }
 
         @Test
-        fun `a more specific pattern wins over a broader one`() {
+        fun `a pattern before a broader one wins`() {
             assertEquals("$ranked.special.Tagged{tag=vip}", frame("Tagged(\"t-1\", \"vip\").label()", Tagged("t-1", "vip"), "label") { it.label() }.className)
         }
 
@@ -416,11 +424,11 @@ class InheritanceTest {
     inner class Proxies {
 
         @Test
-        fun `a ByteBuddy proxy shows the superclass's id, and its own override is unchanged`() {
+        fun `a ByteBuddy proxy shows the superclass's id, in its own override too`() {
             val proxy = generatedSubclass(Order::class.java, "$order\$HibernateProxy\$h1", "h-1")
             val trace = trace("Order\$HibernateProxy\$h1(\"h-1\").ship()", proxy, "ship") { it.ship() }
             assertEquals("$order{id=h-1}", trace[0].className)
-            assertEquals("$order\$HibernateProxy\$h1", trace[1].className)
+            assertEquals("$order\$HibernateProxy\$h1{id=h-1}", trace[1].className)
         }
 
         @Test
