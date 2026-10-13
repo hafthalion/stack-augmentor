@@ -50,7 +50,7 @@ maxIdLength = 64
 "com.thirdparty.Parcel" = "trackingCode :: ship, cancel*"  # only in these methods
 "com.thirdparty.**.*Account" = "number"
 
-# Parameter ids: "<class>::<method>" ("<class>::@" for the methods annotated with @StackTraceAugment) = parameter names and 0-based indexes separated by commas, a "#" after one to show its value
+# Parameter ids: "<class>::<method>" (several separated by commas, "@" for the methods annotated with @StackTraceAugment) = parameter names and 0-based indexes separated by commas, a "#" after one to show its value
 # hashed, "@" for the method's @StackTraceParam and @StackTraceParams annotations, or "-" for none. Entries that
 # match the same method are not combined: the first entry that matches decides, in the order of the file.
 [augment.params]

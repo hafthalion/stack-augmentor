@@ -223,14 +223,25 @@ public final class AugmentorConfig {
     };
 
     /**
-     * An {@code [augment.params]} entry: its class and method parts, each a name or a pattern; the method part is
-     * {@code null} for {@code "@"}, the methods annotated with {@code @StackTraceAugment}.
+     * An {@code [augment.params]} entry: its class part, a name or a pattern, and the method names or patterns after
+     * {@code ::}, and whether {@code "@"} is among them, for the methods annotated with {@code @StackTraceAugment}.
      */
-    private record MethodPattern(String key, Pattern classPattern, Pattern methodPattern, List<ParamRef> refs) {
+    private record MethodPattern(String key, Pattern classPattern, List<Pattern> methodPatterns, boolean byAnnotation,
+                                 List<ParamRef> refs) {
 
         boolean matches(String className, String methodName, boolean augmented) {
-            return classPattern.matcher(className).matches()
-                    && (methodPattern != null ? methodPattern.matcher(methodName).matches() : augmented);
+            if (!classPattern.matcher(className).matches()) {
+                return false;
+            }
+            if (augmented && byAnnotation) {
+                return true;
+            }
+            for (Pattern pattern : methodPatterns) {
+                if (pattern.matcher(methodName).matches()) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 
@@ -282,10 +293,10 @@ public final class AugmentorConfig {
 
         List<MethodPattern> methodPatterns = new ArrayList<>();
         this.methods.forEach((target, refs) -> {
-            int separator = target.indexOf(METHOD_SEPARATOR);
-            String method = target.substring(separator + METHOD_SEPARATOR.length());
-            methodPatterns.add(new MethodPattern(target, globToRegex(target.substring(0, separator)),
-                    method.equals(ANNOTATIONS) ? null : globToRegex(method), refs));
+            List<String> names = methodNames(target);
+            methodPatterns.add(new MethodPattern(target, globToRegex(target.substring(0, target.indexOf(METHOD_SEPARATOR))),
+                    names.stream().filter(name -> !name.equals(ANNOTATIONS)).map(AugmentorConfig::globToRegex).toList(),
+                    names.contains(ANNOTATIONS), refs));
         });
         this.methodPatterns = List.copyOf(methodPatterns);
     }
@@ -474,6 +485,20 @@ public final class AugmentorConfig {
             }
         }
         return false;
+    }
+
+    /**
+     * The method part of an {@code [augment.params]} key: the names, patterns and {@code "@"} after {@code ::},
+     * separated by commas, e.g. {@code [ship, cancel*, @]} for {@code "com.acme.Order::ship, cancel*, @"}.
+     */
+    public static List<String> methodNames(String paramsKey) {
+        String methods = paramsKey.substring(paramsKey.indexOf(METHOD_SEPARATOR) + METHOD_SEPARATOR.length());
+        return List.of(methods.split(",", -1)).stream().map(String::trim).toList();
+    }
+
+    /** The class part of an {@code [augment.params]} key: the name or pattern before {@code ::}. */
+    public static String className(String paramsKey) {
+        return paramsKey.substring(0, paramsKey.indexOf(METHOD_SEPARATOR));
     }
 
     /** Whether a key of {@code [augment.receiver]} or {@code [augment.params]} has wildcards ({@code *} or {@code ?}). */
@@ -849,17 +874,31 @@ public final class AugmentorConfig {
             return target;
         }
 
+        /** The key with its methods separated by ", ", e.g. {@code "com.acme.Order::ship, cancel"} for {@code "...::ship,cancel"}. */
         private String methodKey(List<String> path) {
             String target = target(path, METHODS);
             int separator = target.indexOf(METHOD_SEPARATOR);
-            String method = separator < 0 ? "" : target.substring(separator + METHOD_SEPARATOR.length());
-            if (separator <= 0 || !CLASS_PART.matcher(target.substring(0, separator)).matches()
-                    || !(METHOD_PART.matcher(method).matches() || method.equals(CONSTRUCTOR) || method.equals(ANNOTATIONS))) {
-                throw error(path, "[" + name(METHODS) + "] keys must name a class and a method separated by ::, e.g. "
-                        + "\"com.acme.OrderService::process\" or \"com.acme.OrderService::*\", <init> for the constructors, "
-                        + "or @ for the methods annotated with @StackTraceAugment; " + ALLOWED_CHARACTERS);
+            if (separator <= 0 || !CLASS_PART.matcher(target.substring(0, separator)).matches()) {
+                throw invalidMethodKey(path);
             }
-            return target;
+            List<String> names = new ArrayList<>();
+            for (String name : methodNames(target)) {
+                if (!(METHOD_PART.matcher(name).matches() || name.equals(CONSTRUCTOR) || name.equals(ANNOTATIONS))) {
+                    throw invalidMethodKey(path);
+                }
+                if (names.contains(name)) {
+                    throw error(path, "'" + name + "' is listed twice");
+                }
+                names.add(name);
+            }
+            return target.substring(0, separator) + METHOD_SEPARATOR + String.join(", ", names);
+        }
+
+        private ConfigException invalidMethodKey(List<String> path) {
+            return error(path, "[" + name(METHODS) + "] keys must name a class and its methods separated by ::, e.g. "
+                    + "\"com.acme.OrderService::process\", \"com.acme.OrderService::process, cancel*\" or "
+                    + "\"com.acme.OrderService::*\", <init> for the constructors, @ for the methods annotated with "
+                    + "@StackTraceAugment; " + ALLOWED_CHARACTERS);
         }
 
         private String receiverText(List<String> path, Object value) {

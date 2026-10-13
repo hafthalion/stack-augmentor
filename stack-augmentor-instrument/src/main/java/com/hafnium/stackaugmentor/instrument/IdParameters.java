@@ -142,27 +142,32 @@ public final class IdParameters {
         List<String> messages = new ArrayList<>();
         for (Map.Entry<String, List<ParamRef>> params : config.methods().entrySet()) {
             String target = params.getKey();
-            if (AugmentorConfig.isPattern(target)) {
+            if (!AugmentorConfig.className(target).equals(type.getName())) {
                 continue;
             }
-            int separator = target.indexOf(AugmentorConfig.METHOD_SEPARATOR);
-            if (!target.substring(0, separator).equals(type.getName())) {
-                continue;
-            }
-            String methodName = target.substring(separator + AugmentorConfig.METHOD_SEPARATOR.length());
-            boolean byAnnotation = methodName.equals(AugmentorConfig.ANNOTATIONS);
             String entry = "[augment.params] \"" + target + "\"";
             List<MethodDescription> methods = new ArrayList<>();
-            for (MethodDescription method : type.getDeclaredMethods()) {
-                if ((method.isMethod() || method.isConstructor())
-                        && (byAnnotation ? augmented(method) : method.getInternalName().equals(methodName))) {
-                    methods.add(method);
+            for (String methodName : AugmentorConfig.methodNames(target)) {
+                if (AugmentorConfig.isPattern(methodName)) {
+                    continue;
                 }
-            }
-            if (methods.isEmpty()) {
-                messages.add(entry + ": " + type.getName() + (byAnnotation ? " has no method annotated with @StackTraceAugment"
-                        : " has no method '" + methodName + "'"));
-                continue;
+                boolean byAnnotation = methodName.equals(AugmentorConfig.ANNOTATIONS);
+                List<MethodDescription> named = new ArrayList<>();
+                for (MethodDescription method : type.getDeclaredMethods()) {
+                    if ((method.isMethod() || method.isConstructor())
+                            && (byAnnotation ? augmented(method) : method.getInternalName().equals(methodName))) {
+                        named.add(method);
+                    }
+                }
+                if (named.isEmpty()) {
+                    messages.add(entry + ": " + type.getName() + (byAnnotation ? " has no method annotated with @StackTraceAugment"
+                            : " has no method '" + methodName + "'"));
+                }
+                for (MethodDescription method : named) {
+                    if (!methods.contains(method)) {
+                        methods.add(method);
+                    }
+                }
             }
             for (MethodDescription method : methods) {
                 ParameterList<?> parameters = method.getParameters();

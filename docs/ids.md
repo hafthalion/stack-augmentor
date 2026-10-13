@@ -29,7 +29,7 @@ Default methods of interfaces work the same way: with `"com.acme.Labeled" = "lab
 
 The label is the real field or method name (`{objectId=…}`, `{getKey=…}`); it cannot be changed.
 
-**Parameter ids** are shown after the method name, in declaration order. `[augment.params]` entries `"<class>::<method>"` select them (see [Configuration](configuration.md)); `"<class>::*"` matches all methods of the class, and `"<class>::@"` the methods and constructors annotated with `@StackTraceAugment` (the others are left to the entries after it). The entry names the parameters:
+**Parameter ids** are shown after the method name, in declaration order. `[augment.params]` entries `"<class>::<method>"` select them (see [Configuration](configuration.md)); `"<class>::*"` matches all methods of the class, and `"<class>::@"` the methods and constructors annotated with `@StackTraceAugment` (the others are left to the entries after it). Several methods are separated by commas: `"com.acme.Order::ship, cancel*, @"`. The entry names the parameters:
 - by name or by 0-based index (0 to 255), separated by commas, e.g. `"order, 2"`;
 - `"@"`: the parameters the method's annotations select: `@StackTraceParam` on a parameter, or `@StackTraceParams` on the method (all its parameters; not of methods that override it);
 - `"-"`: none.

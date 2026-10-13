@@ -82,5 +82,5 @@ maxIdLength = 20
 # Parameter annotations outside the fixtures
 "com.hafnium.it.outside.MethodAnnotationsOutside::run" = "@"
 "com.hafnium.it.outside.ClassParamsViaMethods::*" = "@"
-# "::@" matches the methods annotated with @StackTraceAugment
-"com.hafnium.it.outside.Dispatcher::@" = "order"
+# "::@" matches the methods annotated with @StackTraceAugment; several methods are separated by commas
+"com.hafnium.it.outside.Dispatcher::@, track" = "order"
