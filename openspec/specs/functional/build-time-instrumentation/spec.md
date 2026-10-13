@@ -24,7 +24,7 @@ a warning.
 - **THEN** the build fails, and `[stack-augmentor] ERROR build plugin: stack-augmentor.toml, line 14: paramsFormat must not contain '('` … is printed
 
 #### Scenario: Example project
-- **GIVEN** `examples/build-time`, with the ByteBuddy Gradle plugin, the `DECORATE` entry point and the build plugin with its configuration argument, which has `"com.hafnium.examples.buildtime.**" = "@"` in `[augment.receiver]` and `"com.hafnium.examples.buildtime.**.*" = "@"` in `[augment.params]`
+- **GIVEN** `examples/build-time`, with the ByteBuddy Gradle plugin, the `DECORATE` entry point and the build plugin with its configuration argument, which has `"com.hafnium.examples.buildtime.**" = "@"` in `[augment.receiver]` and `"com.hafnium.examples.buildtime.**::*" = "@"` in `[augment.params]`
 - **WHEN** the project is built and run without `-javaagent`
 - **THEN** the frames of `ClassWithAnnotation` show `{objectId=object-1}` and `{param=ObjectParam{name=object-param-1}, token=#fb07916a}`, the argument's `toString()` with its parentheses replaced by braces and the secret token hashed
 - **AND** the frame of `ClassWithoutAnnotation.method` shows `{q=123}` from its exact `[augment.params]` entry, and no receiver id
@@ -77,6 +77,6 @@ with the file, the key and the line (see the diagnostics specification).
 - **AND** a warning says that there is no runtime configuration, so frames show no receiver ids
 
 #### Scenario: Parameter entry only
-- **GIVEN** `"com.acme.Svc.run" = "0"` in `[augment.params]`, no `[augment.receiver]` entry for `Svc`, and `Svc` with a `@StackTraceId` field
+- **GIVEN** `"com.acme.Svc::run" = "0"` in `[augment.params]`, no `[augment.receiver]` entry for `Svc`, and `Svc` with a `@StackTraceId` field
 - **WHEN** `run` throws in a build-time instrumented application
 - **THEN** the frame shows the parameter id of `run`'s first parameter and no receiver id

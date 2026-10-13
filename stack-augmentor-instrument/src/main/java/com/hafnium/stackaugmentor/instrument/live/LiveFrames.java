@@ -131,7 +131,7 @@ public final class LiveFrames implements LiveDispatch.Handler {
             Object self = locals.length > 0 ? locals[0] : null;
             // Not an instance of the declaring class: the JIT optimized the object away, so there is no id to show.
             if (spec.owner().isInstance(self)) {
-                receiverIds = resolver.receiverIds(self, spec.owner().getName(), frame.getMethodName());
+                receiverIds = resolver.receiverIds(self, spec.owner().getName());
             }
         }
         List<NamedId> paramIds = new ArrayList<>(spec.params().size());

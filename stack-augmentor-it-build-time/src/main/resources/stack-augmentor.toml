@@ -36,11 +36,11 @@ maxIdLength = 64
 # hashed, and "-" selects none. When several entries match a method, the first one applies, so the more
 # specific entries come first.
 [augment.params]
-"com.hafnium.it.buildtime.ClassWithoutAnnotation.method" = "q"                # before the "@" pattern
-"com.hafnium.it.buildtime.configured.OrderService.process" = "order, 1"       # by name and by index
-"com.hafnium.it.buildtime.configured.InventoryAudit.*" = "-"                    # InventoryAudit's first: no parameter ids ...
-"com.hafnium.it.buildtime.configured.Inventory*.*" = "sku, count"           # ... then all methods of the other Inventory* classes
-"com.hafnium.it.buildtime.configured.Customer.notify" = "email#"              # hashed
-"com.hafnium.it.buildtime.configured.Shipment.<init>" = "orderId, weight"   # constructors: "<init>"
-"com.hafnium.it.buildtime.configured.Crate.<init>" = "orderId, weight"
-"com.hafnium.it.buildtime.**.*" = "@"                                            # the rest: their annotations
+"com.hafnium.it.buildtime.ClassWithoutAnnotation::method" = "q"                # before the "@" pattern
+"com.hafnium.it.buildtime.configured.OrderService::process" = "order, 1"       # by name and by index
+"com.hafnium.it.buildtime.configured.InventoryAudit::*" = "-"                    # InventoryAudit's first: no parameter ids ...
+"com.hafnium.it.buildtime.configured.Inventory*::*" = "sku, count"           # ... then all methods of the other Inventory* classes
+"com.hafnium.it.buildtime.configured.Customer::notify" = "email#"              # hashed
+"com.hafnium.it.buildtime.configured.Shipment::<init>" = "orderId, weight"   # constructors: "<init>"
+"com.hafnium.it.buildtime.configured.Crate::<init>" = "orderId, weight"
+"com.hafnium.it.buildtime.**::*" = "@"                                            # the rest: their annotations

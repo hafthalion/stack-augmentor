@@ -70,7 +70,7 @@ SHALL be printed, and the message texts SHALL NOT be built, also for the message
 `[augment.receiver]` entries with wildcards.
 
 #### Scenario: Unmatched configuration entry
-- **GIVEN** `debug = true` and `"com.thirdparty.OrderService.process" = "order, missing, 7"`
+- **GIVEN** `debug = true` and `"com.thirdparty.OrderService::process" = "order, missing, 7"`
 - **WHEN** `OrderService` is loaded
 - **THEN** a message reports that there is no parameter `missing` and no parameter `#7` in `process(Order order, int quantity, String note)`
 
@@ -80,7 +80,7 @@ SHALL be printed, and the message texts SHALL NOT be built, also for the message
 - **THEN** `instrumenting com.thirdparty.OrderService (parameter ids only): process{order, quantity}` is printed
 
 #### Scenario: Wildcard entry
-- **GIVEN** `debug = true` and `"com.thirdparty.*.*" = "order"`
+- **GIVEN** `debug = true` and `"com.thirdparty.*::*" = "order"`
 - **WHEN** `Customer`, whose methods have no parameter `order`, is loaded
 - **THEN** no message about the entry is printed for `Customer`
 

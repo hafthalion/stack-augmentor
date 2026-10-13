@@ -44,8 +44,8 @@ class AugmentorConfigTest {
             "com.thirdparty.Customer" = "customerId"
 
             [augment.params]
-            "com.thirdparty.OrderService.process" = "orderId, 2"
-            "com.hafnium.Legacy.*" = "@"
+            "com.thirdparty.OrderService::process" = "orderId, 2"
+            "com.hafnium.Legacy::*" = "@"
 
             [augment]
             frameFormat = "${'$'}class.${'$'}method${'$'}receiver${'$'}params"
@@ -65,8 +65,8 @@ class AugmentorConfigTest {
                 )
                 .methods(
                     mapOf(
-                        "com.thirdparty.OrderService.process" to listOf(ParamRef.ByName("orderId"), ParamRef.ByIndex(2)),
-                        "com.hafnium.Legacy.*" to listOf(ParamRef.Annotations()),
+                        "com.thirdparty.OrderService::process" to listOf(ParamRef.ByName("orderId"), ParamRef.ByIndex(2)),
+                        "com.hafnium.Legacy::*" to listOf(ParamRef.Annotations()),
                     ),
                 )
                 .frameFormat("\$class.\$method\$receiver\$params")
@@ -78,8 +78,8 @@ class AugmentorConfigTest {
                 .build(),
             config,
         )
-        assertEquals(listOf(ParamRef.ByName("orderId"), ParamRef.ByIndex(2)), config.paramRefs("com.thirdparty.OrderService", "process"))
-        assertEquals(listOf(ParamRef.Annotations()), config.paramRefs("com.hafnium.Legacy", "run"))
+        assertEquals(listOf(ParamRef.ByName("orderId"), ParamRef.ByIndex(2)), config.paramRefs("com.thirdparty.OrderService", "process", false))
+        assertEquals(listOf(ParamRef.Annotations()), config.paramRefs("com.hafnium.Legacy", "run", false))
         assertTrue(config.hasAugmentEntries())
     }
 
@@ -118,7 +118,7 @@ class AugmentorConfigTest {
             [augment.receiver]
             "com.acme.Order" = "orderId"
             [augment.params]
-            "com.acme.OrderService.process" = "order"
+            "com.acme.OrderService::process" = "order"
             """,
         )
         val unquoted = parse(
@@ -126,10 +126,12 @@ class AugmentorConfigTest {
             [augment.receiver]
             com.acme.Order = "orderId"
             [augment.params]
-            com.acme.OrderService.process = "order"
+            "com.acme.OrderService::process" = "order"
             """,
         )
         assertEquals(quoted, unquoted)
+        // [augment.params] keys contain "::", so they are quoted: an unquoted key names no method.
+        assertTrue(error("[augment.params]\ncom.acme.OrderService.process = \"0\"").contains("keys must name a class and a method separated by ::"))
     }
 
     @Test
@@ -138,10 +140,6 @@ class AugmentorConfigTest {
             "test.toml, line 3: 'com.acme.Order' is configured twice; it is already configured on line 2 " +
                 "(quoted and unquoted keys name the same class)",
             error("[augment.receiver]\n\"com.acme.Order\" = \"a\"\ncom.acme.Order = \"b\""),
-        )
-        assertTrue(
-            error("[augment.params]\ncom.acme.OrderService.process = \"0\"\n\"com.acme.OrderService.process\" = \"1\"")
-                .contains("'com.acme.OrderService.process' is configured twice; it is already configured on line 2"),
         )
     }
 
@@ -240,23 +238,35 @@ class AugmentorConfigTest {
             "com.acme.Order" = "id, code() :: ship, cancel*"
             "com.acme.Invoice" = "@::pay"
             "com.acme.Customer" = "customerId"
+            "com.acme.Parcel" = "code :: @, weigh"
             """,
         )
         val order = config.classEntry("com.acme.Order")!!
         assertEquals(IdSpec.MemberList(listOf(IdSpec.FieldSpec("id"), IdSpec.MethodSpec("code"))), order.spec())
         assertEquals(listOf("ship", "cancel*"), order.methods())
-        assertTrue(order.appliesTo("ship"))
-        assertTrue(order.appliesTo("cancelAll"))
-        assertFalse(order.appliesTo("process"))
+        assertTrue(order.appliesTo("ship", false))
+        assertTrue(order.appliesTo("cancelAll", false))
+        assertFalse(order.appliesTo("process", false))
+        // Without "@" after ::, @StackTraceAugment does not count.
+        assertFalse(order.appliesTo("process", true))
         assertEquals(IdSpec.Annotations(), config.classEntry("com.acme.Invoice")!!.spec())
-        assertTrue(config.classEntry("com.acme.Invoice")!!.appliesTo("pay"))
-        assertFalse(config.classEntry("com.acme.Invoice")!!.appliesTo("refund"))
+        assertTrue(config.classEntry("com.acme.Invoice")!!.appliesTo("pay", false))
+        assertFalse(config.classEntry("com.acme.Invoice")!!.appliesTo("refund", false))
+        // "@" after :: names the methods annotated with @StackTraceAugment.
+        val parcel = config.classEntry("com.acme.Parcel")!!
+        assertTrue(parcel.appliesTo("ship", true))
+        assertFalse(parcel.appliesTo("ship", false))
+        assertTrue(parcel.appliesTo("weigh", false))
         // Without :: all methods show the ids.
         assertEquals(listOf<String>(), config.classEntry("com.acme.Customer")!!.methods())
-        assertTrue(config.classEntry("com.acme.Customer")!!.appliesTo("anything"))
-        assertEquals(mapOf("com.acme.Order" to listOf("ship", "cancel*"), "com.acme.Invoice" to listOf("pay")), config.receiverMethods())
+        assertTrue(config.classEntry("com.acme.Customer")!!.appliesTo("anything", false))
         assertEquals(
-            "com.acme.Order=[id, code()] :: ship, cancel*, com.acme.Invoice=@ :: pay, com.acme.Customer=customerId",
+            mapOf("com.acme.Order" to listOf("ship", "cancel*"), "com.acme.Invoice" to listOf("pay"), "com.acme.Parcel" to listOf("@", "weigh")),
+            config.receiverMethods(),
+        )
+        assertEquals(
+            "com.acme.Order=[id, code()] :: ship, cancel*, com.acme.Invoice=@ :: pay, com.acme.Customer=customerId, " +
+                "com.acme.Parcel=code :: @, weigh",
             config.classesDescription(),
         )
         assertNotEquals(parse("[augment.receiver]\n\"com.acme.A\" = \"id\""), parse("[augment.receiver]\n\"com.acme.A\" = \"id :: a\""))
@@ -268,6 +278,32 @@ class AugmentorConfigTest {
         assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"id :: a, a\"").contains("'a' is listed twice"))
         assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"- :: a\"").contains("\"-\" gives no receiver id, so it takes no methods after ::"))
         assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \":: a\"").contains("must name at least one field or method"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"id :: @@\"").contains("invalid method '@@' after ::"))
+    }
+
+    @Test
+    fun `params keys separate class and method with double colon, and '@' matches the annotated methods`() {
+        val config = parse(
+            """
+            [augment.params]
+            "com.acme.Order::@" = "0"
+            "com.acme.Order::ship" = "to"
+            "com.acme.**::@" = "-"
+            "com.acme.**::*" = "1"
+            """,
+        )
+        // "@" matches the methods with @StackTraceAugment only; the others fall through to the later entries.
+        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.Order", "ship", true))
+        assertEquals(listOf(ParamRef.ByName("to")), config.paramRefs("com.acme.Order", "ship", false))
+        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.Order", "<init>", true))
+        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.acme.Invoice", "pay", true))
+        assertEquals(listOf(ParamRef.ByIndex(1)), config.paramRefs("com.acme.Invoice", "pay", false))
+        assertTrue(config.hasParamEntries("com.acme.Order"))
+        assertEquals("com.acme.Order::@[#0], com.acme.Order::ship[to], com.acme.**::@[-], com.acme.**::*[#1]", config.methodsDescription())
+        assertTrue(error("[augment.params]\n\"com.acme.Order::@x\" = \"0\"").contains("keys must name a class and a method separated by ::"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.ship\" = \"0\"").contains("keys must name a class and a method separated by ::"))
+        assertTrue(error("[augment.params]\n\"::ship\" = \"0\"").contains("keys must name a class and a method separated by ::"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::a::b\" = \"0\"").contains("keys must name a class and a method separated by ::"))
     }
 
     @Test
@@ -334,16 +370,16 @@ class AugmentorConfigTest {
                 "allowed are letters, digits, _, \$ and the wildcards * (within a package or name), ** (across packages) and ?",
             error("[augment.receiver]\n\"com.acme.Ord+er\" = \"@\""),
         )
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = 0").contains("must be a string of parameter names and indexes"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"order\"]").contains("must be a string"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"\"").contains("must name at least one parameter"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"order,\"").contains("has an empty item in 'order,'"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"#1\"").contains("invalid parameter '#1'"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"-1\"").contains("invalid parameter '-1'"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"x, @\"").contains("invalid parameter '@'"))
-        assertTrue(error("[augment.params]\nOrder = \"id\"").contains("[augment.params] keys must name a class and a method"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.<clinit>\" = \"0\"").contains("or <init> for the constructors"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.<init>x\" = \"0\"").contains("or <init> for the constructors"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::process\" = 0").contains("must be a string of parameter names and indexes"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::process\" = [\"order\"]").contains("must be a string"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::process\" = \"\"").contains("must name at least one parameter"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::process\" = \"order,\"").contains("has an empty item in 'order,'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::process\" = \"#1\"").contains("invalid parameter '#1'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::process\" = \"-1\"").contains("invalid parameter '-1'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::process\" = \"x, @\"").contains("invalid parameter '@'"))
+        assertTrue(error("[augment.params]\nOrder = \"id\"").contains("[augment.params] keys must name a class and a method separated by ::"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::<clinit>\" = \"0\"").contains("<init> for the constructors"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::<init>x\" = \"0\"").contains("<init> for the constructors"))
     }
 
     @Test
@@ -351,19 +387,19 @@ class AugmentorConfigTest {
         val config = parse(
             """
             [augment.params]
-            "com.acme.Order.<init>" = "id"
-            "com.acme.*.*" = "0"
-            "com.acme.billing.*.<init>" = "@"
+            "com.acme.Order::<init>" = "id"
+            "com.acme.*::*" = "0"
+            "com.acme.billing.*::<init>" = "@"
             """,
         )
-        assertEquals(listOf(ParamRef.ByName("id")), config.paramRefs("com.acme.Order", "<init>"))
-        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.Order", "process"))
+        assertEquals(listOf(ParamRef.ByName("id")), config.paramRefs("com.acme.Order", "<init>", false))
+        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.Order", "process", false))
         // '*' matches <init> like any method name.
-        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.Invoice", "<init>"))
+        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.Invoice", "<init>", false))
         // "com.acme.*.*" does not match the classes in com.acme.billing: '*' stays within one package segment.
-        assertEquals(listOf(ParamRef.Annotations()), config.paramRefs("com.acme.billing.Invoice", "<init>"))
-        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.acme.billing.Invoice", "send"))
-        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.other.Invoice", "<init>"))
+        assertEquals(listOf(ParamRef.Annotations()), config.paramRefs("com.acme.billing.Invoice", "<init>", false))
+        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.acme.billing.Invoice", "send", false))
+        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.other.Invoice", "<init>", false))
     }
 
     @Test
@@ -371,11 +407,11 @@ class AugmentorConfigTest {
         val config = parse(
             """
             [augment.params]
-            "com.acme.Order.process" = "0"
-            "com.acme.Order.cancel" = "-"
-            "com.acme.billing.*.send" = "to"
-            "com.acme.legacy.**.*" = "-"
-            "com.acme.Shipment.ship" = "-"
+            "com.acme.Order::process" = "0"
+            "com.acme.Order::cancel" = "-"
+            "com.acme.billing.*::send" = "to"
+            "com.acme.legacy.**::*" = "-"
+            "com.acme.Shipment::ship" = "-"
             """,
         )
         assertTrue(config.hasParamEntries("com.acme.Order"))
@@ -393,30 +429,30 @@ class AugmentorConfigTest {
         val config = parse(
             """
             [augment.params]
-            "com.thirdparty.OrderService.process" = "order"
-            "com.thirdparty.OrderService.*" = "2"
-            "com.thirdparty.Inventory*.*" = "sku, count"
-            "com.thirdparty.**.*Repository.find*" = "0"
-            "com.acme.Outer${'$'}Inner.ru?" = "x"
-            "com.acme.Legacy.*" = "@"
+            "com.thirdparty.OrderService::process" = "order"
+            "com.thirdparty.OrderService::*" = "2"
+            "com.thirdparty.Inventory*::*" = "sku, count"
+            "com.thirdparty.**.*Repository::find*" = "0"
+            "com.acme.Outer${'$'}Inner::ru?" = "x"
+            "com.acme.Legacy::*" = "@"
             """,
         )
         val inventory = listOf(ParamRef.ByName("sku"), ParamRef.ByName("count"))
-        assertEquals(inventory, config.methods()["com.thirdparty.Inventory*.*"])
+        assertEquals(inventory, config.methods()["com.thirdparty.Inventory*::*"])
         // The exact entry, which comes first, decides alone; the wildcard entry applies to the other methods.
-        assertEquals(listOf(ParamRef.ByName("order")), config.paramRefs("com.thirdparty.OrderService", "process"))
-        assertEquals(listOf(ParamRef.ByIndex(2)), config.paramRefs("com.thirdparty.OrderService", "cancel"))
-        assertEquals(inventory, config.paramRefs("com.thirdparty.InventoryService", "reserve"))
-        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.thirdparty.db.OrderRepository", "findById"))
-        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.thirdparty.db.sql.OrderRepository", "findAll"))
+        assertEquals(listOf(ParamRef.ByName("order")), config.paramRefs("com.thirdparty.OrderService", "process", false))
+        assertEquals(listOf(ParamRef.ByIndex(2)), config.paramRefs("com.thirdparty.OrderService", "cancel", false))
+        assertEquals(inventory, config.paramRefs("com.thirdparty.InventoryService", "reserve", false))
+        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.thirdparty.db.OrderRepository", "findById", false))
+        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.thirdparty.db.sql.OrderRepository", "findAll", false))
         // '.**.' stands for at least one package segment.
-        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.OrderRepository", "findAll"))
-        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.db.OrderRepository", "save"))
+        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.OrderRepository", "findAll", false))
+        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.db.OrderRepository", "save", false))
         // '*' stays within one package segment in the class part.
-        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.sub.InventoryService", "reserve"))
-        assertEquals(listOf(ParamRef.ByName("x")), config.paramRefs("com.acme.Outer\$Inner", "run"))
-        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.acme.Outer\$Inner", "runs"))
-        assertEquals(listOf(ParamRef.Annotations()), config.paramRefs("com.acme.Legacy", "run"))
+        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.sub.InventoryService", "reserve", false))
+        assertEquals(listOf(ParamRef.ByName("x")), config.paramRefs("com.acme.Outer\$Inner", "run", false))
+        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.acme.Outer\$Inner", "runs", false))
+        assertEquals(listOf(ParamRef.Annotations()), config.paramRefs("com.acme.Legacy", "run", false))
 
         assertTrue(AugmentorConfig.isPattern("com.thirdparty.OrderService.*"))
         assertFalse(AugmentorConfig.isPattern("com.thirdparty.OrderService.process"))
@@ -432,13 +468,13 @@ class AugmentorConfigTest {
             "com.acme.**" = "@"
 
             [augment.params]
-            "com.thirdparty.audit.AuditService.log" = "reason"
-            "com.thirdparty.audit.AuditService.*" = "-"
-            "com.thirdparty.billing.BillingService.refund" = "-"
-            "com.thirdparty.**.*Service.*" = "0"
-            "com.thirdparty.billing.BillingService.charge" = "1"
-            "com.acme.generated.Gen.run" = "1"
-            "com.acme.**.*" = "0"
+            "com.thirdparty.audit.AuditService::log" = "reason"
+            "com.thirdparty.audit.AuditService::*" = "-"
+            "com.thirdparty.billing.BillingService::refund" = "-"
+            "com.thirdparty.**.*Service::*" = "0"
+            "com.thirdparty.billing.BillingService::charge" = "1"
+            "com.acme.generated.Gen::run" = "1"
+            "com.acme.**::*" = "0"
             """,
         )
         // [augment.receiver]: the first matching entry decides, "-" included.
@@ -448,40 +484,42 @@ class AugmentorConfigTest {
 
         // [augment.params]: the first matching entry decides, "-" included; entries are not combined.
         // The exact entry for charge comes after a matching pattern, so it never applies.
-        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.thirdparty.billing.BillingService", "charge"))
-        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.billing.BillingService", "refund"))
-        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.audit.AuditService", "purge"))
-        assertEquals(listOf(ParamRef.ByName("reason")), config.paramRefs("com.thirdparty.audit.AuditService", "log"))
+        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.thirdparty.billing.BillingService", "charge", false))
+        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.billing.BillingService", "refund", false))
+        assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.audit.AuditService", "purge", false))
+        assertEquals(listOf(ParamRef.ByName("reason")), config.paramRefs("com.thirdparty.audit.AuditService", "log", false))
 
         // The tables are independent: the "-" class entry of Gen does not affect its parameters.
-        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.generated.Gen", "stop"))
-        assertEquals(listOf(ParamRef.ByIndex(1)), config.paramRefs("com.acme.generated.Gen", "run"))
+        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.generated.Gen", "stop", false))
+        assertEquals(listOf(ParamRef.ByIndex(1)), config.paramRefs("com.acme.generated.Gen", "run", false))
 
         assertTrue(config.classesDescription().contains("com.acme.generated.**=-"), config.classesDescription())
-        assertTrue(config.methodsDescription().contains("com.thirdparty.audit.AuditService.*[-]"), config.methodsDescription())
+        assertTrue(config.methodsDescription().contains("com.thirdparty.audit.AuditService::*[-]"), config.methodsDescription())
         assertTrue(config.hasAugmentEntries())
-        val onlyExcluded = parse("[augment.receiver]\n\"com.acme.**\" = \"-\"\n[augment.params]\n\"com.acme.A.b\" = \"-\"")
+        val onlyExcluded = parse("[augment.receiver]\n\"com.acme.**\" = \"-\"\n[augment.params]\n\"com.acme.A::b\" = \"-\"")
         assertFalse(onlyExcluded.hasAugmentEntries())
     }
 
     @Test
     fun `invalid method entries`() {
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = true").contains("\"@\" for the method's annotations, or \"-\" for none, was true"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::process\" = true").contains("\"@\" for the method's annotations, or \"-\" for none, was true"))
         // No wildcard for the parameters: they are named, or selected by the annotations.
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"*\"").contains("invalid parameter '*'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::process\" = \"*\"").contains("invalid parameter '*'"))
         // The JVM allows at most 255 parameters.
-        assertEquals(listOf(ParamRef.ByIndex(255)), parse("augment.params.\"com.acme.Order.process\" = \"255\"").methods()["com.acme.Order.process"])
+        assertEquals(listOf(ParamRef.ByIndex(255)), parse("augment.params.\"com.acme.Order::process\" = \"255\"").methods()["com.acme.Order::process"])
         assertTrue(
-            error("[augment.params]\n\"com.acme.Order.process\" = \"256\"")
+            error("[augment.params]\n\"com.acme.Order::process\" = \"256\"")
                 .contains("invalid parameter '256': use a parameter name or a 0-based index from 0 to 255"),
         )
         assertEquals(
-            "test.toml, line 2: [augment.params] keys must name a class and a method, e.g. \"com.acme.OrderService.process\", or <init> for the constructors; " +
+            "test.toml, line 2: [augment.params] keys must name a class and a method separated by ::, e.g. " +
+                "\"com.acme.OrderService::process\" or \"com.acme.OrderService::*\", <init> for the constructors, or @ for the methods " +
+                "annotated with @StackTraceAugment; " +
                 "allowed are letters, digits, _, \$ and the wildcards * (within a package or name), ** (across packages) and ?",
-            error("[augment.params]\n\"com.acme.Order+.process\" = \"@\""),
+            error("[augment.params]\n\"com.acme.Order+::process\" = \"@\""),
         )
-        assertTrue(error("[augment.params]\n\"com.acme.Order.\" = \"@\"").contains("keys must name a class and a method"))
-        assertTrue(error("[augment.params]\n\"com..Order.run\" = \"@\"").contains("keys must name a class and a method"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::\" = \"@\"").contains("keys must name a class and a method"))
+        assertTrue(error("[augment.params]\n\"com..Order::run\" = \"@\"").contains("keys must name a class and a method"))
         // maxParams was removed: all selected parameters are shown.
         assertTrue(error("[augment]\nmaxParams = 4").startsWith("test.toml, line 2: unknown key 'maxParams' in [augment]"))
     }
@@ -508,24 +546,24 @@ class AugmentorConfigTest {
         val config = parse(
             """
             [augment.params]
-            "com.acme.User.login" = "user, email#, 2, 3#"
+            "com.acme.User::login" = "user, email#, 2, 3#"
             """,
         )
         assertEquals(
             listOf(ParamRef.ByName("user"), ParamRef.ByName("email", true), ParamRef.ByIndex(2), ParamRef.ByIndex(3, true)),
-            config.paramRefs("com.acme.User", "login"),
+            config.paramRefs("com.acme.User", "login", false),
         )
-        assertTrue(config.methodsDescription().contains("com.acme.User.login[user, email#, #2, #3#]"), config.methodsDescription())
+        assertTrue(config.methodsDescription().contains("com.acme.User::login[user, email#, #2, #3#]"), config.methodsDescription())
     }
 
     @Test
     fun `invalid hashed entries`() {
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"order#?\"").contains("invalid parameter 'order#?'"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"256#\"").contains("invalid parameter '256#'"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"#\"").contains("invalid parameter '#'"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"@#\"").contains("invalid parameter '@#'"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"*#\"").contains("invalid parameter '*#'"))
-        assertEquals(listOf(ParamRef.ByName("order", true)), parse("[augment.params]\n\"com.acme.Order.process\" = \"order#\"").methods()["com.acme.Order.process"])
+        assertTrue(error("[augment.params]\n\"com.acme.Order::process\" = \"order#?\"").contains("invalid parameter 'order#?'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::process\" = \"256#\"").contains("invalid parameter '256#'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::process\" = \"#\"").contains("invalid parameter '#'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::process\" = \"@#\"").contains("invalid parameter '@#'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::process\" = \"*#\"").contains("invalid parameter '*#'"))
+        assertEquals(listOf(ParamRef.ByName("order", true)), parse("[augment.params]\n\"com.acme.Order::process\" = \"order#\"").methods()["com.acme.Order::process"])
     }
 
     open class Base : RuntimeException()

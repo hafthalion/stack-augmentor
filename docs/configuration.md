@@ -37,7 +37,7 @@ maxIdLength = 64
 
 # Receiver ids: "@" for the class's @StackTraceId (without an "@" entry, it is not used), or, for classes you
 # cannot annotate, a field or a no-argument method ending in "()", or several separated by commas; "-" for none.
-# After "::", the methods whose frames show the ids (default: all methods). The first entry
+# After "::", the methods whose frames show the ids, "@" for those annotated with @StackTraceAugment (default: all methods). The first entry
 # that matches decides, in the order of the file, as in [augment.exceptions]: a class name matches the class and its
 # subclasses (an interface's name the classes implementing it), a pattern the name of the class only.
 [augment.receiver]
@@ -50,22 +50,22 @@ maxIdLength = 64
 "com.thirdparty.Parcel" = "trackingCode :: ship, cancel*"  # only in these methods
 "com.thirdparty.**.*Account" = "number"
 
-# Parameter ids: "<class>.<method>" = parameter names and 0-based indexes separated by commas, a "#" after one to show its value
+# Parameter ids: "<class>::<method>" ("<class>::@" for the methods annotated with @StackTraceAugment) = parameter names and 0-based indexes separated by commas, a "#" after one to show its value
 # hashed, "@" for the method's @StackTraceParam and @StackTraceParams annotations, or "-" for none. Entries that
 # match the same method are not combined: the first entry that matches decides, in the order of the file.
 [augment.params]
-"com.hafnium.**.*" = "@"                             # the annotations of these methods
-"com.acme.orders.*.*" = "@"
-"com.thirdparty.OrderService.process" = "order, 2"
-"com.thirdparty.InventoryService.*" = "sku"         # all methods of a class
-"com.thirdparty.**.AuditRepository.find*" = "-"      # these first ...
-"com.thirdparty.**.*Repository.find*" = "0"          # ... then the others, across packages
-"com.thirdparty.UserService.invite" = "user, email#"     # email hashed
-"com.thirdparty.Shipment.<init>" = "orderId"       # constructors: <init>
+"com.hafnium.**::*" = "@"                             # the annotations of these methods
+"com.acme.orders.*::*" = "@"
+"com.thirdparty.OrderService::process" = "order, 2"
+"com.thirdparty.InventoryService::*" = "sku"         # all methods of a class
+"com.thirdparty.**.AuditRepository::find*" = "-"      # these first ...
+"com.thirdparty.**.*Repository::find*" = "0"          # ... then the others, across packages
+"com.thirdparty.UserService::invite" = "user, email#"     # email hashed
+"com.thirdparty.Shipment::<init>" = "orderId"       # constructors: <init>
 ```
 
 - **Quote class names.** Without quotes TOML reads each `.` as a nested table; that works too, but keys with wildcards must be quoted. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.
-- **Keep wildcards narrow.** `"com.**.*" = "@"` makes the agent instrument many classes, which slows down class loading.
+- **Keep wildcards narrow.** `"com.**::*" = "@"` makes the agent instrument many classes, which slows down class loading.
 - **`[augment.exceptions]`** is checked when an exception leaves a method, against the class of the exception: classes still get instrumented as `[augment.receiver]` and `[augment.params]` say. No entry, no ids: to give all exceptions ids, write `"java.lang.Exception" = true` (`"**" = true` includes errors), and to exclude only some, put their `false` entries before it. If receivers or parameters are configured but no entry is `true`, startup warns. The frames that an exception without ids leaves stay as they are, also where its causes share them; a cause with ids wrapped in it keeps the ids of the frames it left itself. An exception with ids still writes its frames into the causes that share them, whatever their class, so printed traces still collapse into `... N more`.
 - **`debug = true`** lists the configuration, every instrumented class and the annotations that have no effect. Messages start with their source: `agent:`, `build plugin:` or `runtime:` (build-time instrumentation at runtime).
 - **Missing members** are a warning for exact class names, and a debug message for patterns.

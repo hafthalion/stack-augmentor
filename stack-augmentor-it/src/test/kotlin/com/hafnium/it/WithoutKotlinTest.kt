@@ -63,7 +63,7 @@ class WithoutKotlinTest {
 
     @Test
     fun `agent augments a Java application without the Kotlin runtime`(@TempDir dir: Path) {
-        val result = run(config(dir, "debug = true\n[augment.exceptions]\n\"**\" = true\n[augment.receiver]\n\"com.hafnium.it.fixtures.**\" = \"@\"\n[augment.params]\n\"com.hafnium.it.fixtures.**.*\" = \"@\"\n"))
+        val result = run(config(dir, "debug = true\n[augment.exceptions]\n\"**\" = true\n[augment.receiver]\n\"com.hafnium.it.fixtures.**\" = \"@\"\n[augment.params]\n\"com.hafnium.it.fixtures.**::*\" = \"@\"\n"))
         assertEquals(0, result.exitCode, result.output)
         record("JavaMain, with the agent and a configuration", result.output)
         assertTrue(result.output.contains("at com.hafnium.it.fixtures.JavaFixture{key=java-1}.run{arg0=42}(JavaFixture.java:"), result.output)

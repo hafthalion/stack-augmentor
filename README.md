@@ -29,8 +29,8 @@ An application with classes instrumented at build time can also run with the age
 |---|---|---|---|
 | Configuration file | `-javaagent:...=config=<file>`, `-Dstackaugmentor.config=<file>`, or (build-time) `stack-augmentor.toml` on the classpath | none: nothing is augmented | the TOML file with everything below |
 | `[augment.exceptions]` | configuration | empty: no exception gets ids | which exceptions get ids: `true` or `false`, the first matching entry wins; a class name includes its subclasses, so `"java.lang.Exception" = true` covers all exceptions and `"**" = true` all throwables |
-| `[augment.receiver]` | configuration | empty | which classes show a receiver id, and where it comes from; the first matching entry wins, and a class name includes its subclasses, as in `[augment.exceptions]`; `"id :: ship, cancel"` limits the ids to these methods |
-| `[augment.params]` | configuration | empty | which methods show parameter ids, and which parameters; the first matching entry wins |
+| `[augment.receiver]` | configuration | empty | which classes show a receiver id, and where it comes from; the first matching entry wins, and a class name includes its subclasses, as in `[augment.exceptions]`; `"id :: ship, cancel"` limits the ids to these methods, `"id :: @"` to those annotated with `@StackTraceAugment` |
+| `[augment.params]` | configuration | empty | which methods show parameter ids, and which parameters, by `"<class>::<method>"`, `"<class>::*"` or `"<class>::@"` (methods annotated with `@StackTraceAugment`); the first matching entry wins |
 | `[augment]` | configuration | see [Formats](docs/configuration.md#formats) | how frames look: `frameFormat`, `receiverFormat`, `paramsFormat`, `maxIdLength` |
 | `debug` | configuration | `false` | prints what gets instrumented and where each id comes from |
 | `inPlaceModification` | configuration, or `-Dstackaugmentor.inPlaceModification=true` | `false` | writes each frame into the exception's own stack trace instead of copying the trace; faster for deep stacks, needs `java.lang` open (see [Limitations](docs/limitations.md)) |
@@ -88,7 +88,7 @@ Use it in your own application:
    "com.acme.**" = "@"
 
    [augment.params]      # parameter ids: @StackTraceParam and @StackTraceParams
-   "com.acme.**.*" = "@"
+   "com.acme.**::*" = "@"
    ```
 
 3. Start the JVM with the agent (`./gradlew :stack-augmentor-agent:shadowJar` builds it):
