@@ -15,12 +15,12 @@ receiver id or a parameter id, and a method when it gets a parameter id or, as a
 receiver id.
 
 #### Scenario: Receiver ignored, parameters kept
-- **GIVEN** `"com.acme.generated.**" = "-"` and then `"com.acme.**" = "@"` in `[augment.receiver]`, `"com.acme.**::*" = "@"` in `[augment.params]`, and `fun map(@StackTraceParam id: Int)` in the annotated class `com.acme.generated.Mapper`
+- **GIVEN** `"com.acme.generated.**::*" = "-"` and then `"com.acme.**::*" = "@"` in `[augment.receiver]`, `"com.acme.**::*" = "@"` in `[augment.params]`, and `fun map(@StackTraceParam id: Int)` in the annotated class `com.acme.generated.Mapper`
 - **WHEN** `map(7)` throws
 - **THEN** that frame shows `id=7` and no receiver id
 
 #### Scenario: Receiver id only
-- **GIVEN** `"com.acme.**" = "@"` as the only entry, and a class `com.acme.Order` with `@StackTraceId val code` and `fun ship(@StackTraceParam to: String)`
+- **GIVEN** `"com.acme.**::*" = "@"` as the only entry, and a class `com.acme.Order` with `@StackTraceId val code` and `fun ship(@StackTraceParam to: String)`
 - **WHEN** `ship("Main St")` throws
 - **THEN** that frame shows the receiver id `code=…` and no parameter ids
 
@@ -71,27 +71,27 @@ another class loader is also recognised.
 
 ### Requirement: Receiver id from external configuration
 The system SHALL use the `[augment.receiver]` configuration table to choose the receiver id source of a
-class. A key SHALL be a class name or a class pattern with the globs `*` (within one package segment),
-`**` (across segments) and `?` (one character), optionally followed by `::` and method names or patterns (`*`,
-`?`) separated by commas without duplicates: then the entry SHALL apply only to the frames of the methods whose
-names match one of them, and without `::` to all methods of the class. `@` among the methods SHALL name the
-methods annotated with `@StackTraceAugment`; `<init>` SHALL be rejected, as constructors show no receiver id. One
-class MAY have several entries with different methods. A value SHALL be a field name, a no-argument method written
+method. Its keys SHALL be those of `[augment.params]`, `"<class>::<methods>"`, matched the same way (see the
+configuration spec): a class name with the globs `*` (within one package segment), `**` (across segments) and `?`
+(one character), or a class name optionally followed by `+`; then `::` and method names or patterns separated by
+commas without duplicates, `*` for all methods and `@` for the methods annotated with `@StackTraceAugment`. The
+entry SHALL apply only to the frames of the methods whose names match one of them; `<init>` SHALL be rejected, as
+constructors show no receiver id. One class MAY have several entries with different methods. A value SHALL be a field name, a no-argument method written
 with `()`, several of them in one string separated by commas without duplicates, `"@"` for the class's `@StackTraceId` members, or
 `"-"` for none. A list SHALL give one receiver id per member, in the listed order; a member that is not found
 SHALL be reported as a single one is and left out, while the others are still shown. Every receiver id SHALL
-be the member's value as text, from `toString()`. An entry without wildcards SHALL match the class it
-names and its subclasses, and for an interface the classes implementing it, as `instanceof` does, comparing
-names so that no class is loaded; a key with wildcards SHALL match the classes whose names it matches only,
-not their subclasses. When several entries match a class and apply to a method, the first in the order of the
+be the member's value as text, from `toString()`. A class name SHALL match the class it names; with `+` also its
+subclasses, and for an interface the classes implementing it, as `instanceof` does, comparing names so that no
+class is loaded; a key with wildcards SHALL match the classes whose names it matches only, not their
+subclasses. When several entries match a class and apply to a method, the first in the order of the
 file SHALL decide for that method, as in `[augment.exceptions]`, however specific the later ones are; a method that
 no matching entry applies to SHALL keep its frames' parameter ids only. The receiver id of a frame SHALL come from
 the deciding entry of the class that declares the frame's method, read from the object the method runs on,
 whatever the object's runtime class: a subclass, including one generated at runtime (a proxy, a mock, an
 anonymous class or an enum constant with a body), SHALL show the id of its superclass's entry in the frames
 of the methods it inherits. The methods that a subclass declares SHALL get their receiver id from the first
-entry that matches the subclass: an entry of its own, an entry without wildcards for a superclass or an
-implemented interface, or a pattern whose glob matches its name. A default method
+entry that matches the subclass: an entry of its own, an entry with `+` for a superclass or an implemented
+interface, or a pattern whose glob matches its name. A default method
 of an interface SHALL likewise show the id of the interface's deciding entry, read from the object,
 whatever entry the implementing class has; without an entry for the interface, its frame SHALL be
 unchanged. Bridge methods, including those Kotlin compiles into a class for each default method it
@@ -105,12 +105,12 @@ property without a backing field, the property's getter SHALL be used (`getName(
 name starting with `is`), with the configured name as the label.
 
 #### Scenario: Configured method of a third-party class
-- **GIVEN** `"com.thirdparty.Order" = "getOrderNumber()"` in `[augment.receiver]`
+- **GIVEN** `"com.thirdparty.Order::*" = "getOrderNumber()"` in `[augment.receiver]`
 - **WHEN** an exception leaves a method of an `Order` with order number 4711
 - **THEN** that frame shows the receiver id `getOrderNumber=4711`
 
 #### Scenario: List of members of a third-party class
-- **GIVEN** `"com.thirdparty.OrderLine" = "tenant, lineId()"` in `[augment.receiver]`
+- **GIVEN** `"com.thirdparty.OrderLine::*" = "tenant, lineId()"` in `[augment.receiver]`
 - **WHEN** an exception leaves a method of an `OrderLine` with tenant `acme` and line id 3
 - **THEN** that frame shows the receiver ids `{tenant=acme, lineId=3}`
 
@@ -125,67 +125,68 @@ name starting with `is`), with the configured name as the label.
 - **THEN** the frame of `send` shows `Dispatcher{hub=H-1}.send{order=o-1}`, and the frame of `track` shows `Dispatcher.track{order=o-1}`
 
 #### Scenario: Default method of an implemented interface
-- **GIVEN** `"com.acme.Order" = "getId()"`, where the Java class `Order` implements `Identified`, whose default method `getId()` returns `id-7`
+- **GIVEN** `"com.acme.Order::*" = "getId()"`, where the Java class `Order` implements `Identified`, whose default method `getId()` returns `id-7`
 - **WHEN** an exception leaves a method of an `Order`
 - **THEN** that frame shows the receiver id `getId=id-7`
-- **AND** with `"com.acme.Order" = "id"` and no field `id`, the frame shows `id=id-7`, read through the same getter
+- **AND** with `"com.acme.Order::*" = "id"` and no field `id`, the frame shows `id=id-7`, read through the same getter
 
 #### Scenario: Configured member does not exist
-- **GIVEN** `"com.thirdparty.Customer" = "customerNo"` in `[augment.receiver]`, a misspelling: `Customer` has a field `customerId`, but no field and no getter for `customerNo`
+- **GIVEN** `"com.thirdparty.Customer::*" = "customerNo"` in `[augment.receiver]`, a misspelling: `Customer` has a field `customerId`, but no field and no getter for `customerNo`
 - **WHEN** the id source of `Customer` is first needed
-- **THEN** a warning `[augment.receiver] "com.thirdparty.Customer": no field or property customerNo found` is printed
+- **THEN** a warning `[augment.receiver] "com.thirdparty.Customer::*": no field or property customerNo found` is printed
 - **AND** frames of `Customer` show no receiver id
 
 #### Scenario: Configured member cannot be made accessible
-- **GIVEN** `"com.thirdparty.Customer" = "customerNo"`, where `Customer`'s private field `customerNo` is in a module package not opened to stack-augmentor
+- **GIVEN** `"com.thirdparty.Customer::*" = "customerNo"`, where `Customer`'s private field `customerNo` is in a module package not opened to stack-augmentor
 - **WHEN** the id source of `Customer` is first needed
 - **THEN** a public getter `getCustomerNo()`, if there is one, gives the receiver id `customerNo=…` without a warning
-- **AND** without a usable getter, one warning `[augment.receiver] "com.thirdparty.Customer": cannot access private … customerNo` is printed, and no warning about a missing member
+- **AND** without a usable getter, one warning `[augment.receiver] "com.thirdparty.Customer::*": cannot access private … customerNo` is printed, and no warning about a missing member
 
 #### Scenario: Kotlin interface property
-- **GIVEN** `"com.acme.Tracked" = "trackingCode"`, where the Kotlin interface `Tracked` declares `val trackingCode: String` and has a default method `track()`
+- **GIVEN** `"com.acme.Tracked::*" = "trackingCode"`, where the Kotlin interface `Tracked` declares `val trackingCode: String` and has a default method `track()`
 - **WHEN** an exception leaves `Tracked.track()`, called on an object whose `trackingCode` is `T-9`
 - **THEN** that frame shows the receiver id `trackingCode=T-9`, read through `getTrackingCode()`
 
 #### Scenario: Wildcard entry with a member
-- **GIVEN** `"com.thirdparty.*Account" = "number"` in `[augment.receiver]`
+- **GIVEN** `"com.thirdparty.*Account::*" = "number"` in `[augment.receiver]`
 - **WHEN** an exception leaves a method of a `com.thirdparty.SavingsAccount` with the field `number = "S-1"`
 - **THEN** that frame shows the receiver id `number=S-1`
 
 #### Scenario: First matching entry wins
-- **GIVEN** `"com.acme.Order" = "getId()"` and then `"com.acme.**" = "@"` in `[augment.receiver]`, and `com.acme.Order` with `@StackTraceId val code` and `fun getId()`
+- **GIVEN** `"com.acme.Order::*" = "getId()"` and then `"com.acme.**::*" = "@"` in `[augment.receiver]`, and `com.acme.Order` with `@StackTraceId val code` and `fun getId()`
 - **WHEN** an exception leaves a method of an `Order`
 - **THEN** that frame shows the receiver id `getId=…`, and `Order`'s `@StackTraceId` is not used
-- **AND** with the two entries the other way round, `"com.acme.**" = "@"` decides and the frame shows `code=…`
+- **AND** with the two entries the other way round, `"com.acme.**::*" = "@"` decides and the frame shows `code=…`
 
 #### Scenario: Subclass without an entry
-- **GIVEN** `"com.thirdparty.Order" = "getOrderNumber()"` and a subclass `com.acme.RushOrder` that no other entry matches
+- **GIVEN** `"com.thirdparty.Order+::*" = "getOrderNumber()"` and a subclass `com.acme.RushOrder` that no other entry matches
 - **WHEN** an exception leaves `Order.ship()`, called on a `RushOrder`, and separately `RushOrder.expedite()`
 - **THEN** the first frame shows `com.thirdparty.Order{getOrderNumber=…}`, and the second `com.acme.RushOrder{getOrderNumber=…}`
+- **AND** with `"com.thirdparty.Order::*"`, without `+`, the first frame is the same and the second is unchanged
 
 #### Scenario: Subclass not matched by a pattern
-- **GIVEN** `"com.thirdparty.*" = "getOrderNumber()"` and a subclass `com.acme.RushOrder` of `com.thirdparty.Order` that no other entry matches
+- **GIVEN** `"com.thirdparty.*::*" = "getOrderNumber()"` and a subclass `com.acme.RushOrder` of `com.thirdparty.Order` that no other entry matches
 - **WHEN** an exception leaves `Order.ship()`, called on a `RushOrder`, and separately `RushOrder.expedite()`
 - **THEN** the first frame shows the receiver id `getOrderNumber=…`, and the second frame is unchanged
 
 #### Scenario: Subclass with an entry of its own
-- **GIVEN** `"com.acme.TrackedOrder" = "tracking"` and then `"com.acme.Order" = "id"`, where `TrackedOrder` extends `Order`
+- **GIVEN** `"com.acme.TrackedOrder::*" = "tracking"` and then `"com.acme.Order+::*" = "id"`, where `TrackedOrder` extends `Order`
 - **WHEN** an exception leaves `Order.ship()`, called on a `TrackedOrder`, and separately `TrackedOrder.track()`
 - **THEN** the first frame shows `id=…`, and the second `tracking=…`
-- **AND** with `"com.acme.Order" = "id"` first, the second frame shows `id=…` too: `TrackedOrder`'s entry never decides
+- **AND** with `"com.acme.Order+::*" = "id"` first, the second frame shows `id=…` too: `TrackedOrder`'s entry never decides
 
 #### Scenario: Subclass with an entry naming an inherited member
-- **GIVEN** `"com.acme.ExpressOrder" = "id"`, where `ExpressOrder` extends `Order`, which declares the field `id`
+- **GIVEN** `"com.acme.ExpressOrder::*" = "id"`, where `ExpressOrder` extends `Order`, which declares the field `id`
 - **WHEN** an exception leaves a method that `ExpressOrder` declares
 - **THEN** that frame shows the receiver id `id=…`
 
 #### Scenario: Generated subclass
-- **GIVEN** `"com.acme.Order" = "id"`, and a Spring CGLIB proxy `com.acme.Order$$SpringCGLIB$$0` that calls the real methods
+- **GIVEN** `"com.acme.Order+::*" = "id"`, and a Spring CGLIB proxy `com.acme.Order$$SpringCGLIB$$0` that calls the real methods
 - **WHEN** an exception leaves `Order.ship()`, called on the proxy
 - **THEN** that frame shows `id=…`, and so does the frame of the proxy's own override
 
 #### Scenario: Default method of an interface
-- **GIVEN** `"com.acme.Labeled" = "label()"` and `"com.acme.Parcel" = "code"`, where the Kotlin class `Parcel` implements `Labeled` and inherits its default method `relabel()`
+- **GIVEN** `"com.acme.Labeled::*" = "label()"` and `"com.acme.Parcel::*" = "code"`, where the Kotlin class `Parcel` implements `Labeled` and inherits its default method `relabel()`
 - **WHEN** an exception leaves `Labeled.relabel()`, called on a `Parcel` whose `label()` returns `parcel-p1`
 - **THEN** the frame of `Labeled.relabel()` shows `label=parcel-p1`, and the frame of the bridge method `Parcel.relabel()` is unchanged
 - **AND** the same holds for a class implementing `Labeled` without an entry of its own
@@ -196,7 +197,7 @@ name starting with `is`), with the configured name as the label.
 - **THEN** its frame is unchanged
 
 #### Scenario: Interface extending an interface
-- **GIVEN** `"com.acme.Tracked" = "label()"`, where `Tracked` extends `Labeled`, which declares `label()`, and has a default method `track()`
+- **GIVEN** `"com.acme.Tracked::*" = "label()"`, where `Tracked` extends `Labeled`, which declares `label()`, and has a default method `track()`
 - **WHEN** an exception leaves `Tracked.track()`
 - **THEN** that frame shows `label=…`, read through `Labeled.label()`
 
@@ -287,7 +288,7 @@ follows the method. Text longer than
 throws SHALL be shown as `?`.
 
 #### Scenario: Object argument with an id source
-- **GIVEN** `fun ship(@StackTraceParam order: Order?)`, and `"com.thirdparty.Order" = "getOrderNumber()"` in `[augment.receiver]`
+- **GIVEN** `fun ship(@StackTraceParam order: Order?)`, and `"com.thirdparty.Order::*" = "getOrderNumber()"` in `[augment.receiver]`
 - **WHEN** `ship(Order(4711))` throws, where `Order.toString()` returns `Order#4711`
 - **THEN** the frame shows `order=Order#4711`, not the receiver id `4711`
 - **AND** `ship(null)` shows `order=null`
@@ -329,13 +330,14 @@ instrumented as described in the stack trace augmentation specification.
 - **THEN** the frame shows no parameter ids for `reserve`
 
 ### Requirement: Parameter ids of configured methods
-An `[augment.params]` entry `"<class pattern>::<method pattern>" = <parameters>` SHALL select
-parameters of every method whose class name matches the class pattern and whose name matches the method
-pattern, including every overload; with `@` as the method pattern, of every method and constructor of a matching
+An `[augment.params]` entry `"<class>::<method pattern>" = <parameters>`, with the keys of the configuration
+spec, SHALL select parameters of every method whose declaring class the class part matches and whose name matches
+the method pattern, including every overload; with `@` as the method pattern, of every method and constructor of a matching
 class that is annotated with `@StackTraceAugment`, while its other methods SHALL be left to the later entries.
 Several method patterns separated by commas (`"com.acme.Order::ship, cancel*, @"`) SHALL match a method that any
 of them matches; whatever the class's `[augment.receiver]` entry. Keys SHALL match the
-class that declares the method, not its subclasses. The class pattern
+class that declares the method, and with `+` after a class name (`"com.acme.Order+::process"`) also the methods
+its subclasses declare. The class pattern
 SHALL use the `[augment.receiver]` globs (`*` within one package segment, `**` across segments, `?` one
 character). In the method pattern, `*` SHALL match any sequence of characters and `?` one character. A key
 without wildcards SHALL match exactly. `<parameters>` SHALL be a string of parameter names and 0-based
@@ -355,6 +357,12 @@ combined with it.
 - **WHEN** `com.thirdparty.db.OrderRepository.findById(7)` throws, and separately `findAll()` throws
 - **THEN** the first frame shows `id=7`, and the second frame is unchanged
 
+#### Scenario: Methods of subclasses
+- **GIVEN** `"com.thirdparty.SavingsAccount+::transfer" = "amount"`, and `PremiumAccount`, which extends `SavingsAccount` and declares `transfer(amount: Int)`
+- **WHEN** `PremiumAccount("P-1").transfer(5)` throws
+- **THEN** that frame shows `transfer{amount=5}`
+- **AND** with `"com.thirdparty.SavingsAccount::transfer"`, without `+`, the frame is unchanged
+
 #### Scenario: Overlapping entries
 - **GIVEN** `"com.thirdparty.OrderService::process" = "order"` and then `"com.thirdparty.OrderService::*" = "2"`
 - **WHEN** `process(Order(4711), 3, "rush")` throws, where `Order.toString()` returns `Order#4711`
@@ -362,7 +370,7 @@ combined with it.
 - **AND** with the two entries the other way round, the pattern decides and the frame shows only the third parameter
 
 #### Scenario: Exact explicit class entry with annotated parameters
-- **GIVEN** `"com.acme.Order" = "getId()"` in `[augment.receiver]` and `"com.acme.Order::*" = "@"` in `[augment.params]`, and `fun ship(@StackTraceParam to: String)` in `Order`
+- **GIVEN** `"com.acme.Order::*" = "getId()"` in `[augment.receiver]` and `"com.acme.Order::*" = "@"` in `[augment.params]`, and `fun ship(@StackTraceParam to: String)` in `Order`
 - **WHEN** `ship("Main St")` throws
 - **THEN** that frame shows the receiver id `getId=…` and the parameter id `to=Main St`
 
@@ -374,7 +382,7 @@ SHALL get no parameter ids, even where a later entry would select some.
 A configuration whose entries are all `"-"` SHALL count as having no entries.
 
 #### Scenario: No receiver ids in a package under an "@" pattern
-- **GIVEN** `"com.acme.generated.**" = "-"` and then `"com.acme.**" = "@"` in `[augment.receiver]`, and `com.acme.generated.Mapper` with a `@StackTraceId` field
+- **GIVEN** `"com.acme.generated.**::*" = "-"` and then `"com.acme.**::*" = "@"` in `[augment.receiver]`, and `com.acme.generated.Mapper` with a `@StackTraceId` field
 - **WHEN** a method of `Mapper` throws
 - **THEN** its frame shows no receiver id
 
@@ -394,12 +402,12 @@ Classes without an annotation or configuration entry SHALL NOT get ids, even whe
 them.
 
 #### Scenario: Annotated class outside the "@" entries
-- **GIVEN** `"com.hafnium.it.fixtures.**" = "@"` in `[augment.receiver]` and `"com.hafnium.it.fixtures.**::*" = "@"` in `[augment.params]` as the only entries
+- **GIVEN** `"com.hafnium.it.fixtures.**::*" = "@"` in `[augment.receiver]` and `"com.hafnium.it.fixtures.**::*" = "@"` in `[augment.params]` as the only entries
 - **WHEN** an exception leaves a method of a class in `com.hafnium.it.outside` with an annotated parameter, and no annotated superclass
 - **THEN** the frame is unchanged
 
 #### Scenario: Subclass of a class with an "@" entry
-- **GIVEN** `"com.hafnium.it.fixtures.**" = "@"`, and `com.hafnium.it.outside.DerivedOutside` extending `com.hafnium.it.fixtures.Base`, which declares `@StackTraceId val baseId = "b1"`
+- **GIVEN** `"com.hafnium.it.fixtures.**::*" = "@"`, and `com.hafnium.it.outside.DerivedOutside` extending `com.hafnium.it.fixtures.Base`, which declares `@StackTraceId val baseId = "b1"`
 - **WHEN** an exception leaves a method of `DerivedOutside`
 - **THEN** that frame shows no receiver id: `DerivedOutside` declares `fail()`, and the pattern matches the names of the classes in `com.hafnium.it.fixtures` only, not their subclasses elsewhere
 
@@ -419,6 +427,6 @@ them.
 - **THEN** that frame shows all its parameter ids
 
 #### Scenario: No "@" entry
-- **GIVEN** a configuration with only `"com.thirdparty.Order" = "getOrderNumber()"` in `[augment.receiver]`
+- **GIVEN** a configuration with only `"com.thirdparty.Order::*" = "getOrderNumber()"` in `[augment.receiver]`
 - **WHEN** an exception leaves a method of an annotated class in any other package
 - **THEN** the frame is unchanged

@@ -7,6 +7,7 @@ import com.hafnium.it.outside.ClassParamsViaMethods
 import com.hafnium.it.outside.Dispatcher
 import com.hafnium.it.outside.MethodAnnotationsOutside
 import com.hafnium.it.outside.PremiumAccount
+import com.hafnium.it.outside.VipCustomer
 import com.hafnium.it.report.FrameReport
 import com.hafnium.it.report.ReceiverEntries
 import com.thirdparty.InventoryAudit
@@ -78,6 +79,16 @@ class ConfigTablesTest {
     fun `an entry of a superclass does not apply to subclasses`() {
         // "com.thirdparty.*Account" matches SavingsAccount, not com.hafnium.it.outside.PremiumAccount. See InheritanceTest.
         assertEquals("com.hafnium.it.outside.PremiumAccount", frame("PremiumAccount(\"P-1\").upgrade()", PremiumAccount("P-1")) { it.upgrade() }.className)
+    }
+
+    @Test
+    fun `a class name without plus does not apply to subclasses, with plus it does`() {
+        // "com.thirdparty.Customer::*" has no "+": the methods VipCustomer declares show no receiver id, those it
+        // inherits from Customer do.
+        assertEquals("com.hafnium.it.outside.VipCustomer", frame("VipCustomer(\"C-9\").upgrade()", VipCustomer("C-9")) { it.upgrade() }.className)
+        assertEquals("com.thirdparty.Customer{customerId=C-9}", frame("VipCustomer(\"C-9\").rename()", VipCustomer("C-9")) { it.rename() }.className)
+        // "com.thirdparty.SavingsAccount+::transfer" in [augment.params] applies to the subclass PremiumAccount.
+        assertEquals("transfer{amount=5}", frame("PremiumAccount(\"P-1\").transfer(5)", PremiumAccount("P-1")) { it.transfer(5) }.methodName)
     }
 
     @Test

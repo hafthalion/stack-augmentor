@@ -97,7 +97,7 @@ public final class FrameSpecs {
             return false;
         }
         return config.classEntries(type).stream().anyMatch(entry -> !(entry.spec() instanceof IdSpec.Excluded))
-                || config.hasParamEntries(name);
+                || config.hasParamEntries(name, supertype -> AugmentorConfig.isA(type, supertype));
     }
 
     /**
@@ -107,8 +107,8 @@ public final class FrameSpecs {
     private boolean named(Class<?> type, String methodName) {
         return !methodName.equals(AugmentorConfig.CONSTRUCTOR) && config.classEntries(type).stream()
                         .anyMatch(entry -> !(entry.spec() instanceof IdSpec.Excluded) && entry.appliesTo(methodName, true))
-                || !config.paramRefs(type.getName(), methodName, false).isEmpty()
-                || !config.paramRefs(type.getName(), methodName, true).isEmpty();
+                || !config.paramRefs(type.getName(), supertype -> AugmentorConfig.isA(type, supertype), methodName, false).isEmpty()
+                || !config.paramRefs(type.getName(), supertype -> AugmentorConfig.isA(type, supertype), methodName, true).isEmpty();
     }
 
     private Spec spec(Class<?> type, String name, MethodType methodType) {

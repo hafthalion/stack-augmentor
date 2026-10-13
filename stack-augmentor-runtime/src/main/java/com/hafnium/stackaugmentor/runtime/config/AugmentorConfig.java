@@ -20,7 +20,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -45,25 +44,27 @@ import java.util.stream.Collectors;
  * "com.acme.**" = true
  * "java.io.IOException" = true   # and its subclasses
  *
+ * # Keys of [augment.receiver] and [augment.params]: "<class>::<methods>". A class name matches that class only, with
+ * # "+" after it also its subclasses and implementing classes; a pattern matches class names only. The methods are
+ * # names or patterns separated by commas, "@" for those annotated with @StackTraceAugment, "*" for all. For each
+ * # method the first matching entry of a table wins.
+ *
  * [augment.receiver]         # receiver ids: a field, a "method()", several separated by commas, "@" for the
- *                            # @StackTraceId members, "-" for none; for each method the first matching entry wins, a
- *                            # class name matches its subclasses too, a pattern the class only; "::m1, m2" after the
- *                            # class limits the entry to these methods, "::@" to those annotated with @StackTraceAugment
- * "com.hafnium.generated.**" = "-"
- * "com.hafnium.**" = "@"
- * "com.thirdparty.Order" = "getOrderNumber()"
- * "com.thirdparty.OrderLine" = "tenant, lineId()"
+ *                            # @StackTraceId members, "-" for none
+ * "com.hafnium.generated.**::*" = "-"
+ * "com.hafnium.**::*" = "@"
+ * "com.thirdparty.Order+::*" = "getOrderNumber()"   # Order and its subclasses
+ * "com.thirdparty.OrderLine::*" = "tenant, lineId()"
  * "com.thirdparty.Invoice::pay, cancel*" = "number"   # frames of pay and cancel... show the number,
  * "com.thirdparty.Invoice::print" = "copy"             # frames of print the copy, the others no receiver id
  * "com.acme.Dispatcher::@" = "hub"          # only frames of methods annotated with @StackTraceAugment
  *
- * [augment.params]           # "<class>::<method>" or "<class>::@" (annotated with @StackTraceAugment): parameter ids,
- *                            # names and indexes separated by commas ("#" after one hashes it), "@" for the
- *                            # annotations, "-" for none; the first matching entry wins
+ * [augment.params]           # parameter ids: names and indexes separated by commas ("#" after one hashes it), "@" for
+ *                            # the annotations, "-" for none
  * "com.hafnium.**::*" = "@"
  * "com.thirdparty.Shipment::<init>" = "orderId"   # constructors, also matched by wildcards such as "::*"
  * "com.acme.Dispatcher::@" = "order"        # the methods annotated with @StackTraceAugment
- * "com.thirdparty.OrderService::process" = "order, 2, email#, 3#"
+ * "com.thirdparty.OrderService+::process" = "order, 2, email#, 3#"
  * "com.thirdparty.**.AuditRepository::*" = "-"
  * "com.thirdparty.**.*Repository::find*" = "0"
  * }</pre>
@@ -72,13 +73,16 @@ import java.util.stream.Collectors;
  * parameter ids. Which methods get instrumented follows from both. Keys may use wildcards: {@code *} within one
  * package segment (or name), {@code **} across segments, {@code ?} one character. Where entries of
  * {@code [augment.receiver]} or {@code [augment.params]} overlap, the first in the file decides, see
- * {@link #classEntry(Class)} and {@link #paramRefs}. Immutable. Equality covers the
+ * {@link #classEntry(Class, String, boolean)} and {@link #paramRefs}. Immutable. Equality covers the
  * configured values only.
  */
 public final class AugmentorConfig {
 
     /** The method name of constructors, in {@code [augment.params]} keys as in stack traces: {@code "com.acme.Order::<init>"}. */
     public static final String CONSTRUCTOR = "<init>";
+
+    /** After a class name in a key, {@code "com.acme.Order+::*"}: the entry matches the subclasses too. */
+    public static final String SUBCLASSES = "+";
 
     /**
      * Separates the class from the methods in {@code [augment.params]} and {@code [augment.receiver]} keys
@@ -114,18 +118,15 @@ public final class AugmentorConfig {
     private final Map<String, Boolean> exceptions;
 
     /**
-     * An entry of {@code [augment.exceptions]} or {@code [augment.receiver]}, by the class part of its key: a class
-     * pattern, which matches the name of the class only, or for a class name without wildcards {@code null}, which
-     * matches the class and its subclasses.
+     * An entry of {@code [augment.exceptions]}: a class pattern, which matches the name of the class only, or for a
+     * class name without wildcards {@code null}, which matches the class and its subclasses.
      */
     private record ClassKey<V>(String className, Pattern pattern, V value) {
 
         static <V> List<ClassKey<V>> of(Map<String, V> table) {
             return table.entrySet().stream()
-                    .map(entry -> {
-                        String className = classPart(entry.getKey());
-                        return new ClassKey<>(className, isPattern(className) ? globToRegex(className) : null, entry.getValue());
-                    })
+                    .map(entry -> new ClassKey<>(entry.getKey(),
+                            isPattern(entry.getKey()) ? globToRegex(entry.getKey()) : null, entry.getValue()))
                     .toList();
         }
 
@@ -142,17 +143,6 @@ public final class AugmentorConfig {
             }
             return null;
         }
-
-        /** The values of the entries that match, in the order of the file. */
-        static <V> List<V> all(List<ClassKey<V>> entries, String className, Predicate<String> isA) {
-            List<V> matching = new ArrayList<>();
-            for (ClassKey<V> entry : entries) {
-                if (entry.matches(className, isA)) {
-                    matching.add(entry.value());
-                }
-            }
-            return List.copyOf(matching);
-        }
     }
 
     /** The {@code [augment.exceptions]} entries, in the order of the file. */
@@ -168,22 +158,36 @@ public final class AugmentorConfig {
     };
 
     /**
-     * An {@code [augment.receiver]} entry: its key, with the class part and, after {@code ::}, the methods whose frames
-     * show the ids ({@code "com.acme.Order::ship, cancel"}; {@code "@"} names the methods annotated with
-     * {@code @StackTraceAugment}; without {@code ::} all methods), and the id source it names.
+     * The key of an {@code [augment.receiver]} or {@code [augment.params]} entry, {@code "<class>::<methods>"}: a
+     * class name, which matches that class only, or with {@code +} after it ({@code "com.acme.Order+"}) also its
+     * subclasses and, for an interface, the classes implementing it, as {@code instanceof} does; or a class pattern,
+     * which matches class names only. After {@code ::} the method names or patterns, {@code "@"} for the methods
+     * annotated with {@code @StackTraceAugment}, separated by commas. The class is the one that declares a frame's
+     * method.
      */
-    public static final class ClassEntry {
+    public static final class EntryKey {
 
         private final String key;
-        private final IdSpec spec;
+        private final String className;
+        private final boolean subclasses;
+        private final Pattern classPattern;
         private final List<String> methods;
         private final List<Pattern> methodPatterns;
 
-        public ClassEntry(String key, IdSpec spec) {
+        /** @param key a key as {@link #key()} gives it, e.g. {@code "com.acme.Order+::ship, cancel*"} */
+        public EntryKey(String key) {
             this.key = Objects.requireNonNull(key, "key");
-            this.spec = Objects.requireNonNull(spec, "spec");
-            this.methods = key.contains(METHOD_SEPARATOR) ? methodNames(key) : List.of();
-            this.methodPatterns = this.methods.stream().filter(name -> !name.equals(ANNOTATIONS))
+            int separator = key.indexOf(METHOD_SEPARATOR);
+            if (separator < 0) {
+                throw new IllegalArgumentException("no " + METHOD_SEPARATOR + " in " + key);
+            }
+            String classPart = key.substring(0, separator);
+            this.subclasses = classPart.endsWith(SUBCLASSES);
+            this.className = subclasses ? classPart.substring(0, classPart.length() - SUBCLASSES.length()) : classPart;
+            this.classPattern = AugmentorConfig.isPattern(className) ? globToRegex(className) : null;
+            String methodPart = key.substring(separator + METHOD_SEPARATOR.length());
+            this.methods = List.of(methodPart.split(",", -1)).stream().map(String::trim).toList();
+            this.methodPatterns = methods.stream().filter(name -> !name.equals(ANNOTATIONS))
                     .map(AugmentorConfig::globToRegex).toList();
         }
 
@@ -191,33 +195,48 @@ public final class AugmentorConfig {
             return key;
         }
 
-        /** The class part of the key: a class name or pattern. */
+        /** The class name or pattern, without {@code +}. */
         public String className() {
-            return classPart(key);
+            return className;
         }
 
-        public IdSpec spec() {
-            return spec;
+        /** Whether the key has {@code +} after the class name, so that it matches the subclasses too. */
+        public boolean subclasses() {
+            return subclasses;
         }
 
-        /** The method names, patterns and {@code "@"} after {@code ::}, in the order of the file; empty for all methods. */
+        /** Whether the class part has wildcards. */
+        public boolean isPattern() {
+            return classPattern != null;
+        }
+
+        /** The method names, patterns and {@code "@"} after {@code ::}, in the order of the file. */
         public List<String> methods() {
             return methods;
         }
 
-        /** Whether the class part of the key has wildcards. */
-        public boolean isPattern() {
-            return AugmentorConfig.isPattern(className());
+        /**
+         * Whether the key matches the class: its name, or with {@code +} also as a superclass or an implemented
+         * interface, or for a pattern the name of the class.
+         *
+         * @param isA whether the class has the given name, or one of its superclasses or the interfaces it implements,
+         *            directly or not, has it; see {@link #isA(Class, String)}
+         */
+        public boolean matchesClass(String name, Predicate<String> isA) {
+            if (classPattern != null) {
+                return classPattern.matcher(name).matches();
+            }
+            return subclasses ? isA.test(className) : className.equals(name);
         }
 
         /**
-         * Whether the entry applies to frames of this method: all methods without {@code ::}, else the named ones, and
-         * with {@code "@"} the annotated ones.
+         * Whether the key applies to frames of this method: one of the names or patterns matches it, or it has
+         * {@code "@"} and the method is annotated.
          *
          * @param augmented whether the method is annotated with {@code @StackTraceAugment}
          */
         public boolean appliesTo(String methodName, boolean augmented) {
-            if (methods.isEmpty() || augmented && methods.contains(ANNOTATIONS)) {
+            if (augmented && methods.contains(ANNOTATIONS)) {
                 return true;
             }
             for (Pattern pattern : methodPatterns) {
@@ -230,12 +249,62 @@ public final class AugmentorConfig {
 
         @Override
         public String toString() {
-            return key + "=" + specText(spec);
+            return key;
+        }
+    }
+
+    /** An {@code [augment.receiver]} entry: its key and the id source it names. */
+    public static final class ClassEntry {
+
+        private final EntryKey key;
+        private final IdSpec spec;
+
+        public ClassEntry(String key, IdSpec spec) {
+            this.key = new EntryKey(key);
+            this.spec = Objects.requireNonNull(spec, "spec");
+        }
+
+        public String key() {
+            return key.key();
+        }
+
+        /** The class name or pattern of the key, without {@code +}. */
+        public String className() {
+            return key.className();
+        }
+
+        public IdSpec spec() {
+            return spec;
+        }
+
+        /** The method names, patterns and {@code "@"} after {@code ::}, in the order of the file. */
+        public List<String> methods() {
+            return key.methods();
+        }
+
+        /** Whether the class part of the key has wildcards. */
+        public boolean isPattern() {
+            return key.isPattern();
+        }
+
+        /** See {@link EntryKey#matchesClass}. */
+        public boolean matchesClass(String name, Predicate<String> isA) {
+            return key.matchesClass(name, isA);
+        }
+
+        /** See {@link EntryKey#appliesTo}. */
+        public boolean appliesTo(String methodName, boolean augmented) {
+            return key.appliesTo(methodName, augmented);
+        }
+
+        @Override
+        public String toString() {
+            return key() + "=" + specText(spec);
         }
     }
 
     /** The {@code [augment.receiver]} entries, in the order of the file. */
-    private final List<ClassKey<ClassEntry>> classKeys;
+    private final List<ClassEntry> classEntryList;
 
     /** The {@code [augment.receiver]} entries by key. */
     private final Map<String, ClassEntry> classEntriesByKey;
@@ -248,31 +317,12 @@ public final class AugmentorConfig {
         }
     };
 
-    /**
-     * An {@code [augment.params]} entry: its class part, a name or a pattern, and the method names or patterns after
-     * {@code ::}, and whether {@code "@"} is among them, for the methods annotated with {@code @StackTraceAugment}.
-     */
-    private record MethodPattern(String key, Pattern classPattern, List<Pattern> methodPatterns, boolean byAnnotation,
-                                 List<ParamRef> refs) {
-
-        boolean matches(String className, String methodName, boolean augmented) {
-            if (!classPattern.matcher(className).matches()) {
-                return false;
-            }
-            if (augmented && byAnnotation) {
-                return true;
-            }
-            for (Pattern pattern : methodPatterns) {
-                if (pattern.matcher(methodName).matches()) {
-                    return true;
-                }
-            }
-            return false;
-        }
+    /** An {@code [augment.params]} entry: its key and the parameters it selects. */
+    private record ParamsEntry(EntryKey key, List<ParamRef> refs) {
     }
 
     /** The {@code [augment.params]} entries, in the order of the file. */
-    private final List<MethodPattern> methodPatterns;
+    private final List<ParamsEntry> paramsEntries;
 
     /** The defaults: no class or method entries, so nothing gets ids. */
     public AugmentorConfig() {
@@ -281,10 +331,10 @@ public final class AugmentorConfig {
     }
 
     /**
-     * @param classes   receiver id sources by class name or class pattern, optionally followed by {@code ::} and the
-     *                  methods they apply to: the {@code [augment.receiver]} table
-     * @param methods   parameter ids by {@code "<class>::<method>"} or {@code "<class>::@"}, possibly with wildcards: the
-     *                  {@code [augment.params]} table
+     * @param classes   receiver id sources by {@code "<class>::<methods>"} key ({@link EntryKey}): the
+     *                  {@code [augment.receiver]} table
+     * @param methods   parameter ids by {@code "<class>::<methods>"} key ({@link EntryKey}): the {@code [augment.params]}
+     *                  table
      * @param exceptions whether throwables get ids, by class name (with subclasses) or class pattern (of the runtime
      *                  class), in the order the first matching entry is looked for: the {@code [augment.exceptions]}
      *                  table; empty for none, {@code "**" = true} for all
@@ -307,28 +357,22 @@ public final class AugmentorConfig {
         Map<String, ClassEntry> classEntries = new LinkedHashMap<>();
         this.classes.forEach((key, spec) -> classEntries.put(key, new ClassEntry(key, spec)));
         this.classEntriesByKey = Collections.unmodifiableMap(classEntries);
-        this.classKeys = ClassKey.of(classEntries);
-
-        List<MethodPattern> methodPatterns = new ArrayList<>();
-        this.methods.forEach((target, refs) -> {
-            List<String> names = methodNames(target);
-            methodPatterns.add(new MethodPattern(target, globToRegex(target.substring(0, target.indexOf(METHOD_SEPARATOR))),
-                    names.stream().filter(name -> !name.equals(ANNOTATIONS)).map(AugmentorConfig::globToRegex).toList(),
-                    names.contains(ANNOTATIONS), refs));
-        });
-        this.methodPatterns = List.copyOf(methodPatterns);
+        this.classEntryList = List.copyOf(classEntries.values());
+        List<ParamsEntry> paramsEntries = new ArrayList<>();
+        this.methods.forEach((target, refs) -> paramsEntries.add(new ParamsEntry(new EntryKey(target), refs)));
+        this.paramsEntries = List.copyOf(paramsEntries);
     }
 
     public static Builder builder() {
         return new Builder();
     }
 
-    /** Receiver id sources by class name or class pattern: the {@code [augment.receiver]} table. */
+    /** Receiver id sources by {@code "<class>::<methods>"} key: the {@code [augment.receiver]} table. */
     public Map<String, IdSpec> classes() {
         return classes;
     }
 
-    /** Parameter ids by {@code "<class>::<method>"} or {@code "<class>::@"}, possibly with wildcards: the {@code [augment.params]} table. */
+    /** Parameter ids by {@code "<class>::<methods>"} key: the {@code [augment.params]} table. */
     public Map<String, List<ParamRef>> methods() {
         return methods;
     }
@@ -385,7 +429,7 @@ public final class AugmentorConfig {
         return property != null ? Boolean.parseBoolean(property.trim()) : inPlaceModification;
     }
 
-    /** The {@code [augment.receiver]} entries for the debug log, e.g. {@code com.acme.**=@, com.acme.Order=getId()}. */
+    /** The {@code [augment.receiver]} entries for the debug log, e.g. {@code com.acme.**::*=@, com.acme.Order::*=getId()}. */
     public String classesDescription() {
         String text = classes.entrySet().stream()
                 .map(entry -> entry.getKey() + "=" + specText(entry.getValue()))
@@ -405,7 +449,7 @@ public final class AugmentorConfig {
         };
     }
 
-    /** The {@code [augment.params]} entries for the debug log, e.g. {@code com.acme.Order.process[order, #2]}. */
+    /** The {@code [augment.params]} entries for the debug log, e.g. {@code com.acme.Order::process[order, #2]}. */
     public String methodsDescription() {
         String text = methods.entrySet().stream()
                 .map(entry -> entry.getKey() + entry.getValue().stream()
@@ -427,10 +471,8 @@ public final class AugmentorConfig {
     }
 
     /**
-     * The {@code [augment.receiver]} entries whose class part matches the class, in the order of the file. An entry
-     * without wildcards matches its class and the subclasses, as {@code instanceof} does, so also the classes
-     * implementing an interface it names; a pattern matches the name of the class only. The class is the one that
-     * declares a frame's method.
+     * The {@code [augment.receiver]} entries whose class part matches the class, in the order of the file: see
+     * {@link EntryKey#matchesClass}. The class is the one that declares a frame's method.
      */
     public List<ClassEntry> classEntries(Class<?> type) {
         return classEntries.get(type);
@@ -454,7 +496,13 @@ public final class AugmentorConfig {
      *            directly or not, has it; see {@link #isA(Class, String)}
      */
     public List<ClassEntry> classEntries(String className, Predicate<String> isA) {
-        return ClassKey.all(classKeys, className, isA);
+        List<ClassEntry> matching = new ArrayList<>();
+        for (ClassEntry entry : classEntryList) {
+            if (entry.matchesClass(className, isA)) {
+                matching.add(entry);
+            }
+        }
+        return List.copyOf(matching);
     }
 
     /** The first of these entries that applies to the method, or {@code null}. */
@@ -493,15 +541,16 @@ public final class AugmentorConfig {
 
     /**
      * The parameters selected for a method by the first {@code [augment.params]} entry in the order of the file that
-     * matches it, by the name of the class that declares the method and the method name, or for a {@code "<class>::@"}
-     * key by its {@code @StackTraceAugment}. Later entries play no part, so a {@code "-"} entry selects nothing even where
-     * a later entry would select parameters. {@code [augment.receiver]} plays no part either.
+     * matches it: its class part matches the class that declares the method (see {@link EntryKey#matchesClass}), and
+     * its methods include the method. Later entries play no part, so a {@code "-"} entry selects nothing even where a
+     * later entry would select parameters. {@code [augment.receiver]} plays no part either.
      *
+     * @param isA       see {@link EntryKey#matchesClass}
      * @param augmented whether the method is annotated with {@code @StackTraceAugment}
      */
-    public List<ParamRef> paramRefs(String className, String methodName, boolean augmented) {
-        for (MethodPattern entry : methodPatterns) {
-            if (entry.matches(className, methodName, augmented)) {
+    public List<ParamRef> paramRefs(String className, Predicate<String> isA, String methodName, boolean augmented) {
+        for (ParamsEntry entry : paramsEntries) {
+            if (entry.key().matchesClass(className, isA) && entry.key().appliesTo(methodName, augmented)) {
                 return entry.refs().contains(new ParamRef.Excluded()) ? List.of() : entry.refs();
             }
         }
@@ -509,36 +558,16 @@ public final class AugmentorConfig {
     }
 
     /**
-     * Whether an {@code [augment.params]} entry other than {@code "-"} matches this class name for some method, so that
+     * Whether an {@code [augment.params]} entry other than {@code "-"} matches this class for some method, so that
      * {@link #paramRefs} may select parameters of its methods.
      */
-    public boolean hasParamEntries(String className) {
-        for (MethodPattern pattern : methodPatterns) {
-            if (!pattern.refs().contains(new ParamRef.Excluded()) && pattern.classPattern().matcher(className).matches()) {
+    public boolean hasParamEntries(String className, Predicate<String> isA) {
+        for (ParamsEntry entry : paramsEntries) {
+            if (!entry.refs().contains(new ParamRef.Excluded()) && entry.key().matchesClass(className, isA)) {
                 return true;
             }
         }
         return false;
-    }
-
-    /**
-     * The method part of an {@code [augment.params]} key: the names, patterns and {@code "@"} after {@code ::},
-     * separated by commas, e.g. {@code [ship, cancel*, @]} for {@code "com.acme.Order::ship, cancel*, @"}.
-     */
-    public static List<String> methodNames(String paramsKey) {
-        String methods = paramsKey.substring(paramsKey.indexOf(METHOD_SEPARATOR) + METHOD_SEPARATOR.length());
-        return List.of(methods.split(",", -1)).stream().map(String::trim).toList();
-    }
-
-    /** The class part of an {@code [augment.params]} key: the name or pattern before {@code ::}. */
-    public static String className(String paramsKey) {
-        return paramsKey.substring(0, paramsKey.indexOf(METHOD_SEPARATOR));
-    }
-
-    /** The class part of a key of any table: before {@code ::}, or the whole key without it. */
-    private static String classPart(String key) {
-        int separator = key.indexOf(METHOD_SEPARATOR);
-        return separator < 0 ? key : key.substring(0, separator);
     }
 
     /** Whether a key of {@code [augment.receiver]} or {@code [augment.params]} has wildcards ({@code *} or {@code ?}). */
@@ -752,14 +781,14 @@ public final class AugmentorConfig {
             Map<String, IdSpec> classes = new LinkedHashMap<>();
             Map<String, List<String>> classPaths = new HashMap<>();
             for (Entry entry : entries(CLASSES)) {
-                String key = unique(receiverKey(entry.path()), entry.path(), classPaths);
+                String key = unique(entryKey(entry.path(), CLASSES), entry.path(), classPaths);
                 classes.put(key, classSpec(entry.path(), entry.value()));
             }
             config.classes(classes);
             Map<String, List<ParamRef>> methods = new LinkedHashMap<>();
             Map<String, List<String>> methodPaths = new HashMap<>();
             for (Entry entry : entries(METHODS)) {
-                String key = unique(methodKey(entry.path()), entry.path(), methodPaths);
+                String key = unique(entryKey(entry.path(), METHODS), entry.path(), methodPaths);
                 methods.put(key, paramRefs(entry.path(), entry.value()));
             }
             config.methods(methods);
@@ -782,7 +811,7 @@ public final class AugmentorConfig {
             Map<String, Boolean> exceptions = new LinkedHashMap<>();
             Map<String, List<String>> exceptionPaths = new HashMap<>();
             for (Entry entry : entries(EXCEPTIONS)) {
-                String key = unique(classKey(entry.path(), EXCEPTIONS), entry.path(), exceptionPaths);
+                String key = unique(exceptionKey(entry.path(), EXCEPTIONS), entry.path(), exceptionPaths);
                 if (!(entry.value() instanceof Boolean augmented)) {
                     throw error(entry.path(), "must be true to augment the exceptions of this class or class pattern, or "
                             + "false not to, was " + entry.value());
@@ -869,15 +898,17 @@ public final class AugmentorConfig {
 
         /**
          * The key, unless another entry of the same table already names it: {@code "com.acme.Order"} and
-         * {@code com.acme.Order} are different TOML keys for the same class, and neither may silently win.
+         * {@code com.acme.Order} are different TOML keys for the same class, as are {@code "com.acme.Order::a,b"} and
+         * {@code "com.acme.Order::a, b"} for the same methods, and neither may silently win.
          */
         private String unique(String key, List<String> path, Map<String, List<String>> seen) {
             List<String> first = seen.putIfAbsent(key, path);
             if (first != null) {
                 TomlPosition position = toml.inputPositionOf(first);
                 String where = position != null ? " on line " + position.line() : "";
-                throw error(path, "'" + key + "' is configured twice; it is already configured" + where
-                        + " (quoted and unquoted keys name the same class)");
+                String same = key.contains(METHOD_SEPARATOR) ? "keys that differ in spaces only name the same methods"
+                        : "quoted and unquoted keys name the same class";
+                throw error(path, "'" + key + "' is configured twice; it is already configured" + where + " (" + same + ")");
             }
             return key;
         }
@@ -886,7 +917,7 @@ public final class AugmentorConfig {
             return String.join(".", path.subList(table.size(), path.size()));
         }
 
-        private String classKey(List<String> path, List<String> table) {
+        private String exceptionKey(List<String> path, List<String> table) {
             String target = target(path, table);
             if (!CLASS_PART.matcher(target).matches()) {
                 throw error(path, "[" + name(table) + "] keys must name a class or a class pattern, e.g. \"com.acme.Order\" or "
@@ -896,62 +927,49 @@ public final class AugmentorConfig {
         }
 
         /**
-         * An {@code [augment.receiver]} key: a class name or pattern, optionally followed by {@code ::} and its methods,
-         * kept with ", " between them, e.g. {@code "com.acme.Order::ship, cancel"} for {@code "...::ship,cancel"}.
+         * An {@code [augment.receiver]} or {@code [augment.params]} key: a class name or pattern, {@code +} after a class
+         * name for its subclasses, {@code ::} and the methods, kept with ", " between them, e.g.
+         * {@code "com.acme.Order+::ship, cancel"} for {@code "com.acme.Order+::ship,cancel"}. Constructors
+         * ({@code <init>}) only in {@code [augment.params]}, as they show no receiver id.
          */
-        private String receiverKey(List<String> path) {
-            String target = target(path, CLASSES);
+        private String entryKey(List<String> path, List<String> table) {
+            boolean constructors = table.equals(METHODS);
+            String target = target(path, table);
             int separator = target.indexOf(METHOD_SEPARATOR);
-            if (separator < 0) {
-                return classKey(path, CLASSES);
+            if (separator <= 0) {
+                throw invalidKey(path, table);
             }
-            if (separator == 0 || !CLASS_PART.matcher(target.substring(0, separator)).matches()) {
-                throw invalidReceiverKey(path);
+            String classPart = target.substring(0, separator);
+            boolean subclasses = classPart.endsWith(SUBCLASSES);
+            String className = subclasses ? classPart.substring(0, classPart.length() - SUBCLASSES.length()) : classPart;
+            if (!CLASS_PART.matcher(className).matches()) {
+                throw invalidKey(path, table);
             }
-            return target.substring(0, separator) + METHOD_SEPARATOR
-                    + String.join(", ", methodList(path, target, false, () -> invalidReceiverKey(path)));
-        }
-
-        private ConfigException invalidReceiverKey(List<String> path) {
-            return error(path, "[" + name(CLASSES) + "] keys must name a class or a class pattern, e.g. \"com.acme.Order\" or "
-                    + "\"com.acme.**\", optionally followed by :: and its methods, e.g. \"com.acme.Order::ship, cancel*\", "
-                    + "@ for the methods annotated with @StackTraceAugment; " + ALLOWED_CHARACTERS);
-        }
-
-        /** The key with its methods separated by ", ", e.g. {@code "com.acme.Order::ship, cancel"} for {@code "...::ship,cancel"}. */
-        private String methodKey(List<String> path) {
-            String target = target(path, METHODS);
-            int separator = target.indexOf(METHOD_SEPARATOR);
-            if (separator <= 0 || !CLASS_PART.matcher(target.substring(0, separator)).matches()) {
-                throw invalidMethodKey(path);
+            if (subclasses && isPattern(className)) {
+                throw error(path, "+ after the class includes its subclasses, so it needs a class name without wildcards; "
+                        + "a pattern such as \"" + className + "\" matches class names only");
             }
-            return target.substring(0, separator) + METHOD_SEPARATOR
-                    + String.join(", ", methodList(path, target, true, () -> invalidMethodKey(path)));
-        }
-
-        /**
-         * The methods after {@code ::}: names or patterns with {@code *} and {@code ?}, {@code "@"} for the methods
-         * annotated with {@code @StackTraceAugment}, and if allowed {@code <init>}, without duplicates.
-         */
-        private List<String> methodList(List<String> path, String target, boolean constructors, Supplier<ConfigException> invalid) {
             List<String> names = new ArrayList<>();
-            for (String name : methodNames(target)) {
-                if (!(METHOD_PART.matcher(name).matches() || constructors && name.equals(CONSTRUCTOR) || name.equals(ANNOTATIONS))) {
-                    throw invalid.get();
+            for (String name : List.of(target.substring(separator + METHOD_SEPARATOR.length()).split(",", -1))) {
+                String trimmed = name.trim();
+                if (!(METHOD_PART.matcher(trimmed).matches() || constructors && trimmed.equals(CONSTRUCTOR)
+                        || trimmed.equals(ANNOTATIONS))) {
+                    throw invalidKey(path, table);
                 }
-                if (names.contains(name)) {
-                    throw error(path, "'" + name + "' is listed twice");
+                if (names.contains(trimmed)) {
+                    throw error(path, "'" + trimmed + "' is listed twice");
                 }
-                names.add(name);
+                names.add(trimmed);
             }
-            return names;
+            return classPart + METHOD_SEPARATOR + String.join(", ", names);
         }
 
-        private ConfigException invalidMethodKey(List<String> path) {
-            return error(path, "[" + name(METHODS) + "] keys must name a class and its methods separated by ::, e.g. "
-                    + "\"com.acme.OrderService::process\", \"com.acme.OrderService::process, cancel*\" or "
-                    + "\"com.acme.OrderService::*\", <init> for the constructors, @ for the methods annotated with "
-                    + "@StackTraceAugment; " + ALLOWED_CHARACTERS);
+        private ConfigException invalidKey(List<String> path, List<String> table) {
+            return error(path, "[" + name(table) + "] keys must name a class and its methods separated by ::, e.g. "
+                    + "\"com.acme.Order::ship, cancel*\" or \"com.acme.Order::*\"; + after the class name includes its "
+                    + "subclasses (\"com.acme.Order+::*\"), a class pattern matches class names only (\"com.acme.**::*\"), "
+                    + "@ stands for the methods annotated with @StackTraceAugment"
+                    + (table.equals(METHODS) ? ", <init> for the constructors" : "") + "; " + ALLOWED_CHARACTERS);
         }
 
         private IdSpec classSpec(List<String> path, Object value) {

@@ -6,7 +6,8 @@ class Order(private val orderNumber: Long) {
     fun getOrderNumber(): Long = orderNumber
 }
 
-class Customer(private val customerId: String) {
+/** Its entry has no "+", so it does not apply to the subclass com.hafnium.it.outside.VipCustomer. */
+open class Customer(private val customerId: String) {
     fun rename(): Nothing = throw IllegalStateException("cannot rename")
 }
 

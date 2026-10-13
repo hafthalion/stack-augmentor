@@ -17,28 +17,34 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
   - `[augment.exceptions]` (class name or class pattern → `true` or `false`), which decides the throwables
     whose frames get ids, see the stack trace augmentation spec. Its entries SHALL be read in the order of the
     file. Without entries no throwable gets ids;
-  - `[augment.receiver]` (class name or class pattern, optionally followed by `::` and the method names or
-    patterns the entry applies to, separated by commas, e.g. `"com.acme.Order::ship, cancel*"`, where `@` names the
-    methods annotated with `@StackTraceAugment`, without `::` all methods → a string: field name, `method()`,
-    several of them separated by commas, `"@"` for the class's `@StackTraceId` members, or `"-"` for no receiver
-    id), which decides the receiver ids, see the id sources spec. Its entries SHALL be read in the order of the
-    file, and the first that matches a class and applies to a method decides for that method;
-  - `[augment.params]` (`"<class pattern>::<method pattern>"`, several method patterns separated by commas, where `@`
-    stands for the methods and constructors annotated with `@StackTraceAugment` → a string: parameter names and 0-based
-    indexes from 0 to 255, the JVM's maximum number of parameters, separated by commas, each optionally followed by
-    `#` to hash the value (e.g. `"order, 2, email#"`), `"@"` for the method's parameter annotations, or `"-"` for none;
-    there is no wildcard value for the parameters), which decides the parameter ids. Its entries SHALL be read in
-    the order of the file, and the first that matches a method decides. The method part `<init>`
-    names the constructors; wildcards in the method part SHALL match it like any method name.
+  - `[augment.receiver]` (method key, see below → a string: field name, `method()`, several of them separated
+    by commas, `"@"` for the class's `@StackTraceId` members, or `"-"` for no receiver id), which decides the
+    receiver ids, see the id sources spec;
+  - `[augment.params]` (method key → a string: parameter names and 0-based indexes from 0 to 255, the JVM's
+    maximum number of parameters, separated by commas, each optionally followed by `#` to hash the value (e.g.
+    `"order, 2, email#"`), `"@"` for the method's parameter annotations, or `"-"` for none; there is no wildcard
+    value for the parameters), which decides the parameter ids.
+
+  The keys of `[augment.receiver]` and `[augment.params]` SHALL have the same syntax and matching,
+  `"<class>::<methods>"`: a class name, optionally followed by `+`, or a class pattern; then `::`, which is
+  required; then method names or patterns separated by commas without duplicates, where `*` alone stands for all
+  methods and `@` for the methods (and in `[augment.params]` the constructors) annotated with
+  `@StackTraceAugment`. A class name SHALL match the class that declares a frame's method; with `+` also its
+  subclasses and, for an interface, the classes implementing it, as `instanceof` does; a pattern SHALL match
+  class names only. `+` after a pattern SHALL be rejected. The method part `<init>` names the constructors, in
+  `[augment.params]` only; wildcards in the method part SHALL match it like any method name. The entries of
+  each table SHALL be read in the order of the file, and the first whose class part matches and whose methods
+  include the method SHALL decide for that method.
 
   The tables default to empty. They SHALL be independent: no value in one table SHALL change what the
   other selects.
 
 Sections, dotted keys (`augment.maxIdLength = 32`) and inline tables SHALL be equivalent. Quoted and
-unquoted class names in `[augment.receiver]` SHALL be equivalent; keys with
-wildcards, and the keys of `[augment.params]`, which contain `::`, SHALL be quoted, as TOML requires. Two entries of one table whose keys name the same class or
-method this way SHALL be rejected, naming the key and the lines of both entries, rather than one silently
-replacing the other.
+unquoted class names in `[augment.exceptions]` SHALL be equivalent; keys with wildcards, and the keys of
+`[augment.receiver]` and `[augment.params]`, which contain `::`, SHALL be quoted, as TOML requires. Two entries of
+one table whose keys name the same class or methods, such as `com.acme.Order` and `"com.acme.Order"`, or
+`"com.acme.Order::a,b"` and `"com.acme.Order::a, b"`, SHALL be rejected, naming the key and the lines of both
+entries, rather than one silently replacing the other.
 
 #### Scenario: Full configuration
 - **GIVEN** a file with `debug`, `[augment.receiver]`, `[augment.params]` and `[augment]` entries
@@ -46,9 +52,9 @@ replacing the other.
 - **THEN** every value is available with its declared type
 
 #### Scenario: Class configured twice
-- **GIVEN** `"com.acme.Order" = "a"` on line 2 and `com.acme.Order = "b"` on line 3 of `[augment.receiver]` in `stack-augmentor.toml`
+- **GIVEN** `"com.acme.Order::a,b" = "x"` on line 2 and `"com.acme.Order::a, b" = "y"` on line 3 of `[augment.receiver]` in `stack-augmentor.toml`
 - **WHEN** it is loaded
-- **THEN** it is rejected with `stack-augmentor.toml, line 3: 'com.acme.Order' is configured twice; it is already configured on line 2 (quoted and unquoted keys name the same class)`
+- **THEN** it is rejected with `stack-augmentor.toml, line 3: 'com.acme.Order::a, b' is configured twice; it is already configured on line 2 (keys that differ in spaces only name the same methods)`
 
 #### Scenario: Empty file
 - **GIVEN** an empty configuration file
@@ -61,7 +67,7 @@ replacing the other.
 - **THEN** the entry selects the parameter `order` and the second parameter of all methods of matching classes
 
 #### Scenario: Class entries
-- **GIVEN** `"com.acme.legacy.*" = "getKey()"`, `"com.acme.**" = "@"` and `"com.thirdparty.Customer" = "customerId"` in `[augment.receiver]`, in this order
+- **GIVEN** `"com.acme.legacy.*::*" = "getKey()"`, `"com.acme.**::*" = "@"` and `"com.thirdparty.Customer::*" = "customerId"` in `[augment.receiver]`, in this order
 - **WHEN** it is loaded
 - **THEN** the classes under `com.acme` use their `@StackTraceId`, classes directly in `com.acme.legacy` use `getKey()`, and `Customer` uses its `customerId` field, while no parameter annotations are used
 
@@ -113,12 +119,12 @@ invalid in both tables. The message SHALL name the file, the key and its line.
 - **THEN** it is rejected with a message that the configuration must be a TOML file ending in `.toml`
 
 #### Scenario: Invalid parameter entries
-- **GIVEN** `[augment.params]` with `"com.acme.Order::process" = ["order"]`, `"com.acme.Order::process" = "order,"`, `"com.acme.Order::process" = "*"`, or `"com.acme.Order+::process" = "@"`, or `"com.acme.Order.process" = "@"` (no `::`)
+- **GIVEN** `[augment.params]` with `"com.acme.Order::process" = ["order"]`, `"com.acme.Order::process" = "order,"`, `"com.acme.Order::process" = "*"`, or `"com.acme.Ord+er::process" = "@"`, or `"com.acme.Order.process" = "@"` (no `::`)
 - **WHEN** the configuration is loaded
 - **THEN** it is rejected with a message naming the key and its line
 
 #### Scenario: Invalid class entry
-- **GIVEN** `[augment.receiver]` with `"com.acme.Order" = "@id"`, `"com.acme.Order" = ["id"]`, `"com.acme.Order" = "id, @"`, `"com.acme.Order" = "id :: ship"` (the methods go in the key), `"com.acme.Order::" = "id"`, `"com.acme.Order::ship()" = "id"`, `"com.acme.Order::<init>" = "id"`, `"com.acme.Order::ship, ship" = "id"`, or `"com.acme.Ord+er" = "@"`
+- **GIVEN** `[augment.receiver]` with `"com.acme.Order::*" = "@id"`, `"com.acme.Order::*" = ["id"]`, `"com.acme.Order::*" = "id, @"`, `"com.acme.Order::*" = "id :: ship"` (the methods go in the key), `"com.acme.Order" = "id"` (no `::`), `"com.acme.Order::" = "id"`, `"com.acme.Order::ship()" = "id"`, `"com.acme.Order::<init>" = "id"`, `"com.acme.Order::ship, ship" = "id"`, `"com.acme.*+::*" = "id"`, or `"com.acme.Ord+er::*" = "@"`
 - **WHEN** the configuration is loaded
 - **THEN** it is rejected with a message naming the key and its line
 

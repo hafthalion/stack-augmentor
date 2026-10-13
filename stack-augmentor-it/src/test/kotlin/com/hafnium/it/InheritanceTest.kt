@@ -49,8 +49,8 @@ import org.springframework.cglib.proxy.Enhancer
 import org.springframework.cglib.proxy.NoOp
 
 /**
- * An [augment.receiver] entry without wildcards applies to its class and the subclasses, a pattern to the classes whose
- * name it matches only, and the first matching entry wins: see the inheritance entries in
+ * An [augment.receiver] entry with "+" after a class name applies to its class and the subclasses, a pattern to the
+ * classes whose name it matches only, and the first matching entry wins: see the inheritance entries in
  * src/test/resources/stack-augmentor.toml. A frame's receiver id comes from the entry that matches the class declaring
  * its method, read from the object: a subclass, e.g. a proxy or a mock, shows the id of Order in the frames of Order's
  * methods, and its own methods show it too unless an earlier entry matches the subclass. Runs with the agent.
