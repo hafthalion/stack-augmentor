@@ -21,13 +21,14 @@ paramsFormat = "{$name=$id, ...}"
 maxIdLength = 64
 
 # Which exceptions get ids: true or false. The first entry that matches decides, in the order of the file; an
-# exception that no entry matches gets none. A class name matches the class and its subclasses, as instanceof
-# does; a pattern matches the name of the exception's runtime class only.
-# Without this table, or with an empty one, no exception gets ids: "java.lang.Exception" = true gives them to all
+# exception that no entry matches gets none. The keys are the class parts of the keys below, without methods: a
+# class name matches that class only, "+" after it also its subclasses, as instanceof does; a pattern matches the
+# name of the exception's runtime class only.
+# Without this table, or with an empty one, no exception gets ids: "java.lang.Exception+" = true gives them to all
 # exceptions, "**" = true to all throwables.
 [augment.exceptions]
-"java.io.FileNotFoundException" = false              # except this one
-"java.io.IOException" = true                         # and its subclasses
+"java.io.FileNotFoundException+" = false             # except this one and its subclasses
+"java.io.IOException+" = true                        # and its subclasses
 "com.acme.flow.**" = false                           # these classes, not their subclasses elsewhere
 "com.acme.**" = true
 
@@ -66,9 +67,9 @@ maxIdLength = 64
 "com.thirdparty.Shipment::<init>" = "orderId"       # constructors: <init>
 ```
 
-- **Quote the keys.** `[augment.receiver]` and `[augment.params]` keys contain `::`, so they must be quoted. In `[augment.exceptions]`, TOML reads an unquoted class name's `.` as nested tables; that works too, but keys with wildcards must be quoted. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.
+- **Quote the keys.** `[augment.receiver]` and `[augment.params]` keys contain `::`, so they must be quoted. In `[augment.exceptions]`, TOML reads an unquoted class name's `.` as nested tables; that works too, but keys with wildcards or `+` must be quoted. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.
 - **Keep wildcards narrow.** `"com.**::*" = "@"` makes the agent instrument many classes, which slows down class loading.
-- **`[augment.exceptions]`** is checked when an exception leaves a method, against the class of the exception: classes still get instrumented as `[augment.receiver]` and `[augment.params]` say. No entry, no ids: to give all exceptions ids, write `"java.lang.Exception" = true` (`"**" = true` includes errors), and to exclude only some, put their `false` entries before it. If receivers or parameters are configured but no entry is `true`, startup warns. The frames that an exception without ids leaves stay as they are, also where its causes share them; a cause with ids wrapped in it keeps the ids of the frames it left itself. An exception with ids still writes its frames into the causes that share them, whatever their class, so printed traces still collapse into `... N more`.
+- **`[augment.exceptions]`** is checked when an exception leaves a method, against the class of the exception: classes still get instrumented as `[augment.receiver]` and `[augment.params]` say. No entry, no ids: to give all exceptions ids, write `"java.lang.Exception+" = true` (`"**" = true` includes errors), and to exclude only some, put their `false` entries before it. If receivers or parameters are configured but no entry is `true`, startup warns. The frames that an exception without ids leaves stay as they are, also where its causes share them; a cause with ids wrapped in it keeps the ids of the frames it left itself. An exception with ids still writes its frames into the causes that share them, whatever their class, so printed traces still collapse into `... N more`.
 - **`debug = true`** lists the configuration, every instrumented class and the annotations that have no effect. Messages start with their source: `agent:`, `build plugin:` or `runtime:` (build-time instrumentation at runtime).
 - **Missing members** are a warning for exact class names, and a debug message for patterns.
 - **An invalid configuration stops the JVM (or the build) at startup**, naming the key and its line, e.g. `stack-augmentor.toml, line 3: maxIdLength must be between 2 and 10000, was 1`. Unknown keys are rejected, so typos don't go unnoticed.

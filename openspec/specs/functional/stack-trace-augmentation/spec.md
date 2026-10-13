@@ -63,10 +63,11 @@ exception that left them.
 
 ### Requirement: Only some exceptions
 With `[augment.exceptions]`, the system SHALL capture and rewrite frames only of throwables for which the first
-matching entry, in the order of the file, has the value `true`. A key without wildcards SHALL match the
-throwables that are instances of that class, as `instanceof` does, subclasses included; a key with the class
-pattern wildcards of `[augment.receiver]` SHALL match the name of the throwable's runtime class only, as there,
-and not its superclasses. A throwable that no entry matches SHALL get no ids. The frames that other throwables leave SHALL be
+matching entry, in the order of the file, has the value `true`. The keys SHALL have the class part of the
+`[augment.receiver]` and `[augment.params]` keys, matched the same way, without methods: a class name SHALL match
+throwables of that class only; with `+` after it (`"java.io.IOException+"`) the throwables that are instances of
+that class, as `instanceof` does, subclasses included; a key with the class pattern wildcards SHALL match the name
+of the throwable's runtime class only, and not its superclasses. A throwable that no entry matches SHALL get no ids. The frames that other throwables leave SHALL be
 left unchanged, in their own traces and in those of their causes and suppressed exceptions; a frame that a
 throwable with ids leaves SHALL still be written into the traces it shares, whatever their class, so that
 printed traces still collapse. What gets instrumented SHALL NOT depend on it. This SHALL hold in both modes and
@@ -75,14 +76,19 @@ in the live-stack mode. Without the table, or with an empty one, no throwable SH
 is `true`, startup SHALL warn.
 
 #### Scenario: First matching entry
-- **GIVEN** `"java.io.FileNotFoundException" = false` before `"java.io.IOException" = true`
+- **GIVEN** `"java.io.FileNotFoundException" = false` before `"java.io.IOException+" = true`
 - **WHEN** configured methods throw `FileNotFoundException` and `IOException`
 - **THEN** the frames of the `FileNotFoundException` are unchanged and those of the `IOException` show their ids
+
+#### Scenario: Subclass of an entry with plus
+- **GIVEN** only `"java.io.IOException+" = true` and a configured method that throws `FileNotFoundException`
+- **WHEN** the stack trace is inspected
+- **THEN** its frame shows the ids
 
 #### Scenario: Subclass of an exact entry
 - **GIVEN** only `"java.io.IOException" = true` and a configured method that throws `FileNotFoundException`
 - **WHEN** the stack trace is inspected
-- **THEN** its frame shows the ids
+- **THEN** its frame is unchanged
 
 #### Scenario: Subclass of a class matched by a pattern
 - **GIVEN** only `"java.io.IO*" = true` and a configured method that throws `FileNotFoundException`

@@ -18,7 +18,7 @@ public final class Startup {
     public static final String NOTHING_CONFIGURED =
             "the configuration has no [augment.receiver] or [augment.params] entries, so nothing will be augmented";
     public static final String NO_EXCEPTIONS =
-            "no [augment.exceptions] entry is true, so no exception gets ids; \"java.lang.Exception\" = true gives them "
+            "no [augment.exceptions] entry is true, so no exception gets ids; \"java.lang.Exception+\" = true gives them "
                     + "to all exceptions, \"**\" = true to all throwables";
 
     private Startup() {

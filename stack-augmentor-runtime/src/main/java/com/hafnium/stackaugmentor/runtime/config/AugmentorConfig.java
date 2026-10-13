@@ -20,6 +20,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -38,11 +39,12 @@ import java.util.stream.Collectors;
  * maxIdLength = 64
  *
  * [augment.exceptions]       # which throwables get ids: true or false, the first matching entry wins; a class name
- *                            # matches its subclasses too, a pattern the runtime class only; a throwable that no
- *                            # entry matches gets none, so without the table none do: "**" = true for all
- * "com.acme.ControlFlowException" = false
+ *                            # matches that class, with "+" its subclasses too, a pattern the runtime class only; a
+ *                            # throwable that no entry matches gets none, so without the table none do: "**" = true
+ *                            # for all
+ * "com.acme.ControlFlowException+" = false
  * "com.acme.**" = true
- * "java.io.IOException" = true   # and its subclasses
+ * "java.io.IOException+" = true   # and its subclasses
  *
  * # Keys of [augment.receiver] and [augment.params]: "<class>::<methods>". A class name matches that class only, with
  * # "+" after it also its subclasses and implementing classes; a pattern matches class names only. The methods are
@@ -118,42 +120,46 @@ public final class AugmentorConfig {
     private final Map<String, Boolean> exceptions;
 
     /**
-     * An entry of {@code [augment.exceptions]}: a class pattern, which matches the name of the class only, or for a
-     * class name without wildcards {@code null}, which matches the class and its subclasses.
+     * The class part of a key, the same in all three tables: a class name, which matches that class only; with
+     * {@code +} after it ({@code "com.acme.Order+"}) also its subclasses and, for an interface, the classes
+     * implementing it, as {@code instanceof} does; or a class pattern, which matches class names only.
+     *
+     * @param pattern {@code null} for a class name
      */
-    private record ClassKey<V>(String className, Pattern pattern, V value) {
+    private record ClassPart(String className, boolean subclasses, Pattern pattern) {
 
-        static <V> List<ClassKey<V>> of(Map<String, V> table) {
-            return table.entrySet().stream()
-                    .map(entry -> new ClassKey<>(entry.getKey(),
-                            isPattern(entry.getKey()) ? globToRegex(entry.getKey()) : null, entry.getValue()))
-                    .toList();
+        static ClassPart of(String classPart) {
+            boolean subclasses = classPart.endsWith(SUBCLASSES);
+            String className = subclasses ? classPart.substring(0, classPart.length() - SUBCLASSES.length()) : classPart;
+            return new ClassPart(className, subclasses, isPattern(className) ? globToRegex(className) : null);
         }
 
+        /** @param isA see {@link EntryKey#matchesClass} */
         boolean matches(String name, Predicate<String> isA) {
-            return pattern != null ? pattern.matcher(name).matches() : isA.test(className);
-        }
-
-        /** The first entry that matches, in the order of the file, or {@code null}. */
-        static <V> ClassKey<V> first(List<ClassKey<V>> entries, String className, Predicate<String> isA) {
-            for (ClassKey<V> entry : entries) {
-                if (entry.matches(className, isA)) {
-                    return entry;
-                }
+            if (pattern != null) {
+                return pattern.matcher(name).matches();
             }
-            return null;
+            return subclasses ? isA.test(className) : className.equals(name);
         }
     }
 
+    /** An {@code [augment.exceptions]} entry. */
+    private record ExceptionEntry(ClassPart classPart, boolean augmented) {
+    }
+
     /** The {@code [augment.exceptions]} entries, in the order of the file. */
-    private final List<ClassKey<Boolean>> exceptionKeys;
+    private final List<ExceptionEntry> exceptionEntries;
 
     /** Per throwable class, whether it gets ids: the value of the first {@code [augment.exceptions]} entry it matches. */
     private final ClassValue<Boolean> augmentedExceptions = new ClassValue<>() {
         @Override
         protected Boolean computeValue(Class<?> type) {
-            ClassKey<Boolean> entry = ClassKey.first(exceptionKeys, type.getName(), name -> isA(type, name));
-            return entry != null && entry.value();
+            for (ExceptionEntry entry : exceptionEntries) {
+                if (entry.classPart().matches(type.getName(), name -> isA(type, name))) {
+                    return entry.augmented();
+                }
+            }
+            return false;
         }
     };
 
@@ -168,9 +174,7 @@ public final class AugmentorConfig {
     public static final class EntryKey {
 
         private final String key;
-        private final String className;
-        private final boolean subclasses;
-        private final Pattern classPattern;
+        private final ClassPart classPart;
         private final List<String> methods;
         private final List<Pattern> methodPatterns;
 
@@ -181,10 +185,7 @@ public final class AugmentorConfig {
             if (separator < 0) {
                 throw new IllegalArgumentException("no " + METHOD_SEPARATOR + " in " + key);
             }
-            String classPart = key.substring(0, separator);
-            this.subclasses = classPart.endsWith(SUBCLASSES);
-            this.className = subclasses ? classPart.substring(0, classPart.length() - SUBCLASSES.length()) : classPart;
-            this.classPattern = AugmentorConfig.isPattern(className) ? globToRegex(className) : null;
+            this.classPart = ClassPart.of(key.substring(0, separator));
             String methodPart = key.substring(separator + METHOD_SEPARATOR.length());
             this.methods = List.of(methodPart.split(",", -1)).stream().map(String::trim).toList();
             this.methodPatterns = methods.stream().filter(name -> !name.equals(ANNOTATIONS))
@@ -197,17 +198,17 @@ public final class AugmentorConfig {
 
         /** The class name or pattern, without {@code +}. */
         public String className() {
-            return className;
+            return classPart.className();
         }
 
         /** Whether the key has {@code +} after the class name, so that it matches the subclasses too. */
         public boolean subclasses() {
-            return subclasses;
+            return classPart.subclasses();
         }
 
         /** Whether the class part has wildcards. */
         public boolean isPattern() {
-            return classPattern != null;
+            return classPart.pattern() != null;
         }
 
         /** The method names, patterns and {@code "@"} after {@code ::}, in the order of the file. */
@@ -223,10 +224,7 @@ public final class AugmentorConfig {
          *            directly or not, has it; see {@link #isA(Class, String)}
          */
         public boolean matchesClass(String name, Predicate<String> isA) {
-            if (classPattern != null) {
-                return classPattern.matcher(name).matches();
-            }
-            return subclasses ? isA.test(className) : className.equals(name);
+            return classPart.matches(name, isA);
         }
 
         /**
@@ -335,8 +333,8 @@ public final class AugmentorConfig {
      *                  {@code [augment.receiver]} table
      * @param methods   parameter ids by {@code "<class>::<methods>"} key ({@link EntryKey}): the {@code [augment.params]}
      *                  table
-     * @param exceptions whether throwables get ids, by class name (with subclasses) or class pattern (of the runtime
-     *                  class), in the order the first matching entry is looked for: the {@code [augment.exceptions]}
+     * @param exceptions whether throwables get ids, by class name (with {@code +} also the subclasses) or class pattern
+     *                  (of the runtime class), in the order the first matching entry is looked for: the {@code [augment.exceptions]}
      *                  table; empty for none, {@code "**" = true} for all
      */
     public AugmentorConfig(Map<String, IdSpec> classes, Map<String, List<ParamRef>> methods,
@@ -353,7 +351,8 @@ public final class AugmentorConfig {
         this.debug = debug;
         this.inPlaceModification = inPlaceModification;
         this.exceptions = Collections.unmodifiableMap(new LinkedHashMap<>(exceptions));
-        this.exceptionKeys = ClassKey.of(this.exceptions);
+        this.exceptionEntries = this.exceptions.entrySet().stream()
+                .map(entry -> new ExceptionEntry(ClassPart.of(entry.getKey()), entry.getValue())).toList();
         Map<String, ClassEntry> classEntries = new LinkedHashMap<>();
         this.classes.forEach((key, spec) -> classEntries.put(key, new ClassEntry(key, spec)));
         this.classEntriesByKey = Collections.unmodifiableMap(classEntries);
@@ -404,9 +403,9 @@ public final class AugmentorConfig {
 
     /**
      * Whether frames of throwables of this runtime class get ids: the value of the first {@code [augment.exceptions]}
-     * entry that matches decides, and a class that no entry matches gets none, so without entries none does. An entry without
-     * wildcards matches its class and the subclasses, as {@code instanceof} does; a pattern matches the name of the
-     * runtime class only, as in {@code [augment.receiver]}.
+     * entry that matches decides, and a class that no entry matches gets none, so without entries none does. A class
+     * name matches that class only, with {@code +} also its subclasses, as {@code instanceof} does; a pattern matches
+     * the name of the runtime class only, as in {@code [augment.receiver]}.
      */
     public boolean augments(Class<? extends Throwable> type) {
         return augmentedExceptions.get(type);
@@ -917,13 +916,26 @@ public final class AugmentorConfig {
             return String.join(".", path.subList(table.size(), path.size()));
         }
 
+        /** An {@code [augment.exceptions]} key: a class name, optionally followed by {@code +}, or a class pattern. */
         private String exceptionKey(List<String> path, List<String> table) {
             String target = target(path, table);
-            if (!CLASS_PART.matcher(target).matches()) {
-                throw error(path, "[" + name(table) + "] keys must name a class or a class pattern, e.g. \"com.acme.Order\" or "
-                        + "\"com.acme.**\"; " + ALLOWED_CHARACTERS);
-            }
+            checkClassPart(path, target, () -> error(path, "[" + name(table) + "] keys must name a class or a class pattern, "
+                    + "e.g. \"com.acme.FlowException\", \"java.io.IOException+\" with its subclasses, or \"com.acme.**\"; "
+                    + ALLOWED_CHARACTERS));
             return target;
+        }
+
+        /** A class name, optionally followed by {@code +}, or a class pattern, which takes no {@code +}. */
+        private void checkClassPart(List<String> path, String classPart, Supplier<ConfigException> invalid) {
+            boolean subclasses = classPart.endsWith(SUBCLASSES);
+            String className = subclasses ? classPart.substring(0, classPart.length() - SUBCLASSES.length()) : classPart;
+            if (!CLASS_PART.matcher(className).matches()) {
+                throw invalid.get();
+            }
+            if (subclasses && isPattern(className)) {
+                throw error(path, "+ after the class includes its subclasses, so it needs a class name without wildcards; "
+                        + "a pattern such as \"" + className + "\" matches class names only");
+            }
         }
 
         /**
@@ -940,15 +952,7 @@ public final class AugmentorConfig {
                 throw invalidKey(path, table);
             }
             String classPart = target.substring(0, separator);
-            boolean subclasses = classPart.endsWith(SUBCLASSES);
-            String className = subclasses ? classPart.substring(0, classPart.length() - SUBCLASSES.length()) : classPart;
-            if (!CLASS_PART.matcher(className).matches()) {
-                throw invalidKey(path, table);
-            }
-            if (subclasses && isPattern(className)) {
-                throw error(path, "+ after the class includes its subclasses, so it needs a class name without wildcards; "
-                        + "a pattern such as \"" + className + "\" matches class names only");
-            }
+            checkClassPart(path, classPart, () -> invalidKey(path, table));
             List<String> names = new ArrayList<>();
             for (String name : List.of(target.substring(separator + METHOD_SEPARATOR.length()).split(",", -1))) {
                 String trimmed = name.trim();

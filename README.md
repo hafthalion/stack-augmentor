@@ -28,7 +28,7 @@ An application with classes instrumented at build time can also run with the age
 | Option | Where | Default | What it does |
 |---|---|---|---|
 | Configuration file | `-javaagent:...=config=<file>`, `-Dstackaugmentor.config=<file>`, or (build-time) `stack-augmentor.toml` on the classpath | none: nothing is augmented | the TOML file with everything below |
-| `[augment.exceptions]` | configuration | empty: no exception gets ids | which exceptions get ids: `true` or `false`, the first matching entry wins; a class name includes its subclasses, so `"java.lang.Exception" = true` covers all exceptions and `"**" = true` all throwables |
+| `[augment.exceptions]` | configuration | empty: no exception gets ids | which exceptions get ids: `true` or `false`, the first matching entry wins; a class name matches that class only, with `+` also its subclasses, as in the other tables, so `"java.lang.Exception+" = true` covers all exceptions and `"**" = true` all throwables |
 | `[augment.receiver]` | configuration | empty | which methods show a receiver id, and where it comes from, by `"<class>::<methods>"` keys as in `[augment.params]`; the first matching entry wins |
 | `[augment.params]` | configuration | empty | which methods show parameter ids, and which parameters, by `"<class>::<methods>"` keys: `"com.acme.Order::ship, cancel*"`, `"com.acme.Order::*"` for all methods, `"com.acme.Order::@"` for those annotated with `@StackTraceAugment`, `"com.acme.Order+::*"` with the subclasses, `"com.acme.**::*"` by pattern; the first matching entry wins |
 | `[augment]` | configuration | see [Formats](docs/configuration.md#formats) | how frames look: `frameFormat`, `receiverFormat`, `paramsFormat`, `maxIdLength` |
@@ -82,7 +82,7 @@ Use it in your own application:
 
    ```toml
    [augment.exceptions]    # without an entry that is true, no exception gets ids
-   "java.lang.Exception" = true
+   "java.lang.Exception+" = true
 
    [augment.receiver]      # receiver ids: @StackTraceId
    "com.acme.**::*" = "@"

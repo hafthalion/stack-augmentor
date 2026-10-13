@@ -643,25 +643,25 @@ class AugmentorConfigTest {
         val config = parse(
             """
             [augment.exceptions]
-            "java.io.FileNotFoundException" = false
-            "java.io.IOException" = true
+            "java.io.FileNotFoundException+" = false
+            "java.io.IOException+" = true
             "com.hafnium.stackaugmentor.runtime.config.AugmentorConfigTest${'$'}Ba?e" = true
             "java.util.concurrent.**" = false
             "java.**" = true
             """,
         )
         assertEquals(
-            listOf("java.io.FileNotFoundException", "java.io.IOException", Base::class.java.name.dropLast(2) + "?e", "java.util.concurrent.**", "java.**"),
+            listOf("java.io.FileNotFoundException+", "java.io.IOException+", Base::class.java.name.dropLast(2) + "?e", "java.util.concurrent.**", "java.**"),
             config.exceptions().keys.toList(),
         )
         assertEquals(
-            "java.io.FileNotFoundException=false, java.io.IOException=true, ${Base::class.java.name.dropLast(2)}?e=true, " +
+            "java.io.FileNotFoundException+=false, java.io.IOException+=true, ${Base::class.java.name.dropLast(2)}?e=true, " +
                 "java.util.concurrent.**=false, java.**=true",
             config.exceptionsDescription(),
         )
         assertFalse(config.augments(java.io.FileNotFoundException::class.java))
         assertTrue(config.augments(java.io.IOException::class.java))
-        // A class name matches its subclasses, as instanceof does.
+        // A class name with + matches its subclasses, as instanceof does.
         assertTrue(config.augments(java.nio.file.NoSuchFileException::class.java))
         assertTrue(config.augments(Base::class.java))
         // A pattern matches the runtime class only, not its superclasses.
@@ -672,8 +672,12 @@ class AugmentorConfigTest {
         assertFalse(config.augments(ConfigException::class.java))
         assertNotEquals(all, config)
 
-        val byName = parse("[augment.exceptions]\n\"${Base::class.java.name}\" = true")
-        assertTrue(byName.augments(Derived::class.java))
+        val withSubclasses = parse("[augment.exceptions]\n\"${Base::class.java.name}+\" = true")
+        assertTrue(withSubclasses.augments(Derived::class.java))
+        // Without + the class only.
+        val exact = parse("[augment.exceptions]\n\"${Base::class.java.name}\" = true")
+        assertTrue(exact.augments(Base::class.java))
+        assertFalse(exact.augments(Derived::class.java))
     }
 
     @Test
@@ -687,6 +691,8 @@ class AugmentorConfigTest {
             error("[augment.exceptions]\n\"java.io.IOException()\" = true")
                 .contains("[augment.exceptions] keys must name a class or a class pattern"),
         )
+        assertTrue(error("[augment.exceptions]\n\"java.io.*+\" = true").contains("+ after the class includes its subclasses, so it needs a class name"))
+        assertTrue(error("[augment.exceptions]\n\"java.io.IOException::*\" = true").contains("[augment.exceptions] keys must name a class or a class pattern"))
         assertTrue(
             error("[augment.exceptions]\n\"a.B\" = true\na.B = false").contains("'a.B' is configured twice; it is already configured on line 2"),
         )
