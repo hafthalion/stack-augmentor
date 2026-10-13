@@ -50,14 +50,14 @@ maxIdLength = 64
 
 # Parameter ids: "<class>.<method>" = parameter names and 0-based indexes, a "#" after one to show its value
 # hashed, "@" for the method's @StackTraceParam and @StackTraceParams annotations, or "-" for none. Entries that
-# match the same method are not combined: the most specific entry wins.
+# match the same method are not combined: the first entry that matches decides, in the order of the file.
 [augment.params]
 "com.hafnium.**.*" = "@"                             # the annotations of these methods
 "com.acme.orders.*.*" = "@"
 "com.thirdparty.OrderService.process" = ["order", 2]
 "com.thirdparty.InventoryService.*" = ["sku"]         # all methods of a class
-"com.thirdparty.**.*Repository.find*" = [0]          # across packages
-"com.thirdparty.**.AuditRepository.find*" = "-"      # except these
+"com.thirdparty.**.AuditRepository.find*" = "-"      # these first ...
+"com.thirdparty.**.*Repository.find*" = [0]          # ... then the others, across packages
 "com.thirdparty.UserService.invite" = ["user", "email#"]     # email hashed
 "com.thirdparty.Shipment.<init>" = ["orderId"]       # constructors: <init>
 ```

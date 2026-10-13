@@ -41,9 +41,9 @@ class Wide {
 }
 
 /**
- * Matched by the "@" entries of the fixtures, but other entries decide: its receiver id comes from its own
- * [augment.receiver] entry "getId()", which comes first, and its parameter annotations are ignored ("-"), except those of failAnnotated, whose exact
- * [augment.params] "@" entry is more specific still.
+ * Matched by the "@" entries of the fixtures, but its own entries come first and decide: its receiver id comes
+ * from its [augment.receiver] entry "getId()", and its parameter annotations are ignored ("-"), except those of
+ * failAnnotated, whose exact [augment.params] "@" entry comes before the "-".
  */
 class Overridden {
     @StackTraceId

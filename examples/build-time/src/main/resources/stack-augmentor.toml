@@ -37,12 +37,12 @@ maxIdLength = 64
 
 # Parameter ids, independently of the receivers: "@" uses the methods' @StackTraceParam and @StackTraceParams
 # annotations. Otherwise parameters are selected by name or 0-based index, "#" after one shows its value
-# hashed, and "-" selects none. When several entries match a method, only the most specific one applies: an
-# exact "<class>.<method>" beats any pattern, and a longer pattern a shorter one.
+# hashed, and "-" selects none. When several entries match a method, the first one applies, so the more
+# specific entries come first.
 [augment.params]
+"com.hafnium.examples.buildtime.ClassWithoutAnnotation.method" = ["q"]   # before the "@" pattern
 "com.hafnium.examples.buildtime.**.*" = "@"
-"com.hafnium.examples.buildtime.ClassWithoutAnnotation.method" = ["q"]   # exact: beats the "@" pattern
 "com.thirdparty.OrderService.process" = ["order", 1]                     # by name and by index
-"com.thirdparty.Inventory*.*" = ["sku", "count"]                         # all methods of the Inventory* classes ...
-"com.thirdparty.InventoryAudit.*" = "-"                                  # ... except InventoryAudit's
+"com.thirdparty.InventoryAudit.*" = "-"                                  # InventoryAudit's first: no parameter ids ...
+"com.thirdparty.Inventory*.*" = ["sku", "count"]                         # ... then all methods of the other Inventory* classes
 "com.thirdparty.Customer.notify" = ["email#"]                            # hashed

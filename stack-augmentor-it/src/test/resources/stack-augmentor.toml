@@ -54,25 +54,26 @@ maxIdLength = 20
 "com.hafnium.it.inheritance.ranked.Account" = "-"
 
 [augment.params]
-# The fixtures' parameter ids come from their @StackTraceParam and @StackTraceParams
+# The first matching entry wins, so the more specific entries come first.
+# Overridden's failAnnotated uses its annotations, its other methods none ...
+"com.hafnium.it.fixtures.Overridden.failAnnotated" = "@"
+"com.hafnium.it.fixtures.Overridden.*" = "-"
+"com.hafnium.it.fixtures.Overlap.op" = ["x", "y", 0]
+# ... and the other fixtures' parameter ids come from their @StackTraceParam and @StackTraceParams
 # ("*" matches constructors, <init>, too)
 "com.hafnium.it.fixtures.**.*" = "@"
-# ... except Overridden's, except for failAnnotated, whose exact entry is more specific
-"com.hafnium.it.fixtures.Overridden.*" = "-"
-"com.hafnium.it.fixtures.Overridden.failAnnotated" = "@"
 "com.thirdparty.OrderService.process" = ["order", 1]
-# Wildcards: not combined with the more specific entry above, and across packages
+# Wildcards: not combined with the entry above, which comes first, and across packages
 "com.thirdparty.OrderService.*" = [2]
-"com.thirdparty.Inventory*.*" = ["sku", "count"]
-# ... except for InventoryAudit, whose more specific "-" entry wins, except for log, whose exact entry wins
-"com.thirdparty.InventoryAudit.*" = "-"
+# InventoryAudit's log, then its other methods ("-"), then the other Inventory* classes
 "com.thirdparty.InventoryAudit.log" = ["reason"]
+"com.thirdparty.InventoryAudit.*" = "-"
+"com.thirdparty.Inventory*.*" = ["sku", "count"]
 "com.thirdparty.**.*Repository.find*" = [0]
 # Hashed values: "#" after a name or an index (annotations use secret = true, see Secrets)
 "com.thirdparty.UserService.invite" = ["user", "email#", "2#"]
 # Matches JDK classes, which the agent never instruments
 "java.**.*" = [0]
-"com.hafnium.it.fixtures.Overlap.op" = ["x", "y", 0]
 "com.hafnium.it.inheritance.OrderService.process" = ["order"]
 # Parameter annotations outside the fixtures
 "com.hafnium.it.outside.MethodAnnotationsOutside.run" = "@"
