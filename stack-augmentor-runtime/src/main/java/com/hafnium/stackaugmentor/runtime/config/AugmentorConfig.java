@@ -2,7 +2,6 @@ package com.hafnium.stackaugmentor.runtime.config;
 
 import com.hafnium.stackaugmentor.runtime.ids.FrameFormat;
 import org.tomlj.Toml;
-import org.tomlj.TomlArray;
 import org.tomlj.TomlParseResult;
 import org.tomlj.TomlPosition;
 import org.tomlj.TomlTable;
@@ -46,21 +45,21 @@ import java.util.stream.Collectors;
  * "com.acme.**" = true
  * "java.io.IOException" = true   # and its subclasses
  *
- * [augment.receiver]         # receiver ids: a field, a "method()", a list of them, "@" for the @StackTraceId
- *                            # members, "-" for none; the first matching entry wins, a class name matches its
+ * [augment.receiver]         # receiver ids: a field, a "method()", several separated by commas, "@" for the
+ *                            # @StackTraceId members, "-" for none; the first matching entry wins, a class name matches its
  *                            # subclasses too, a pattern the class only
  * "com.hafnium.generated.**" = "-"
  * "com.hafnium.**" = "@"
  * "com.thirdparty.Order" = "getOrderNumber()"
- * "com.thirdparty.OrderLine" = ["tenant", "lineId()"]
+ * "com.thirdparty.OrderLine" = "tenant, lineId()"
  *
- * [augment.params]           # parameter ids: names and indexes ("#" after one hashes it), "@" for the annotations,
- *                            # "-" for none; the first matching entry wins
+ * [augment.params]           # parameter ids: names and indexes separated by commas ("#" after one hashes it), "@"
+ *                            # for the annotations, "-" for none; the first matching entry wins
  * "com.hafnium.**.*" = "@"
- * "com.thirdparty.Shipment.<init>" = ["orderId"]   # constructors, also matched by wildcards such as ".*"
- * "com.thirdparty.OrderService.process" = ["order", 2, "email#", "3#"]
+ * "com.thirdparty.Shipment.<init>" = "orderId"   # constructors, also matched by wildcards such as ".*"
+ * "com.thirdparty.OrderService.process" = "order, 2, email#, 3#"
  * "com.thirdparty.**.AuditRepository.*" = "-"
- * "com.thirdparty.**.*Repository.find*" = [0]
+ * "com.thirdparty.**.*Repository.find*" = "0"
  * }</pre>
  *
  * <p>The two tables are independent: {@code [augment.receiver]} decides the receiver ids, {@code [augment.params]} the
@@ -746,37 +745,44 @@ public final class AugmentorConfig {
         }
 
         private IdSpec classSpec(List<String> path, Object value) {
-            if (ANNOTATIONS.equals(value)) {
+            if (!(value instanceof String text)) {
+                throw error(path, "must be a string: a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), "
+                        + "several of them separated by commas (e.g. \"tenant, getOrderId()\"), \"@\" for its @StackTraceId "
+                        + "members, or \"-\" for no receiver id, was " + value);
+            }
+            if (ANNOTATIONS.equals(text.trim())) {
                 return new IdSpec.Annotations();
             }
-            if (EXCLUDED.equals(value)) {
+            if (EXCLUDED.equals(text.trim())) {
                 return new IdSpec.Excluded();
             }
-            if (value instanceof TomlArray array) {
-                if (array.size() == 0) {
-                    throw error(path, "must list at least one field or method");
+            List<IdSpec.MemberSpec> members = new ArrayList<>();
+            for (String member : items(path, text, "field or method")) {
+                IdSpec.MemberSpec spec = memberSpec(member);
+                if (spec == null) {
+                    throw error(path, "invalid receiver id '" + member + "': use a field name (e.g. \"orderId\") or a "
+                            + "method (e.g. \"getOrderId()\"), several separated by commas");
                 }
-                List<IdSpec.MemberSpec> members = new ArrayList<>(array.size());
-                for (Object member : array.toList()) {
-                    IdSpec.MemberSpec spec = memberSpec(member);
-                    if (spec == null) {
-                        throw error(path, "invalid receiver id '" + member + "': use a field name (e.g. \"orderId\") or a "
-                                + "method (e.g. \"getOrderId()\")");
-                    }
-                    if (members.stream().anyMatch(it -> it.memberName().equals(spec.memberName()))) {
-                        throw error(path, "'" + member + "' is listed twice");
-                    }
-                    members.add(spec);
+                if (members.stream().anyMatch(it -> it.memberName().equals(spec.memberName()))) {
+                    throw error(path, "'" + member + "' is listed twice");
                 }
-                return new IdSpec.MemberList(members);
+                members.add(spec);
             }
-            IdSpec.MemberSpec spec = memberSpec(value);
-            if (spec == null) {
-                throw error(path, "must be a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), a list of them "
-                        + "(e.g. [\"tenant\", \"getOrderId()\"]), \"@\" for its @StackTraceId members, or \"-\" for no receiver "
-                        + "id, was " + value);
+            return members.size() == 1 ? members.get(0) : new IdSpec.MemberList(members);
+        }
+
+        /** The items of a comma-separated value, trimmed; an empty item is an error. */
+        private List<String> items(List<String> path, String text, String what) {
+            List<String> items = new ArrayList<>();
+            for (String item : text.split(",", -1)) {
+                String trimmed = item.trim();
+                if (trimmed.isEmpty()) {
+                    throw error(path, text.isBlank() ? "must name at least one " + what
+                            : "has an empty item in '" + text + "': separate the items with single commas");
+                }
+                items.add(trimmed);
             }
-            return spec;
+            return items;
         }
 
         /** A field name or a method, e.g. {@code "orderId"} or {@code "getOrderId()"}; {@code null} for anything else. */
@@ -793,42 +799,34 @@ public final class AugmentorConfig {
         }
 
         private List<ParamRef> paramRefs(List<String> path, Object value) {
-            if (ANNOTATIONS.equals(value)) {
+            if (!(value instanceof String text)) {
+                throw error(path, "must be a string of parameter names and indexes separated by commas, e.g. \"order, 2, email#\" "
+                        + "(# hashes the value), \"@\" for the method's annotations, or \"-\" for none, was " + value);
+            }
+            if (ANNOTATIONS.equals(text.trim())) {
                 return List.of(new ParamRef.Annotations());
             }
-            if (EXCLUDED.equals(value)) {
+            if (EXCLUDED.equals(text.trim())) {
                 return List.of(new ParamRef.Excluded());
             }
-            if (!(value instanceof TomlArray array)) {
-                throw error(path, "must be an array of parameter names and indexes, e.g. [\"order\", 2, \"email#\"] (# hashes "
-                        + "the value), \"@\" for the method's annotations, or \"-\" for none, was " + value);
-            }
-            if (array.size() == 0) {
-                throw error(path, "must list at least one parameter");
-            }
-            List<ParamRef> refs = new ArrayList<>(array.size());
-            for (Object ref : array.toList()) {
+            List<ParamRef> refs = new ArrayList<>();
+            for (String ref : items(path, text, "parameter")) {
                 refs.add(paramRef(path, ref));
             }
             return refs;
         }
 
         /** A name or an index, optionally followed by {@code #} to hash the value: {@code "email#"}, {@code "1#"}. */
-        private ParamRef paramRef(List<String> path, Object ref) {
-            if (ref instanceof Long index && index >= 0 && index <= 255) {
-                return new ParamRef.ByIndex(index.intValue());
+        private ParamRef paramRef(List<String> path, String text) {
+            boolean hashed = text.endsWith("#");
+            String name = hashed ? text.substring(0, text.length() - 1) : text;
+            if (IDENTIFIER.matcher(name).matches()) {
+                return new ParamRef.ByName(name, hashed);
             }
-            if (ref instanceof String text) {
-                boolean hashed = text.endsWith("#");
-                String name = hashed ? text.substring(0, text.length() - 1) : text;
-                if (IDENTIFIER.matcher(name).matches()) {
-                    return new ParamRef.ByName(name, hashed);
-                }
-                if (hashed && INDEX.matcher(name).matches() && Integer.parseInt(name) <= 255) {
-                    return new ParamRef.ByIndex(Integer.parseInt(name), true);
-                }
+            if (INDEX.matcher(name).matches() && Integer.parseInt(name) <= 255) {
+                return new ParamRef.ByIndex(Integer.parseInt(name), hashed);
             }
-            throw error(path, "invalid parameter '" + ref + "': use a parameter name or a 0-based index from 0 to 255, "
+            throw error(path, "invalid parameter '" + text + "': use a parameter name or a 0-based index from 0 to 255, "
                     + "optionally followed by # to hash the value, e.g. \"email#\" or \"1#\"");
         }
 

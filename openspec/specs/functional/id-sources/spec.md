@@ -73,7 +73,7 @@ another class loader is also recognised.
 The system SHALL use the `[augment.receiver]` configuration table to choose the receiver id source of a
 class. A key SHALL be a class name or a class pattern with the globs `*` (within one package segment),
 `**` (across segments) and `?` (one character). A value SHALL be a field name, a no-argument method written
-with `()`, a non-empty list of them without duplicates, `"@"` for the class's `@StackTraceId` members, or
+with `()`, several of them in one string separated by commas without duplicates, `"@"` for the class's `@StackTraceId` members, or
 `"-"` for none. A list SHALL give one receiver id per member, in the listed order; a member that is not found
 SHALL be reported as a single one is and left out, while the others are still shown. Every receiver id SHALL
 be the member's value as text, from `toString()`. An entry without wildcards SHALL match the class it
@@ -105,7 +105,7 @@ name starting with `is`), with the configured name as the label.
 - **THEN** that frame shows the receiver id `getOrderNumber=4711`
 
 #### Scenario: List of members of a third-party class
-- **GIVEN** `"com.thirdparty.OrderLine" = ["tenant", "lineId()"]` in `[augment.receiver]`
+- **GIVEN** `"com.thirdparty.OrderLine" = "tenant, lineId()"` in `[augment.receiver]`
 - **WHEN** an exception leaves a method of an `OrderLine` with tenant `acme` and line id 3
 - **THEN** that frame shows the receiver ids `{tenant=acme, lineId=3}`
 
@@ -201,7 +201,7 @@ select it: `@StackTraceId` marks receiver ids only.
 - **THEN** that frame shows the parameter id `orderId=42`
 
 #### Scenario: Configured parameters by name and index
-- **GIVEN** `"com.thirdparty.OrderService.process" = ["order", 1]` in `[augment.params]` for `process(order: Order, quantity: Int, note: String)`
+- **GIVEN** `"com.thirdparty.OrderService.process" = "order, 1"` in `[augment.params]` for `process(order: Order, quantity: Int, note: String)`
 - **WHEN** `process(Order(4711), 3, "rush")` throws, where `Order.toString()` returns `Order#4711`
 - **THEN** that frame shows `order=Order#4711, quantity=3`
 
@@ -211,7 +211,7 @@ select it: `@StackTraceId` marks receiver ids only.
 - **THEN** that frame shows the parameter id `code=5` and no receiver id
 
 #### Scenario: Selected by an annotation and by the configuration
-- **GIVEN** `fun op(@StackTraceParam x: Int, y: Int)` in class `C`, and `"C.*" = "@"` and `"C.op" = ["x", "y"]` in `[augment.params]`
+- **GIVEN** `fun op(@StackTraceParam x: Int, y: Int)` in class `C`, and `"C.*" = "@"` and `"C.op" = "x, y"` in `[augment.params]`
 - **WHEN** `op(1, 2)` throws
 - **THEN** that frame shows `x=1, y=2`, each parameter once
 
@@ -221,7 +221,7 @@ select it: `@StackTraceId` marks receiver ids only.
 - **THEN** that frame shows `code=7` and no receiver id
 
 ### Requirement: Hashed parameter ids
-A `#` after a parameter name or index in an `[augment.params]` array (`"email#"`, `"2#"`),
+A `#` after a parameter name or index in an `[augment.params]` value (`"email#"`, `"2#"`),
 or `@StackTraceParam(secret = true)` on a parameter (also one that `@StackTraceParams` selects) SHALL show the
 value hashed: `#` followed by the
 first 8 lower-case hex digits of the SHA-256 of the value's text (its UTF-8 bytes, before line breaks and
@@ -230,7 +230,7 @@ throws SHALL still show `?`. `secret` SHALL default to `false`. A parameter sele
 index, or by both annotations) SHALL be hashed when either hashes it. The label SHALL stay the parameter name.
 
 #### Scenario: Parameters hashed by name and index
-- **GIVEN** `"com.thirdparty.UserService.invite" = ["user", "email#", "2#"]` in `[augment.params]` for `invite(user: String, email: String, attempt: Int)`
+- **GIVEN** `"com.thirdparty.UserService.invite" = "user, email#, 2#"` in `[augment.params]` for `invite(user: String, email: String, attempt: Int)`
 - **WHEN** `invite("ann", "ann@example.com", 3)` throws
 - **THEN** that frame shows `user=ann, email=#71d4f55f, attempt=#4e074085`
 
@@ -320,25 +320,25 @@ pattern, including every overload, whatever the class's `[augment.receiver]` ent
 class that declares the method, not its subclasses. The class pattern
 SHALL use the `[augment.receiver]` globs (`*` within one package segment, `**` across segments, `?` one
 character). In the method pattern, `*` SHALL match any sequence of characters and `?` one character. A key
-without wildcards SHALL match exactly. `<parameters>` SHALL be an array of parameter names and 0-based
-indexes (0 to 255), or the string `"@"` for the parameters selected by the method's
+without wildcards SHALL match exactly. `<parameters>` SHALL be a string of parameter names and 0-based
+indexes (0 to 255) separated by commas, or the string `"@"` for the parameters selected by the method's
 annotations: `@StackTraceParam` on its parameters, and `@StackTraceParams` on the method. There SHALL be no value for all parameters: each is named, or selected by an annotation. Names and indexes that a matched method does not have
 SHALL be skipped. When several entries match one method, only the first in the order of the file SHALL
 decide, as in `[augment.receiver]`, however specific the later ones are. The later entries SHALL NOT be
 combined with it.
 
 #### Scenario: All methods of a class
-- **GIVEN** `"com.thirdparty.InventoryService.*" = ["sku", "count"]`
+- **GIVEN** `"com.thirdparty.InventoryService.*" = "sku, count"`
 - **WHEN** `InventoryService.reserve("x-1", 2)` throws
 - **THEN** that frame shows `sku=x-1, count=2` and no receiver id
 
 #### Scenario: Wildcards across packages
-- **GIVEN** `"com.thirdparty.**.*Repository.find*" = [0]`
+- **GIVEN** `"com.thirdparty.**.*Repository.find*" = "0"`
 - **WHEN** `com.thirdparty.db.OrderRepository.findById(7)` throws, and separately `findAll()` throws
 - **THEN** the first frame shows `id=7`, and the second frame is unchanged
 
 #### Scenario: Overlapping entries
-- **GIVEN** `"com.thirdparty.OrderService.process" = ["order"]` and then `"com.thirdparty.OrderService.*" = [2]`
+- **GIVEN** `"com.thirdparty.OrderService.process" = "order"` and then `"com.thirdparty.OrderService.*" = "2"`
 - **WHEN** `process(Order(4711), 3, "rush")` throws, where `Order.toString()` returns `Order#4711`
 - **THEN** that frame shows only `order=Order#4711`: the first entry decides, and the pattern adds nothing
 - **AND** with the two entries the other way round, the pattern decides and the frame shows only the third parameter
@@ -361,7 +361,7 @@ A configuration whose entries are all `"-"` SHALL count as having no entries.
 - **THEN** its frame shows no receiver id
 
 #### Scenario: Ignored methods under a wildcard entry
-- **GIVEN** `"com.thirdparty.InventoryAudit.log" = ["reason"]`, `"com.thirdparty.InventoryAudit.*" = "-"` and `"com.thirdparty.Inventory*.*" = ["sku", "count"]` in `[augment.params]`, in this order
+- **GIVEN** `"com.thirdparty.InventoryAudit.log" = "reason"`, `"com.thirdparty.InventoryAudit.*" = "-"` and `"com.thirdparty.Inventory*.*" = "sku, count"` in `[augment.params]`, in this order
 - **WHEN** `InventoryAudit.purge("x-1")` throws, and separately `InventoryAudit.log("disk full", 2)` throws
 - **THEN** the first frame is unchanged, and the second frame shows `reason=disk full`
 
