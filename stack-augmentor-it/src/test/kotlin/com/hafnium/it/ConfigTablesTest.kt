@@ -68,8 +68,9 @@ class ConfigTablesTest {
         assertEquals("com.hafnium.it.outside.Dispatcher{hub=H-1}", send.className)
         assertEquals("send{order=o-1}", send.methodName)
         val track = frame("Dispatcher(\"H-1\").track(\"o-1\")", Dispatcher("H-1")) { it.track("o-1") }
+        // The params key also lists track, the receiver entry does not.
         assertEquals("com.hafnium.it.outside.Dispatcher", track.className)
-        assertEquals("track", track.methodName)
+        assertEquals("track{order=o-1}", track.methodName)
     }
 
     @Test

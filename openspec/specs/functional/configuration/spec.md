@@ -22,8 +22,8 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
     the class's `@StackTraceId` members, or `"-"` for no receiver id, optionally followed by `::` and the method
     names or patterns whose frames show the ids, separated by commas, e.g. `"id :: ship, cancel*"`, where `@` names the
     methods annotated with `@StackTraceAugment`; without `::` all methods do), which decides the receiver ids, see the id sources spec. Its entries SHALL be read in the order of the file, and the first that matches a class decides;
-  - `[augment.params]` (`"<class pattern>::<method pattern>"` or `"<class pattern>::@"` for the methods and constructors
-    annotated with `@StackTraceAugment` → a string: parameter names and 0-based
+  - `[augment.params]` (`"<class pattern>::<method pattern>"`, several method patterns separated by commas, where `@`
+    stands for the methods and constructors annotated with `@StackTraceAugment` → a string: parameter names and 0-based
     indexes from 0 to 255, the JVM's maximum number of parameters, separated by commas, each optionally followed by
     `#` to hash the value (e.g. `"order, 2, email#"`), `"@"` for the method's parameter annotations, or `"-"` for none;
     there is no wildcard value for the parameters), which decides the parameter ids. Its entries SHALL be read in
@@ -85,8 +85,8 @@ duplicates or empty items, `"@"` or `"-"`, or when the part after `::` is not me
 (identifier characters, `$`, `*` and `?`) or `@` separated by commas without duplicates or empty items, or follows `"-"`.
 Spaces around the items SHALL NOT matter. An `[augment.params]` entry SHALL be invalid
 when its key is not a class part and a method part separated by one `::`, when the class part contains characters
-other than identifier characters, `$`, `.`, `*` and `?`, when the method part is not such a name or pattern without
-`.`, `<init>` or `@`, or when its value is not a string with `"@"`, `"-"` or
+other than identifier characters, `$`, `.`, `*` and `?`, when the method part is not a list of such names or patterns
+without `.`, `<init>` or `@`, separated by commas without duplicates or empty items, or when its value is not a string with `"@"`, `"-"` or
 parameter names and indexes separated by commas, each optionally followed by `#`, without empty items (`"*"`,
 `"@"` and `"-"` are not allowed among the items, and `"*"` is not allowed as the value). A TOML array SHALL be
 invalid in both tables. The message SHALL name the file, the key and its line.

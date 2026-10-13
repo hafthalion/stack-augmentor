@@ -118,9 +118,9 @@ name starting with `is`), with the configured name as the label.
 - **THEN** the frames of `ship` and `cancelLater` show `{trackingCode=T-1}`, and the frame of `weigh` shows no receiver id
 
 #### Scenario: Receiver ids and parameters of the annotated methods
-- **GIVEN** `"com.acme.Dispatcher" = "hub :: @"` in `[augment.receiver]`, `"com.acme.Dispatcher::@" = "order"` in `[augment.params]`, and a `Dispatcher` with hub `H-1` whose `send(order)` is annotated with `@StackTraceAugment` and whose `track(order)` is not
+- **GIVEN** `"com.acme.Dispatcher" = "hub :: @"` in `[augment.receiver]`, `"com.acme.Dispatcher::@, track" = "order"` in `[augment.params]`, and a `Dispatcher` with hub `H-1` whose `send(order)` is annotated with `@StackTraceAugment` and whose `track(order)` is not
 - **WHEN** exceptions leave `send("o-1")` and `track("o-1")`
-- **THEN** the frame of `send` shows `Dispatcher{hub=H-1}.send{order=o-1}`, and the frame of `track` is unchanged
+- **THEN** the frame of `send` shows `Dispatcher{hub=H-1}.send{order=o-1}`, and the frame of `track` shows `Dispatcher.track{order=o-1}`
 
 #### Scenario: Default method of an implemented interface
 - **GIVEN** `"com.acme.Order" = "getId()"`, where the Java class `Order` implements `Identified`, whose default method `getId()` returns `id-7`
@@ -329,8 +329,10 @@ instrumented as described in the stack trace augmentation specification.
 ### Requirement: Parameter ids of configured methods
 An `[augment.params]` entry `"<class pattern>::<method pattern>" = <parameters>` SHALL select
 parameters of every method whose class name matches the class pattern and whose name matches the method
-pattern, including every overload; with `"<class pattern>::@"`, of every method and constructor of a matching
-class that is annotated with `@StackTraceAugment`, while its other methods SHALL be left to the later entries; whatever the class's `[augment.receiver]` entry. Keys SHALL match the
+pattern, including every overload; with `@` as the method pattern, of every method and constructor of a matching
+class that is annotated with `@StackTraceAugment`, while its other methods SHALL be left to the later entries.
+Several method patterns separated by commas (`"com.acme.Order::ship, cancel*, @"`) SHALL match a method that any
+of them matches; whatever the class's `[augment.receiver]` entry. Keys SHALL match the
 class that declares the method, not its subclasses. The class pattern
 SHALL use the `[augment.receiver]` globs (`*` within one package segment, `**` across segments, `?` one
 character). In the method pattern, `*` SHALL match any sequence of characters and `?` one character. A key

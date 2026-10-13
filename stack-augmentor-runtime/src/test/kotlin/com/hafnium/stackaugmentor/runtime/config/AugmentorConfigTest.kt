@@ -131,7 +131,7 @@ class AugmentorConfigTest {
         )
         assertEquals(quoted, unquoted)
         // [augment.params] keys contain "::", so they are quoted: an unquoted key names no method.
-        assertTrue(error("[augment.params]\ncom.acme.OrderService.process = \"0\"").contains("keys must name a class and a method separated by ::"))
+        assertTrue(error("[augment.params]\ncom.acme.OrderService.process = \"0\"").contains("keys must name a class and its methods separated by ::"))
     }
 
     @Test
@@ -300,10 +300,33 @@ class AugmentorConfigTest {
         assertEquals(listOf(ParamRef.ByIndex(1)), config.paramRefs("com.acme.Invoice", "pay", false))
         assertTrue(config.hasParamEntries("com.acme.Order"))
         assertEquals("com.acme.Order::@[#0], com.acme.Order::ship[to], com.acme.**::@[-], com.acme.**::*[#1]", config.methodsDescription())
-        assertTrue(error("[augment.params]\n\"com.acme.Order::@x\" = \"0\"").contains("keys must name a class and a method separated by ::"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.ship\" = \"0\"").contains("keys must name a class and a method separated by ::"))
-        assertTrue(error("[augment.params]\n\"::ship\" = \"0\"").contains("keys must name a class and a method separated by ::"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order::a::b\" = \"0\"").contains("keys must name a class and a method separated by ::"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::@x\" = \"0\"").contains("keys must name a class and its methods separated by ::"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.ship\" = \"0\"").contains("keys must name a class and its methods separated by ::"))
+        assertTrue(error("[augment.params]\n\"::ship\" = \"0\"").contains("keys must name a class and its methods separated by ::"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::a::b\" = \"0\"").contains("keys must name a class and its methods separated by ::"))
+    }
+
+    @Test
+    fun `a params key may list several methods after double colon`() {
+        val config = parse(
+            """
+            [augment.params]
+            "com.acme.Order::ship,cancel* , @" = "0"
+            "com.acme.Order::*" = "1"
+            """,
+        )
+        // The key is kept with its methods separated by ", ".
+        assertEquals(listOf("com.acme.Order::ship, cancel*, @", "com.acme.Order::*"), config.methods().keys.toList())
+        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.Order", "ship", false))
+        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.Order", "cancelAll", false))
+        assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.Order", "process", true))
+        assertEquals(listOf(ParamRef.ByIndex(1)), config.paramRefs("com.acme.Order", "process", false))
+        assertEquals(listOf("ship", "cancel*", "@"), AugmentorConfig.methodNames("com.acme.Order::ship, cancel*, @"))
+        assertEquals("com.acme.Order", AugmentorConfig.className("com.acme.Order::ship, cancel*, @"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::ship,,cancel\" = \"0\"").contains("keys must name a class and its methods separated by ::"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::ship,\" = \"0\"").contains("keys must name a class and its methods separated by ::"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::ship, ship\" = \"0\"").contains("'ship' is listed twice"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::ship\" = \"0\"\n\"com.acme.Order::ship \" = \"1\"").contains("is configured twice"))
     }
 
     @Test
@@ -377,7 +400,7 @@ class AugmentorConfigTest {
         assertTrue(error("[augment.params]\n\"com.acme.Order::process\" = \"#1\"").contains("invalid parameter '#1'"))
         assertTrue(error("[augment.params]\n\"com.acme.Order::process\" = \"-1\"").contains("invalid parameter '-1'"))
         assertTrue(error("[augment.params]\n\"com.acme.Order::process\" = \"x, @\"").contains("invalid parameter '@'"))
-        assertTrue(error("[augment.params]\nOrder = \"id\"").contains("[augment.params] keys must name a class and a method separated by ::"))
+        assertTrue(error("[augment.params]\nOrder = \"id\"").contains("[augment.params] keys must name a class and its methods separated by ::"))
         assertTrue(error("[augment.params]\n\"com.acme.Order::<clinit>\" = \"0\"").contains("<init> for the constructors"))
         assertTrue(error("[augment.params]\n\"com.acme.Order::<init>x\" = \"0\"").contains("<init> for the constructors"))
     }
@@ -512,14 +535,14 @@ class AugmentorConfigTest {
                 .contains("invalid parameter '256': use a parameter name or a 0-based index from 0 to 255"),
         )
         assertEquals(
-            "test.toml, line 2: [augment.params] keys must name a class and a method separated by ::, e.g. " +
-                "\"com.acme.OrderService::process\" or \"com.acme.OrderService::*\", <init> for the constructors, or @ for the methods " +
-                "annotated with @StackTraceAugment; " +
+            "test.toml, line 2: [augment.params] keys must name a class and its methods separated by ::, e.g. " +
+                "\"com.acme.OrderService::process\", \"com.acme.OrderService::process, cancel*\" or \"com.acme.OrderService::*\", " +
+                "<init> for the constructors, @ for the methods annotated with @StackTraceAugment; " +
                 "allowed are letters, digits, _, \$ and the wildcards * (within a package or name), ** (across packages) and ?",
             error("[augment.params]\n\"com.acme.Order+::process\" = \"@\""),
         )
-        assertTrue(error("[augment.params]\n\"com.acme.Order::\" = \"@\"").contains("keys must name a class and a method"))
-        assertTrue(error("[augment.params]\n\"com..Order::run\" = \"@\"").contains("keys must name a class and a method"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::\" = \"@\"").contains("keys must name a class and its methods"))
+        assertTrue(error("[augment.params]\n\"com..Order::run\" = \"@\"").contains("keys must name a class and its methods"))
         // maxParams was removed: all selected parameters are shown.
         assertTrue(error("[augment]\nmaxParams = 4").startsWith("test.toml, line 2: unknown key 'maxParams' in [augment]"))
     }
