@@ -118,6 +118,21 @@ class IdResolverTest {
     }
 
     @Test
+    fun `methods after double colon limit the receiver ids to frames of these methods`() {
+        val type = name(Unannotated::class.java)
+        val resolver = IdResolver(
+            AugmentorConfig.builder()
+                .classes(mapOf(type to IdSpec.FieldSpec("customerId")))
+                .receiverMethods(mapOf(type to listOf("ship", "cancel*")))
+                .build(),
+        )
+        val target = Unannotated("c-7")
+        assertEquals(listOf(NamedId("customerId", "c-7")), resolver.receiverIds(target, type, "ship"))
+        assertEquals(listOf(NamedId("customerId", "c-7")), resolver.receiverIds(target, type, "cancelAll"))
+        assertEquals(listOf<NamedId>(), resolver.receiverIds(target, type, "process"))
+    }
+
+    @Test
     fun `a missing member of a list is reported and left out`() {
         val err = ByteArrayOutputStream()
         System.setErr(PrintStream(err, true, Charsets.UTF_8))

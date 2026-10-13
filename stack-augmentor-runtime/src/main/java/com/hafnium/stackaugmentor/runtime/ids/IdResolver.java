@@ -118,8 +118,19 @@ public final class IdResolver {
      * @param declaringClass the name of the class that declares the method
      */
     public List<NamedId> receiverIds(Object target, String declaringClass) {
-        List<Source> found = sources.get(declaringClass(target.getClass(), declaringClass));
-        if (found.isEmpty()) {
+        return receiverIds(target, declaringClass, null);
+    }
+
+    /**
+     * {@link #receiverIds(Object, String)} for a frame of this method: empty if the deciding {@code [augment.receiver]}
+     * entry names other methods after {@code ::}.
+     *
+     * @param methodName the frame's method name, or {@code null} for any method
+     */
+    public List<NamedId> receiverIds(Object target, String declaringClass, String methodName) {
+        Class<?> owner = declaringClass(target.getClass(), declaringClass);
+        List<Source> found = sources.get(owner);
+        if (found.isEmpty() || methodName != null && !config.classEntry(owner).appliesTo(methodName)) {
             return List.of();
         }
         List<NamedId> ids = new ArrayList<>(found.size());

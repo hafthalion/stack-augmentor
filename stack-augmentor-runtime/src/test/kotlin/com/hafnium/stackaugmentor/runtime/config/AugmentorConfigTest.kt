@@ -233,6 +233,44 @@ class AugmentorConfigTest {
     }
 
     @Test
+    fun `methods after double colon limit the receiver ids to them`() {
+        val config = parse(
+            """
+            [augment.receiver]
+            "com.acme.Order" = "id, code() :: ship, cancel*"
+            "com.acme.Invoice" = "@::pay"
+            "com.acme.Customer" = "customerId"
+            """,
+        )
+        val order = config.classEntry("com.acme.Order")!!
+        assertEquals(IdSpec.MemberList(listOf(IdSpec.FieldSpec("id"), IdSpec.MethodSpec("code"))), order.spec())
+        assertEquals(listOf("ship", "cancel*"), order.methods())
+        assertTrue(order.appliesTo("ship"))
+        assertTrue(order.appliesTo("cancelAll"))
+        assertFalse(order.appliesTo("process"))
+        assertEquals(IdSpec.Annotations(), config.classEntry("com.acme.Invoice")!!.spec())
+        assertTrue(config.classEntry("com.acme.Invoice")!!.appliesTo("pay"))
+        assertFalse(config.classEntry("com.acme.Invoice")!!.appliesTo("refund"))
+        // Without :: all methods show the ids.
+        assertEquals(listOf<String>(), config.classEntry("com.acme.Customer")!!.methods())
+        assertTrue(config.classEntry("com.acme.Customer")!!.appliesTo("anything"))
+        assertEquals(mapOf("com.acme.Order" to listOf("ship", "cancel*"), "com.acme.Invoice" to listOf("pay")), config.receiverMethods())
+        assertEquals(
+            "com.acme.Order=[id, code()] :: ship, cancel*, com.acme.Invoice=@ :: pay, com.acme.Customer=customerId",
+            config.classesDescription(),
+        )
+        assertNotEquals(parse("[augment.receiver]\n\"com.acme.A\" = \"id\""), parse("[augment.receiver]\n\"com.acme.A\" = \"id :: a\""))
+
+        assertEquals("test.toml, line 2: must name at least one method after ::", error("[augment.receiver]\n\"com.acme.A\" = \"id ::\""))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"id :: a,,b\"").contains("has an empty item in ' a,,b'"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"id :: ship()\"").contains("invalid method 'ship()' after ::"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"id :: a :: b\"").contains("invalid method 'a :: b' after ::"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"id :: a, a\"").contains("'a' is listed twice"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"- :: a\"").contains("\"-\" gives no receiver id, so it takes no methods after ::"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \":: a\"").contains("must name at least one field or method"))
+    }
+
+    @Test
     fun `syntax errors report their position`() {
         val message = error("[augment]\nmaxIdLength = ")
         assertTrue(message.startsWith("Invalid TOML in test.toml:"), message)
@@ -286,7 +324,8 @@ class AugmentorConfigTest {
         )
         assertEquals(
             "test.toml, line 2: must be a string: a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), several of them " +
-                "separated by commas (e.g. \"tenant, getOrderId()\"), \"@\" for its @StackTraceId members, or \"-\" for no receiver id, was 5",
+                "separated by commas (e.g. \"tenant, getOrderId()\"), \"@\" for its @StackTraceId members, or \"-\" for no receiver id, " +
+                "optionally followed by :: and the methods that show them (e.g. \"orderId :: ship, cancel\"), was 5",
             error("[augment.receiver]\n\"com.acme.Order\" = 5"),
         )
         assertTrue(error("[augment.receiver]\n\"com.acme.Order\" = \"@id\"").contains("invalid receiver id '@id'"))

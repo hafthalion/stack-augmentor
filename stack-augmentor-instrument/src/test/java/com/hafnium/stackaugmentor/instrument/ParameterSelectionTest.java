@@ -288,6 +288,29 @@ class ParameterSelectionTest {
     }
 
     @Test
+    void methodsAfterDoubleColonLimitTheReceiverIds() {
+        String explicit = Explicit.class.getName();
+        String login = Login.class.getName();
+        AugmentorConfig config = AugmentorConfig.builder()
+                .classes(firstMatch(explicit, new IdSpec.MethodSpec("getId"), login, new IdSpec.FieldSpec("id")))
+                .receiverMethods(Map.of(explicit, List.of("fail"), login, List.of("logout")))
+                .methods(Map.of(explicit + ".failAnnotated", List.of(new ParamRef.Annotations())))
+                .build();
+        TypeMatching matching = new TypeMatching(config, new IdParameters(config));
+
+        // Only fail shows the receiver id; failAnnotated is instrumented for its parameter only, getId not at all.
+        assertTrue(matching.receiverIds(type(Explicit.class), method(Explicit.class, "fail")));
+        assertFalse(matching.receiverIds(type(Explicit.class), method(Explicit.class, "failAnnotated")));
+        var methods = matching.methods(type(Explicit.class));
+        assertTrue(methods.matches(method(Explicit.class, "fail")));
+        assertTrue(methods.matches(method(Explicit.class, "failAnnotated")));
+        assertFalse(methods.matches(method(Explicit.class, "getId")));
+        // Login declares no method of its entry, so it is not instrumented.
+        assertFalse(matching.instrument(type(Login.class)));
+        assertFalse(matching.methods(type(Login.class)).matches(method(Login.class, "login")));
+    }
+
+    @Test
     void excludedClassesAndMethodsAreIndependent() {
         ByteArrayOutputStream err = new ByteArrayOutputStream();
         System.setErr(new PrintStream(err, true, StandardCharsets.UTF_8));

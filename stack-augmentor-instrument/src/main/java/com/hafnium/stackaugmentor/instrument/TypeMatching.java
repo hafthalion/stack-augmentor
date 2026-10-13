@@ -49,7 +49,7 @@ public final class TypeMatching {
             return false;
         }
         // The receiver ids and the parameter ids are configured independently; either one needs the advice.
-        boolean instrument = receiverRelevant(type) || hasIdParameters(type);
+        boolean instrument = hasReceiverMethods(type) || hasIdParameters(type);
         if (Log.isDebug()) {
             for (String message : parameters.unmatchedEntries(type)) {
                 Log.debug(() -> message);
@@ -81,7 +81,7 @@ public final class TypeMatching {
     public String describe(TypeDescription type, ElementMatcher<MethodDescription> methods) {
         ClassEntries.Deciding deciding = classEntries.decide(type);
         String reason;
-        if (!receiverRelevant(type)) {
+        if (!hasReceiverMethods(type)) {
             reason = "parameter ids only";
         } else if (!deciding.annotations()) {
             reason = "receiver id from [augment.receiver] \"" + deciding.entry().key() + "\"";
@@ -111,7 +111,7 @@ public final class TypeMatching {
      * method itself, so checking the offered method would instrument the bridge.
      */
     public ElementMatcher<MethodDescription> methods(TypeDescription type) {
-        boolean receiver = receiverRelevant(type);
+        AugmentorConfig.ClassEntry receiver = receiverRelevant(type) ? classEntries.decide(type).entry() : null;
         Map<String, MethodDescription> declared = new HashMap<>();
         for (MethodDescription method : type.getDeclaredMethods()) {
             if (isCandidate(method)) {
@@ -120,7 +120,8 @@ public final class TypeMatching {
         }
         return offered -> {
             MethodDescription method = declared.get(signature(offered));
-            return method != null && ((receiver && !method.isStatic()) || !parameters.select(type, method).isEmpty());
+            return method != null && ((receiver != null && !method.isStatic() && receiver.appliesTo(method.getInternalName()))
+                    || !parameters.select(type, method).isEmpty());
         };
     }
 
@@ -144,11 +145,26 @@ public final class TypeMatching {
 
     /**
      * Whether frames of this method show a receiver id: a method, not a constructor, that is not static, of a type whose
-     * deciding {@code [augment.receiver]} entry gives ids. For the agent's live-stack mode, which reads the frames of
-     * methods that it does not instrument.
+     * deciding {@code [augment.receiver]} entry gives ids for this method. For the agent's live-stack mode, which reads
+     * the frames of methods that it does not instrument.
      */
     public boolean receiverIds(TypeDescription type, MethodDescription method) {
-        return isCandidate(method) && !method.isStatic() && receiverRelevant(type);
+        return isCandidate(method) && !method.isStatic() && receiverRelevant(type)
+                && classEntries.decide(type).entry().appliesTo(method.getInternalName());
+    }
+
+    /** Whether a method the type declares shows the receiver ids. */
+    private boolean hasReceiverMethods(TypeDescription type) {
+        if (!receiverRelevant(type)) {
+            return false;
+        }
+        AugmentorConfig.ClassEntry entry = classEntries.decide(type).entry();
+        for (MethodDescription method : type.getDeclaredMethods()) {
+            if (isCandidate(method) && !method.isStatic() && entry.appliesTo(method.getInternalName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The id parameters that frames of this method or constructor show. For the agent's live-stack mode. */

@@ -13,6 +13,7 @@ import com.thirdparty.InventoryService
 import com.thirdparty.Ledger1
 import com.thirdparty.Ledger12
 import com.thirdparty.OrderLine
+import com.thirdparty.Parcel
 import com.thirdparty.SavingsAccount
 import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -51,6 +52,13 @@ class ConfigTablesTest {
     fun `a question mark in a pattern matches one character`() {
         assertEquals("com.thirdparty.Ledger1{code=L-1}", frame("Ledger1(\"L-1\").close()", Ledger1("L-1")) { it.close() }.className)
         assertEquals("com.thirdparty.Ledger12", frame("Ledger12(\"L-12\").close()", Ledger12("L-12")) { it.close() }.className)
+    }
+
+    @Test
+    fun `methods after double colon limit the receiver ids to them`() {
+        assertEquals("com.thirdparty.Parcel{trackingCode=T-1}", frame("Parcel(\"T-1\").ship()", Parcel("T-1")) { it.ship() }.className)
+        assertEquals("com.thirdparty.Parcel{trackingCode=T-1}", frame("Parcel(\"T-1\").cancelLater()", Parcel("T-1")) { it.cancelLater() }.className)
+        assertEquals("com.thirdparty.Parcel", frame("Parcel(\"T-1\").weigh()", Parcel("T-1")) { it.weigh() }.className)
     }
 
     @Test

@@ -11,6 +11,8 @@ The two kinds of ids are configured independently: `[augment.receiver]` decides 
 - `"@"`: every `@StackTraceId` on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`, one id each: fields first, in declaration order, then methods by name, starting with the class itself and then its superclasses; or
 - `"-"`: nothing, so the class gets no receiver id. Its parameter ids are not affected.
 
+By default the ids show in the frames of all its methods. To show them in some methods only, list these after `::`, separated by commas: `"trackingCode :: ship, cancel*"` shows `Parcel{trackingCode=…}.ship` and `Parcel{trackingCode=…}.cancelLater`, while `Parcel.weigh` stays without receiver id (its parameter ids are not affected). The names may use `*` and `?`, as the method part of `[augment.params]` keys does; they compare with the frame's method name. `"@ :: ship"` works the same way; `"-"` takes no `::`.
+
 When several entries match a class, the first one in the file decides, as in `[augment.exceptions]`, so put the more specific entries first: `"com.acme.Order" = "getId()"` before `"com.acme.**" = "@"` gives `Order` its `getId()`, and `"com.acme.generated.**" = "-"` before it takes the generated classes out. An entry after one that already matches a class does not apply to it. A class without a deciding entry, or without the members it names, gets no receiver id. Every id is the member's value as text, from `toString()`.
 
 So a subclass's own methods show the id of the first entry that matches the subclass, which may be its superclass's, while the methods it inherits show the id of the entry that matches the superclass:

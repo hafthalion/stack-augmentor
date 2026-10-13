@@ -97,6 +97,7 @@ public final class FrameSpecs {
     private boolean named(Class<?> type, String methodName) {
         AugmentorConfig.ClassEntry entry = config.classEntry(type);
         return entry != null && !(entry.spec() instanceof IdSpec.Excluded) && !methodName.equals(AugmentorConfig.CONSTRUCTOR)
+                && entry.appliesTo(methodName)
                 || !config.paramRefs(type.getName(), methodName).isEmpty();
     }
 

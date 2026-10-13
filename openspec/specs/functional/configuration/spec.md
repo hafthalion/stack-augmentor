@@ -19,8 +19,9 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
     file. Without entries no throwable gets ids;
   - `[augment.receiver]` (class name or class pattern → a string: field name, `method()`, several of them
     separated by commas, `"@"` for
-    the class's `@StackTraceId` members, or `"-"` for no receiver id), which decides the receiver ids, see the
-    id sources spec. Its entries SHALL be read in the order of the file, and the first that matches a class decides;
+    the class's `@StackTraceId` members, or `"-"` for no receiver id, optionally followed by `::` and the method
+    names or patterns whose frames show the ids, separated by commas, e.g. `"id :: ship, cancel*"`; without `::` all
+    methods do), which decides the receiver ids, see the id sources spec. Its entries SHALL be read in the order of the file, and the first that matches a class decides;
   - `[augment.params]` (`"<class pattern>.<method pattern>"` → a string: parameter names and 0-based
     indexes from 0 to 255, the JVM's maximum number of parameters, separated by commas, each optionally followed by
     `#` to hash the value (e.g. `"order, 2, email#"`), `"@"` for the method's parameter annotations, or `"-"` for none;
@@ -79,7 +80,9 @@ of range, an invalid `[augment.receiver]` or `[augment.params]` entry, an invali
 section, including keys in the wrong section (such as `maxIdLength` at the top level). An `[augment.receiver]` entry SHALL
 be invalid when its key contains characters other than identifier characters, `$`, `.`, `*` and `?`, or
 when its value is not a string with a field name, a `method()`, several of them separated by commas without
-duplicates or empty items, `"@"` or `"-"`. Spaces around the items SHALL NOT matter. An `[augment.params]` entry SHALL be invalid
+duplicates or empty items, `"@"` or `"-"`, or when the part after `::` is not method names or patterns
+(identifier characters, `$`, `*` and `?`) separated by commas without duplicates or empty items, or follows `"-"`.
+Spaces around the items SHALL NOT matter. An `[augment.params]` entry SHALL be invalid
 when its key has no class or no method part, when a part contains characters other than identifier
 characters, `$`, `.` (class part only), `*` and `?`, or when its value is not a string with `"@"`, `"-"` or
 parameter names and indexes separated by commas, each optionally followed by `#`, without empty items (`"*"`,
@@ -112,7 +115,7 @@ invalid in both tables. The message SHALL name the file, the key and its line.
 - **THEN** it is rejected with a message naming the key and its line
 
 #### Scenario: Invalid class entry
-- **GIVEN** `[augment.receiver]` with `"com.acme.Order" = "@id"`, `"com.acme.Order" = ["id"]`, `"com.acme.Order" = "id, @"`, or `"com.acme.Ord+er" = "@"`
+- **GIVEN** `[augment.receiver]` with `"com.acme.Order" = "@id"`, `"com.acme.Order" = ["id"]`, `"com.acme.Order" = "id, @"`, `"com.acme.Order" = "id ::"`, `"com.acme.Order" = "- :: ship"`, `"com.acme.Order" = "id :: ship()"`, or `"com.acme.Ord+er" = "@"`
 - **WHEN** the configuration is loaded
 - **THEN** it is rejected with a message naming the key and its line
 
