@@ -48,7 +48,7 @@ public final class ByteBuddyPlugin implements Plugin {
         Startup.warnIfNothingConfigured(Startup.BUILD_PLUGIN, config);
         this.parameters = new IdParameters(config);
         this.matching = new TypeMatching(config, parameters);
-        this.advice = ExitAdviceFactory.create(parameters);
+        this.advice = ExitAdviceFactory.create(matching, parameters);
     }
 
     @Override

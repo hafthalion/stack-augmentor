@@ -21,7 +21,7 @@ exception unchanged. Exceptions thrown inside the called constructor SHALL leave
 
 #### Scenario: Constructor with parameter ids
 - **GIVEN** `class Shipment(@StackTraceParam val orderId: Long, val weight: Int)` whose `init` block calls
-  `require(weight > 0)`, and an entry `"com.acme.**.<init>" = "@"`
+  `require(weight > 0)`, and an entry `"com.acme.**::<init>" = "@"`
 - **WHEN** `Shipment(42, 0)` throws
 - **THEN** its frame shows `Shipment.<init>{orderId=42}`
 

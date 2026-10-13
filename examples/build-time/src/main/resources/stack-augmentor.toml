@@ -40,9 +40,9 @@ maxIdLength = 64
 # hashed, and "-" selects none. When several entries match a method, the first one applies, so the more
 # specific entries come first.
 [augment.params]
-"com.hafnium.examples.buildtime.ClassWithoutAnnotation.method" = "q"   # before the "@" pattern
-"com.hafnium.examples.buildtime.**.*" = "@"
-"com.thirdparty.OrderService.process" = "order, 1"                     # by name and by index
-"com.thirdparty.InventoryAudit.*" = "-"                                  # InventoryAudit's first: no parameter ids ...
-"com.thirdparty.Inventory*.*" = "sku, count"                         # ... then all methods of the other Inventory* classes
-"com.thirdparty.Customer.notify" = "email#"                            # hashed
+"com.hafnium.examples.buildtime.ClassWithoutAnnotation::method" = "q"   # before the "@" pattern
+"com.hafnium.examples.buildtime.**::*" = "@"
+"com.thirdparty.OrderService::process" = "order, 1"                     # by name and by index
+"com.thirdparty.InventoryAudit::*" = "-"                                  # InventoryAudit's first: no parameter ids ...
+"com.thirdparty.Inventory*::*" = "sku, count"                         # ... then all methods of the other Inventory* classes
+"com.thirdparty.Customer::notify" = "email#"                            # hashed

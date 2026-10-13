@@ -1,6 +1,7 @@
 package com.hafnium.it.outside
 
 import com.hafnium.it.fixtures.Base
+import com.hafnium.stackaugmentor.StackTraceAugment
 import com.hafnium.stackaugmentor.StackTraceParam
 import com.hafnium.stackaugmentor.StackTraceParams
 import com.thirdparty.SavingsAccount
@@ -35,4 +36,15 @@ class ClassParamsViaMethods {
 /** Its superclass SavingsAccount has an [augment.receiver] entry, which does not apply to it. */
 class PremiumAccount(number: String) : SavingsAccount(number) {
     fun upgrade(): Nothing = throw IllegalStateException("upgrade")
+}
+
+/**
+ * Selected by "@" after "::" in both tables: "hub :: @" in [augment.receiver] and "Dispatcher::@" in [augment.params]
+ * apply to its @StackTraceAugment methods only.
+ */
+class Dispatcher(private val hub: String) {
+    @StackTraceAugment
+    fun send(order: String): Nothing = throw IllegalStateException("cannot send $order")
+
+    fun track(order: String): Nothing = throw IllegalStateException("cannot track $order")
 }

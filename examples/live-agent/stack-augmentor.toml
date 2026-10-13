@@ -18,4 +18,4 @@ inPlaceModification = true
 "com.hafnium.examples.live.**" = "@"
 
 [augment.params]
-"com.hafnium.examples.live.**.*" = "@"
+"com.hafnium.examples.live.**::*" = "@"

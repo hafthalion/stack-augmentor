@@ -93,12 +93,16 @@ public final class FrameSpecs {
         return entry != null && !(entry.spec() instanceof IdSpec.Excluded) || config.hasParamEntries(name);
     }
 
-    /** Whether an entry of either table names the method's class, so that its frames may show ids. */
+    /**
+     * Whether an entry of either table names the method's class, so that its frames may show ids. By name only, so
+     * whether the method has {@code @StackTraceAugment} is left open: {@link #spec} decides for the method itself.
+     */
     private boolean named(Class<?> type, String methodName) {
         AugmentorConfig.ClassEntry entry = config.classEntry(type);
         return entry != null && !(entry.spec() instanceof IdSpec.Excluded) && !methodName.equals(AugmentorConfig.CONSTRUCTOR)
-                && entry.appliesTo(methodName)
-                || !config.paramRefs(type.getName(), methodName).isEmpty();
+                && entry.appliesTo(methodName, true)
+                || !config.paramRefs(type.getName(), methodName, false).isEmpty()
+                || !config.paramRefs(type.getName(), methodName, true).isEmpty();
     }
 
     private Spec spec(Class<?> type, String name, MethodType methodType) {

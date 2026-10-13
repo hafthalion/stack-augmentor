@@ -47,20 +47,24 @@ import java.util.stream.Collectors;
  *
  * [augment.receiver]         # receiver ids: a field, a "method()", several separated by commas, "@" for the
  *                            # @StackTraceId members, "-" for none; the first matching entry wins, a class name matches its
- *                            # subclasses too, a pattern the class only; ":: m1, m2" limits the ids to these methods
+ *                            # subclasses too, a pattern the class only; ":: m1, m2" limits the ids to these methods,
+ *                            # ":: @" to those annotated with @StackTraceAugment
  * "com.hafnium.generated.**" = "-"
  * "com.hafnium.**" = "@"
  * "com.thirdparty.Order" = "getOrderNumber()"
  * "com.thirdparty.OrderLine" = "tenant, lineId()"
  * "com.thirdparty.Invoice" = "number :: pay, cancel*"   # only frames of pay and cancel... show the number
+ * "com.acme.Dispatcher" = "hub :: @"        # only frames of methods annotated with @StackTraceAugment
  *
- * [augment.params]           # parameter ids: names and indexes separated by commas ("#" after one hashes it), "@"
- *                            # for the annotations, "-" for none; the first matching entry wins
- * "com.hafnium.**.*" = "@"
- * "com.thirdparty.Shipment.<init>" = "orderId"   # constructors, also matched by wildcards such as ".*"
- * "com.thirdparty.OrderService.process" = "order, 2, email#, 3#"
- * "com.thirdparty.**.AuditRepository.*" = "-"
- * "com.thirdparty.**.*Repository.find*" = "0"
+ * [augment.params]           # "<class>::<method>" or "<class>::@" (annotated with @StackTraceAugment): parameter ids,
+ *                            # names and indexes separated by commas ("#" after one hashes it), "@" for the
+ *                            # annotations, "-" for none; the first matching entry wins
+ * "com.hafnium.**::*" = "@"
+ * "com.thirdparty.Shipment::<init>" = "orderId"   # constructors, also matched by wildcards such as "::*"
+ * "com.acme.Dispatcher::@" = "order"        # the methods annotated with @StackTraceAugment
+ * "com.thirdparty.OrderService::process" = "order, 2, email#, 3#"
+ * "com.thirdparty.**.AuditRepository::*" = "-"
+ * "com.thirdparty.**.*Repository::find*" = "0"
  * }</pre>
  *
  * <p>The two tables are independent: {@code [augment.receiver]} decides the receiver ids, {@code [augment.params]} the
@@ -72,8 +76,14 @@ import java.util.stream.Collectors;
  */
 public final class AugmentorConfig {
 
-    /** The method name of constructors, in {@code [augment.params]} keys as in stack traces: {@code "com.acme.Order.<init>"}. */
+    /** The method name of constructors, in {@code [augment.params]} keys as in stack traces: {@code "com.acme.Order::<init>"}. */
     public static final String CONSTRUCTOR = "<init>";
+
+    /**
+     * Separates the class from the method in {@code [augment.params]} keys ({@code "com.acme.Order::process"}), and the
+     * receiver ids from the methods that show them in {@code [augment.receiver]} values ({@code "id :: ship, cancel"}).
+     */
+    public static final String METHOD_SEPARATOR = "::";
 
     public static final String DEFAULT_FRAME_FORMAT = "$class$receiver.$method$params";
     public static final String DEFAULT_RECEIVER_FORMAT = "{$name=$id, ...}";
@@ -141,7 +151,8 @@ public final class AugmentorConfig {
 
     /**
      * An {@code [augment.receiver]} entry: the key as written, the id source it names, and the methods whose frames show
-     * the ids, empty for all ({@code "id :: ship, cancel"} names {@code ship} and {@code cancel}).
+     * the ids, empty for all ({@code "id :: ship, cancel"} names {@code ship} and {@code cancel}, {@code "id :: @"} the
+     * methods annotated with {@code @StackTraceAugment}).
      */
     public static final class ClassEntry {
 
@@ -154,7 +165,8 @@ public final class AugmentorConfig {
             this.key = Objects.requireNonNull(key, "key");
             this.spec = Objects.requireNonNull(spec, "spec");
             this.methods = List.copyOf(methods);
-            this.methodPatterns = this.methods.stream().map(AugmentorConfig::globToRegex).toList();
+            this.methodPatterns = this.methods.stream().filter(name -> !name.equals(ANNOTATIONS))
+                    .map(AugmentorConfig::globToRegex).toList();
         }
 
         public String key() {
@@ -165,7 +177,7 @@ public final class AugmentorConfig {
             return spec;
         }
 
-        /** The method names or patterns after {@code ::}, in the order of the file; empty for all methods. */
+        /** The method names, patterns and {@code "@"} after {@code ::}, in the order of the file; empty for all methods. */
         public List<String> methods() {
             return methods;
         }
@@ -175,9 +187,14 @@ public final class AugmentorConfig {
             return AugmentorConfig.isPattern(key);
         }
 
-        /** Whether frames of this method show the receiver ids: all methods without {@code ::}, else the named ones. */
-        public boolean appliesTo(String methodName) {
-            if (methodPatterns.isEmpty()) {
+        /**
+         * Whether frames of this method show the receiver ids: all methods without {@code ::}, else the named ones, and
+         * with {@code "@"} the annotated ones.
+         *
+         * @param augmented whether the method is annotated with {@code @StackTraceAugment}
+         */
+        public boolean appliesTo(String methodName, boolean augmented) {
+            if (methods.isEmpty() || augmented && methods.contains(ANNOTATIONS)) {
                 return true;
             }
             for (Pattern pattern : methodPatterns) {
@@ -205,8 +222,16 @@ public final class AugmentorConfig {
         }
     };
 
-    /** An {@code [augment.params]} entry: its class and method parts, each a name or a pattern. */
+    /**
+     * An {@code [augment.params]} entry: its class and method parts, each a name or a pattern; the method part is
+     * {@code null} for {@code "@"}, the methods annotated with {@code @StackTraceAugment}.
+     */
     private record MethodPattern(String key, Pattern classPattern, Pattern methodPattern, List<ParamRef> refs) {
+
+        boolean matches(String className, String methodName, boolean augmented) {
+            return classPattern.matcher(className).matches()
+                    && (methodPattern != null ? methodPattern.matcher(methodName).matches() : augmented);
+        }
     }
 
     /** The {@code [augment.params]} entries, in the order of the file. */
@@ -222,7 +247,7 @@ public final class AugmentorConfig {
      * @param classes   receiver id sources by class name or class pattern: the {@code [augment.receiver]} table
      * @param receiverMethods the methods that show the receiver ids, by the keys of {@code classes}: the names or
      *                  patterns after {@code ::}; a key without them (or with an empty list) applies to all methods
-     * @param methods   parameter ids by {@code "<class>.<method>"}, possibly with wildcards: the
+     * @param methods   parameter ids by {@code "<class>::<method>"} or {@code "<class>::@"}, possibly with wildcards: the
      *                  {@code [augment.params]} table
      * @param exceptions whether throwables get ids, by class name (with subclasses) or class pattern (of the runtime
      *                  class), in the order the first matching entry is looked for: the {@code [augment.exceptions]}
@@ -257,9 +282,10 @@ public final class AugmentorConfig {
 
         List<MethodPattern> methodPatterns = new ArrayList<>();
         this.methods.forEach((target, refs) -> {
-            int dot = target.lastIndexOf('.');
-            methodPatterns.add(new MethodPattern(target, globToRegex(target.substring(0, dot)), globToRegex(target.substring(dot + 1)),
-                    refs));
+            int separator = target.indexOf(METHOD_SEPARATOR);
+            String method = target.substring(separator + METHOD_SEPARATOR.length());
+            methodPatterns.add(new MethodPattern(target, globToRegex(target.substring(0, separator)),
+                    method.equals(ANNOTATIONS) ? null : globToRegex(method), refs));
         });
         this.methodPatterns = List.copyOf(methodPatterns);
     }
@@ -281,7 +307,7 @@ public final class AugmentorConfig {
         return receiverMethods;
     }
 
-    /** Parameter ids by {@code "<class>.<method>"}, possibly with wildcards: the {@code [augment.params]} table. */
+    /** Parameter ids by {@code "<class>::<method>"} or {@code "<class>::@"}, possibly with wildcards: the {@code [augment.params]} table. */
     public Map<String, List<ParamRef>> methods() {
         return methods;
     }
@@ -422,13 +448,15 @@ public final class AugmentorConfig {
 
     /**
      * The parameters selected for a method by the first {@code [augment.params]} entry in the order of the file that
-     * matches it, by the name of the class that declares the method and the method name. Later entries play no part,
-     * so a {@code "-"} entry selects nothing even where a later entry would select parameters.
-     * {@code [augment.receiver]} plays no part either.
+     * matches it, by the name of the class that declares the method and the method name, or for a {@code "<class>::@"}
+     * key by its {@code @StackTraceAugment}. Later entries play no part, so a {@code "-"} entry selects nothing even where
+     * a later entry would select parameters. {@code [augment.receiver]} plays no part either.
+     *
+     * @param augmented whether the method is annotated with {@code @StackTraceAugment}
      */
-    public List<ParamRef> paramRefs(String className, String methodName) {
+    public List<ParamRef> paramRefs(String className, String methodName, boolean augmented) {
         for (MethodPattern entry : methodPatterns) {
-            if (entry.classPattern().matcher(className).matches() && entry.methodPattern().matcher(methodName).matches()) {
+            if (entry.matches(className, methodName, augmented)) {
                 return entry.refs().contains(new ParamRef.Excluded()) ? List.of() : entry.refs();
             }
         }
@@ -637,8 +665,6 @@ public final class AugmentorConfig {
         private static final List<String> CLASSES = List.of("augment", "receiver");
         private static final List<String> METHODS = List.of("augment", "params");
         private static final List<String> EXCEPTIONS = List.of("augment", "exceptions");
-        /** Separates the receiver ids from the methods that show them: {@code "orderId :: ship, cancel"}. */
-        private static final String METHODS_SEPARATOR = "::";
 
         private static final List<String> ROOT_KEYS = List.of("debug", "inPlaceModification", "augment");
         private static final List<String> AUGMENT_KEYS = List.of("frameFormat", "receiverFormat", "paramsFormat", "maxIdLength",
@@ -672,14 +698,14 @@ public final class AugmentorConfig {
             for (Entry entry : entries(CLASSES)) {
                 String key = unique(classKey(entry.path(), CLASSES), entry.path(), classPaths);
                 String ids = receiverText(entry.path(), entry.value());
-                int separator = ids.indexOf(METHODS_SEPARATOR);
+                int separator = ids.indexOf(METHOD_SEPARATOR);
                 IdSpec spec = classSpec(entry.path(), separator < 0 ? ids : ids.substring(0, separator));
                 classes.put(key, spec);
                 if (separator >= 0) {
                     if (spec instanceof IdSpec.Excluded) {
                         throw error(entry.path(), "\"-\" gives no receiver id, so it takes no methods after ::");
                     }
-                    receiverMethods.put(key, receiverMethods(entry.path(), ids.substring(separator + METHODS_SEPARATOR.length())));
+                    receiverMethods.put(key, receiverMethods(entry.path(), ids.substring(separator + METHOD_SEPARATOR.length())));
                 }
             }
             config.classes(classes);
@@ -825,11 +851,13 @@ public final class AugmentorConfig {
 
         private String methodKey(List<String> path) {
             String target = target(path, METHODS);
-            int dot = target.lastIndexOf('.');
-            if (dot <= 0 || !CLASS_PART.matcher(target.substring(0, dot)).matches()
-                    || !(METHOD_PART.matcher(target.substring(dot + 1)).matches() || target.substring(dot + 1).equals(CONSTRUCTOR))) {
-                throw error(path, "[" + name(METHODS) + "] keys must name a class and a method, e.g. \"com.acme.OrderService.process\", "
-                        + "or <init> for the constructors; " + ALLOWED_CHARACTERS);
+            int separator = target.indexOf(METHOD_SEPARATOR);
+            String method = separator < 0 ? "" : target.substring(separator + METHOD_SEPARATOR.length());
+            if (separator <= 0 || !CLASS_PART.matcher(target.substring(0, separator)).matches()
+                    || !(METHOD_PART.matcher(method).matches() || method.equals(CONSTRUCTOR) || method.equals(ANNOTATIONS))) {
+                throw error(path, "[" + name(METHODS) + "] keys must name a class and a method separated by ::, e.g. "
+                        + "\"com.acme.OrderService::process\" or \"com.acme.OrderService::*\", <init> for the constructors, "
+                        + "or @ for the methods annotated with @StackTraceAugment; " + ALLOWED_CHARACTERS);
             }
             return target;
         }
@@ -844,13 +872,17 @@ public final class AugmentorConfig {
             return text;
         }
 
-        /** The method names after {@code ::}: names or patterns with {@code *} and {@code ?}, separated by commas. */
+        /**
+         * The method names after {@code ::}: names or patterns with {@code *} and {@code ?}, or {@code "@"} for the
+         * methods annotated with {@code @StackTraceAugment}, separated by commas.
+         */
         private List<String> receiverMethods(List<String> path, String text) {
             List<String> names = new ArrayList<>();
             for (String name : items(path, text, "method after ::")) {
-                if (!METHOD_PART.matcher(name).matches()) {
-                    throw error(path, "invalid method '" + name + "' after ::: use method names (e.g. \"ship\") or "
-                            + "patterns (e.g. \"find*\"), separated by commas, without ()");
+                if (!METHOD_PART.matcher(name).matches() && !name.equals(ANNOTATIONS)) {
+                    throw error(path, "invalid method '" + name + "' after ::: use method names (e.g. \"ship\"), "
+                            + "patterns (e.g. \"find*\") or \"@\" for the methods annotated with @StackTraceAugment, "
+                            + "separated by commas, without ()");
                 }
                 if (names.contains(name)) {
                     throw error(path, "'" + name + "' is listed twice");

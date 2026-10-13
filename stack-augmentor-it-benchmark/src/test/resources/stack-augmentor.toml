@@ -8,4 +8,4 @@
 "com.hafnium.it.benchmark.Configured" = "@"
 
 [augment.params]
-"com.hafnium.it.benchmark.Configured.*" = "@"
+"com.hafnium.it.benchmark.Configured::*" = "@"

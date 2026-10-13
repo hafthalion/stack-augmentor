@@ -39,7 +39,7 @@ public final class ClassInstrumentation {
 
         IdParameters parameters = new IdParameters(config);
         TypeMatching matching = new TypeMatching(config, parameters);
-        Advice advice = ExitAdviceFactory.create(parameters);
+        Advice advice = ExitAdviceFactory.create(matching, parameters);
 
         new AgentBuilder.Default()
                 .disableClassFormatChanges()

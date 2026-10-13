@@ -4,6 +4,7 @@ import com.hafnium.it.fixtures.MultiKeyed
 import com.hafnium.it.fixtures.Overridden
 import com.hafnium.it.fixtures.ignored.Ignored
 import com.hafnium.it.outside.ClassParamsViaMethods
+import com.hafnium.it.outside.Dispatcher
 import com.hafnium.it.outside.MethodAnnotationsOutside
 import com.hafnium.it.outside.PremiumAccount
 import com.hafnium.it.report.FrameReport
@@ -59,6 +60,16 @@ class ConfigTablesTest {
         assertEquals("com.thirdparty.Parcel{trackingCode=T-1}", frame("Parcel(\"T-1\").ship()", Parcel("T-1")) { it.ship() }.className)
         assertEquals("com.thirdparty.Parcel{trackingCode=T-1}", frame("Parcel(\"T-1\").cancelLater()", Parcel("T-1")) { it.cancelLater() }.className)
         assertEquals("com.thirdparty.Parcel", frame("Parcel(\"T-1\").weigh()", Parcel("T-1")) { it.weigh() }.className)
+    }
+
+    @Test
+    fun `'@' after double colon selects the methods annotated with @StackTraceAugment, in both tables`() {
+        val send = frame("Dispatcher(\"H-1\").send(\"o-1\")", Dispatcher("H-1")) { it.send("o-1") }
+        assertEquals("com.hafnium.it.outside.Dispatcher{hub=H-1}", send.className)
+        assertEquals("send{order=o-1}", send.methodName)
+        val track = frame("Dispatcher(\"H-1\").track(\"o-1\")", Dispatcher("H-1")) { it.track("o-1") }
+        assertEquals("com.hafnium.it.outside.Dispatcher", track.className)
+        assertEquals("track", track.methodName)
     }
 
     @Test

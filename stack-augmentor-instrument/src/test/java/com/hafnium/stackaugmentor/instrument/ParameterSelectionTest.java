@@ -1,5 +1,6 @@
 package com.hafnium.stackaugmentor.instrument;
 
+import com.hafnium.stackaugmentor.StackTraceAugment;
 import com.hafnium.stackaugmentor.StackTraceId;
 import com.hafnium.stackaugmentor.StackTraceParam;
 import com.hafnium.stackaugmentor.StackTraceParams;
@@ -58,6 +59,22 @@ class ParameterSelectionTest {
 
     static class Service {
         void process(String order, int quantity, String note) {
+        }
+    }
+
+    /** Selected by "@" after "::" in both tables: ship and the constructor are annotated with @StackTraceAugment. */
+    static class Shipping {
+        String code = "s";
+
+        @StackTraceAugment
+        Shipping(String code) {
+        }
+
+        @StackTraceAugment
+        void ship(String to, int count) {
+        }
+
+        void weigh(String unit) {
         }
     }
 
@@ -170,7 +187,7 @@ class ParameterSelectionTest {
     }
 
     /** All methods of the classes in this package. */
-    private static final String HERE_METHODS = HERE + ".*";
+    private static final String HERE_METHODS = HERE + "::*";
 
     @Test
     void methodAnnotations() {
@@ -188,7 +205,7 @@ class ParameterSelectionTest {
     void annotationsWithoutAnAtEntryAreIgnored() {
         // An "@" class entry is for @StackTraceId only: the tables are independent.
         for (AugmentorConfig config : List.of(new AugmentorConfig(), classes(Map.of(HERE, ANNOTATIONS)),
-                methods(Map.of("com.acme.**.*", List.of(new ParamRef.Annotations()))))) {
+                methods(Map.of("com.acme.**::*", List.of(new ParamRef.Annotations()))))) {
             IdParameters parameters = new IdParameters(config);
             assertEquals(List.of(), labels(parameters, Reservations.class, "reserve"));
             assertEquals(List.of(), labels(parameters, MethodLevel.class, "move"));
@@ -206,14 +223,14 @@ class ParameterSelectionTest {
         // ... until an "@" method entry re-enables them, for the matched methods only.
         IdParameters withMethods = new IdParameters(AugmentorConfig.builder()
                 .classes(classesOnly.classes())
-                .methods(Map.of(explicit + ".failAnnot*", List.of(new ParamRef.Annotations())))
+                .methods(Map.of(explicit + "::failAnnot*", List.of(new ParamRef.Annotations())))
                 .build());
         assertEquals(List.of(), labels(withMethods, Explicit.class, "fail"));
         assertEquals(List.of("y"), labels(withMethods, Explicit.class, "failAnnotated"));
 
         // @StackTraceParams, enabled by a method entry for that method alone.
         IdParameters classLevel = new IdParameters(AugmentorConfig.builder()
-                .methods(Map.of(Reservations.class.getName() + ".reserve", List.of(new ParamRef.Annotations())))
+                .methods(Map.of(Reservations.class.getName() + "::reserve", List.of(new ParamRef.Annotations())))
                 .build());
         assertEquals(List.of("sku", "count"), labels(classLevel, Reservations.class, "reserve"));
         assertEquals(List.of(), labels(classLevel, Reservations.class, "release"));
@@ -224,16 +241,16 @@ class ParameterSelectionTest {
         String service = Service.class.getName();
         IdParameters parameters = new IdParameters(AugmentorConfig.builder()
                 .methods(inOrder(
-                        service + ".process", List.of(new ParamRef.ByName("order")),
-                        service.replace("Service", "Serv*") + ".*", List.of(new ParamRef.ByIndex(2))))
+                        service + "::process", List.of(new ParamRef.ByName("order")),
+                        service.replace("Service", "Serv*") + "::*", List.of(new ParamRef.ByIndex(2))))
                 .build());
         // The first entry decides alone: the pattern adds nothing.
         assertEquals(List.of("order"), labels(parameters, Service.class, "process"));
         // The other way round, the pattern decides, however specific the later entry is.
         IdParameters patternFirst = new IdParameters(AugmentorConfig.builder()
                 .methods(inOrder(
-                        service.replace("Service", "Serv*") + ".*", List.of(new ParamRef.ByIndex(2)),
-                        service + ".process", List.of(new ParamRef.ByName("order"))))
+                        service.replace("Service", "Serv*") + "::*", List.of(new ParamRef.ByIndex(2)),
+                        service + "::process", List.of(new ParamRef.ByName("order"))))
                 .build());
         assertEquals(List.of("note"), labels(patternFirst, Service.class, "process"));
     }
@@ -243,15 +260,15 @@ class ParameterSelectionTest {
         String service = Service.class.getName();
         IdParameters parameters = new IdParameters(AugmentorConfig.builder()
                 .methods(Map.of(
-                        service + ".*", List.of(new ParamRef.ByName("missing"), new ParamRef.ByIndex(9)),
-                        service.replace("Service", "Serv?ce") + ".nope*", List.of(new ParamRef.ByIndex(0))))
+                        service + "::*", List.of(new ParamRef.ByName("missing"), new ParamRef.ByIndex(9)),
+                        service.replace("Service", "Serv?ce") + "::nope*", List.of(new ParamRef.ByIndex(0))))
                 .build());
         assertEquals(List.of(), parameters.unmatchedEntries(type(Service.class)));
 
         IdParameters exact = new IdParameters(AugmentorConfig.builder()
                 .methods(Map.of(
-                        service + ".process", List.of(new ParamRef.ByName("missing")),
-                        service + ".nope", List.of(new ParamRef.ByIndex(0))))
+                        service + "::process", List.of(new ParamRef.ByName("missing")),
+                        service + "::nope", List.of(new ParamRef.ByIndex(0))))
                 .build());
         List<String> messages = exact.unmatchedEntries(type(Service.class));
         assertEquals(2, messages.size(), messages.toString());
@@ -269,7 +286,7 @@ class ParameterSelectionTest {
         String explicit = Explicit.class.getName();
         AugmentorConfig config = AugmentorConfig.builder()
                 .classes(Map.of(explicit, new IdSpec.MethodSpec("getId")))
-                .methods(Map.of(explicit + ".failAnnotated", List.of(new ParamRef.Annotations())))
+                .methods(Map.of(explicit + "::failAnnotated", List.of(new ParamRef.Annotations())))
                 .build();
         TypeMatching matching = new TypeMatching(config, new IdParameters(config));
 
@@ -294,7 +311,7 @@ class ParameterSelectionTest {
         AugmentorConfig config = AugmentorConfig.builder()
                 .classes(firstMatch(explicit, new IdSpec.MethodSpec("getId"), login, new IdSpec.FieldSpec("id")))
                 .receiverMethods(Map.of(explicit, List.of("fail"), login, List.of("logout")))
-                .methods(Map.of(explicit + ".failAnnotated", List.of(new ParamRef.Annotations())))
+                .methods(Map.of(explicit + "::failAnnotated", List.of(new ParamRef.Annotations())))
                 .build();
         TypeMatching matching = new TypeMatching(config, new IdParameters(config));
 
@@ -311,6 +328,25 @@ class ParameterSelectionTest {
     }
 
     @Test
+    void atAfterDoubleColonSelectsTheAnnotatedMethods() {
+        String shipping = Shipping.class.getName();
+        AugmentorConfig config = AugmentorConfig.builder()
+                .classes(Map.of(shipping, new IdSpec.FieldSpec("code")))
+                .receiverMethods(Map.of(shipping, List.of("@")))
+                .methods(inOrder(shipping + "::@", List.of(new ParamRef.ByIndex(0)), shipping + "::*", List.of(new ParamRef.ByName("unit"))))
+                .build();
+        IdParameters parameters = new IdParameters(config);
+        TypeMatching matching = new TypeMatching(config, parameters);
+
+        assertTrue(matching.receiverIds(type(Shipping.class), method(Shipping.class, "ship")));
+        assertFalse(matching.receiverIds(type(Shipping.class), method(Shipping.class, "weigh")));
+        assertEquals(List.of("to"), labels(parameters, Shipping.class, "ship"));
+        assertEquals(List.of("unit"), labels(parameters, Shipping.class, "weigh"));
+        MethodDescription constructor = type(Shipping.class).getDeclaredMethods().filter(isConstructor()).getOnly();
+        assertEquals(List.of("code"), parameters.select(type(Shipping.class), constructor).stream().map(IdParameter::label).toList());
+    }
+
+    @Test
     void excludedClassesAndMethodsAreIndependent() {
         ByteArrayOutputStream err = new ByteArrayOutputStream();
         System.setErr(new PrintStream(err, true, StandardCharsets.UTF_8));
@@ -320,9 +356,9 @@ class ParameterSelectionTest {
         AugmentorConfig config = AugmentorConfig.builder()
                 .classes(firstMatch(explicit, new IdSpec.Excluded(), HERE, ANNOTATIONS))
                 .methods(inOrder(
-                        explicit + ".failAnnotated", List.of(new ParamRef.Annotations()),
-                        service + ".process", List.of(new ParamRef.ByName("note")),
-                        service + ".*", List.of(new ParamRef.Excluded()),
+                        explicit + "::failAnnotated", List.of(new ParamRef.Annotations()),
+                        service + "::process", List.of(new ParamRef.ByName("note")),
+                        service + "::*", List.of(new ParamRef.Excluded()),
                         HERE_METHODS, List.of(new ParamRef.ByIndex(0), new ParamRef.ByIndex(1))))
                 .build();
         IdParameters parameters = new IdParameters(config);
@@ -363,12 +399,12 @@ class ParameterSelectionTest {
     @Test
     void hashedParameters() {
         String login = Login.class.getName();
-        IdParameters byName = new IdParameters(methods(Map.of(login + ".login",
+        IdParameters byName = new IdParameters(methods(Map.of(login + "::login",
                 List.of(new ParamRef.ByName("email", true), new ParamRef.ByIndex(0, true), new ParamRef.ByIndex(2)))));
         assertEquals(List.of("userName#", "email#", "attempt"), encoded(byName, Login.class, "login"));
 
         // Selected plainly by index and hashed by name: hashed.
-        IdParameters twice = new IdParameters(methods(Map.of(login + ".login",
+        IdParameters twice = new IdParameters(methods(Map.of(login + "::login",
                 List.of(new ParamRef.ByIndex(0), new ParamRef.ByIndex(1), new ParamRef.ByName("email", true)))));
         assertEquals(List.of("userName", "email#"), encoded(twice, Login.class, "login"));
     }
@@ -376,14 +412,14 @@ class ParameterSelectionTest {
     @Test
     void secretAnnotations() {
         IdParameters annotations = new IdParameters(methods(Map.of(
-                Secrets.class.getName() + ".*", List.of(new ParamRef.Annotations()))));
+                Secrets.class.getName() + "::*", List.of(new ParamRef.Annotations()))));
         assertEquals(List.of("userName", "email#"), encoded(annotations, Secrets.class, "login"));
         // Under @StackTraceParams, @StackTraceParam(secret = true) hashes one parameter.
         assertEquals(List.of("name", "token#"), encoded(annotations, Secrets.class, "update"));
         // A name entry before the pattern decides alone: the annotations, secret included, do not apply.
         IdParameters named = new IdParameters(methods(inOrder(
-                Secrets.class.getName() + ".login", List.of(new ParamRef.ByName("email")),
-                Secrets.class.getName() + ".*", List.of(new ParamRef.Annotations()))));
+                Secrets.class.getName() + "::login", List.of(new ParamRef.ByName("email")),
+                Secrets.class.getName() + "::*", List.of(new ParamRef.Annotations()))));
         assertEquals(List.of("email"), encoded(named, Secrets.class, "login"));
     }
 
@@ -402,7 +438,7 @@ class ParameterSelectionTest {
         assertEquals(List.of("code", "size"), wildcardParameters.select(built, annotated).stream().map(IdParameter::label).toList());
         assertTrue(new TypeMatching(wildcard, wildcardParameters).constructors(built).matches(annotated));
 
-        AugmentorConfig init = methods(Map.of(HERE + ".<init>", List.of(new ParamRef.Annotations())));
+        AugmentorConfig init = methods(Map.of(HERE + "::<init>", List.of(new ParamRef.Annotations())));
         IdParameters parameters = new IdParameters(init);
         TypeMatching matching = new TypeMatching(init, parameters);
         assertEquals(List.of("code", "size"), parameters.select(built, annotated).stream().map(IdParameter::label).toList());

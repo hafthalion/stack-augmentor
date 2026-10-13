@@ -120,7 +120,7 @@ public final class TypeMatching {
         }
         return offered -> {
             MethodDescription method = declared.get(signature(offered));
-            return method != null && ((receiver != null && !method.isStatic() && receiver.appliesTo(method.getInternalName()))
+            return method != null && ((receiver != null && !method.isStatic() && receiver.appliesTo(method.getInternalName(), IdParameters.augmented(method)))
                     || !parameters.select(type, method).isEmpty());
         };
     }
@@ -150,7 +150,7 @@ public final class TypeMatching {
      */
     public boolean receiverIds(TypeDescription type, MethodDescription method) {
         return isCandidate(method) && !method.isStatic() && receiverRelevant(type)
-                && classEntries.decide(type).entry().appliesTo(method.getInternalName());
+                && classEntries.decide(type).entry().appliesTo(method.getInternalName(), IdParameters.augmented(method));
     }
 
     /** Whether a method the type declares shows the receiver ids. */
@@ -160,7 +160,7 @@ public final class TypeMatching {
         }
         AugmentorConfig.ClassEntry entry = classEntries.decide(type).entry();
         for (MethodDescription method : type.getDeclaredMethods()) {
-            if (isCandidate(method) && !method.isStatic() && entry.appliesTo(method.getInternalName())) {
+            if (isCandidate(method) && !method.isStatic() && entry.appliesTo(method.getInternalName(), IdParameters.augmented(method))) {
                 return true;
             }
         }

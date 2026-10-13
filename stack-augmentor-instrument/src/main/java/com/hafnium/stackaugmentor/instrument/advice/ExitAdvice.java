@@ -17,7 +17,7 @@ public final class ExitAdvice {
     }
 
     @Advice.OnMethodExit(onThrowable = Throwable.class, suppress = Throwable.class)
-    public static void exit(@Advice.This(optional = true) Object self,
+    public static void exit(@IdReceiver Object self,
                             @Advice.Thrown Throwable thrown,
                             @Advice.Origin("#t") String owner,
                             @Advice.Origin("#m") String method,

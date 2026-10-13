@@ -15,7 +15,7 @@ receiver id or a parameter id, and a method when it gets a parameter id or, as a
 receiver id.
 
 #### Scenario: Receiver ignored, parameters kept
-- **GIVEN** `"com.acme.generated.**" = "-"` and then `"com.acme.**" = "@"` in `[augment.receiver]`, `"com.acme.**.*" = "@"` in `[augment.params]`, and `fun map(@StackTraceParam id: Int)` in the annotated class `com.acme.generated.Mapper`
+- **GIVEN** `"com.acme.generated.**" = "-"` and then `"com.acme.**" = "@"` in `[augment.receiver]`, `"com.acme.**::*" = "@"` in `[augment.params]`, and `fun map(@StackTraceParam id: Int)` in the annotated class `com.acme.generated.Mapper`
 - **WHEN** `map(7)` throws
 - **THEN** that frame shows `id=7` and no receiver id
 
@@ -77,7 +77,7 @@ with `()`, several of them in one string separated by commas without duplicates,
 `"-"` for none. The value except `"-"` MAY be followed by `::` and method names or patterns (`*`, `?`) separated by
 commas: then only the frames of the methods whose names match one of them SHALL show the receiver ids, and the
 other methods of the class SHALL keep their frames' parameter ids only; without `::`, all methods SHALL show them.
-A list SHALL give one receiver id per member, in the listed order; a member that is not found
+`@` among the methods SHALL name the methods annotated with `@StackTraceAugment`. A list SHALL give one receiver id per member, in the listed order; a member that is not found
 SHALL be reported as a single one is and left out, while the others are still shown. Every receiver id SHALL
 be the member's value as text, from `toString()`. An entry without wildcards SHALL match the class it
 names and its subclasses, and for an interface the classes implementing it, as `instanceof` does, comparing
@@ -116,6 +116,11 @@ name starting with `is`), with the configured name as the label.
 - **GIVEN** `"com.thirdparty.Parcel" = "trackingCode :: ship, cancel*"` in `[augment.receiver]`
 - **WHEN** exceptions leave `ship()`, `cancelLater()` and `weigh()` of a `Parcel` with tracking code `T-1`
 - **THEN** the frames of `ship` and `cancelLater` show `{trackingCode=T-1}`, and the frame of `weigh` shows no receiver id
+
+#### Scenario: Receiver ids and parameters of the annotated methods
+- **GIVEN** `"com.acme.Dispatcher" = "hub :: @"` in `[augment.receiver]`, `"com.acme.Dispatcher::@" = "order"` in `[augment.params]`, and a `Dispatcher` with hub `H-1` whose `send(order)` is annotated with `@StackTraceAugment` and whose `track(order)` is not
+- **WHEN** exceptions leave `send("o-1")` and `track("o-1")`
+- **THEN** the frame of `send` shows `Dispatcher{hub=H-1}.send{order=o-1}`, and the frame of `track` is unchanged
 
 #### Scenario: Default method of an implemented interface
 - **GIVEN** `"com.acme.Order" = "getId()"`, where the Java class `Order` implements `Identified`, whose default method `getId()` returns `id-7`
@@ -209,7 +214,7 @@ select it: `@StackTraceId` marks receiver ids only.
 - **THEN** that frame shows the parameter id `orderId=42`
 
 #### Scenario: Configured parameters by name and index
-- **GIVEN** `"com.thirdparty.OrderService.process" = "order, 1"` in `[augment.params]` for `process(order: Order, quantity: Int, note: String)`
+- **GIVEN** `"com.thirdparty.OrderService::process" = "order, 1"` in `[augment.params]` for `process(order: Order, quantity: Int, note: String)`
 - **WHEN** `process(Order(4711), 3, "rush")` throws, where `Order.toString()` returns `Order#4711`
 - **THEN** that frame shows `order=Order#4711, quantity=3`
 
@@ -219,12 +224,12 @@ select it: `@StackTraceId` marks receiver ids only.
 - **THEN** that frame shows the parameter id `code=5` and no receiver id
 
 #### Scenario: Selected by an annotation and by the configuration
-- **GIVEN** `fun op(@StackTraceParam x: Int, y: Int)` in class `C`, and `"C.*" = "@"` and `"C.op" = "x, y"` in `[augment.params]`
+- **GIVEN** `fun op(@StackTraceParam x: Int, y: Int)` in class `C`, and `"C::*" = "@"` and `"C::op" = "x, y"` in `[augment.params]`
 - **WHEN** `op(1, 2)` throws
 - **THEN** that frame shows `x=1, y=2`, each parameter once
 
 #### Scenario: Annotations enabled by a method entry
-- **GIVEN** `fun run(@StackTraceParam code: Int)` in `com.hafnium.it.outside.MethodAnnotationsOutside`, which no `[augment.receiver]` entry matches, and `"com.hafnium.it.outside.MethodAnnotationsOutside.run" = "@"` in `[augment.params]`
+- **GIVEN** `fun run(@StackTraceParam code: Int)` in `com.hafnium.it.outside.MethodAnnotationsOutside`, which no `[augment.receiver]` entry matches, and `"com.hafnium.it.outside.MethodAnnotationsOutside::run" = "@"` in `[augment.params]`
 - **WHEN** `run(7)` throws
 - **THEN** that frame shows `code=7` and no receiver id
 
@@ -238,7 +243,7 @@ throws SHALL still show `?`. `secret` SHALL default to `false`. A parameter sele
 index, or by both annotations) SHALL be hashed when either hashes it. The label SHALL stay the parameter name.
 
 #### Scenario: Parameters hashed by name and index
-- **GIVEN** `"com.thirdparty.UserService.invite" = "user, email#, 2#"` in `[augment.params]` for `invite(user: String, email: String, attempt: Int)`
+- **GIVEN** `"com.thirdparty.UserService::invite" = "user, email#, 2#"` in `[augment.params]` for `invite(user: String, email: String, attempt: Int)`
 - **WHEN** `invite("ann", "ann@example.com", 3)` throws
 - **THEN** that frame shows `user=ann, email=#71d4f55f, attempt=#4e074085`
 
@@ -322,9 +327,10 @@ instrumented as described in the stack trace augmentation specification.
 - **THEN** the frame shows no parameter ids for `reserve`
 
 ### Requirement: Parameter ids of configured methods
-An `[augment.params]` entry `"<class pattern>.<method pattern>" = <parameters>` SHALL select
+An `[augment.params]` entry `"<class pattern>::<method pattern>" = <parameters>` SHALL select
 parameters of every method whose class name matches the class pattern and whose name matches the method
-pattern, including every overload, whatever the class's `[augment.receiver]` entry. Keys SHALL match the
+pattern, including every overload; with `"<class pattern>::@"`, of every method and constructor of a matching
+class that is annotated with `@StackTraceAugment`, while its other methods SHALL be left to the later entries; whatever the class's `[augment.receiver]` entry. Keys SHALL match the
 class that declares the method, not its subclasses. The class pattern
 SHALL use the `[augment.receiver]` globs (`*` within one package segment, `**` across segments, `?` one
 character). In the method pattern, `*` SHALL match any sequence of characters and `?` one character. A key
@@ -336,23 +342,23 @@ decide, as in `[augment.receiver]`, however specific the later ones are. The lat
 combined with it.
 
 #### Scenario: All methods of a class
-- **GIVEN** `"com.thirdparty.InventoryService.*" = "sku, count"`
+- **GIVEN** `"com.thirdparty.InventoryService::*" = "sku, count"`
 - **WHEN** `InventoryService.reserve("x-1", 2)` throws
 - **THEN** that frame shows `sku=x-1, count=2` and no receiver id
 
 #### Scenario: Wildcards across packages
-- **GIVEN** `"com.thirdparty.**.*Repository.find*" = "0"`
+- **GIVEN** `"com.thirdparty.**.*Repository::find*" = "0"`
 - **WHEN** `com.thirdparty.db.OrderRepository.findById(7)` throws, and separately `findAll()` throws
 - **THEN** the first frame shows `id=7`, and the second frame is unchanged
 
 #### Scenario: Overlapping entries
-- **GIVEN** `"com.thirdparty.OrderService.process" = "order"` and then `"com.thirdparty.OrderService.*" = "2"`
+- **GIVEN** `"com.thirdparty.OrderService::process" = "order"` and then `"com.thirdparty.OrderService::*" = "2"`
 - **WHEN** `process(Order(4711), 3, "rush")` throws, where `Order.toString()` returns `Order#4711`
 - **THEN** that frame shows only `order=Order#4711`: the first entry decides, and the pattern adds nothing
 - **AND** with the two entries the other way round, the pattern decides and the frame shows only the third parameter
 
 #### Scenario: Exact explicit class entry with annotated parameters
-- **GIVEN** `"com.acme.Order" = "getId()"` in `[augment.receiver]` and `"com.acme.Order.*" = "@"` in `[augment.params]`, and `fun ship(@StackTraceParam to: String)` in `Order`
+- **GIVEN** `"com.acme.Order" = "getId()"` in `[augment.receiver]` and `"com.acme.Order::*" = "@"` in `[augment.params]`, and `fun ship(@StackTraceParam to: String)` in `Order`
 - **WHEN** `ship("Main St")` throws
 - **THEN** that frame shows the receiver id `getId=…` and the parameter id `to=Main St`
 
@@ -369,7 +375,7 @@ A configuration whose entries are all `"-"` SHALL count as having no entries.
 - **THEN** its frame shows no receiver id
 
 #### Scenario: Ignored methods under a wildcard entry
-- **GIVEN** `"com.thirdparty.InventoryAudit.log" = "reason"`, `"com.thirdparty.InventoryAudit.*" = "-"` and `"com.thirdparty.Inventory*.*" = "sku, count"` in `[augment.params]`, in this order
+- **GIVEN** `"com.thirdparty.InventoryAudit::log" = "reason"`, `"com.thirdparty.InventoryAudit::*" = "-"` and `"com.thirdparty.Inventory*::*" = "sku, count"` in `[augment.params]`, in this order
 - **WHEN** `InventoryAudit.purge("x-1")` throws, and separately `InventoryAudit.log("disk full", 2)` throws
 - **THEN** the first frame is unchanged, and the second frame shows `reason=disk full`
 
@@ -384,7 +390,7 @@ Classes without an annotation or configuration entry SHALL NOT get ids, even whe
 them.
 
 #### Scenario: Annotated class outside the "@" entries
-- **GIVEN** `"com.hafnium.it.fixtures.**" = "@"` in `[augment.receiver]` and `"com.hafnium.it.fixtures.**.*" = "@"` in `[augment.params]` as the only entries
+- **GIVEN** `"com.hafnium.it.fixtures.**" = "@"` in `[augment.receiver]` and `"com.hafnium.it.fixtures.**::*" = "@"` in `[augment.params]` as the only entries
 - **WHEN** an exception leaves a method of a class in `com.hafnium.it.outside` with an annotated parameter, and no annotated superclass
 - **THEN** the frame is unchanged
 
@@ -399,12 +405,12 @@ them.
 - **THEN** the frame is unchanged
 
 #### Scenario: Method-level parameter annotation outside the "@" entries
-- **GIVEN** `"com.hafnium.it.fixtures.**.*" = "@"` in `[augment.params]` and a method of a class in `com.hafnium.it.outside` annotated with `@StackTraceParams`
+- **GIVEN** `"com.hafnium.it.fixtures.**::*" = "@"` in `[augment.params]` and a method of a class in `com.hafnium.it.outside` annotated with `@StackTraceParams`
 - **WHEN** that method throws
 - **THEN** the frame shows no parameter ids
 
 #### Scenario: Method-level parameter annotation enabled by method entries
-- **GIVEN** `@StackTraceParams fun run(a: Int, b: String)` in `com.hafnium.it.outside.ClassParamsViaMethods`, and `"com.hafnium.it.outside.ClassParamsViaMethods.*" = "@"` in `[augment.params]`
+- **GIVEN** `@StackTraceParams fun run(a: Int, b: String)` in `com.hafnium.it.outside.ClassParamsViaMethods`, and `"com.hafnium.it.outside.ClassParamsViaMethods::*" = "@"` in `[augment.params]`
 - **WHEN** `run(1, "x")` throws
 - **THEN** that frame shows all its parameter ids
 
