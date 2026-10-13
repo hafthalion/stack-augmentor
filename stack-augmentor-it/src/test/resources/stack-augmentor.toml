@@ -22,6 +22,8 @@ maxIdLength = 20
 "com.thirdparty.*Account" = "number"
 # '?' matches one character: Ledger1, not Ledger12
 "com.thirdparty.Ledger?" = "code"
+# After '::' the methods whose frames show the ids, names or patterns; without '::' all methods do
+"com.thirdparty.Parcel" = "trackingCode :: ship, cancel*"
 # Matches JDK classes, which the agent never instruments
 "java.**" = "@"
 # A class name matches its subclasses too (InheritanceTest): a frame uses the first entry that matches the class

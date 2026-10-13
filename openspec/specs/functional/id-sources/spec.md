@@ -74,7 +74,10 @@ The system SHALL use the `[augment.receiver]` configuration table to choose the 
 class. A key SHALL be a class name or a class pattern with the globs `*` (within one package segment),
 `**` (across segments) and `?` (one character). A value SHALL be a field name, a no-argument method written
 with `()`, several of them in one string separated by commas without duplicates, `"@"` for the class's `@StackTraceId` members, or
-`"-"` for none. A list SHALL give one receiver id per member, in the listed order; a member that is not found
+`"-"` for none. The value except `"-"` MAY be followed by `::` and method names or patterns (`*`, `?`) separated by
+commas: then only the frames of the methods whose names match one of them SHALL show the receiver ids, and the
+other methods of the class SHALL keep their frames' parameter ids only; without `::`, all methods SHALL show them.
+A list SHALL give one receiver id per member, in the listed order; a member that is not found
 SHALL be reported as a single one is and left out, while the others are still shown. Every receiver id SHALL
 be the member's value as text, from `toString()`. An entry without wildcards SHALL match the class it
 names and its subclasses, and for an interface the classes implementing it, as `instanceof` does, comparing
@@ -108,6 +111,11 @@ name starting with `is`), with the configured name as the label.
 - **GIVEN** `"com.thirdparty.OrderLine" = "tenant, lineId()"` in `[augment.receiver]`
 - **WHEN** an exception leaves a method of an `OrderLine` with tenant `acme` and line id 3
 - **THEN** that frame shows the receiver ids `{tenant=acme, lineId=3}`
+
+#### Scenario: Receiver ids limited to some methods
+- **GIVEN** `"com.thirdparty.Parcel" = "trackingCode :: ship, cancel*"` in `[augment.receiver]`
+- **WHEN** exceptions leave `ship()`, `cancelLater()` and `weigh()` of a `Parcel` with tracking code `T-1`
+- **THEN** the frames of `ship` and `cancelLater` show `{trackingCode=T-1}`, and the frame of `weigh` shows no receiver id
 
 #### Scenario: Default method of an implemented interface
 - **GIVEN** `"com.acme.Order" = "getId()"`, where the Java class `Order` implements `Identified`, whose default method `getId()` returns `id-7`

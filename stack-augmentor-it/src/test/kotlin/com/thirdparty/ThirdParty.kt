@@ -49,3 +49,12 @@ class Ledger1(private val code: String) {
 class Ledger12(private val code: String) {
     fun close(): Nothing = throw IllegalStateException("cannot close")
 }
+
+/** Its entry names methods after "::": only frames of ship and cancel... show the receiver id. */
+class Parcel(private val trackingCode: String) {
+    fun ship(): Nothing = throw IllegalStateException("cannot ship")
+
+    fun cancelLater(): Nothing = throw IllegalStateException("cannot cancel")
+
+    fun weigh(): Nothing = throw IllegalStateException("cannot weigh")
+}
