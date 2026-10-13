@@ -29,7 +29,7 @@ An application with classes instrumented at build time can also run with the age
 |---|---|---|---|
 | Configuration file | `-javaagent:...=config=<file>`, `-Dstackaugmentor.config=<file>`, or (build-time) `stack-augmentor.toml` on the classpath | none: nothing is augmented | the TOML file with everything below |
 | `[augment.exceptions]` | configuration | empty: no exception gets ids | which exceptions get ids: `true` or `false`, the first matching entry wins; a class name includes its subclasses, so `"java.lang.Exception" = true` covers all exceptions and `"**" = true` all throwables |
-| `[augment.receiver]` | configuration | empty | which classes show a receiver id, and where it comes from; the first matching entry wins, and a class name includes its subclasses, as in `[augment.exceptions]`; `"id :: ship, cancel"` limits the ids to these methods, `"id :: @"` to those annotated with `@StackTraceAugment` |
+| `[augment.receiver]` | configuration | empty | which classes show a receiver id, and where it comes from; the first matching entry wins, and a class name includes its subclasses, as in `[augment.exceptions]`; a key `"<class>::ship, cancel"` limits the entry to these methods, `"<class>::@"` to those annotated with `@StackTraceAugment` |
 | `[augment.params]` | configuration | empty | which methods show parameter ids, and which parameters, by `"<class>::<method>"`, `"<class>::*"`, `"<class>::@"` (methods annotated with `@StackTraceAugment`) or several of them, e.g. `"<class>::ship, cancel*"`; the first matching entry wins |
 | `[augment]` | configuration | see [Formats](docs/configuration.md#formats) | how frames look: `frameFormat`, `receiverFormat`, `paramsFormat`, `maxIdLength` |
 | `debug` | configuration | `false` | prints what gets instrumented and where each id comes from |
@@ -139,6 +139,7 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 - **At build time**, the plugin instruments the classes and methods that `[augment.receiver]` and `[augment.params]` need. Without the configuration argument, nothing is instrumented and the build prints a warning.
 - **At runtime**, the application needs only `stack-augmentor-api` and `stack-augmentor-runtime` (no agent, no ByteBuddy, no Kotlin). The runtime reads `stack-augmentor.toml` from the classpath, or the file in `-Dstackaugmentor.config`, for `[augment]`, `[augment.receiver]` (receiver ids), `debug` and `inPlaceModification`. In an application server it also asks the context class loader of the first throwing thread.
 - **One file serves both** when it is in `src/main/resources`.
+- A frame's receiver ids come from the runtime `[augment.receiver]` entry with the same key as the entry that decided its method at build time; without that key they are left out.
 - Without a runtime configuration, a warning says so and frames show only the parameter ids chosen at build time. An invalid one is printed as an error, and stack traces stay unchanged.
 
 ## Limitations in short

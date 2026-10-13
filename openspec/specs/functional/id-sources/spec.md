@@ -72,18 +72,20 @@ another class loader is also recognised.
 ### Requirement: Receiver id from external configuration
 The system SHALL use the `[augment.receiver]` configuration table to choose the receiver id source of a
 class. A key SHALL be a class name or a class pattern with the globs `*` (within one package segment),
-`**` (across segments) and `?` (one character). A value SHALL be a field name, a no-argument method written
+`**` (across segments) and `?` (one character), optionally followed by `::` and method names or patterns (`*`,
+`?`) separated by commas without duplicates: then the entry SHALL apply only to the frames of the methods whose
+names match one of them, and without `::` to all methods of the class. `@` among the methods SHALL name the
+methods annotated with `@StackTraceAugment`; `<init>` SHALL be rejected, as constructors show no receiver id. One
+class MAY have several entries with different methods. A value SHALL be a field name, a no-argument method written
 with `()`, several of them in one string separated by commas without duplicates, `"@"` for the class's `@StackTraceId` members, or
-`"-"` for none. The value except `"-"` MAY be followed by `::` and method names or patterns (`*`, `?`) separated by
-commas: then only the frames of the methods whose names match one of them SHALL show the receiver ids, and the
-other methods of the class SHALL keep their frames' parameter ids only; without `::`, all methods SHALL show them.
-`@` among the methods SHALL name the methods annotated with `@StackTraceAugment`. A list SHALL give one receiver id per member, in the listed order; a member that is not found
+`"-"` for none. A list SHALL give one receiver id per member, in the listed order; a member that is not found
 SHALL be reported as a single one is and left out, while the others are still shown. Every receiver id SHALL
 be the member's value as text, from `toString()`. An entry without wildcards SHALL match the class it
 names and its subclasses, and for an interface the classes implementing it, as `instanceof` does, comparing
 names so that no class is loaded; a key with wildcards SHALL match the classes whose names it matches only,
-not their subclasses. When several entries match a class, the first in the order of the file SHALL decide,
-as in `[augment.exceptions]`, however specific the later ones are. The receiver id of a frame SHALL come from
+not their subclasses. When several entries match a class and apply to a method, the first in the order of the
+file SHALL decide for that method, as in `[augment.exceptions]`, however specific the later ones are; a method that
+no matching entry applies to SHALL keep its frames' parameter ids only. The receiver id of a frame SHALL come from
 the deciding entry of the class that declares the frame's method, read from the object the method runs on,
 whatever the object's runtime class: a subclass, including one generated at runtime (a proxy, a mock, an
 anonymous class or an enum constant with a body), SHALL show the id of its superclass's entry in the frames
@@ -113,12 +115,12 @@ name starting with `is`), with the configured name as the label.
 - **THEN** that frame shows the receiver ids `{tenant=acme, lineId=3}`
 
 #### Scenario: Receiver ids limited to some methods
-- **GIVEN** `"com.thirdparty.Parcel" = "trackingCode :: ship, cancel*"` in `[augment.receiver]`
-- **WHEN** exceptions leave `ship()`, `cancelLater()` and `weigh()` of a `Parcel` with tracking code `T-1`
-- **THEN** the frames of `ship` and `cancelLater` show `{trackingCode=T-1}`, and the frame of `weigh` shows no receiver id
+- **GIVEN** `"com.thirdparty.Parcel::ship, cancel*" = "trackingCode"` and then `"com.thirdparty.Parcel::weigh" = "weight"` in `[augment.receiver]`
+- **WHEN** exceptions leave `ship()`, `cancelLater()`, `weigh()` and `inspect()` of a `Parcel` with tracking code `T-1` and weight 2
+- **THEN** the frames of `ship` and `cancelLater` show `{trackingCode=T-1}`, the frame of `weigh` shows `{weight=2}`, and the frame of `inspect` shows no receiver id
 
 #### Scenario: Receiver ids and parameters of the annotated methods
-- **GIVEN** `"com.acme.Dispatcher" = "hub :: @"` in `[augment.receiver]`, `"com.acme.Dispatcher::@, track" = "order"` in `[augment.params]`, and a `Dispatcher` with hub `H-1` whose `send(order)` is annotated with `@StackTraceAugment` and whose `track(order)` is not
+- **GIVEN** `"com.acme.Dispatcher::@" = "hub"` in `[augment.receiver]`, `"com.acme.Dispatcher::@, track" = "order"` in `[augment.params]`, and a `Dispatcher` with hub `H-1` whose `send(order)` is annotated with `@StackTraceAugment` and whose `track(order)` is not
 - **WHEN** exceptions leave `send("o-1")` and `track("o-1")`
 - **THEN** the frame of `send` shows `Dispatcher{hub=H-1}.send{order=o-1}`, and the frame of `track` shows `Dispatcher.track{order=o-1}`
 

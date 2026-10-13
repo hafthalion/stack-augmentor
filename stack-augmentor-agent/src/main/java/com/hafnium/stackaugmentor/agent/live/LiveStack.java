@@ -94,7 +94,7 @@ public final class LiveStack {
         }
         LiveDispatch.install(handler);
         // Classes instrumented at build time still call the handler: the live stack already covers their frames.
-        Dispatch.install((self, thrown, owner, method, paramValues, paramNames) -> {
+        Dispatch.install((self, thrown, receiverKey, owner, method, paramValues, paramNames) -> {
         });
         Log.debug(() -> "agent: reading frames from the live stack (native library version " + version + "), stack trace depth " + maxDepth + (eliminatedAllocations
                 ? ", an object argument the JIT optimized away shows as '" + LiveFrames.UNKNOWN + "' (-XX:-EliminateAllocations avoids that)"

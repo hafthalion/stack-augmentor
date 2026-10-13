@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -85,15 +87,11 @@ public final class IdResolver {
 
     private final AugmentorConfig config;
 
-    private final ClassValue<List<Source>> sources = new ClassValue<>() {
+    /** Per class, its id sources by {@code [augment.receiver]} key. */
+    private final ClassValue<Map<String, List<Source>>> sources = new ClassValue<>() {
         @Override
-        protected List<Source> computeValue(Class<?> type) {
-            List<Source> found = List.copyOf(findSources(type));
-            if (Log.isDebug()) {
-                Log.debug(() -> "id sources of " + type.getName() + ": " + (found.isEmpty() ? "none"
-                        : found.stream().map(Source::description).collect(Collectors.joining("; "))));
-            }
-            return found;
+        protected Map<String, List<Source>> computeValue(Class<?> type) {
+            return new ConcurrentHashMap<>();
         }
     };
 
@@ -112,6 +110,15 @@ public final class IdResolver {
     }
 
     /**
+     * {@link #receiverIds(Object, String, String)} with the first {@code [augment.receiver]} entry that matches the
+     * declaring class, whatever methods it names.
+     */
+    public List<NamedId> receiverIds(Object target, String declaringClass) {
+        List<AugmentorConfig.ClassEntry> entries = config.classEntries(declaringClass(target.getClass(), declaringClass));
+        return entries.isEmpty() ? List.of() : receiverIds(target, declaringClass, entries.get(0).key());
+    }
+
+    /**
      * The ids of the object a frame runs on, one per id source, in the configured order; empty if there is no id
      * source. The id sources are those of the
      * class declaring the frame's method, not of the object's runtime class: a subclass, e.g. a proxy or a mock, shows
@@ -119,9 +126,23 @@ public final class IdResolver {
      * members are read from the object.
      *
      * @param declaringClass the name of the class that declares the method
+     * @param entryKey       the key of the frame's deciding {@code [augment.receiver]} entry, which the instrumentation
+     *                       found; no ids if the configuration has no entry with this key
      */
-    public List<NamedId> receiverIds(Object target, String declaringClass) {
-        List<Source> found = sources.get(declaringClass(target.getClass(), declaringClass));
+    public List<NamedId> receiverIds(Object target, String declaringClass, String entryKey) {
+        AugmentorConfig.ClassEntry entry = config.classEntry(entryKey);
+        if (entry == null) {
+            return List.of();
+        }
+        Class<?> owner = declaringClass(target.getClass(), declaringClass);
+        List<Source> found = sources.get(owner).computeIfAbsent(entryKey, key -> {
+            List<Source> list = List.copyOf(findSources(owner, entry));
+            if (Log.isDebug()) {
+                Log.debug(() -> "id sources of " + owner.getName() + " (\"" + key + "\"): " + (list.isEmpty() ? "none"
+                        : list.stream().map(Source::description).collect(Collectors.joining("; "))));
+            }
+            return list;
+        });
         if (found.isEmpty()) {
             return List.of();
         }
@@ -223,16 +244,12 @@ public final class IdResolver {
     }
 
     /**
-     * The deciding {@code [augment.receiver]} entry: the first that matches the class, by its name for a pattern, or for
-     * a class name also as a superclass or an implemented interface ({@link AugmentorConfig#classEntry(Class)}). Its fields and methods, or with {@code "@"} its {@code @StackTraceId} members, are
-     * looked up in the class and its superclasses, or in an interface and the interfaces it extends. Without a deciding
-     * entry, or with {@code "-"}, the class has no id source, even if it is annotated.
+     * The id sources that the deciding {@code [augment.receiver]} entry names ({@link AugmentorConfig#classEntry(Class,
+     * String, boolean)}): its fields and methods, or with {@code "@"} its {@code @StackTraceId} members, looked up in the
+     * class and its superclasses, or in an interface and the interfaces it extends. With {@code "-"}, none, even if the
+     * class is annotated.
      */
-    private List<Source> findSources(Class<?> type) {
-        AugmentorConfig.ClassEntry entry = config.classEntry(type);
-        if (entry == null) {
-            return List.of();
-        }
+    private List<Source> findSources(Class<?> type, AugmentorConfig.ClassEntry entry) {
         return switch (entry.spec()) {
             case IdSpec.Annotations annotations -> annotatedSources(type);
             case IdSpec.Excluded excluded -> List.of();

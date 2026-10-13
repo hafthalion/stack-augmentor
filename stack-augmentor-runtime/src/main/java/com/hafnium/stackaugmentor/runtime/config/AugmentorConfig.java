@@ -19,8 +19,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -46,15 +46,16 @@ import java.util.stream.Collectors;
  * "java.io.IOException" = true   # and its subclasses
  *
  * [augment.receiver]         # receiver ids: a field, a "method()", several separated by commas, "@" for the
- *                            # @StackTraceId members, "-" for none; the first matching entry wins, a class name matches its
- *                            # subclasses too, a pattern the class only; ":: m1, m2" limits the ids to these methods,
- *                            # ":: @" to those annotated with @StackTraceAugment
+ *                            # @StackTraceId members, "-" for none; for each method the first matching entry wins, a
+ *                            # class name matches its subclasses too, a pattern the class only; "::m1, m2" after the
+ *                            # class limits the entry to these methods, "::@" to those annotated with @StackTraceAugment
  * "com.hafnium.generated.**" = "-"
  * "com.hafnium.**" = "@"
  * "com.thirdparty.Order" = "getOrderNumber()"
  * "com.thirdparty.OrderLine" = "tenant, lineId()"
- * "com.thirdparty.Invoice" = "number :: pay, cancel*"   # only frames of pay and cancel... show the number
- * "com.acme.Dispatcher" = "hub :: @"        # only frames of methods annotated with @StackTraceAugment
+ * "com.thirdparty.Invoice::pay, cancel*" = "number"   # frames of pay and cancel... show the number,
+ * "com.thirdparty.Invoice::print" = "copy"             # frames of print the copy, the others no receiver id
+ * "com.acme.Dispatcher::@" = "hub"          # only frames of methods annotated with @StackTraceAugment
  *
  * [augment.params]           # "<class>::<method>" or "<class>::@" (annotated with @StackTraceAugment): parameter ids,
  *                            # names and indexes separated by commas ("#" after one hashes it), "@" for the
@@ -80,8 +81,8 @@ public final class AugmentorConfig {
     public static final String CONSTRUCTOR = "<init>";
 
     /**
-     * Separates the class from the method in {@code [augment.params]} keys ({@code "com.acme.Order::process"}), and the
-     * receiver ids from the methods that show them in {@code [augment.receiver]} values ({@code "id :: ship, cancel"}).
+     * Separates the class from the methods in {@code [augment.params]} and {@code [augment.receiver]} keys
+     * ({@code "com.acme.Order::ship, cancel"}).
      */
     public static final String METHOD_SEPARATOR = "::";
 
@@ -103,7 +104,6 @@ public final class AugmentorConfig {
     private static final Pattern INDEX = Pattern.compile("[0-9]{1,3}");
 
     private final Map<String, IdSpec> classes;
-    private final Map<String, List<String>> receiverMethods;
     private final Map<String, List<ParamRef>> methods;
     private final String frameFormat;
     private final String receiverFormat;
@@ -114,26 +114,44 @@ public final class AugmentorConfig {
     private final Map<String, Boolean> exceptions;
 
     /**
-     * An entry of {@code [augment.exceptions]} or {@code [augment.receiver]}: a class pattern, which matches the name of
-     * the class only, or for a class name without wildcards {@code null}, which matches the class and its subclasses.
+     * An entry of {@code [augment.exceptions]} or {@code [augment.receiver]}, by the class part of its key: a class
+     * pattern, which matches the name of the class only, or for a class name without wildcards {@code null}, which
+     * matches the class and its subclasses.
      */
-    private record ClassKey<V>(String key, Pattern pattern, V value) {
+    private record ClassKey<V>(String className, Pattern pattern, V value) {
 
         static <V> List<ClassKey<V>> of(Map<String, V> table) {
             return table.entrySet().stream()
-                    .map(entry -> new ClassKey<>(entry.getKey(), isPattern(entry.getKey()) ? globToRegex(entry.getKey()) : null,
-                            entry.getValue()))
+                    .map(entry -> {
+                        String className = classPart(entry.getKey());
+                        return new ClassKey<>(className, isPattern(className) ? globToRegex(className) : null, entry.getValue());
+                    })
                     .toList();
+        }
+
+        boolean matches(String name, Predicate<String> isA) {
+            return pattern != null ? pattern.matcher(name).matches() : isA.test(className);
         }
 
         /** The first entry that matches, in the order of the file, or {@code null}. */
         static <V> ClassKey<V> first(List<ClassKey<V>> entries, String className, Predicate<String> isA) {
             for (ClassKey<V> entry : entries) {
-                if (entry.pattern() != null ? entry.pattern().matcher(className).matches() : isA.test(entry.key())) {
+                if (entry.matches(className, isA)) {
                     return entry;
                 }
             }
             return null;
+        }
+
+        /** The values of the entries that match, in the order of the file. */
+        static <V> List<V> all(List<ClassKey<V>> entries, String className, Predicate<String> isA) {
+            List<V> matching = new ArrayList<>();
+            for (ClassKey<V> entry : entries) {
+                if (entry.matches(className, isA)) {
+                    matching.add(entry.value());
+                }
+            }
+            return List.copyOf(matching);
         }
     }
 
@@ -150,9 +168,9 @@ public final class AugmentorConfig {
     };
 
     /**
-     * An {@code [augment.receiver]} entry: the key as written, the id source it names, and the methods whose frames show
-     * the ids, empty for all ({@code "id :: ship, cancel"} names {@code ship} and {@code cancel}, {@code "id :: @"} the
-     * methods annotated with {@code @StackTraceAugment}).
+     * An {@code [augment.receiver]} entry: its key, with the class part and, after {@code ::}, the methods whose frames
+     * show the ids ({@code "com.acme.Order::ship, cancel"}; {@code "@"} names the methods annotated with
+     * {@code @StackTraceAugment}; without {@code ::} all methods), and the id source it names.
      */
     public static final class ClassEntry {
 
@@ -161,16 +179,21 @@ public final class AugmentorConfig {
         private final List<String> methods;
         private final List<Pattern> methodPatterns;
 
-        public ClassEntry(String key, IdSpec spec, List<String> methods) {
+        public ClassEntry(String key, IdSpec spec) {
             this.key = Objects.requireNonNull(key, "key");
             this.spec = Objects.requireNonNull(spec, "spec");
-            this.methods = List.copyOf(methods);
+            this.methods = key.contains(METHOD_SEPARATOR) ? methodNames(key) : List.of();
             this.methodPatterns = this.methods.stream().filter(name -> !name.equals(ANNOTATIONS))
                     .map(AugmentorConfig::globToRegex).toList();
         }
 
         public String key() {
             return key;
+        }
+
+        /** The class part of the key: a class name or pattern. */
+        public String className() {
+            return classPart(key);
         }
 
         public IdSpec spec() {
@@ -182,13 +205,13 @@ public final class AugmentorConfig {
             return methods;
         }
 
-        /** Whether the key has wildcards. */
+        /** Whether the class part of the key has wildcards. */
         public boolean isPattern() {
-            return AugmentorConfig.isPattern(key);
+            return AugmentorConfig.isPattern(className());
         }
 
         /**
-         * Whether frames of this method show the receiver ids: all methods without {@code ::}, else the named ones, and
+         * Whether the entry applies to frames of this method: all methods without {@code ::}, else the named ones, and
          * with {@code "@"} the annotated ones.
          *
          * @param augmented whether the method is annotated with {@code @StackTraceAugment}
@@ -207,18 +230,21 @@ public final class AugmentorConfig {
 
         @Override
         public String toString() {
-            return key + "=" + specText(spec) + (methods.isEmpty() ? "" : " :: " + String.join(", ", methods));
+            return key + "=" + specText(spec);
         }
     }
 
     /** The {@code [augment.receiver]} entries, in the order of the file. */
     private final List<ClassKey<ClassEntry>> classKeys;
 
-    /** Per class, its deciding {@code [augment.receiver]} entry, if any. */
-    private final ClassValue<Optional<ClassEntry>> classEntries = new ClassValue<>() {
+    /** The {@code [augment.receiver]} entries by key. */
+    private final Map<String, ClassEntry> classEntriesByKey;
+
+    /** Per class, the {@code [augment.receiver]} entries whose class part matches it, in the order of the file. */
+    private final ClassValue<List<ClassEntry>> classEntries = new ClassValue<>() {
         @Override
-        protected Optional<ClassEntry> computeValue(Class<?> type) {
-            return Optional.ofNullable(classEntry(type.getName(), name -> isA(type, name)));
+        protected List<ClassEntry> computeValue(Class<?> type) {
+            return classEntries(type.getName(), name -> isA(type, name));
         }
     };
 
@@ -250,31 +276,23 @@ public final class AugmentorConfig {
 
     /** The defaults: no class or method entries, so nothing gets ids. */
     public AugmentorConfig() {
-        this(Map.of(), Map.of(), Map.of(), DEFAULT_FRAME_FORMAT, DEFAULT_RECEIVER_FORMAT, DEFAULT_PARAMS_FORMAT,
+        this(Map.of(), Map.of(), DEFAULT_FRAME_FORMAT, DEFAULT_RECEIVER_FORMAT, DEFAULT_PARAMS_FORMAT,
                 DEFAULT_MAX_ID_LENGTH, false, false, Map.of());
     }
 
     /**
-     * @param classes   receiver id sources by class name or class pattern: the {@code [augment.receiver]} table
-     * @param receiverMethods the methods that show the receiver ids, by the keys of {@code classes}: the names or
-     *                  patterns after {@code ::}; a key without them (or with an empty list) applies to all methods
+     * @param classes   receiver id sources by class name or class pattern, optionally followed by {@code ::} and the
+     *                  methods they apply to: the {@code [augment.receiver]} table
      * @param methods   parameter ids by {@code "<class>::<method>"} or {@code "<class>::@"}, possibly with wildcards: the
      *                  {@code [augment.params]} table
      * @param exceptions whether throwables get ids, by class name (with subclasses) or class pattern (of the runtime
      *                  class), in the order the first matching entry is looked for: the {@code [augment.exceptions]}
      *                  table; empty for none, {@code "**" = true} for all
      */
-    public AugmentorConfig(Map<String, IdSpec> classes, Map<String, List<String>> receiverMethods, Map<String, List<ParamRef>> methods,
+    public AugmentorConfig(Map<String, IdSpec> classes, Map<String, List<ParamRef>> methods,
                            String frameFormat, String receiverFormat, String paramsFormat, int maxIdLength,
                            boolean debug, boolean inPlaceModification, Map<String, Boolean> exceptions) {
         this.classes = Collections.unmodifiableMap(new LinkedHashMap<>(classes));
-        Map<String, List<String>> receiverMethodsCopy = new LinkedHashMap<>();
-        receiverMethods.forEach((key, names) -> {
-            if (!names.isEmpty()) {
-                receiverMethodsCopy.put(key, List.copyOf(names));
-            }
-        });
-        this.receiverMethods = Collections.unmodifiableMap(receiverMethodsCopy);
         Map<String, List<ParamRef>> methodsCopy = new LinkedHashMap<>();
         methods.forEach((target, refs) -> methodsCopy.put(target, List.copyOf(refs)));
         this.methods = Collections.unmodifiableMap(methodsCopy);
@@ -287,8 +305,8 @@ public final class AugmentorConfig {
         this.exceptions = Collections.unmodifiableMap(new LinkedHashMap<>(exceptions));
         this.exceptionKeys = ClassKey.of(this.exceptions);
         Map<String, ClassEntry> classEntries = new LinkedHashMap<>();
-        this.classes.forEach((key, spec) -> classEntries.put(key, new ClassEntry(key, spec,
-                this.receiverMethods.getOrDefault(key, List.of()))));
+        this.classes.forEach((key, spec) -> classEntries.put(key, new ClassEntry(key, spec)));
+        this.classEntriesByKey = Collections.unmodifiableMap(classEntries);
         this.classKeys = ClassKey.of(classEntries);
 
         List<MethodPattern> methodPatterns = new ArrayList<>();
@@ -308,14 +326,6 @@ public final class AugmentorConfig {
     /** Receiver id sources by class name or class pattern: the {@code [augment.receiver]} table. */
     public Map<String, IdSpec> classes() {
         return classes;
-    }
-
-    /**
-     * The methods that show the receiver ids, by {@code [augment.receiver]} key: the names or patterns after {@code ::}.
-     * Keys without {@code ::} are missing; they apply to all methods.
-     */
-    public Map<String, List<String>> receiverMethods() {
-        return receiverMethods;
     }
 
     /** Parameter ids by {@code "<class>::<method>"} or {@code "<class>::@"}, possibly with wildcards: the {@code [augment.params]} table. */
@@ -378,8 +388,7 @@ public final class AugmentorConfig {
     /** The {@code [augment.receiver]} entries for the debug log, e.g. {@code com.acme.**=@, com.acme.Order=getId()}. */
     public String classesDescription() {
         String text = classes.entrySet().stream()
-                .map(entry -> entry.getKey() + "=" + specText(entry.getValue())
-                        + (receiverMethods.containsKey(entry.getKey()) ? " :: " + String.join(", ", receiverMethods.get(entry.getKey())) : ""))
+                .map(entry -> entry.getKey() + "=" + specText(entry.getValue()))
                 .collect(Collectors.joining(", "));
         return text.isEmpty() ? "none" : text;
     }
@@ -418,24 +427,49 @@ public final class AugmentorConfig {
     }
 
     /**
-     * The deciding {@code [augment.receiver]} entry of a class, or {@code null}: the first entry in the order of the file
-     * that matches. An entry without wildcards matches its class and the subclasses, as {@code instanceof} does, so
-     * also the classes implementing an interface it names; a pattern matches the name of the class only. The class is
-     * the one that declares a frame's method.
+     * The {@code [augment.receiver]} entries whose class part matches the class, in the order of the file. An entry
+     * without wildcards matches its class and the subclasses, as {@code instanceof} does, so also the classes
+     * implementing an interface it names; a pattern matches the name of the class only. The class is the one that
+     * declares a frame's method.
      */
-    public ClassEntry classEntry(Class<?> type) {
-        return classEntries.get(type).orElse(null);
+    public List<ClassEntry> classEntries(Class<?> type) {
+        return classEntries.get(type);
     }
 
     /**
-     * {@link #classEntry(Class)} for a class known by its name, e.g. one that is being instrumented.
+     * The deciding {@code [augment.receiver]} entry of a frame, or {@code null}: the first entry in the order of the file
+     * whose class part matches the class that declares the frame's method (see {@link #classEntries(Class)}) and whose
+     * methods include the method.
+     *
+     * @param augmented whether the method is annotated with {@code @StackTraceAugment}
+     */
+    public ClassEntry classEntry(Class<?> type, String methodName, boolean augmented) {
+        return firstApplying(classEntries(type), methodName, augmented);
+    }
+
+    /**
+     * {@link #classEntries(Class)} for a class known by its name, e.g. one that is being instrumented.
      *
      * @param isA whether the class has the given name, or one of its superclasses or the interfaces it implements,
      *            directly or not, has it; see {@link #isA(Class, String)}
      */
-    public ClassEntry classEntry(String className, Predicate<String> isA) {
-        ClassKey<ClassEntry> entry = ClassKey.first(classKeys, className, isA);
-        return entry != null ? entry.value() : null;
+    public List<ClassEntry> classEntries(String className, Predicate<String> isA) {
+        return ClassKey.all(classKeys, className, isA);
+    }
+
+    /** The first of these entries that applies to the method, or {@code null}. */
+    public static ClassEntry firstApplying(List<ClassEntry> entries, String methodName, boolean augmented) {
+        for (ClassEntry entry : entries) {
+            if (entry.appliesTo(methodName, augmented)) {
+                return entry;
+            }
+        }
+        return null;
+    }
+
+    /** The {@code [augment.receiver]} entry with this key, as {@link ClassEntry#key()} gives it, or {@code null}. */
+    public ClassEntry classEntry(String key) {
+        return classEntriesByKey.get(key);
     }
 
     /**
@@ -499,6 +533,12 @@ public final class AugmentorConfig {
     /** The class part of an {@code [augment.params]} key: the name or pattern before {@code ::}. */
     public static String className(String paramsKey) {
         return paramsKey.substring(0, paramsKey.indexOf(METHOD_SEPARATOR));
+    }
+
+    /** The class part of a key of any table: before {@code ::}, or the whole key without it. */
+    private static String classPart(String key) {
+        int separator = key.indexOf(METHOD_SEPARATOR);
+        return separator < 0 ? key : key.substring(0, separator);
     }
 
     /** Whether a key of {@code [augment.receiver]} or {@code [augment.params]} has wildcards ({@code *} or {@code ?}). */
@@ -581,7 +621,6 @@ public final class AugmentorConfig {
     public boolean equals(Object other) {
         return this == other || other instanceof AugmentorConfig that
                 && classes.equals(that.classes)
-                && receiverMethods.equals(that.receiverMethods)
                 && methods.equals(that.methods)
                 && frameFormat.equals(that.frameFormat)
                 && receiverFormat.equals(that.receiverFormat)
@@ -594,13 +633,13 @@ public final class AugmentorConfig {
 
     @Override
     public int hashCode() {
-        return Objects.hash(classes, receiverMethods, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug, inPlaceModification,
+        return Objects.hash(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug, inPlaceModification,
                 exceptions);
     }
 
     @Override
     public String toString() {
-        return "AugmentorConfig[classes=" + classes + ", receiverMethods=" + receiverMethods + ", methods=" + methods
+        return "AugmentorConfig[classes=" + classes + ", methods=" + methods
                 + ", frameFormat=" + frameFormat + ", receiverFormat=" + receiverFormat + ", paramsFormat=" + paramsFormat
                 + ", maxIdLength=" + maxIdLength + ", debug=" + debug + ", inPlaceModification=" + inPlaceModification + ", exceptions=" + exceptions + "]";
     }
@@ -609,7 +648,6 @@ public final class AugmentorConfig {
     public static final class Builder {
 
         private Map<String, IdSpec> classes = Map.of();
-        private Map<String, List<String>> receiverMethods = Map.of();
         private Map<String, List<ParamRef>> methods = Map.of();
         private String frameFormat = DEFAULT_FRAME_FORMAT;
         private String receiverFormat = DEFAULT_RECEIVER_FORMAT;
@@ -624,12 +662,6 @@ public final class AugmentorConfig {
 
         public Builder classes(Map<String, IdSpec> classes) {
             this.classes = classes;
-            return this;
-        }
-
-        /** The names or patterns after {@code ::}, by {@code [augment.receiver]} key; a missing key applies to all methods. */
-        public Builder receiverMethods(Map<String, List<String>> receiverMethods) {
-            this.receiverMethods = receiverMethods;
             return this;
         }
 
@@ -678,7 +710,7 @@ public final class AugmentorConfig {
         }
 
         public AugmentorConfig build() {
-            return new AugmentorConfig(classes, receiverMethods, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug,
+            return new AugmentorConfig(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug,
                     inPlaceModification, exceptions);
         }
     }
@@ -718,23 +750,12 @@ public final class AugmentorConfig {
 
             Builder config = builder();
             Map<String, IdSpec> classes = new LinkedHashMap<>();
-            Map<String, List<String>> receiverMethods = new LinkedHashMap<>();
             Map<String, List<String>> classPaths = new HashMap<>();
             for (Entry entry : entries(CLASSES)) {
-                String key = unique(classKey(entry.path(), CLASSES), entry.path(), classPaths);
-                String ids = receiverText(entry.path(), entry.value());
-                int separator = ids.indexOf(METHOD_SEPARATOR);
-                IdSpec spec = classSpec(entry.path(), separator < 0 ? ids : ids.substring(0, separator));
-                classes.put(key, spec);
-                if (separator >= 0) {
-                    if (spec instanceof IdSpec.Excluded) {
-                        throw error(entry.path(), "\"-\" gives no receiver id, so it takes no methods after ::");
-                    }
-                    receiverMethods.put(key, receiverMethods(entry.path(), ids.substring(separator + METHOD_SEPARATOR.length())));
-                }
+                String key = unique(receiverKey(entry.path()), entry.path(), classPaths);
+                classes.put(key, classSpec(entry.path(), entry.value()));
             }
             config.classes(classes);
-            config.receiverMethods(receiverMethods);
             Map<String, List<ParamRef>> methods = new LinkedHashMap<>();
             Map<String, List<String>> methodPaths = new HashMap<>();
             for (Entry entry : entries(METHODS)) {
@@ -874,6 +895,29 @@ public final class AugmentorConfig {
             return target;
         }
 
+        /**
+         * An {@code [augment.receiver]} key: a class name or pattern, optionally followed by {@code ::} and its methods,
+         * kept with ", " between them, e.g. {@code "com.acme.Order::ship, cancel"} for {@code "...::ship,cancel"}.
+         */
+        private String receiverKey(List<String> path) {
+            String target = target(path, CLASSES);
+            int separator = target.indexOf(METHOD_SEPARATOR);
+            if (separator < 0) {
+                return classKey(path, CLASSES);
+            }
+            if (separator == 0 || !CLASS_PART.matcher(target.substring(0, separator)).matches()) {
+                throw invalidReceiverKey(path);
+            }
+            return target.substring(0, separator) + METHOD_SEPARATOR
+                    + String.join(", ", methodList(path, target, false, () -> invalidReceiverKey(path)));
+        }
+
+        private ConfigException invalidReceiverKey(List<String> path) {
+            return error(path, "[" + name(CLASSES) + "] keys must name a class or a class pattern, e.g. \"com.acme.Order\" or "
+                    + "\"com.acme.**\", optionally followed by :: and its methods, e.g. \"com.acme.Order::ship, cancel*\", "
+                    + "@ for the methods annotated with @StackTraceAugment; " + ALLOWED_CHARACTERS);
+        }
+
         /** The key with its methods separated by ", ", e.g. {@code "com.acme.Order::ship, cancel"} for {@code "...::ship,cancel"}. */
         private String methodKey(List<String> path) {
             String target = target(path, METHODS);
@@ -881,47 +925,19 @@ public final class AugmentorConfig {
             if (separator <= 0 || !CLASS_PART.matcher(target.substring(0, separator)).matches()) {
                 throw invalidMethodKey(path);
             }
-            List<String> names = new ArrayList<>();
-            for (String name : methodNames(target)) {
-                if (!(METHOD_PART.matcher(name).matches() || name.equals(CONSTRUCTOR) || name.equals(ANNOTATIONS))) {
-                    throw invalidMethodKey(path);
-                }
-                if (names.contains(name)) {
-                    throw error(path, "'" + name + "' is listed twice");
-                }
-                names.add(name);
-            }
-            return target.substring(0, separator) + METHOD_SEPARATOR + String.join(", ", names);
-        }
-
-        private ConfigException invalidMethodKey(List<String> path) {
-            return error(path, "[" + name(METHODS) + "] keys must name a class and its methods separated by ::, e.g. "
-                    + "\"com.acme.OrderService::process\", \"com.acme.OrderService::process, cancel*\" or "
-                    + "\"com.acme.OrderService::*\", <init> for the constructors, @ for the methods annotated with "
-                    + "@StackTraceAugment; " + ALLOWED_CHARACTERS);
-        }
-
-        private String receiverText(List<String> path, Object value) {
-            if (!(value instanceof String text)) {
-                throw error(path, "must be a string: a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), "
-                        + "several of them separated by commas (e.g. \"tenant, getOrderId()\"), \"@\" for its @StackTraceId "
-                        + "members, or \"-\" for no receiver id, optionally followed by :: and the methods that show them "
-                        + "(e.g. \"orderId :: ship, cancel\"), was " + value);
-            }
-            return text;
+            return target.substring(0, separator) + METHOD_SEPARATOR
+                    + String.join(", ", methodList(path, target, true, () -> invalidMethodKey(path)));
         }
 
         /**
-         * The method names after {@code ::}: names or patterns with {@code *} and {@code ?}, or {@code "@"} for the
-         * methods annotated with {@code @StackTraceAugment}, separated by commas.
+         * The methods after {@code ::}: names or patterns with {@code *} and {@code ?}, {@code "@"} for the methods
+         * annotated with {@code @StackTraceAugment}, and if allowed {@code <init>}, without duplicates.
          */
-        private List<String> receiverMethods(List<String> path, String text) {
+        private List<String> methodList(List<String> path, String target, boolean constructors, Supplier<ConfigException> invalid) {
             List<String> names = new ArrayList<>();
-            for (String name : items(path, text, "method after ::")) {
-                if (!METHOD_PART.matcher(name).matches() && !name.equals(ANNOTATIONS)) {
-                    throw error(path, "invalid method '" + name + "' after ::: use method names (e.g. \"ship\"), "
-                            + "patterns (e.g. \"find*\") or \"@\" for the methods annotated with @StackTraceAugment, "
-                            + "separated by commas, without ()");
+            for (String name : methodNames(target)) {
+                if (!(METHOD_PART.matcher(name).matches() || constructors && name.equals(CONSTRUCTOR) || name.equals(ANNOTATIONS))) {
+                    throw invalid.get();
                 }
                 if (names.contains(name)) {
                     throw error(path, "'" + name + "' is listed twice");
@@ -931,7 +947,22 @@ public final class AugmentorConfig {
             return names;
         }
 
-        private IdSpec classSpec(List<String> path, String text) {
+        private ConfigException invalidMethodKey(List<String> path) {
+            return error(path, "[" + name(METHODS) + "] keys must name a class and its methods separated by ::, e.g. "
+                    + "\"com.acme.OrderService::process\", \"com.acme.OrderService::process, cancel*\" or "
+                    + "\"com.acme.OrderService::*\", <init> for the constructors, @ for the methods annotated with "
+                    + "@StackTraceAugment; " + ALLOWED_CHARACTERS);
+        }
+
+        private IdSpec classSpec(List<String> path, Object value) {
+            if (!(value instanceof String text)) {
+                throw error(path, "must be a string: a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), "
+                        + "several of them separated by commas (e.g. \"tenant, getOrderId()\"), \"@\" for its @StackTraceId "
+                        + "members, or \"-\" for no receiver id, was " + value);
+            }
+            if (text.contains(METHOD_SEPARATOR)) {
+                throw error(path, "the methods go in the key: \"com.acme.Order::ship, cancel\" = \"orderId\"");
+            }
             if (ANNOTATIONS.equals(text.trim())) {
                 return new IdSpec.Annotations();
             }

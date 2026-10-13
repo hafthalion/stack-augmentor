@@ -39,7 +39,7 @@ class PremiumAccount(number: String) : SavingsAccount(number) {
 }
 
 /**
- * Selected by "@" after "::" in both tables: "hub :: @" in [augment.receiver] applies to its @StackTraceAugment methods
+ * Selected by "@" after "::" in both tables: "Dispatcher::@" in [augment.receiver] applies to its @StackTraceAugment methods
  * only, "Dispatcher::@, track" in [augment.params] to them and to track.
  */
 class Dispatcher(private val hub: String) {

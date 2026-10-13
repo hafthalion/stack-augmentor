@@ -11,7 +11,7 @@ When an exception leaves such a method, the advice passes `this`, the id argumen
 
 - **Java agent:** the bridge is appended to the bootstrap class loader, so every class loader can see it, and the agent installs the handler at startup.
 - **Build time:** the bridge is an ordinary dependency (through `stack-augmentor-runtime`), and `Dispatch` finds the runtime's handler with `ServiceLoader` when the first exception needs it.
-- **Both:** an application with classes instrumented at build time can also run with the agent. The agent leaves those classes as they are (it recognizes them by their reference to `Dispatch`), and their advice reaches the agent's handler, because `Dispatch` is then the one in the bootstrap class loader. Which of their methods have ids is decided at build time; the agent's `[augment.receiver]` entries decide the receiver ids at runtime.
+- **Both:** an application with classes instrumented at build time can also run with the agent. The agent leaves those classes as they are (it recognizes them by their reference to `Dispatch`), and their advice reaches the agent's handler, because `Dispatch` is then the one in the bootstrap class loader. Which of their methods have ids is decided at build time; the agent's `[augment.receiver]` entry with the key that decided a method at build time gives its receiver ids at runtime.
 
 
 ## Project layout

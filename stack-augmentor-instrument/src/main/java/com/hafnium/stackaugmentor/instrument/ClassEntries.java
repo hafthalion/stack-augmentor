@@ -2,6 +2,7 @@ package com.hafnium.stackaugmentor.instrument;
 
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
 import com.hafnium.stackaugmentor.runtime.config.IdSpec;
+import net.bytebuddy.description.method.MethodDescription;
 import net.bytebuddy.description.type.TypeDefinition;
 import net.bytebuddy.description.type.TypeDescription;
 
@@ -14,9 +15,9 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 /**
- * Finds the deciding {@code [augment.receiver]} entry of a type: the first entry that matches it, a pattern by the
- * type's own name, a class name also as a superclass or an implemented interface
- * ({@link AugmentorConfig#classEntry(Class)}).
+ * Finds the deciding {@code [augment.receiver]} entry of a method: the first entry that matches its type, a pattern by
+ * the type's own name, a class name also as a superclass or an implemented interface, and applies to the method
+ * ({@link AugmentorConfig#classEntry(Class, String, boolean)}).
  */
 final class ClassEntries {
 
@@ -34,7 +35,7 @@ final class ClassEntries {
         }
     }
 
-    private record Cached(TypeDescription type, Deciding deciding) {
+    private record Cached(TypeDescription type, List<AugmentorConfig.ClassEntry> entries) {
     }
 
     private final AugmentorConfig config;
@@ -46,22 +47,22 @@ final class ClassEntries {
         this.config = config;
     }
 
-    /** The deciding entry, or {@code null} if no entry matches the type. */
-    Deciding decide(TypeDescription type) {
+    /** The entries whose class part matches the type, in the order of the file. */
+    List<AugmentorConfig.ClassEntry> entries(TypeDescription type) {
         Cached last = cached;
         if (last != null && last.type() == type) {
-            return last.deciding();
+            return last.entries();
         }
-        AugmentorConfig.ClassEntry entry = config.classEntry(type.getName(), new SupertypeNames(type)::contains);
-        Deciding deciding = entry != null ? new Deciding(type, entry) : null;
-        cached = new Cached(type, deciding);
-        return deciding;
+        List<AugmentorConfig.ClassEntry> entries = config.classEntries(type.getName(), new SupertypeNames(type)::contains);
+        cached = new Cached(type, entries);
+        return entries;
     }
 
-    /** Whether the type's {@code @StackTraceId} is used: its deciding entry is {@code "@"}. */
-    boolean annotationsUsed(TypeDescription type) {
-        Deciding deciding = decide(type);
-        return deciding != null && deciding.annotations();
+    /** The deciding entry of the method's frames, or {@code null} if no entry matches the type and the method. */
+    Deciding decide(TypeDescription type, MethodDescription method) {
+        AugmentorConfig.ClassEntry entry = AugmentorConfig.firstApplying(entries(type), method.getInternalName(),
+                IdParameters.augmented(method));
+        return entry != null ? new Deciding(type, entry) : null;
     }
 
     /**

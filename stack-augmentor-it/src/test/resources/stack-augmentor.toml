@@ -22,10 +22,12 @@ maxIdLength = 20
 "com.thirdparty.*Account" = "number"
 # '?' matches one character: Ledger1, not Ledger12
 "com.thirdparty.Ledger?" = "code"
-# After '::' the methods whose frames show the ids, names or patterns; without '::' all methods do
-"com.thirdparty.Parcel" = "trackingCode :: ship, cancel*"
+# After '::' the methods whose frames the entry applies to, names or patterns; without '::' all methods.
+# A class may have several entries: for each method the first one that applies decides
+"com.thirdparty.Parcel::ship, cancel*" = "trackingCode"
+"com.thirdparty.Parcel::weigh" = "weight"
 # "@" after '::' names the methods annotated with @StackTraceAugment
-"com.hafnium.it.outside.Dispatcher" = "hub :: @"
+"com.hafnium.it.outside.Dispatcher::@" = "hub"
 # Matches JDK classes, which the agent never instruments
 "java.**" = "@"
 # A class name matches its subclasses too (InheritanceTest): a frame uses the first entry that matches the class

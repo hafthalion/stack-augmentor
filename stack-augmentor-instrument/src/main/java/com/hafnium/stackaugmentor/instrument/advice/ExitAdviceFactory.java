@@ -11,12 +11,13 @@ public final class ExitAdviceFactory {
     }
 
     /**
-     * The exit advice, with the {@code @IdReceiver} binding for these receiver ids and the {@code @IdArgs}/{@code @IdArgNames}
+     * The exit advice, with the {@code @IdReceiver}/{@code @IdReceiverKey} bindings for these receiver ids and the {@code @IdArgs}/{@code @IdArgNames}
      * bindings for these id parameters.
      */
     public static Advice create(TypeMatching matching, IdParameters parameters) {
         return Advice.withCustomMapping()
-                .bind(new IdReceiverMapping(matching))
+                .bind(IdReceiverMapping.receiver(matching))
+                .bind(IdReceiverMapping.key(matching))
                 .bind(new IdArgsMapping(parameters))
                 .bind(new IdArgNamesMapping(parameters))
                 .to(ExitAdvice.class);

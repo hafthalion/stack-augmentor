@@ -13,16 +13,11 @@ class ReceiverEntries(private val config: AugmentorConfig) {
     /** An entry, as written in the file. */
     data class Entry(val key: String, val value: String)
 
-    /** The entry that decides for the class, then the later entries that match it too. */
+    /** The entries that match the class, in file order: for each method the first one that applies to it decides. */
     fun matching(className: String): List<Entry> {
         val type = runCatching { Class.forName(className, false, javaClass.classLoader) }.getOrNull()
-        fun entry(config: AugmentorConfig) =
-            if (type != null) config.classEntry(type) else config.classEntry(className) { it == className }
-        val deciding = entry(config) ?: return emptyList()
-        val others = config.classes().filter { (key, spec) ->
-            key != deciding.key() && entry(AugmentorConfig.builder().classes(mapOf(key to spec)).build()) != null
-        }
-        return listOf(Entry(deciding.key(), text(deciding.spec()))) + others.map { (key, spec) -> Entry(key, text(spec)) }
+        val matching = if (type != null) config.classEntries(type) else config.classEntries(className) { it == className }
+        return matching.map { Entry(it.key(), text(it.spec())) }
     }
 
     private fun text(spec: IdSpec) = AugmentorConfig.specText(spec)
