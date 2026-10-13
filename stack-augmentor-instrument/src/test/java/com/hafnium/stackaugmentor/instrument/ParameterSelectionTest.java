@@ -143,6 +143,16 @@ class ParameterSelectionTest {
         return parameters.select(type(type), method(type, method)).stream().map(IdParameter::encodedLabel).toList();
     }
 
+    /** {@code [augment.params]} entries in this order, as keys and values: the first matching one wins. */
+    @SuppressWarnings("unchecked")
+    private static Map<String, List<ParamRef>> inOrder(Object... keysAndValues) {
+        Map<String, List<ParamRef>> methods = new LinkedHashMap<>();
+        for (int i = 0; i < keysAndValues.length; i += 2) {
+            methods.put((String) keysAndValues[i], (List<ParamRef>) keysAndValues[i + 1]);
+        }
+        return methods;
+    }
+
     /** Two {@code [augment.receiver]} entries in this order: the first matching one wins. */
     private static Map<String, IdSpec> firstMatch(String key1, IdSpec spec1, String key2, IdSpec spec2) {
         Map<String, IdSpec> classes = new LinkedHashMap<>();
@@ -210,15 +220,22 @@ class ParameterSelectionTest {
     }
 
     @Test
-    void onlyTheMostSpecificEntryDecides() {
+    void onlyTheFirstMatchingEntryDecides() {
         String service = Service.class.getName();
         IdParameters parameters = new IdParameters(AugmentorConfig.builder()
-                .methods(Map.of(
+                .methods(inOrder(
                         service + ".process", List.of(new ParamRef.ByName("order")),
                         service.replace("Service", "Serv*") + ".*", List.of(new ParamRef.ByIndex(2))))
                 .build());
-        // The exact entry decides alone: the pattern adds nothing.
+        // The first entry decides alone: the pattern adds nothing.
         assertEquals(List.of("order"), labels(parameters, Service.class, "process"));
+        // The other way round, the pattern decides, however specific the later entry is.
+        IdParameters patternFirst = new IdParameters(AugmentorConfig.builder()
+                .methods(inOrder(
+                        service.replace("Service", "Serv*") + ".*", List.of(new ParamRef.ByIndex(2)),
+                        service + ".process", List.of(new ParamRef.ByName("order"))))
+                .build());
+        assertEquals(List.of("note"), labels(patternFirst, Service.class, "process"));
     }
 
     @Test
@@ -279,11 +296,11 @@ class ParameterSelectionTest {
         String explicit = Explicit.class.getName();
         AugmentorConfig config = AugmentorConfig.builder()
                 .classes(firstMatch(explicit, new IdSpec.Excluded(), HERE, ANNOTATIONS))
-                .methods(Map.of(
-                        HERE_METHODS, List.of(new ParamRef.ByIndex(0), new ParamRef.ByIndex(1)),
-                        service + ".*", List.of(new ParamRef.Excluded()),
+                .methods(inOrder(
+                        explicit + ".failAnnotated", List.of(new ParamRef.Annotations()),
                         service + ".process", List.of(new ParamRef.ByName("note")),
-                        explicit + ".failAnnotated", List.of(new ParamRef.Annotations())))
+                        service + ".*", List.of(new ParamRef.Excluded()),
+                        HERE_METHODS, List.of(new ParamRef.ByIndex(0), new ParamRef.ByIndex(1))))
                 .build();
         IdParameters parameters = new IdParameters(config);
         TypeMatching matching = new TypeMatching(config, parameters);
@@ -297,7 +314,7 @@ class ParameterSelectionTest {
                 + explicit + "\" is not \"@\""), err.toString(StandardCharsets.UTF_8));
         // The "@" class entry uses @StackTraceId only: the method entry labels the parameters by name.
         assertEquals(List.of("item", "count"), labels(parameters, MethodLevel.class, "move"));
-        // A "-" method entry beats the less specific pattern; the exact entry beats the "-".
+        // A "-" method entry before the pattern wins; the exact entry before the "-" wins.
         assertEquals(List.of("note"), labels(parameters, Service.class, "process"));
     }
 
@@ -340,8 +357,8 @@ class ParameterSelectionTest {
         assertEquals(List.of("userName", "email#"), encoded(annotations, Secrets.class, "login"));
         // Under @StackTraceParams, @StackTraceParam(secret = true) hashes one parameter.
         assertEquals(List.of("name", "token#"), encoded(annotations, Secrets.class, "update"));
-        // A more specific name entry decides alone: the annotations, secret included, do not apply.
-        IdParameters named = new IdParameters(methods(Map.of(
+        // A name entry before the pattern decides alone: the annotations, secret included, do not apply.
+        IdParameters named = new IdParameters(methods(inOrder(
                 Secrets.class.getName() + ".login", List.of(new ParamRef.ByName("email")),
                 Secrets.class.getName() + ".*", List.of(new ParamRef.Annotations()))));
         assertEquals(List.of("email"), encoded(named, Secrets.class, "login"));

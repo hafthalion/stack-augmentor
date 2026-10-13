@@ -75,7 +75,7 @@ class ConfigTablesTest {
     }
 
     @Test
-    fun `a '-' method entry ignores the less specific entries`() {
+    fun `a '-' method entry ignores the later entries`() {
         assertEquals("purge", frame("InventoryAudit().purge(\"x-1\")", InventoryAudit()) { it.purge("x-1") }.methodName)
         assertEquals("log{reason=disk full}", frame("InventoryAudit().log(\"disk full\", 2)", InventoryAudit()) { it.log("disk full", 2) }.methodName)
         assertEquals("reserve{sku=x-1, count=2}", frame("InventoryService().reserve(\"x-1\", 2)", InventoryService()) { it.reserve("x-1", 2) }.methodName)

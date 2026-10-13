@@ -29,7 +29,7 @@ class InventoryService(private val audit: InventoryAudit) {
     }
 }
 
-/** Matched by the Inventory* entry, but its own "-" entry is more specific: no parameter ids. */
+/** Matched by the Inventory* entry, but its own "-" entry comes first: no parameter ids. */
 class InventoryAudit {
     fun record(sku: String, count: Int, order: Order) {
         order.ship(Customer("c-9"))

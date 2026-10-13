@@ -308,7 +308,7 @@ class AugmentorConfigTest {
         assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.Order", "process"))
         // '*' matches <init> like any method name.
         assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.Invoice", "<init>"))
-        // The more specific <init> pattern wins over "com.acme.**.*"-style patterns, as for methods.
+        // "com.acme.*.*" does not match the classes in com.acme.billing: '*' stays within one package segment.
         assertEquals(listOf(ParamRef.Annotations()), config.paramRefs("com.acme.billing.Invoice", "<init>"))
         assertEquals(emptyList<ParamRef>(), config.paramRefs("com.acme.billing.Invoice", "send"))
         assertEquals(emptyList<ParamRef>(), config.paramRefs("com.other.Invoice", "<init>"))
@@ -351,7 +351,7 @@ class AugmentorConfigTest {
         )
         val inventory = listOf(ParamRef.ByName("sku"), ParamRef.ByName("count"))
         assertEquals(inventory, config.methods()["com.thirdparty.Inventory*.*"])
-        // The exact entry decides alone; the wildcard entry applies to the other methods.
+        // The exact entry, which comes first, decides alone; the wildcard entry applies to the other methods.
         assertEquals(listOf(ParamRef.ByName("order")), config.paramRefs("com.thirdparty.OrderService", "process"))
         assertEquals(listOf(ParamRef.ByIndex(2)), config.paramRefs("com.thirdparty.OrderService", "cancel"))
         assertEquals(inventory, config.paramRefs("com.thirdparty.InventoryService", "reserve"))
@@ -371,7 +371,7 @@ class AugmentorConfigTest {
     }
 
     @Test
-    fun `the first receiver entry and the most specific params entry decide, '-' included`() {
+    fun `the first matching entry decides in both tables, '-' included`() {
         val config = parse(
             """
             [augment.receiver]
@@ -380,12 +380,13 @@ class AugmentorConfigTest {
             "com.acme.**" = "@"
 
             [augment.params]
-            "com.thirdparty.**.*Service.*" = [0]
-            "com.thirdparty.audit.AuditService.*" = "-"
             "com.thirdparty.audit.AuditService.log" = ["reason"]
+            "com.thirdparty.audit.AuditService.*" = "-"
             "com.thirdparty.billing.BillingService.refund" = "-"
-            "com.acme.**.*" = [0]
+            "com.thirdparty.**.*Service.*" = [0]
+            "com.thirdparty.billing.BillingService.charge" = [1]
             "com.acme.generated.Gen.run" = [1]
+            "com.acme.**.*" = [0]
             """,
         )
         // [augment.receiver]: the first matching entry decides, "-" included.
@@ -393,7 +394,8 @@ class AugmentorConfigTest {
         assertEquals(IdSpec.Excluded(), config.classEntry("com.acme.generated.Gen").spec())
         assertEquals(IdSpec.FieldSpec("id"), config.classEntry("com.acme.generated.Keep").spec())
 
-        // [augment.params]: the most specific entry decides, "-" included; entries are not combined.
+        // [augment.params]: the first matching entry decides, "-" included; entries are not combined.
+        // The exact entry for charge comes after a matching pattern, so it never applies.
         assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.thirdparty.billing.BillingService", "charge"))
         assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.billing.BillingService", "refund"))
         assertEquals(emptyList<ParamRef>(), config.paramRefs("com.thirdparty.audit.AuditService", "purge"))

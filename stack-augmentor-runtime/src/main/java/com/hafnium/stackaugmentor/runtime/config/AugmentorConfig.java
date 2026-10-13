@@ -55,19 +55,19 @@ import java.util.stream.Collectors;
  * "com.thirdparty.OrderLine" = ["tenant", "lineId()"]
  *
  * [augment.params]           # parameter ids: names and indexes ("#" after one hashes it), "@" for the annotations,
- *                            # "-" for none
+ *                            # "-" for none; the first matching entry wins
  * "com.hafnium.**.*" = "@"
  * "com.thirdparty.Shipment.<init>" = ["orderId"]   # constructors, also matched by wildcards such as ".*"
  * "com.thirdparty.OrderService.process" = ["order", 2, "email#", "3#"]
- * "com.thirdparty.**.*Repository.find*" = [0]
  * "com.thirdparty.**.AuditRepository.*" = "-"
+ * "com.thirdparty.**.*Repository.find*" = [0]
  * }</pre>
  *
  * <p>The two tables are independent: {@code [augment.receiver]} decides the receiver ids, {@code [augment.params]} the
  * parameter ids. Which methods get instrumented follows from both. Keys may use wildcards: {@code *} within one
  * package segment (or name), {@code **} across segments, {@code ?} one character. Where entries of
- * {@code [augment.receiver]} overlap, the first in the file decides, see {@link #classEntry(Class)}; in
- * {@code [augment.params]} the most specific, see {@link #paramRefs}. Immutable. Equality covers the
+ * {@code [augment.receiver]} or {@code [augment.params]} overlap, the first in the file decides, see
+ * {@link #classEntry(Class)} and {@link #paramRefs}. Immutable. Equality covers the
  * configured values only.
  */
 public final class AugmentorConfig {
@@ -158,10 +158,11 @@ public final class AugmentorConfig {
         }
     };
 
-    /** An {@code [augment.params]} entry with wildcards, matched against every class and method. */
+    /** An {@code [augment.params]} entry: its class and method parts, each a name or a pattern. */
     private record MethodPattern(String key, Pattern classPattern, Pattern methodPattern, List<ParamRef> refs) {
     }
 
+    /** The {@code [augment.params]} entries, in the order of the file. */
     private final List<MethodPattern> methodPatterns;
 
     /** The defaults: no class or method entries, so nothing gets ids. */
@@ -197,14 +198,10 @@ public final class AugmentorConfig {
 
         List<MethodPattern> methodPatterns = new ArrayList<>();
         this.methods.forEach((target, refs) -> {
-            if (isPattern(target)) {
-                int dot = target.lastIndexOf('.');
-                methodPatterns.add(new MethodPattern(target, globToRegex(target.substring(0, dot)), globToRegex(target.substring(dot + 1)),
-                        refs));
-            }
+            int dot = target.lastIndexOf('.');
+            methodPatterns.add(new MethodPattern(target, globToRegex(target.substring(0, dot)), globToRegex(target.substring(dot + 1)),
+                    refs));
         });
-        methodPatterns.sort(Comparator.comparingInt((MethodPattern it) -> specificity(it.key())).reversed()
-                .thenComparing(MethodPattern::key));
         this.methodPatterns = List.copyOf(methodPatterns);
     }
 
@@ -356,23 +353,18 @@ public final class AugmentorConfig {
     }
 
     /**
-     * The parameters selected for a method by the most specific {@code [augment.params]} entry that matches it: the
-     * entry without wildcards for exactly this class and method, otherwise the pattern with the most characters other
-     * than {@code *} and {@code ?}, ties broken by key. Less specific entries play no part, so a {@code "-"} entry
-     * selects nothing even where a less specific entry would select parameters. {@code [augment.receiver]} plays no
-     * part either.
+     * The parameters selected for a method by the first {@code [augment.params]} entry in the order of the file that
+     * matches it, by the name of the class that declares the method and the method name. Later entries play no part,
+     * so a {@code "-"} entry selects nothing even where a later entry would select parameters.
+     * {@code [augment.receiver]} plays no part either.
      */
     public List<ParamRef> paramRefs(String className, String methodName) {
-        List<ParamRef> refs = methods.get(className + "." + methodName);
-        if (refs == null) {
-            for (MethodPattern entry : methodPatterns) {
-                if (entry.classPattern().matcher(className).matches() && entry.methodPattern().matcher(methodName).matches()) {
-                    refs = entry.refs();
-                    break;
-                }
+        for (MethodPattern entry : methodPatterns) {
+            if (entry.classPattern().matcher(className).matches() && entry.methodPattern().matcher(methodName).matches()) {
+                return entry.refs().contains(new ParamRef.Excluded()) ? List.of() : entry.refs();
             }
         }
-        return refs == null || refs.contains(new ParamRef.Excluded()) ? List.of() : refs;
+        return List.of();
     }
 
     /**
@@ -380,14 +372,6 @@ public final class AugmentorConfig {
      * {@link #paramRefs} may select parameters of its methods.
      */
     public boolean hasParamEntries(String className) {
-        for (Map.Entry<String, List<ParamRef>> entry : methods.entrySet()) {
-            String key = entry.getKey();
-            if (!isPattern(key) && !entry.getValue().contains(new ParamRef.Excluded())
-                    && key.length() > className.length() && key.startsWith(className) && key.charAt(className.length()) == '.'
-                    && key.indexOf('.', className.length() + 1) < 0) {
-                return true;
-            }
-        }
         for (MethodPattern pattern : methodPatterns) {
             if (!pattern.refs().contains(new ParamRef.Excluded()) && pattern.classPattern().matcher(className).matches()) {
                 return true;
@@ -399,18 +383,6 @@ public final class AugmentorConfig {
     /** Whether a key of {@code [augment.receiver]} or {@code [augment.params]} has wildcards ({@code *} or {@code ?}). */
     public static boolean isPattern(String key) {
         return key.indexOf('*') >= 0 || key.indexOf('?') >= 0;
-    }
-
-    /** The number of characters of a key other than the wildcards: the more, the more specific. */
-    static int specificity(String key) {
-        int literal = 0;
-        for (int i = 0; i < key.length(); i++) {
-            char c = key.charAt(i);
-            if (c != '*' && c != '?') {
-                literal++;
-            }
-        }
-        return literal;
     }
 
     /**

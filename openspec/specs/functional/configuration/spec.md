@@ -23,7 +23,8 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
   - `[augment.params]` (`"<class pattern>.<method pattern>"` → array of parameter names and 0-based
     indexes from 0 to 255, the JVM's maximum number of parameters, each optionally followed by `#` to hash the value
     (an index is then written as a string, e.g. `"2#"`), `"@"` for the method's parameter annotations, or `"-"` for none;
-    there is no wildcard value for the parameters), which decides the parameter ids. The method part `<init>`
+    there is no wildcard value for the parameters), which decides the parameter ids. Its entries SHALL be read in
+    the order of the file, and the first that matches a method decides. The method part `<init>`
     names the constructors; wildcards in the method part SHALL match it like any method name.
 
   The tables default to empty. They SHALL be independent: no value in one table SHALL change what the
@@ -66,9 +67,9 @@ replacing the other.
 - **THEN** the methods of the classes directly in `com.acme.legacy` use their `@StackTraceParam` and `@StackTraceParams` annotations, and so do their constructors
 
 #### Scenario: Constructor entry
-- **GIVEN** `"com.acme.legacy.*.*" = [0]` and `"com.acme.legacy.*.<init>" = "@"` in `[augment.params]`
+- **GIVEN** `"com.acme.legacy.*.<init>" = "@"` and then `"com.acme.legacy.*.*" = [0]` in `[augment.params]`
 - **WHEN** it is loaded
-- **THEN** the constructors of the classes directly in `com.acme.legacy` use their `@StackTraceParam` and `@StackTraceParams` annotations; the more specific `<init>` entry wins over `*`, and their methods show their first parameter
+- **THEN** the constructors of the classes directly in `com.acme.legacy` use their `@StackTraceParam` and `@StackTraceParams` annotations; the `<init>` entry comes first and wins over `*`, and their methods show their first parameter
 
 ### Requirement: Invalid configuration
 The system SHALL reject a configuration with a TOML syntax error, a value of the wrong type, a value out

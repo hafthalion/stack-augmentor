@@ -15,7 +15,7 @@ receiver id or a parameter id, and a method when it gets a parameter id or, as a
 receiver id.
 
 #### Scenario: Receiver ignored, parameters kept
-- **GIVEN** `"com.acme.**" = "@"` and `"com.acme.generated.**" = "-"` in `[augment.receiver]`, `"com.acme.**.*" = "@"` in `[augment.params]`, and `fun map(@StackTraceParam id: Int)` in the annotated class `com.acme.generated.Mapper`
+- **GIVEN** `"com.acme.generated.**" = "-"` and then `"com.acme.**" = "@"` in `[augment.receiver]`, `"com.acme.**.*" = "@"` in `[augment.params]`, and `fun map(@StackTraceParam id: Int)` in the annotated class `com.acme.generated.Mapper`
 - **WHEN** `map(7)` throws
 - **THEN** that frame shows `id=7` and no receiver id
 
@@ -323,9 +323,9 @@ character). In the method pattern, `*` SHALL match any sequence of characters an
 without wildcards SHALL match exactly. `<parameters>` SHALL be an array of parameter names and 0-based
 indexes (0 to 255), or the string `"@"` for the parameters selected by the method's
 annotations: `@StackTraceParam` on its parameters, and `@StackTraceParams` on the method. There SHALL be no value for all parameters: each is named, or selected by an annotation. Names and indexes that a matched method does not have
-SHALL be skipped. When several entries match one method, only the most specific SHALL decide: the entry
-without wildcards beats any pattern, and among patterns, the one with the most characters other than `*` and
-`?` wins, ties broken by key. The less specific entries SHALL NOT be combined with it.
+SHALL be skipped. When several entries match one method, only the first in the order of the file SHALL
+decide, as in `[augment.receiver]`, however specific the later ones are. The later entries SHALL NOT be
+combined with it.
 
 #### Scenario: All methods of a class
 - **GIVEN** `"com.thirdparty.InventoryService.*" = ["sku", "count"]`
@@ -338,9 +338,10 @@ without wildcards beats any pattern, and among patterns, the one with the most c
 - **THEN** the first frame shows `id=7`, and the second frame is unchanged
 
 #### Scenario: Overlapping entries
-- **GIVEN** `"com.thirdparty.OrderService.process" = ["order"]` and `"com.thirdparty.OrderService.*" = [2]`
+- **GIVEN** `"com.thirdparty.OrderService.process" = ["order"]` and then `"com.thirdparty.OrderService.*" = [2]`
 - **WHEN** `process(Order(4711), 3, "rush")` throws, where `Order.toString()` returns `Order#4711`
-- **THEN** that frame shows only `order=Order#4711`: the exact entry decides, and the pattern adds nothing
+- **THEN** that frame shows only `order=Order#4711`: the first entry decides, and the pattern adds nothing
+- **AND** with the two entries the other way round, the pattern decides and the frame shows only the third parameter
 
 #### Scenario: Exact explicit class entry with annotated parameters
 - **GIVEN** `"com.acme.Order" = "getId()"` in `[augment.receiver]` and `"com.acme.Order.*" = "@"` in `[augment.params]`, and `fun ship(@StackTraceParam to: String)` in `Order`
@@ -350,17 +351,17 @@ without wildcards beats any pattern, and among patterns, the one with the most c
 ### Requirement: Ignoring receivers and parameters
 The value `"-"` SHALL select nothing, in either table, and SHALL affect its own table only. A class whose
 deciding `[augment.receiver]` entry is `"-"` SHALL get no receiver id; the entry decides with the same
-most-specific rule as other entries. Likewise, a method whose deciding `[augment.params]` entry is `"-"`
-SHALL get no parameter ids, even where a less specific entry would select some.
+first-match rule as other entries. Likewise, a method whose deciding `[augment.params]` entry is `"-"`
+SHALL get no parameter ids, even where a later entry would select some.
 A configuration whose entries are all `"-"` SHALL count as having no entries.
 
 #### Scenario: No receiver ids in a package under an "@" pattern
-- **GIVEN** `"com.acme.**" = "@"` and `"com.acme.generated.**" = "-"` in `[augment.receiver]`, and `com.acme.generated.Mapper` with a `@StackTraceId` field
+- **GIVEN** `"com.acme.generated.**" = "-"` and then `"com.acme.**" = "@"` in `[augment.receiver]`, and `com.acme.generated.Mapper` with a `@StackTraceId` field
 - **WHEN** a method of `Mapper` throws
 - **THEN** its frame shows no receiver id
 
 #### Scenario: Ignored methods under a wildcard entry
-- **GIVEN** `"com.thirdparty.Inventory*.*" = ["sku", "count"]`, `"com.thirdparty.InventoryAudit.*" = "-"` and `"com.thirdparty.InventoryAudit.log" = ["reason"]` in `[augment.params]`
+- **GIVEN** `"com.thirdparty.InventoryAudit.log" = ["reason"]`, `"com.thirdparty.InventoryAudit.*" = "-"` and `"com.thirdparty.Inventory*.*" = ["sku", "count"]` in `[augment.params]`, in this order
 - **WHEN** `InventoryAudit.purge("x-1")` throws, and separately `InventoryAudit.log("disk full", 2)` throws
 - **THEN** the first frame is unchanged, and the second frame shows `reason=disk full`
 

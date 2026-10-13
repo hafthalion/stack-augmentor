@@ -34,17 +34,17 @@ The label is the real field or method name (`{objectId=…}`, `{getKey=…}`); i
 
 There is no wildcard for the parameters themselves: each one is named, or selected by an annotation.
 
-**Constructors** are named `<init>`, as in stack traces: `"com.acme.Shipment.<init>" = ["orderId"]`, or `"com.acme.**.<init>" = "@"` for the annotations of constructors only (`@StackTraceParams` works on constructors too). Wildcards in the method name match them like any method, so `"com.acme.**.*" = "@"` covers the constructors' annotations as well; a more specific entry such as `"com.acme.Shipment.<init>" = "-"` takes them out. A constructor frame shows parameter ids only, never a receiver id, e.g. `com.acme.Shipment.<init>{orderId=42}`, for exceptions thrown in its body (including Kotlin `init` blocks) and while computing the arguments of its `super(...)` or `this(...)` call, e.g. `super(requireNonNull(code))`. An exception thrown inside the called constructor itself leaves the frame unchanged.
+**Constructors** are named `<init>`, as in stack traces: `"com.acme.Shipment.<init>" = ["orderId"]`, or `"com.acme.**.<init>" = "@"` for the annotations of constructors only (`@StackTraceParams` works on constructors too). Wildcards in the method name match them like any method, so `"com.acme.**.*" = "@"` covers the constructors' annotations as well; an entry before it such as `"com.acme.Shipment.<init>" = "-"` takes them out. A constructor frame shows parameter ids only, never a receiver id, e.g. `com.acme.Shipment.<init>{orderId=42}`, for exceptions thrown in its body (including Kotlin `init` blocks) and while computing the arguments of its `super(...)` or `this(...)` call, e.g. `super(requireNonNull(code))`. An exception thrown inside the called constructor itself leaves the frame unchanged.
 
 **Hashed parameter ids.** A `#` after a name or an index in `[augment.params]` (`["user", "email#", "2#"]`), or `@StackTraceParam(secret = true)` on the parameter (also under `@StackTraceParams`, which then shows the others as text), shows the value as a short hash instead of its text: `#` and the first 8 hex digits of the SHA-256 of the `toString()`, e.g. `invite{user=ann, email=#71d4f55f}`. The same value always gives the same hash, so a value can still be followed across log lines and incidents without appearing in them. `null` stays `null`. When a parameter is selected twice (by name and by index, or by both annotations), it is hashed if either hashes it. The hash is not salted: values from a small set, e.g. PINs, can be found by trying them all, so leave such parameters out rather than hashing them.
 
-The keys match the class that declares the method, not its subclasses. When several entries match a method, only the most specific one decides (unlike `[augment.receiver]`, where the first one does): an exact `"<class>.<method>"` beats any pattern, and among patterns the one with the most characters other than `*` and `?` wins. Entries are not combined, so a more specific `"-"` takes a method out of a less specific entry:
+The keys match the class that declares the method, not its subclasses. When several entries match a method, only the first one in the file decides, as in `[augment.receiver]`, so put the more specific entries first. Entries are not combined, so a `"-"` takes a method out of the entries after it:
 
 ```toml
 [augment.params]
-"com.thirdparty.Inventory*.*" = ["sku", "count"]   # these parameters of the Inventory* classes ...
-"com.thirdparty.InventoryAudit.*" = "-"            # ... except InventoryAudit's: more specific ...
-"com.thirdparty.InventoryAudit.log" = ["reason"]   # ... except log's first parameter: exact
+"com.thirdparty.InventoryAudit.log" = ["reason"]   # log's first parameter ...
+"com.thirdparty.InventoryAudit.*" = "-"            # ... but no other method of InventoryAudit ...
+"com.thirdparty.Inventory*.*" = ["sku", "count"]   # ... and these parameters of the other Inventory* classes
 ```
 
 Because the tables are independent, a class can take its receiver id from an explicit entry and still use its parameter annotations, or ignore its receiver and keep its parameters:
