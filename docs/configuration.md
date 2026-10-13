@@ -22,7 +22,7 @@ maxIdLength = 64
 
 # Which exceptions get ids: true or false. The first entry that matches decides, in the order of the file; an
 # exception that no entry matches gets none. A class name matches the class and its subclasses, as instanceof
-# does; a pattern matches the name of the exception's runtime class only, as in [augment.receiver].
+# does; a pattern matches the name of the exception's runtime class only.
 # Without this table, or with an empty one, no exception gets ids: "java.lang.Exception" = true gives them to all
 # exceptions, "**" = true to all throwables.
 [augment.exceptions]
@@ -33,32 +33,32 @@ maxIdLength = 64
 
 # Which receivers and parameters get ids: two independent tables. Read by the agent when classes load, or by
 # the build plugin at build time, which instrument whatever classes and methods they need.
-# Keys may use wildcards: '*' within one package (or name), '**' across packages, '?' one character.
+# Both have keys "<class>::<methods>", matched against the class that declares a frame's method: a class name
+# matches that class only, "+" after it also its subclasses (and for an interface the classes implementing it), and
+# a pattern matches class names only: '*' within one package (or name), '**' across packages, '?' one character.
+# After "::" the method names or patterns separated by commas, "*" for all, "@" for those annotated with
+# @StackTraceAugment. For each method the first entry that matches decides, in the order of the file.
 
 # Receiver ids: "@" for the class's @StackTraceId (without an "@" entry, it is not used), or, for classes you
 # cannot annotate, a field or a no-argument method ending in "()", or several separated by commas; "-" for none.
-# After "::" in the key, the methods the entry applies to, "@" for those annotated with @StackTraceAugment (default: all
-# methods). For each method the first entry that matches decides, in the order of the file, as in [augment.exceptions]:
-# a class name matches the class and its subclasses (an interface's name the classes implementing it), a pattern the
-# name of the class only.
 [augment.receiver]
-"com.hafnium.generated.**" = "-"                     # these first ...
-"com.hafnium.**" = "@"                               # ... then the rest of com.hafnium
-"com.acme.orders.*" = "@"
-"com.thirdparty.Order" = "getOrderNumber()"
-"com.thirdparty.Customer" = "customerId"
-"com.thirdparty.OrderLine" = "tenant, lineId()"  # several ids
+"com.hafnium.generated.**::*" = "-"                  # these first ...
+"com.hafnium.**::*" = "@"                            # ... then the rest of com.hafnium
+"com.acme.orders.*::*" = "@"
+"com.thirdparty.Order+::*" = "getOrderNumber()"      # Order and its subclasses
+"com.thirdparty.Customer::*" = "customerId"
+"com.thirdparty.OrderLine::*" = "tenant, lineId()"   # several ids
 "com.thirdparty.Parcel::ship, cancel*" = "trackingCode"  # only in these methods ...
 "com.thirdparty.Parcel::weigh" = "weight"                # ... and another id in this one
-"com.thirdparty.**.*Account" = "number"
+"com.thirdparty.**.*Account::*" = "number"
 
-# Parameter ids: "<class>::<method>" (several separated by commas, "@" for the methods annotated with @StackTraceAugment) = parameter names and 0-based indexes separated by commas, a "#" after one to show its value
+# Parameter ids: parameter names and 0-based indexes separated by commas, a "#" after one to show its value
 # hashed, "@" for the method's @StackTraceParam and @StackTraceParams annotations, or "-" for none. Entries that
-# match the same method are not combined: the first entry that matches decides, in the order of the file.
+# match the same method are not combined: the first entry that matches decides. Constructors are named <init>.
 [augment.params]
 "com.hafnium.**::*" = "@"                             # the annotations of these methods
 "com.acme.orders.*::*" = "@"
-"com.thirdparty.OrderService::process" = "order, 2"
+"com.thirdparty.OrderService+::process" = "order, 2"  # also in subclasses
 "com.thirdparty.InventoryService::*" = "sku"         # all methods of a class
 "com.thirdparty.**.AuditRepository::find*" = "-"      # these first ...
 "com.thirdparty.**.*Repository::find*" = "0"          # ... then the others, across packages
@@ -66,7 +66,7 @@ maxIdLength = 64
 "com.thirdparty.Shipment::<init>" = "orderId"       # constructors: <init>
 ```
 
-- **Quote class names.** Without quotes TOML reads each `.` as a nested table; that works too, but keys with wildcards must be quoted. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.
+- **Quote the keys.** `[augment.receiver]` and `[augment.params]` keys contain `::`, so they must be quoted. In `[augment.exceptions]`, TOML reads an unquoted class name's `.` as nested tables; that works too, but keys with wildcards must be quoted. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.
 - **Keep wildcards narrow.** `"com.**::*" = "@"` makes the agent instrument many classes, which slows down class loading.
 - **`[augment.exceptions]`** is checked when an exception leaves a method, against the class of the exception: classes still get instrumented as `[augment.receiver]` and `[augment.params]` say. No entry, no ids: to give all exceptions ids, write `"java.lang.Exception" = true` (`"**" = true` includes errors), and to exclude only some, put their `false` entries before it. If receivers or parameters are configured but no entry is `true`, startup warns. The frames that an exception without ids leaves stay as they are, also where its causes share them; a cause with ids wrapped in it keeps the ids of the frames it left itself. An exception with ids still writes its frames into the causes that share them, whatever their class, so printed traces still collapse into `... N more`.
 - **`debug = true`** lists the configuration, every instrumented class and the annotations that have no effect. Messages start with their source: `agent:`, `build plugin:` or `runtime:` (build-time instrumentation at runtime).

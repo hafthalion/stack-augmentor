@@ -21,15 +21,18 @@ maxIdLength = 64
 
 # The two tables below are independent: [augment.receiver] decides which receivers get ids,
 # [augment.params] which parameters. The agent instruments whatever classes and methods they need.
-# In keys, '*' matches within a package or name, '**' across packages, '?' one character.
+# Keys are "<class>::<methods>": a class name matches that class only, "+" after it ("com.acme.Order+::*") its
+# subclasses too, and a pattern matches class names. The methods are names or patterns separated by commas, "*" for
+# all, "@" for those annotated with @StackTraceAugment. '*' matches within a package or name, '**' across packages,
+# '?' one character.
 
 # Receiver ids: "@" uses the class's @StackTraceId (without an "@" entry, it is not used). Classes you
 # cannot annotate name a method() or a field: an order is identified by its getOrderNumber() method, a
 # customer by its customerId field.
 [augment.receiver]
-"com.hafnium.examples.agent.**" = "@"
-"com.thirdparty.Order" = "getOrderNumber()"
-"com.thirdparty.Customer" = "customerId"
+"com.hafnium.examples.agent.**::*" = "@"
+"com.thirdparty.Order::*" = "getOrderNumber()"
+"com.thirdparty.Customer::*" = "customerId"
 
 # Parameter ids: "@" uses the methods' @StackTraceParam and @StackTraceParams annotations. Otherwise
 # parameters are selected by name or 0-based index, separated by commas, "#" after one shows its value hashed, and "-" selects

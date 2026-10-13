@@ -89,8 +89,11 @@ class IdResolverTest {
     @AfterEach
     fun restore() = System.setErr(originalErr)
 
-    private fun resolver(vararg classes: Pair<String, IdSpec>) =
-        IdResolver(AugmentorConfig.builder().classes(classes.toMap()).maxIdLength(10).exceptions(mapOf("**" to true)).build())
+    /** A key without methods gets "::*", all methods. */
+    private fun resolver(vararg classes: Pair<String, IdSpec>) = IdResolver(
+        AugmentorConfig.builder().classes(classes.associate { (key, spec) -> (if ("::" in key) key else "$key::*") to spec })
+            .maxIdLength(10).exceptions(mapOf("**" to true)).build(),
+    )
 
     private fun name(type: Class<*>) = type.name
 
@@ -158,9 +161,10 @@ class IdResolverTest {
     }
 
     @Test
-    fun `a class name applies to subclasses, a pattern does not, and members are found in superclasses`() {
-        assertEquals(NamedId("baseId", "b1"), resolver(name(BaseWithId::class.java) to annotations).receiverId(ChildOfBase()))
-        assertEquals(NamedId("baseId", "b1"), resolver(name(BaseWithId::class.java) to IdSpec.FieldSpec("baseId")).receiverId(ChildOfBase()))
+    fun `a class name with plus applies to subclasses, without plus or a pattern it does not, and members are found in superclasses`() {
+        assertEquals(NamedId("baseId", "b1"), resolver(name(BaseWithId::class.java) + "+" to annotations).receiverId(ChildOfBase()))
+        assertEquals(NamedId("baseId", "b1"), resolver(name(BaseWithId::class.java) + "+" to IdSpec.FieldSpec("baseId")).receiverId(ChildOfBase()))
+        assertNull(resolver(name(BaseWithId::class.java) to annotations).receiverId(ChildOfBase()))
         assertNull(resolver(name(BaseWithId::class.java).dropLast(1) + "?" to annotations).receiverId(ChildOfBase()))
         // An entry of the subclass itself finds the annotation or the field that the superclass declares.
         assertEquals(NamedId("baseId", "b1"), resolver(name(ChildOfBase::class.java) to annotations).receiverId(ChildOfBase()))
@@ -169,16 +173,16 @@ class IdResolverTest {
 
     @Test
     fun `the class declaring the method decides, read from the object`() {
-        val resolver = resolver(name(BaseWithId::class.java) to IdSpec.FieldSpec("baseId"))
+        val resolver = resolver(name(BaseWithId::class.java) + "+" to IdSpec.FieldSpec("baseId"))
         // A method that BaseWithId declares, running on a ChildOfBase: the entry of BaseWithId applies.
         assertEquals(NamedId("baseId", "b1"), resolver.receiverId(ChildOfBase(), name(BaseWithId::class.java)))
-        // A method that ChildOfBase declares: the entry of BaseWithId matches it too.
+        // A method that ChildOfBase declares: the entry of BaseWithId with + matches it too.
         assertEquals(NamedId("baseId", "b1"), resolver.receiverId(ChildOfBase(), name(ChildOfBase::class.java)))
-        val own = resolver(name(ChildOfBase::class.java) to IdSpec.Excluded(), name(BaseWithId::class.java) to IdSpec.FieldSpec("baseId"))
+        val own = resolver(name(ChildOfBase::class.java) to IdSpec.Excluded(), name(BaseWithId::class.java) + "+" to IdSpec.FieldSpec("baseId"))
         assertNull(own.receiverId(ChildOfBase(), name(ChildOfBase::class.java)))
         assertEquals(NamedId("baseId", "b1"), own.receiverId(ChildOfBase(), name(BaseWithId::class.java)))
         // A declaring class outside the superclass chain, e.g. an interface with a default method: the runtime class,
-        // which BaseWithId's entry matches.
+        // which BaseWithId's entry with + matches.
         assertEquals(NamedId("baseId", "b1"), resolver.receiverId(ChildOfBase(), "com.acme.SomeInterface"))
     }
 
@@ -198,7 +202,7 @@ class IdResolverTest {
 
         assertNull(resolver(name(Unannotated::class.java) to IdSpec.FieldSpec("nope")).receiverId(Unannotated("c")))
         assertTrue(
-            err.toString(Charsets.UTF_8).contains("WARN [augment.receiver] \"${name(Unannotated::class.java)}\": no field or property nope found"),
+            err.toString(Charsets.UTF_8).contains("WARN [augment.receiver] \"${name(Unannotated::class.java)}::*\": no field or property nope found"),
             err.toString(Charsets.UTF_8),
         )
     }
@@ -216,7 +220,7 @@ class IdResolverTest {
         assertNull(resolver("java.net.URI" to IdSpec.FieldSpec("hash")).receiverId(uri))
         val warnings = err.toString(Charsets.UTF_8).lines().filter { it.contains("WARN") }
         assertEquals(1, warnings.size, warnings.toString())
-        assertTrue(warnings[0].contains("[augment.receiver] \"java.net.URI\": cannot access private transient int java.net.URI.hash"), warnings[0])
+        assertTrue(warnings[0].contains("[augment.receiver] \"java.net.URI::*\": cannot access private transient int java.net.URI.hash"), warnings[0])
     }
 
     @Test

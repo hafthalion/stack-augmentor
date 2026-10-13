@@ -67,16 +67,20 @@ final class ClassEntries {
 
     /**
      * The names of a type, its superclasses and the interfaces they implement, directly or not: collected when first
-     * asked for, as only an entry without wildcards needs them. A supertype that cannot be resolved is left out, with
+     * asked for, as only a key with {@code +} needs them. A supertype that cannot be resolved is left out, with
      * its own supertypes.
      */
-    private static final class SupertypeNames {
+    static final class SupertypeNames {
 
         private final TypeDescription type;
         private Set<String> names;
 
         SupertypeNames(TypeDescription type) {
             this.type = type;
+        }
+
+        TypeDescription type() {
+            return type;
         }
 
         boolean contains(String name) {

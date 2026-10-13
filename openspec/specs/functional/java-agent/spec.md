@@ -35,7 +35,7 @@ entries, in any package and without annotations: whatever either table needs, in
 Classes in the ignored packages SHALL stay uninstrumented, even when a wildcard entry matches them.
 
 #### Scenario: Configured library class
-- **GIVEN** `"com.thirdparty.Customer" = "customerId"` in `[augment.receiver]`
+- **GIVEN** `"com.thirdparty.Customer::*" = "customerId"` in `[augment.receiver]`
 - **WHEN** `Customer("c-9").rename()` throws
 - **THEN** the frame reads `com.thirdparty.Customer{customerId=c-9}.rename(…)`
 
@@ -45,12 +45,12 @@ Classes in the ignored packages SHALL stay uninstrumented, even when a wildcard 
 - **THEN** the frame reads `com.thirdparty.InventoryService.reserve{sku=x-1, count=2}(…)`
 
 #### Scenario: Library classes with a receiver id selected by a wildcard
-- **GIVEN** `"com.thirdparty.*Account" = "number"` in `[augment.receiver]`
+- **GIVEN** `"com.thirdparty.*Account::*" = "number"` in `[augment.receiver]`
 - **WHEN** `SavingsAccount("S-1").withdraw()` throws
 - **THEN** the frame reads `com.thirdparty.SavingsAccount{number=S-1}.withdraw(…)`
 
 #### Scenario: Wildcard matching JDK classes
-- **GIVEN** `"java.**::*" = "0"` in `[augment.params]` and `"java.**" = "@"` in `[augment.receiver]`
+- **GIVEN** `"java.**::*" = "0"` in `[augment.params]` and `"java.**::*" = "@"` in `[augment.receiver]`
 - **WHEN** an exception is thrown inside a JDK method
 - **THEN** the JDK frames are unchanged
 

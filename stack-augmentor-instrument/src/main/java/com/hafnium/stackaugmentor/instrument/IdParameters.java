@@ -36,7 +36,19 @@ public final class IdParameters {
     }
 
     private List<ParamRef> paramRefs(TypeDescription type, MethodDescription method) {
-        return config.paramRefs(type.getName(), method.getInternalName(), augmented(method));
+        return config.paramRefs(type.getName(), supertypes(type)::contains, method.getInternalName(), augmented(method));
+    }
+
+    /** The last type's supertype names: they are asked for once per method of a type, for keys with {@code +}. */
+    private volatile ClassEntries.SupertypeNames lastSupertypes;
+
+    private ClassEntries.SupertypeNames supertypes(TypeDescription type) {
+        ClassEntries.SupertypeNames last = lastSupertypes;
+        if (last == null || last.type() != type) {
+            last = new ClassEntries.SupertypeNames(type);
+            lastSupertypes = last;
+        }
+        return last;
     }
 
     /** Whether the method has {@code @StackTraceAugment}, which {@code "@"} after {@code ::} selects by. */
@@ -136,18 +148,19 @@ public final class IdParameters {
 
     /**
      * Debug messages for {@code [augment.params]} entries of this type that match no method or parameter.
-     * Entries with wildcards are skipped: they are expected not to fit every class and method they match.
+     * Entries with wildcards or {@code +} are skipped: they are expected not to fit every class and method they match.
      */
     public List<String> unmatchedEntries(TypeDescription type) {
         List<String> messages = new ArrayList<>();
         for (Map.Entry<String, List<ParamRef>> params : config.methods().entrySet()) {
             String target = params.getKey();
-            if (!AugmentorConfig.className(target).equals(type.getName())) {
+            AugmentorConfig.EntryKey key = new AugmentorConfig.EntryKey(target);
+            if (key.subclasses() || !key.className().equals(type.getName())) {
                 continue;
             }
             String entry = "[augment.params] \"" + target + "\"";
             List<MethodDescription> methods = new ArrayList<>();
-            for (String methodName : AugmentorConfig.methodNames(target)) {
+            for (String methodName : key.methods()) {
                 if (AugmentorConfig.isPattern(methodName)) {
                     continue;
                 }

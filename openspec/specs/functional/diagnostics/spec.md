@@ -22,7 +22,7 @@ the file, the key and the line, also when the exception carrying it is thrown on
 #### Scenario: Same messages in both modes
 - **GIVEN** `debug = true` in the configuration of the agent, of the build plugin and of the runtime handler
 - **WHEN** each of them starts
-- **THEN** each prints the same debug messages about its configuration, prefixed with its name, e.g. `[stack-augmentor] DEBUG build plugin: [augment.receiver] com.hafnium.**=@`
+- **THEN** each prints the same debug messages about its configuration, prefixed with its name, e.g. `[stack-augmentor] DEBUG build plugin: [augment.receiver] com.hafnium.**::*=@`
 
 ### Requirement: Warnings
 The system SHALL always print a warning to standard error, prefixed `[stack-augmentor] WARN`:
@@ -39,12 +39,12 @@ The system SHALL always print a warning to standard error, prefixed `[stack-augm
 A member missing for an entry with wildcards SHALL only be reported as a debug message.
 
 #### Scenario: Missing configured member
-- **GIVEN** `"com.thirdparty.Customer" = "customerNo"`, a misspelling: `Customer` has a field `customerId`, but no field and no getter for `customerNo`; and `debug = false`
+- **GIVEN** `"com.thirdparty.Customer::*" = "customerNo"`, a misspelling: `Customer` has a field `customerId`, but no field and no getter for `customerNo`; and `debug = false`
 - **WHEN** the id source of `Customer` is first needed
-- **THEN** `[stack-augmentor] WARN [augment.receiver] "com.thirdparty.Customer": no field or property customerNo found` is printed
+- **THEN** `[stack-augmentor] WARN [augment.receiver] "com.thirdparty.Customer::*": no field or property customerNo found` is printed
 
 #### Scenario: Missing member for a wildcard entry
-- **GIVEN** `"com.thirdparty.*" = "getId()"`, `debug = false`, and `com.thirdparty.Customer` without `getId()`
+- **GIVEN** `"com.thirdparty.*::*" = "getId()"`, `debug = false`, and `com.thirdparty.Customer` without `getId()`
 - **WHEN** the id source of `Customer` is first needed
 - **THEN** no warning is printed and frames of `Customer` show no receiver id
 
@@ -85,7 +85,7 @@ SHALL be printed, and the message texts SHALL NOT be built, also for the message
 - **THEN** no message about the entry is printed for `Customer`
 
 #### Scenario: Ignored annotations
-- **GIVEN** `debug = true`, `"com.hafnium.it.fixtures.**" = "@"` in `[augment.receiver]`, and a class in `com.hafnium.it.outside` with `@StackTraceId` and `@StackTraceParam`
+- **GIVEN** `debug = true`, `"com.hafnium.it.fixtures.**::*" = "@"` in `[augment.receiver]`, and a class in `com.hafnium.it.outside` with `@StackTraceId` and `@StackTraceParam`
 - **WHEN** the class is loaded
 - **THEN** one message reports that its `@StackTraceId` is ignored because no `[augment.receiver]` entry applies, and one that its parameter annotations are ignored because no `"@"` entry in `[augment.params]` applies
 

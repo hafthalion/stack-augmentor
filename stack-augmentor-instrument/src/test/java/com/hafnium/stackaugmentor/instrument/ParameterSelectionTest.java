@@ -204,7 +204,7 @@ class ParameterSelectionTest {
     @Test
     void annotationsWithoutAnAtEntryAreIgnored() {
         // An "@" class entry is for @StackTraceId only: the tables are independent.
-        for (AugmentorConfig config : List.of(new AugmentorConfig(), classes(Map.of(HERE, ANNOTATIONS)),
+        for (AugmentorConfig config : List.of(new AugmentorConfig(), classes(Map.of(HERE_METHODS, ANNOTATIONS)),
                 methods(Map.of("com.acme.**::*", List.of(new ParamRef.Annotations()))))) {
             IdParameters parameters = new IdParameters(config);
             assertEquals(List.of(), labels(parameters, Reservations.class, "reserve"));
@@ -216,7 +216,7 @@ class ParameterSelectionTest {
     void explicitClassEntryAndAtMethodEntry() {
         String explicit = Explicit.class.getName();
         // The explicit entry before the "@" pattern wins: no parameter annotations ...
-        AugmentorConfig classesOnly = classes(firstMatch(explicit, new IdSpec.MethodSpec("getId"), HERE, ANNOTATIONS));
+        AugmentorConfig classesOnly = classes(firstMatch(explicit + "::*", new IdSpec.MethodSpec("getId"), HERE_METHODS, ANNOTATIONS));
         IdParameters withoutMethods = new IdParameters(classesOnly);
         assertEquals(List.of(), labels(withoutMethods, Explicit.class, "fail"));
         assertEquals(List.of(), labels(withoutMethods, Explicit.class, "failAnnotated"));
@@ -285,7 +285,7 @@ class ParameterSelectionTest {
         Log.setDebug(true);
         String explicit = Explicit.class.getName();
         AugmentorConfig config = AugmentorConfig.builder()
-                .classes(Map.of(explicit, new IdSpec.MethodSpec("getId")))
+                .classes(Map.of(explicit + "::*", new IdSpec.MethodSpec("getId")))
                 .methods(Map.of(explicit + "::failAnnotated", List.of(new ParamRef.Annotations())))
                 .build();
         TypeMatching matching = new TypeMatching(config, new IdParameters(config));
@@ -298,7 +298,7 @@ class ParameterSelectionTest {
         String reason = ": no \"@\" entry in [augment.params] applies";
         assertTrue(output.contains("ignoring the parameter annotations of release, reserve in " + Reservations.class.getName() + reason), output);
         assertTrue(output.contains("ignoring the parameter annotations of move in " + MethodLevel.class.getName() + reason), output);
-        assertTrue(output.contains("ignoring @StackTraceId in " + explicit + ": its [augment.receiver] entry \"" + explicit + "\" is not \"@\""),
+        assertTrue(output.contains("ignoring @StackTraceId in " + explicit + ": its [augment.receiver] entry \"" + explicit + "::*\" is not \"@\""),
                 output);
         // failAnnotated is enabled by its method entry.
         assertTrue(output.contains("ignoring the parameter annotations of fail in " + explicit + reason), output);
@@ -332,16 +332,16 @@ class ParameterSelectionTest {
         Map<String, IdSpec> classes = new LinkedHashMap<>();
         classes.put(explicit + "::fail", new IdSpec.MethodSpec("getId"));
         classes.put(explicit + "::failAnnotated", new IdSpec.Excluded());
-        classes.put(explicit, new IdSpec.FieldSpec("code"));
+        classes.put(explicit + "::*", new IdSpec.FieldSpec("code"));
         AugmentorConfig config = classes(classes);
         TypeMatching matching = new TypeMatching(config, new IdParameters(config));
 
         assertEquals(explicit + "::fail", matching.receiverEntry(type(Explicit.class), method(Explicit.class, "fail")).key());
         // "-" for failAnnotated: the later entry does not apply to it.
         assertFalse(matching.receiverIds(type(Explicit.class), method(Explicit.class, "failAnnotated")));
-        assertEquals(explicit, matching.receiverEntry(type(Explicit.class), method(Explicit.class, "getId")).key());
+        assertEquals(explicit + "::*", matching.receiverEntry(type(Explicit.class), method(Explicit.class, "getId")).key());
         String description = matching.describe(type(Explicit.class), matching.methods(type(Explicit.class)));
-        assertTrue(description.contains("receiver id from [augment.receiver] \"" + explicit + "::fail\", [augment.receiver] \"" + explicit + "\""),
+        assertTrue(description.contains("receiver id from [augment.receiver] \"" + explicit + "::fail\", [augment.receiver] \"" + explicit + "::*\""),
                 description);
     }
 
@@ -371,7 +371,7 @@ class ParameterSelectionTest {
         String service = Service.class.getName();
         String explicit = Explicit.class.getName();
         AugmentorConfig config = AugmentorConfig.builder()
-                .classes(firstMatch(explicit, new IdSpec.Excluded(), HERE, ANNOTATIONS))
+                .classes(firstMatch(explicit + "::*", new IdSpec.Excluded(), HERE_METHODS, ANNOTATIONS))
                 .methods(inOrder(
                         explicit + "::failAnnotated", List.of(new ParamRef.Annotations()),
                         service + "::process", List.of(new ParamRef.ByName("note")),
@@ -387,7 +387,7 @@ class ParameterSelectionTest {
         assertTrue(matching.instrument(type(Explicit.class)));
         assertTrue(matching.describe(type(Explicit.class), matching.methods(type(Explicit.class))).contains("(parameter ids only)"));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("ignoring @StackTraceId in " + explicit + ": its [augment.receiver] entry \""
-                + explicit + "\" is not \"@\""), err.toString(StandardCharsets.UTF_8));
+                + explicit + "::*\" is not \"@\""), err.toString(StandardCharsets.UTF_8));
         // The "@" class entry uses @StackTraceId only: the method entry labels the parameters by name.
         assertEquals(List.of("item", "count"), labels(parameters, MethodLevel.class, "move"));
         // A "-" method entry before the pattern wins; the exact entry before the "-" wins.
@@ -396,7 +396,7 @@ class ParameterSelectionTest {
 
     @Test
     void onlyUsableIdMethodsGetAClassInstrumented() {
-        AugmentorConfig config = classes(Map.of(HERE, ANNOTATIONS));
+        AugmentorConfig config = classes(Map.of(HERE_METHODS, ANNOTATIONS));
         TypeMatching matching = new TypeMatching(config, new IdParameters(config));
 
         assertFalse(matching.instrument(type(UnusableId.class)));
@@ -448,7 +448,7 @@ class ParameterSelectionTest {
 
         // Wildcards in the method name match constructors too.
         AugmentorConfig wildcard = AugmentorConfig.builder()
-                .classes(Map.of(HERE, ANNOTATIONS))
+                .classes(Map.of(HERE_METHODS, ANNOTATIONS))
                 .methods(Map.of(HERE_METHODS, List.of(new ParamRef.Annotations())))
                 .build();
         IdParameters wildcardParameters = new IdParameters(wildcard);
