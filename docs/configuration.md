@@ -36,7 +36,7 @@ maxIdLength = 64
 # Keys may use wildcards: '*' within one package (or name), '**' across packages, '?' one character.
 
 # Receiver ids: "@" for the class's @StackTraceId (without an "@" entry, it is not used), or, for classes you
-# cannot annotate, a field or a no-argument method ending in "()", or a list of them; "-" for none. The first entry
+# cannot annotate, a field or a no-argument method ending in "()", or several separated by commas; "-" for none. The first entry
 # that matches decides, in the order of the file, as in [augment.exceptions]: a class name matches the class and its
 # subclasses (an interface's name the classes implementing it), a pattern the name of the class only.
 [augment.receiver]
@@ -45,21 +45,21 @@ maxIdLength = 64
 "com.acme.orders.*" = "@"
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"
-"com.thirdparty.OrderLine" = ["tenant", "lineId()"]  # several ids
+"com.thirdparty.OrderLine" = "tenant, lineId()"  # several ids
 "com.thirdparty.**.*Account" = "number"
 
-# Parameter ids: "<class>.<method>" = parameter names and 0-based indexes, a "#" after one to show its value
+# Parameter ids: "<class>.<method>" = parameter names and 0-based indexes separated by commas, a "#" after one to show its value
 # hashed, "@" for the method's @StackTraceParam and @StackTraceParams annotations, or "-" for none. Entries that
 # match the same method are not combined: the first entry that matches decides, in the order of the file.
 [augment.params]
 "com.hafnium.**.*" = "@"                             # the annotations of these methods
 "com.acme.orders.*.*" = "@"
-"com.thirdparty.OrderService.process" = ["order", 2]
-"com.thirdparty.InventoryService.*" = ["sku"]         # all methods of a class
+"com.thirdparty.OrderService.process" = "order, 2"
+"com.thirdparty.InventoryService.*" = "sku"         # all methods of a class
 "com.thirdparty.**.AuditRepository.find*" = "-"      # these first ...
-"com.thirdparty.**.*Repository.find*" = [0]          # ... then the others, across packages
-"com.thirdparty.UserService.invite" = ["user", "email#"]     # email hashed
-"com.thirdparty.Shipment.<init>" = ["orderId"]       # constructors: <init>
+"com.thirdparty.**.*Repository.find*" = "0"          # ... then the others, across packages
+"com.thirdparty.UserService.invite" = "user, email#"     # email hashed
+"com.thirdparty.Shipment.<init>" = "orderId"       # constructors: <init>
 ```
 
 - **Quote class names.** Without quotes TOML reads each `.` as a nested table; that works too, but keys with wildcards must be quoted. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.

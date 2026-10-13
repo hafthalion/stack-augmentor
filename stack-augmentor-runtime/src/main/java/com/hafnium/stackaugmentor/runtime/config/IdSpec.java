@@ -17,7 +17,7 @@ public sealed interface IdSpec {
     record MethodSpec(String memberName) implements MemberSpec {
     }
 
-    /** A list of fields and methods, e.g. {@code ["tenant", "id()"]}: one receiver id each, in this order. */
+    /** A list of fields and methods, e.g. {@code "tenant, id()"}: one receiver id each, in this order. */
     record MemberList(List<MemberSpec> members) implements IdSpec {
 
         public MemberList {

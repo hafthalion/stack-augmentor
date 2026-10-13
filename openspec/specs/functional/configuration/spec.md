@@ -17,12 +17,13 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
   - `[augment.exceptions]` (class name or class pattern → `true` or `false`), which decides the throwables
     whose frames get ids, see the stack trace augmentation spec. Its entries SHALL be read in the order of the
     file. Without entries no throwable gets ids;
-  - `[augment.receiver]` (class name or class pattern → field name, `method()`, a list of them, `"@"` for
+  - `[augment.receiver]` (class name or class pattern → a string: field name, `method()`, several of them
+    separated by commas, `"@"` for
     the class's `@StackTraceId` members, or `"-"` for no receiver id), which decides the receiver ids, see the
     id sources spec. Its entries SHALL be read in the order of the file, and the first that matches a class decides;
-  - `[augment.params]` (`"<class pattern>.<method pattern>"` → array of parameter names and 0-based
-    indexes from 0 to 255, the JVM's maximum number of parameters, each optionally followed by `#` to hash the value
-    (an index is then written as a string, e.g. `"2#"`), `"@"` for the method's parameter annotations, or `"-"` for none;
+  - `[augment.params]` (`"<class pattern>.<method pattern>"` → a string: parameter names and 0-based
+    indexes from 0 to 255, the JVM's maximum number of parameters, separated by commas, each optionally followed by
+    `#` to hash the value (e.g. `"order, 2, email#"`), `"@"` for the method's parameter annotations, or `"-"` for none;
     there is no wildcard value for the parameters), which decides the parameter ids. Its entries SHALL be read in
     the order of the file, and the first that matches a method decides. The method part `<init>`
     names the constructors; wildcards in the method part SHALL match it like any method name.
@@ -52,7 +53,7 @@ replacing the other.
 - **THEN** all defaults apply, and no class gets ids
 
 #### Scenario: Wildcard entry with named parameters
-- **GIVEN** `"com.thirdparty.**.*Service.*" = ["order", 1]` in `[augment.params]`
+- **GIVEN** `"com.thirdparty.**.*Service.*" = "order, 1"` in `[augment.params]`
 - **WHEN** it is loaded
 - **THEN** the entry selects the parameter `order` and the second parameter of all methods of matching classes
 
@@ -67,7 +68,7 @@ replacing the other.
 - **THEN** the methods of the classes directly in `com.acme.legacy` use their `@StackTraceParam` and `@StackTraceParams` annotations, and so do their constructors
 
 #### Scenario: Constructor entry
-- **GIVEN** `"com.acme.legacy.*.<init>" = "@"` and then `"com.acme.legacy.*.*" = [0]` in `[augment.params]`
+- **GIVEN** `"com.acme.legacy.*.<init>" = "@"` and then `"com.acme.legacy.*.*" = "0"` in `[augment.params]`
 - **WHEN** it is loaded
 - **THEN** the constructors of the classes directly in `com.acme.legacy` use their `@StackTraceParam` and `@StackTraceParams` annotations; the `<init>` entry comes first and wins over `*`, and their methods show their first parameter
 
@@ -77,12 +78,13 @@ of range, an invalid `[augment.receiver]` or `[augment.params]` entry, an invali
 `receiverFormat` or `paramsFormat` (see the frame format specification), or an unknown key in any
 section, including keys in the wrong section (such as `maxIdLength` at the top level). An `[augment.receiver]` entry SHALL
 be invalid when its key contains characters other than identifier characters, `$`, `.`, `*` and `?`, or
-when its value is not a field name, a `method()`, a non-empty list of them without duplicates, `"@"` or
-`"-"`. An `[augment.params]` entry SHALL be invalid
+when its value is not a string with a field name, a `method()`, several of them separated by commas without
+duplicates or empty items, `"@"` or `"-"`. Spaces around the items SHALL NOT matter. An `[augment.params]` entry SHALL be invalid
 when its key has no class or no method part, when a part contains characters other than identifier
-characters, `$`, `.` (class part only), `*` and `?`, or when its value is neither `"@"`, `"-"` nor a non-empty
-array of parameter names and indexes, each optionally followed by `#` (`"*"`, `"@"` and `"-"` are not allowed
-inside the array, and `"*"` is not allowed as the value). The message SHALL name the file, the key and its line.
+characters, `$`, `.` (class part only), `*` and `?`, or when its value is not a string with `"@"`, `"-"` or
+parameter names and indexes separated by commas, each optionally followed by `#`, without empty items (`"*"`,
+`"@"` and `"-"` are not allowed among the items, and `"*"` is not allowed as the value). A TOML array SHALL be
+invalid in both tables. The message SHALL name the file, the key and its line.
 
 #### Scenario: Exceptions entry that is not a boolean
 - **GIVEN** `"java.io.IOException" = "@"` on line 2 of `[augment.exceptions]` in `stack-augmentor.toml`
@@ -105,12 +107,12 @@ inside the array, and `"*"` is not allowed as the value). The message SHALL name
 - **THEN** it is rejected with a message that the configuration must be a TOML file ending in `.toml`
 
 #### Scenario: Invalid parameter entries
-- **GIVEN** `[augment.params]` with `"com.acme.Order.process" = "all"`, or `"com.acme.Order.process" = "*"`, or `"com.acme.Order+.process" = "@"`
+- **GIVEN** `[augment.params]` with `"com.acme.Order.process" = ["order"]`, `"com.acme.Order.process" = "order,"`, `"com.acme.Order.process" = "*"`, or `"com.acme.Order+.process" = "@"`
 - **WHEN** the configuration is loaded
 - **THEN** it is rejected with a message naming the key and its line
 
 #### Scenario: Invalid class entry
-- **GIVEN** `[augment.receiver]` with `"com.acme.Order" = "@id"`, `"com.acme.Order" = []`, `"com.acme.Order" = ["id", "@"]`, or `"com.acme.Ord+er" = "@"`
+- **GIVEN** `[augment.receiver]` with `"com.acme.Order" = "@id"`, `"com.acme.Order" = ["id"]`, `"com.acme.Order" = "id, @"`, or `"com.acme.Ord+er" = "@"`
 - **WHEN** the configuration is loaded
 - **THEN** it is rejected with a message naming the key and its line
 

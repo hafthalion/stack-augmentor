@@ -44,7 +44,7 @@ class AugmentorConfigTest {
             "com.thirdparty.Customer" = "customerId"
 
             [augment.params]
-            "com.thirdparty.OrderService.process" = ["orderId", 2]
+            "com.thirdparty.OrderService.process" = "orderId, 2"
             "com.hafnium.Legacy.*" = "@"
 
             [augment]
@@ -118,7 +118,7 @@ class AugmentorConfigTest {
             [augment.receiver]
             "com.acme.Order" = "orderId"
             [augment.params]
-            "com.acme.OrderService.process" = ["order"]
+            "com.acme.OrderService.process" = "order"
             """,
         )
         val unquoted = parse(
@@ -126,7 +126,7 @@ class AugmentorConfigTest {
             [augment.receiver]
             com.acme.Order = "orderId"
             [augment.params]
-            com.acme.OrderService.process = ["order"]
+            com.acme.OrderService.process = "order"
             """,
         )
         assertEquals(quoted, unquoted)
@@ -140,7 +140,7 @@ class AugmentorConfigTest {
             error("[augment.receiver]\n\"com.acme.Order\" = \"a\"\ncom.acme.Order = \"b\""),
         )
         assertTrue(
-            error("[augment.params]\ncom.acme.OrderService.process = [0]\n\"com.acme.OrderService.process\" = [1]")
+            error("[augment.params]\ncom.acme.OrderService.process = \"0\"\n\"com.acme.OrderService.process\" = \"1\"")
                 .contains("'com.acme.OrderService.process' is configured twice; it is already configured on line 2"),
         )
     }
@@ -213,16 +213,23 @@ class AugmentorConfigTest {
 
     @Test
     fun `a receiver entry may list several fields and methods`() {
-        val config = parse("[augment.receiver]\n\"com.acme.OrderLine\" = [\"tenant\", \"lineId()\"]")
+        val config = parse("[augment.receiver]\n\"com.acme.OrderLine\" = \"tenant, lineId()\"")
         assertEquals(
             IdSpec.MemberList(listOf(IdSpec.FieldSpec("tenant"), IdSpec.MethodSpec("lineId"))),
             config.classEntry("com.acme.OrderLine")?.spec(),
         )
         assertEquals("com.acme.OrderLine=[tenant, lineId()]", config.classesDescription())
-        assertEquals("test.toml, line 2: must list at least one field or method", error("[augment.receiver]\n\"com.acme.A\" = []"))
-        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = [\"id\", \"@\"]").contains("invalid receiver id '@'"))
-        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = [\"id\", 1]").contains("invalid receiver id '1'"))
-        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = [\"id\", \"id()\"]").contains("'id()' is listed twice"))
+        assertEquals("test.toml, line 2: must name at least one field or method", error("[augment.receiver]\n\"com.acme.A\" = \" \""))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"id,,code\"").contains("has an empty item in 'id,,code'"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = [\"id\"]").contains("must be a string"))
+        // Spaces around the items do not matter.
+        assertEquals(
+            IdSpec.MemberList(listOf(IdSpec.FieldSpec("tenant"), IdSpec.MethodSpec("lineId"))),
+            parse("[augment.receiver]\n\"com.acme.OrderLine\" = \"tenant,lineId() \"").classEntry("com.acme.OrderLine")?.spec(),
+        )
+        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"id, @\"").contains("invalid receiver id '@'"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"id, 1\"").contains("invalid receiver id '1'"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"id, id()\"").contains("'id()' is listed twice"))
     }
 
     @Test
@@ -273,25 +280,31 @@ class AugmentorConfigTest {
     @Test
     fun `invalid classes and methods entries`() {
         assertEquals(
-            "test.toml, line 3: must be a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), a list of them (e.g. [\"tenant\", \"getOrderId()\"]), " +
-                "\"@\" for its @StackTraceId members, or \"-\" for no receiver id, was get-id()",
+            "test.toml, line 3: invalid receiver id 'get-id()': use a field name (e.g. \"orderId\") or a method (e.g. \"getOrderId()\"), " +
+                "several separated by commas",
             error("debug = false\n[augment.receiver]\n\"com.acme.Order\" = \"get-id()\""),
         )
-        assertTrue(error("[augment.receiver]\n\"com.acme.Order\" = 5").contains("must be a field name"))
-        assertTrue(error("[augment.receiver]\n\"com.acme.Order\" = \"@id\"").contains("must be a field name"))
+        assertEquals(
+            "test.toml, line 2: must be a string: a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), several of them " +
+                "separated by commas (e.g. \"tenant, getOrderId()\"), \"@\" for its @StackTraceId members, or \"-\" for no receiver id, was 5",
+            error("[augment.receiver]\n\"com.acme.Order\" = 5"),
+        )
+        assertTrue(error("[augment.receiver]\n\"com.acme.Order\" = \"@id\"").contains("invalid receiver id '@id'"))
         assertEquals(
             "test.toml, line 2: [augment.receiver] keys must name a class or a class pattern, e.g. \"com.acme.Order\" or \"com.acme.**\"; " +
                 "allowed are letters, digits, _, \$ and the wildcards * (within a package or name), ** (across packages) and ?",
             error("[augment.receiver]\n\"com.acme.Ord+er\" = \"@\""),
         )
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"order\"").contains("must be an array"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = []").contains("at least one parameter"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"#1\"]").contains("invalid parameter '#1'"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [-1]").contains("invalid parameter '-1'"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"@\"]").contains("invalid parameter '@'"))
-        assertTrue(error("[augment.params]\nOrder = [\"id\"]").contains("[augment.params] keys must name a class and a method"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.<clinit>\" = [0]").contains("or <init> for the constructors"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.<init>x\" = [0]").contains("or <init> for the constructors"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = 0").contains("must be a string of parameter names and indexes"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"order\"]").contains("must be a string"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"\"").contains("must name at least one parameter"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"order,\"").contains("has an empty item in 'order,'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"#1\"").contains("invalid parameter '#1'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"-1\"").contains("invalid parameter '-1'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"x, @\"").contains("invalid parameter '@'"))
+        assertTrue(error("[augment.params]\nOrder = \"id\"").contains("[augment.params] keys must name a class and a method"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.<clinit>\" = \"0\"").contains("or <init> for the constructors"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.<init>x\" = \"0\"").contains("or <init> for the constructors"))
     }
 
     @Test
@@ -299,8 +312,8 @@ class AugmentorConfigTest {
         val config = parse(
             """
             [augment.params]
-            "com.acme.Order.<init>" = ["id"]
-            "com.acme.*.*" = [0]
+            "com.acme.Order.<init>" = "id"
+            "com.acme.*.*" = "0"
             "com.acme.billing.*.<init>" = "@"
             """,
         )
@@ -319,9 +332,9 @@ class AugmentorConfigTest {
         val config = parse(
             """
             [augment.params]
-            "com.acme.Order.process" = [0]
+            "com.acme.Order.process" = "0"
             "com.acme.Order.cancel" = "-"
-            "com.acme.billing.*.send" = ["to"]
+            "com.acme.billing.*.send" = "to"
             "com.acme.legacy.**.*" = "-"
             "com.acme.Shipment.ship" = "-"
             """,
@@ -341,11 +354,11 @@ class AugmentorConfigTest {
         val config = parse(
             """
             [augment.params]
-            "com.thirdparty.OrderService.process" = ["order"]
-            "com.thirdparty.OrderService.*" = [2]
-            "com.thirdparty.Inventory*.*" = ["sku", "count"]
-            "com.thirdparty.**.*Repository.find*" = [0]
-            "com.acme.Outer${'$'}Inner.ru?" = ["x"]
+            "com.thirdparty.OrderService.process" = "order"
+            "com.thirdparty.OrderService.*" = "2"
+            "com.thirdparty.Inventory*.*" = "sku, count"
+            "com.thirdparty.**.*Repository.find*" = "0"
+            "com.acme.Outer${'$'}Inner.ru?" = "x"
             "com.acme.Legacy.*" = "@"
             """,
         )
@@ -380,13 +393,13 @@ class AugmentorConfigTest {
             "com.acme.**" = "@"
 
             [augment.params]
-            "com.thirdparty.audit.AuditService.log" = ["reason"]
+            "com.thirdparty.audit.AuditService.log" = "reason"
             "com.thirdparty.audit.AuditService.*" = "-"
             "com.thirdparty.billing.BillingService.refund" = "-"
-            "com.thirdparty.**.*Service.*" = [0]
-            "com.thirdparty.billing.BillingService.charge" = [1]
-            "com.acme.generated.Gen.run" = [1]
-            "com.acme.**.*" = [0]
+            "com.thirdparty.**.*Service.*" = "0"
+            "com.thirdparty.billing.BillingService.charge" = "1"
+            "com.acme.generated.Gen.run" = "1"
+            "com.acme.**.*" = "0"
             """,
         )
         // [augment.receiver]: the first matching entry decides, "-" included.
@@ -414,14 +427,13 @@ class AugmentorConfigTest {
 
     @Test
     fun `invalid method entries`() {
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"all\"").contains("\"@\" for the method's annotations, or \"-\" for none, was all"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = true").contains("\"@\" for the method's annotations, or \"-\" for none, was true"))
         // No wildcard for the parameters: they are named, or selected by the annotations.
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"*\"").contains("must be an array of parameter names and indexes"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"*\"]").contains("invalid parameter '*'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"*\"").contains("invalid parameter '*'"))
         // The JVM allows at most 255 parameters.
-        assertEquals(listOf(ParamRef.ByIndex(255)), parse("augment.params.\"com.acme.Order.process\" = [255]").methods()["com.acme.Order.process"])
+        assertEquals(listOf(ParamRef.ByIndex(255)), parse("augment.params.\"com.acme.Order.process\" = \"255\"").methods()["com.acme.Order.process"])
         assertTrue(
-            error("[augment.params]\n\"com.acme.Order.process\" = [256]")
+            error("[augment.params]\n\"com.acme.Order.process\" = \"256\"")
                 .contains("invalid parameter '256': use a parameter name or a 0-based index from 0 to 255"),
         )
         assertEquals(
@@ -457,7 +469,7 @@ class AugmentorConfigTest {
         val config = parse(
             """
             [augment.params]
-            "com.acme.User.login" = ["user", "email#", 2, "3#"]
+            "com.acme.User.login" = "user, email#, 2, 3#"
             """,
         )
         assertEquals(
@@ -469,13 +481,12 @@ class AugmentorConfigTest {
 
     @Test
     fun `invalid hashed entries`() {
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"order#?\"]").contains("invalid parameter 'order#?'"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"256#\"]").contains("invalid parameter '256#'"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"#\"]").contains("invalid parameter '#'"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = [\"@#\"]").contains("invalid parameter '@#'"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"@#\"").contains("must be an array"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"*#\"").contains("must be an array"))
-        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"order#\"").contains("must be an array"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"order#?\"").contains("invalid parameter 'order#?'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"256#\"").contains("invalid parameter '256#'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"#\"").contains("invalid parameter '#'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"@#\"").contains("invalid parameter '@#'"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order.process\" = \"*#\"").contains("invalid parameter '*#'"))
+        assertEquals(listOf(ParamRef.ByName("order", true)), parse("[augment.params]\n\"com.acme.Order.process\" = \"order#\"").methods()["com.acme.Order.process"])
     }
 
     open class Base : RuntimeException()
@@ -533,7 +544,7 @@ class AugmentorConfigTest {
 
     @Test
     fun `invalid exceptions entries`() {
-        assertTrue(error("[augment]\nexceptions = [\"java.io.IOException\"]").contains("'augment.exceptions' must be a table"))
+        assertTrue(error("[augment]\nexceptions = \"java.io.IOException\"").contains("'augment.exceptions' must be a table"))
         assertEquals(
             "test.toml, line 2: must be true to augment the exceptions of this class or class pattern, or false not to, was @",
             error("[augment.exceptions]\n\"java.io.IOException\" = \"@\""),
