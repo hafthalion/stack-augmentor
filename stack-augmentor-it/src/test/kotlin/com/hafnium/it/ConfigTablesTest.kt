@@ -56,10 +56,11 @@ class ConfigTablesTest {
     }
 
     @Test
-    fun `methods after double colon limit the receiver ids to them`() {
+    fun `methods after double colon in the key limit an entry to them, and one class may have several entries`() {
         assertEquals("com.thirdparty.Parcel{trackingCode=T-1}", frame("Parcel(\"T-1\").ship()", Parcel("T-1")) { it.ship() }.className)
         assertEquals("com.thirdparty.Parcel{trackingCode=T-1}", frame("Parcel(\"T-1\").cancelLater()", Parcel("T-1")) { it.cancelLater() }.className)
-        assertEquals("com.thirdparty.Parcel", frame("Parcel(\"T-1\").weigh()", Parcel("T-1")) { it.weigh() }.className)
+        assertEquals("com.thirdparty.Parcel{weight=2}", frame("Parcel(\"T-1\").weigh()", Parcel("T-1")) { it.weigh() }.className)
+        assertEquals("com.thirdparty.Parcel", frame("Parcel(\"T-1\").inspect()", Parcel("T-1")) { it.inspect() }.className)
     }
 
     @Test

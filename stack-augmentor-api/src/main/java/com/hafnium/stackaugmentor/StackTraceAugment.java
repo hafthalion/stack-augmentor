@@ -7,9 +7,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks a method or constructor that the configuration selects with {@code "@"} after {@code ::}: in
- * {@code [augment.receiver]}, {@code "id :: @"} shows the receiver ids in the frames of the annotated methods only, and
- * in {@code [augment.params]}, a {@code "com.acme.Order::@"} key matches the annotated methods and constructors of
+ * Marks a method or constructor that the configuration selects with {@code "@"} after {@code ::} in a key: in
+ * {@code [augment.receiver]}, a {@code "com.acme.Order::@"} key shows the receiver ids in the frames of the annotated
+ * methods of {@code Order} only, and in {@code [augment.params]}, it matches the annotated methods and constructors of
  * {@code Order}. Methods that override it are not affected.
  */
 @Documented

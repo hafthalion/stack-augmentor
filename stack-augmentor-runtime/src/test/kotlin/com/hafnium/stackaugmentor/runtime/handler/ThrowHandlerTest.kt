@@ -53,7 +53,7 @@ class ThrowHandlerTest {
         val err = ByteArrayOutputStream()
         System.setErr(PrintStream(err, true, Charsets.UTF_8))
         try {
-            ThrowHandler().onThrow(target, thrown, Annotated::class.java.name, "fail", null, null)
+            ThrowHandler().onThrow(target, thrown, Annotated::class.java.name, Annotated::class.java.name, "fail", null, null)
         } finally {
             System.setErr(originalErr)
         }
@@ -95,7 +95,7 @@ class ThrowHandlerTest {
         try {
             java.net.URLClassLoader(arrayOf(dir.toUri().toURL()), null).use { application ->
                 thread.contextClassLoader = application
-                ThrowHandler().onThrow(target, thrown, Annotated::class.java.name, "fail", null, null)
+                ThrowHandler().onThrow(target, thrown, Annotated::class.java.name, Annotated::class.java.name, "fail", null, null)
             }
         } finally {
             thread.contextClassLoader = originalLoader
@@ -109,7 +109,7 @@ class ThrowHandlerTest {
     fun `agent handler needs an entry`() {
         val target = Annotated()
         val thrown = thrownBy(target)
-        ThrowHandler(AugmentorConfig()).onThrow(target, thrown, Annotated::class.java.name, "fail", null, null)
+        ThrowHandler(AugmentorConfig()).onThrow(target, thrown, Annotated::class.java.name, Annotated::class.java.name, "fail", null, null)
         assertEquals(Annotated::class.java.name, thrown.stackTrace[0].className)
     }
 
@@ -118,7 +118,7 @@ class ThrowHandlerTest {
         val target = Annotated()
         val thrown = thrownBy(target)
         val config = AugmentorConfig.builder().classes(mapOf(Annotated::class.java.name to IdSpec.Annotations())).exceptions(mapOf("**" to true)).build()
-        ThrowHandler(config).onThrow(target, thrown, Annotated::class.java.name, "fail", null, null)
+        ThrowHandler(config).onThrow(target, thrown, Annotated::class.java.name, Annotated::class.java.name, "fail", null, null)
         assertEquals("${Annotated::class.java.name}{objectId=a-1}", thrown.stackTrace[0].className)
     }
 
@@ -127,7 +127,7 @@ class ThrowHandlerTest {
         val target = Annotated()
         val thrown = thrownBy(target)
         ThrowHandler(AugmentorConfig.builder().exceptions(mapOf("**" to true)).build()).onThrow(
-            null, thrown, Annotated::class.java.name, "fail", arrayOf<Any?>("ann@example.com", 42, null), arrayOf("email#", "id", "phone#"),
+            null, thrown, null, Annotated::class.java.name, "fail", arrayOf<Any?>("ann@example.com", 42, null), arrayOf("email#", "id", "phone#"),
         )
         // SHA-256 of "ann@example.com" starts with 71d4f55f; null stays null.
         assertEquals("fail{email=#71d4f55f, id=42, phone=null}", thrown.stackTrace[0].methodName)
@@ -139,12 +139,12 @@ class ThrowHandlerTest {
         val target = Annotated()
         val skipped = thrownBy(target)
         ThrowHandler(AugmentorConfig.builder().classes(classes).exceptions(mapOf("java.lang.*" to false)).build())
-            .onThrow(target, skipped, Annotated::class.java.name, "fail", null, null)
+            .onThrow(target, skipped, Annotated::class.java.name, Annotated::class.java.name, "fail", null, null)
         assertEquals(Annotated::class.java.name, skipped.stackTrace[0].className)
 
         val augmented = thrownBy(target)
         ThrowHandler(AugmentorConfig.builder().classes(classes).exceptions(mapOf("java.lang.IllegalStateException" to true)).build())
-            .onThrow(target, augmented, Annotated::class.java.name, "fail", null, null)
+            .onThrow(target, augmented, Annotated::class.java.name, Annotated::class.java.name, "fail", null, null)
         assertEquals("${Annotated::class.java.name}{objectId=a-1}", augmented.stackTrace[0].className)
     }
 }

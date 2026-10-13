@@ -3,6 +3,7 @@ package com.hafnium.stackaugmentor.instrument;
 import com.hafnium.stackaugmentor.instrument.advice.ConstructorExit;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
+import com.hafnium.stackaugmentor.runtime.config.IdSpec;
 import com.hafnium.stackaugmentor.runtime.ids.IdResolver;
 import net.bytebuddy.description.field.FieldDescription;
 import net.bytebuddy.description.method.MethodDescription;
@@ -11,8 +12,10 @@ import net.bytebuddy.matcher.ElementMatcher;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.hafnium.stackaugmentor.instrument.ClassEntries.firstInHierarchy;
@@ -79,15 +82,19 @@ public final class TypeMatching {
 
     /** One line for the debug log: why the type is instrumented, and which methods get which parameter ids. */
     public String describe(TypeDescription type, ElementMatcher<MethodDescription> methods) {
-        ClassEntries.Deciding deciding = classEntries.decide(type);
-        String reason;
-        if (!hasReceiverMethods(type)) {
-            reason = "parameter ids only";
-        } else if (!deciding.annotations()) {
-            reason = "receiver id from [augment.receiver] \"" + deciding.entry().key() + "\"";
-        } else {
-            reason = "receiver id from @StackTraceId (\"" + deciding.entry().key() + "\" = \"@\")";
+        Set<AugmentorConfig.ClassEntry> used = new HashSet<>();
+        for (MethodDescription method : type.getDeclaredMethods()) {
+            AugmentorConfig.ClassEntry entry = receiverEntry(type, method);
+            if (entry != null && methods.matches(method)) {
+                used.add(entry);
+            }
         }
+        List<String> receivers = classEntries.entries(type).stream().filter(used::contains)
+                .map(entry -> entry.spec() instanceof IdSpec.Annotations
+                        ? "@StackTraceId (\"" + entry.key() + "\" = \"@\")"
+                        : "[augment.receiver] \"" + entry.key() + "\"")
+                .toList();
+        String reason = receivers.isEmpty() ? "parameter ids only" : "receiver id from " + String.join(", ", receivers);
         ElementMatcher<MethodDescription> constructors = constructors(type);
         List<String> instrumented = new ArrayList<>();
         for (MethodDescription method : type.getDeclaredMethods()) {
@@ -111,7 +118,6 @@ public final class TypeMatching {
      * method itself, so checking the offered method would instrument the bridge.
      */
     public ElementMatcher<MethodDescription> methods(TypeDescription type) {
-        AugmentorConfig.ClassEntry receiver = receiverRelevant(type) ? classEntries.decide(type).entry() : null;
         Map<String, MethodDescription> declared = new HashMap<>();
         for (MethodDescription method : type.getDeclaredMethods()) {
             if (isCandidate(method)) {
@@ -120,8 +126,7 @@ public final class TypeMatching {
         }
         return offered -> {
             MethodDescription method = declared.get(signature(offered));
-            return method != null && ((receiver != null && !method.isStatic() && receiver.appliesTo(method.getInternalName(), IdParameters.augmented(method)))
-                    || !parameters.select(type, method).isEmpty());
+            return method != null && (receiverIds(type, method) || !parameters.select(type, method).isEmpty());
         };
     }
 
@@ -149,18 +154,64 @@ public final class TypeMatching {
      * the frames of methods that it does not instrument.
      */
     public boolean receiverIds(TypeDescription type, MethodDescription method) {
-        return isCandidate(method) && !method.isStatic() && receiverRelevant(type)
-                && classEntries.decide(type).entry().appliesTo(method.getInternalName(), IdParameters.augmented(method));
+        return receiverEntry(type, method) != null;
+    }
+
+    /**
+     * The deciding {@code [augment.receiver]} entry of the frames of this method if they show receiver ids, else
+     * {@code null}: a method, not a constructor, that is not static, whose deciding entry names a field or method, or is
+     * {@code "@"} for a class that has an {@code @StackTraceId} member or whose superclasses have one. Not with
+     * {@code "-"}.
+     */
+    public AugmentorConfig.ClassEntry receiverEntry(TypeDescription type, MethodDescription method) {
+        if (!isCandidate(method) || method.isStatic()) {
+            return null;
+        }
+        ClassEntries.Deciding deciding = classEntries.decide(type, method);
+        if (deciding == null || deciding.excluded()
+                || deciding.annotations() && !annotated(deciding.owner())) {
+            return null;
+        }
+        return deciding.entry();
+    }
+
+    private record Annotated(TypeDescription type, boolean annotated) {
+    }
+
+    /** The last answer of {@link #annotated}: it is asked for once per method of a type. */
+    private volatile Annotated lastAnnotated;
+
+    /** Whether the type or one of its superclasses has an {@code @StackTraceId} member. */
+    private boolean annotated(TypeDescription type) {
+        Annotated last = lastAnnotated;
+        if (last == null || last.type() != type) {
+            last = new Annotated(type, firstInHierarchy(type, TypeMatching::hasAnnotatedMember) != null);
+            lastAnnotated = last;
+        }
+        return last.annotated();
+    }
+
+    /**
+     * The entries that decide the receiver ids of at least one method the type declares, a method, not a constructor,
+     * that is not static, in the order of the file.
+     */
+    private List<AugmentorConfig.ClassEntry> decidingEntries(TypeDescription type) {
+        Set<AugmentorConfig.ClassEntry> used = new HashSet<>();
+        for (MethodDescription method : type.getDeclaredMethods()) {
+            if (isCandidate(method) && !method.isStatic()) {
+                ClassEntries.Deciding deciding = classEntries.decide(type, method);
+                if (deciding != null) {
+                    used.add(deciding.entry());
+                }
+            }
+        }
+        return classEntries.entries(type).stream().filter(used::contains).toList();
     }
 
     /** Whether a method the type declares shows the receiver ids. */
     private boolean hasReceiverMethods(TypeDescription type) {
-        if (!receiverRelevant(type)) {
-            return false;
-        }
-        AugmentorConfig.ClassEntry entry = classEntries.decide(type).entry();
         for (MethodDescription method : type.getDeclaredMethods()) {
-            if (isCandidate(method) && !method.isStatic() && entry.appliesTo(method.getInternalName(), IdParameters.augmented(method))) {
+            if (receiverIds(type, method)) {
                 return true;
             }
         }
@@ -183,11 +234,15 @@ public final class TypeMatching {
 
     /** For the debug log: the annotations of the type that are not used, and which table would enable them. */
     private void logIgnoredAnnotations(TypeDescription type) {
-        if (!classEntries.annotationsUsed(type) && firstInHierarchy(type, TypeMatching::hasAnnotatedMember) != null) {
-            ClassEntries.Deciding deciding = classEntries.decide(type);
-            String why = deciding == null
+        List<AugmentorConfig.ClassEntry> entries = decidingEntries(type);
+        if (entries.stream().noneMatch(entry -> entry.spec() instanceof IdSpec.Annotations)
+                && firstInHierarchy(type, TypeMatching::hasAnnotatedMember) != null) {
+            String why = entries.isEmpty()
                     ? "no [augment.receiver] entry applies"
-                    : "its [augment.receiver] entry \"" + deciding.entry().key() + "\" is not \"@\"";
+                    : entries.size() == 1
+                    ? "its [augment.receiver] entry \"" + entries.get(0).key() + "\" is not \"@\""
+                    : "its [augment.receiver] entries " + entries.stream().map(it -> "\"" + it.key() + "\"")
+                            .collect(Collectors.joining(", ")) + " are not \"@\"";
             Log.debug(() -> "ignoring @StackTraceId in " + type.getName() + ": " + why);
         }
         List<String> methods = new ArrayList<>();
@@ -202,18 +257,6 @@ public final class TypeMatching {
             Log.debug(() -> "ignoring the parameter annotations of " + String.join(", ", methods) + " in " + type.getName()
                     + ": no \"@\" entry in [augment.params] applies");
         }
-    }
-
-    /**
-     * The deciding {@code [augment.receiver]} entry names a field or method, or it is {@code "@"} and the class it
-     * matched or one of its superclasses has an {@code @StackTraceId} member. Not with {@code "-"}.
-     */
-    private boolean receiverRelevant(TypeDescription type) {
-        ClassEntries.Deciding deciding = classEntries.decide(type);
-        if (deciding == null || deciding.excluded()) {
-            return false;
-        }
-        return !deciding.annotations() || firstInHierarchy(deciding.owner(), TypeMatching::hasAnnotatedMember) != null;
     }
 
     private static boolean isCandidate(MethodDescription method) {

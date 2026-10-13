@@ -19,12 +19,13 @@ public final class ExitAdvice {
     @Advice.OnMethodExit(onThrowable = Throwable.class, suppress = Throwable.class)
     public static void exit(@IdReceiver Object self,
                             @Advice.Thrown Throwable thrown,
+                            @IdReceiverKey String receiverKey,
                             @Advice.Origin("#t") String owner,
                             @Advice.Origin("#m") String method,
                             @IdArgs Object[] paramValues,
                             @IdArgNames String[] paramNames) {
         if (thrown != null) {
-            Dispatch.onThrow(self, thrown, owner, method, paramValues, paramNames);
+            Dispatch.onThrow(self, thrown, receiverKey, owner, method, paramValues, paramNames);
         }
     }
 }

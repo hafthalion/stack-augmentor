@@ -37,9 +37,10 @@ maxIdLength = 64
 
 # Receiver ids: "@" for the class's @StackTraceId (without an "@" entry, it is not used), or, for classes you
 # cannot annotate, a field or a no-argument method ending in "()", or several separated by commas; "-" for none.
-# After "::", the methods whose frames show the ids, "@" for those annotated with @StackTraceAugment (default: all methods). The first entry
-# that matches decides, in the order of the file, as in [augment.exceptions]: a class name matches the class and its
-# subclasses (an interface's name the classes implementing it), a pattern the name of the class only.
+# After "::" in the key, the methods the entry applies to, "@" for those annotated with @StackTraceAugment (default: all
+# methods). For each method the first entry that matches decides, in the order of the file, as in [augment.exceptions]:
+# a class name matches the class and its subclasses (an interface's name the classes implementing it), a pattern the
+# name of the class only.
 [augment.receiver]
 "com.hafnium.generated.**" = "-"                     # these first ...
 "com.hafnium.**" = "@"                               # ... then the rest of com.hafnium
@@ -47,7 +48,8 @@ maxIdLength = 64
 "com.thirdparty.Order" = "getOrderNumber()"
 "com.thirdparty.Customer" = "customerId"
 "com.thirdparty.OrderLine" = "tenant, lineId()"  # several ids
-"com.thirdparty.Parcel" = "trackingCode :: ship, cancel*"  # only in these methods
+"com.thirdparty.Parcel::ship, cancel*" = "trackingCode"  # only in these methods ...
+"com.thirdparty.Parcel::weigh" = "weight"                # ... and another id in this one
 "com.thirdparty.**.*Account" = "number"
 
 # Parameter ids: "<class>::<method>" (several separated by commas, "@" for the methods annotated with @StackTraceAugment) = parameter names and 0-based indexes separated by commas, a "#" after one to show its value

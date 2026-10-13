@@ -84,7 +84,8 @@ public final class ThrowHandler implements Dispatch.Handler {
     }
 
     @Override
-    public void onThrow(Object self, Throwable thrown, String owner, String method, Object[] paramValues, String[] paramNames) {
+    public void onThrow(Object self, Throwable thrown, String receiverKey, String owner, String method, Object[] paramValues,
+                        String[] paramNames) {
         if (!resolver.augments(thrown)) {
             return;
         }
@@ -116,7 +117,7 @@ public final class ThrowHandler implements Dispatch.Handler {
         }
         cursors.set(thrown, index + 1);
 
-        List<NamedId> receiverIds = self != null ? resolver.receiverIds(self, owner) : List.of();
+        List<NamedId> receiverIds = self != null && receiverKey != null ? resolver.receiverIds(self, owner, receiverKey) : List.of();
         List<NamedId> paramIds = new ArrayList<>();
         if (paramValues != null && paramNames != null) {
             for (int i = 0; i < paramNames.length; i++) {

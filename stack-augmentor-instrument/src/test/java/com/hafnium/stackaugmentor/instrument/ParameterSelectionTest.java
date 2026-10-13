@@ -309,8 +309,7 @@ class ParameterSelectionTest {
         String explicit = Explicit.class.getName();
         String login = Login.class.getName();
         AugmentorConfig config = AugmentorConfig.builder()
-                .classes(firstMatch(explicit, new IdSpec.MethodSpec("getId"), login, new IdSpec.FieldSpec("id")))
-                .receiverMethods(Map.of(explicit, List.of("fail"), login, List.of("logout")))
+                .classes(firstMatch(explicit + "::fail", new IdSpec.MethodSpec("getId"), login + "::logout", new IdSpec.FieldSpec("id")))
                 .methods(Map.of(explicit + "::failAnnotated", List.of(new ParamRef.Annotations())))
                 .build();
         TypeMatching matching = new TypeMatching(config, new IdParameters(config));
@@ -328,17 +327,35 @@ class ParameterSelectionTest {
     }
 
     @Test
+    void severalEntriesOfOneClassDecidePerMethod() {
+        String explicit = Explicit.class.getName();
+        Map<String, IdSpec> classes = new LinkedHashMap<>();
+        classes.put(explicit + "::fail", new IdSpec.MethodSpec("getId"));
+        classes.put(explicit + "::failAnnotated", new IdSpec.Excluded());
+        classes.put(explicit, new IdSpec.FieldSpec("code"));
+        AugmentorConfig config = classes(classes);
+        TypeMatching matching = new TypeMatching(config, new IdParameters(config));
+
+        assertEquals(explicit + "::fail", matching.receiverEntry(type(Explicit.class), method(Explicit.class, "fail")).key());
+        // "-" for failAnnotated: the later entry does not apply to it.
+        assertFalse(matching.receiverIds(type(Explicit.class), method(Explicit.class, "failAnnotated")));
+        assertEquals(explicit, matching.receiverEntry(type(Explicit.class), method(Explicit.class, "getId")).key());
+        String description = matching.describe(type(Explicit.class), matching.methods(type(Explicit.class)));
+        assertTrue(description.contains("receiver id from [augment.receiver] \"" + explicit + "::fail\", [augment.receiver] \"" + explicit + "\""),
+                description);
+    }
+
+    @Test
     void atAfterDoubleColonSelectsTheAnnotatedMethods() {
         String shipping = Shipping.class.getName();
         AugmentorConfig config = AugmentorConfig.builder()
-                .classes(Map.of(shipping, new IdSpec.FieldSpec("code")))
-                .receiverMethods(Map.of(shipping, List.of("@")))
+                .classes(Map.of(shipping + "::@", new IdSpec.FieldSpec("code")))
                 .methods(inOrder(shipping + "::@", List.of(new ParamRef.ByIndex(0)), shipping + "::*", List.of(new ParamRef.ByName("unit"))))
                 .build();
         IdParameters parameters = new IdParameters(config);
         TypeMatching matching = new TypeMatching(config, parameters);
 
-        assertTrue(matching.receiverIds(type(Shipping.class), method(Shipping.class, "ship")));
+        assertEquals(shipping + "::@", matching.receiverEntry(type(Shipping.class), method(Shipping.class, "ship")).key());
         assertFalse(matching.receiverIds(type(Shipping.class), method(Shipping.class, "weigh")));
         assertEquals(List.of("to"), labels(parameters, Shipping.class, "ship"));
         assertEquals(List.of("unit"), labels(parameters, Shipping.class, "weigh"));

@@ -11,8 +11,11 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.io.TempDir
 
-/** The deciding [augment.receiver] entry of a class known only by its name, without supertypes. */
-private fun AugmentorConfig.classEntry(className: String) = classEntry(className) { it == className }
+/** The first [augment.receiver] entry of a class known only by its name, without supertypes, whatever its methods. */
+private fun AugmentorConfig.entryOf(className: String) = classEntries(className) { it == className }.firstOrNull()
+
+/** The first [augment.receiver] entry of a class, whatever its methods. */
+private fun AugmentorConfig.entryOf(type: Class<*>) = classEntries(type).firstOrNull()
 
 class AugmentorConfigTest {
 
@@ -27,7 +30,7 @@ class AugmentorConfigTest {
         assertEquals("{\$name=\$id, ...}", AugmentorConfig().receiverFormat())
         assertEquals("{\$name=\$id, ...}", AugmentorConfig().paramsFormat())
         assertFalse(AugmentorConfig().hasAugmentEntries())
-        assertNull(AugmentorConfig().classEntry("any.pkg.Class"))
+        assertNull(AugmentorConfig().entryOf("any.pkg.Class"))
         assertFalse(AugmentorConfig().inPlaceModification())
     }
 
@@ -157,7 +160,7 @@ class AugmentorConfigTest {
             """,
         )
         val annotations = IdSpec.Annotations()
-        fun spec(className: String) = config.classEntry(className)?.spec()
+        fun spec(className: String) = config.entryOf(className)?.spec()
 
         assertEquals(annotations, spec("com.hafnium.ObjectClass"))
         assertEquals(annotations, spec("com.hafnium.deep.pkg.ObjectClass\$Inner"))
@@ -170,11 +173,11 @@ class AugmentorConfigTest {
         assertEquals(IdSpec.FieldSpec("orderId"), spec("com.acme.Order"))
         assertEquals(annotations, spec("com.acme.Orders"))
         assertEquals(IdSpec.MethodSpec("getKey"), spec("com.acme.legacy.Thing"))
-        assertEquals("com.acme.legacy.*", config.classEntry("com.acme.legacy.Thing")!!.key())
-        assertTrue(config.classEntry("com.acme.legacy.Thing")!!.isPattern())
-        assertFalse(config.classEntry("com.acme.Order")!!.isPattern())
+        assertEquals("com.acme.legacy.*", config.entryOf("com.acme.legacy.Thing")!!.key())
+        assertTrue(config.entryOf("com.acme.legacy.Thing")!!.isPattern())
+        assertFalse(config.entryOf("com.acme.Order")!!.isPattern())
 
-        assertEquals(annotations, parse("augment.receiver.\"**\" = \"@\"").classEntry("any.pkg.Class")?.spec())
+        assertEquals(annotations, parse("augment.receiver.\"**\" = \"@\"").entryOf("any.pkg.Class")?.spec())
     }
 
     interface Identified
@@ -196,15 +199,15 @@ class AugmentorConfigTest {
             """,
         )
         // The pattern matches Entity only; the class name matches Entity's subclasses too.
-        assertEquals(IdSpec.Excluded(), config.classEntry(Entity::class.java)!!.spec())
-        assertEquals(IdSpec.FieldSpec("id"), config.classEntry(Customer::class.java)!!.spec())
-        assertEquals(entity, config.classEntry(Customer::class.java)!!.key())
+        assertEquals(IdSpec.Excluded(), config.entryOf(Entity::class.java)!!.spec())
+        assertEquals(IdSpec.FieldSpec("id"), config.entryOf(Customer::class.java)!!.spec())
+        assertEquals(entity, config.entryOf(Customer::class.java)!!.key())
         // An interface's name matches the interface and the classes implementing it.
-        assertEquals(IdSpec.MethodSpec("key"), config.classEntry(Identified::class.java)!!.spec())
-        assertEquals(IdSpec.MethodSpec("key"), parse("[augment.receiver]\n\"$identified\" = \"key()\"").classEntry(Customer::class.java)!!.spec())
-        assertNull(config.classEntry(String::class.java))
+        assertEquals(IdSpec.MethodSpec("key"), config.entryOf(Identified::class.java)!!.spec())
+        assertEquals(IdSpec.MethodSpec("key"), parse("[augment.receiver]\n\"$identified\" = \"key()\"").entryOf(Customer::class.java)!!.spec())
+        assertNull(config.entryOf(String::class.java))
         // By name: the predicate says which supertypes the class has.
-        assertEquals(IdSpec.FieldSpec("id"), config.classEntry("com.acme.Other") { it == "com.acme.Other" || it == entity }!!.spec())
+        assertEquals(IdSpec.FieldSpec("id"), config.classEntries("com.acme.Other") { it == "com.acme.Other" || it == entity }.first().spec())
         assertTrue(AugmentorConfig.isA(Customer::class.java, identified))
         assertFalse(AugmentorConfig.isA(Entity::class.java, Customer::class.java.name))
     }
@@ -214,7 +217,7 @@ class AugmentorConfigTest {
         val config = parse("[augment.receiver]\n\"com.acme.OrderLine\" = \"tenant, lineId()\"")
         assertEquals(
             IdSpec.MemberList(listOf(IdSpec.FieldSpec("tenant"), IdSpec.MethodSpec("lineId"))),
-            config.classEntry("com.acme.OrderLine")?.spec(),
+            config.entryOf("com.acme.OrderLine")?.spec(),
         )
         assertEquals("com.acme.OrderLine=[tenant, lineId()]", config.classesDescription())
         assertEquals("test.toml, line 2: must name at least one field or method", error("[augment.receiver]\n\"com.acme.A\" = \" \""))
@@ -223,7 +226,7 @@ class AugmentorConfigTest {
         // Spaces around the items do not matter.
         assertEquals(
             IdSpec.MemberList(listOf(IdSpec.FieldSpec("tenant"), IdSpec.MethodSpec("lineId"))),
-            parse("[augment.receiver]\n\"com.acme.OrderLine\" = \"tenant,lineId() \"").classEntry("com.acme.OrderLine")?.spec(),
+            parse("[augment.receiver]\n\"com.acme.OrderLine\" = \"tenant,lineId() \"").entryOf("com.acme.OrderLine")?.spec(),
         )
         assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"id, @\"").contains("invalid receiver id '@'"))
         assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"id, 1\"").contains("invalid receiver id '1'"))
@@ -231,54 +234,53 @@ class AugmentorConfigTest {
     }
 
     @Test
-    fun `methods after double colon limit the receiver ids to them`() {
+    fun `receiver keys may name methods after double colon, and the first entry that applies to a method decides`() {
         val config = parse(
             """
             [augment.receiver]
-            "com.acme.Order" = "id, code() :: ship, cancel*"
-            "com.acme.Invoice" = "@::pay"
-            "com.acme.Customer" = "customerId"
-            "com.acme.Parcel" = "code :: @, weigh"
+            "com.acme.Order::ship,cancel*" = "id, code()"
+            "com.acme.Order::@" = "@"
+            "com.acme.Order" = "number"
+            com.acme.Customer = "customerId"
             """,
         )
-        val order = config.classEntry("com.acme.Order")!!
+        assertEquals(
+            listOf("com.acme.Order::ship, cancel*", "com.acme.Order::@", "com.acme.Order", "com.acme.Customer"),
+            config.classes().keys.toList(),
+        )
+        val order = config.classEntry("com.acme.Order::ship, cancel*")!!
         assertEquals(IdSpec.MemberList(listOf(IdSpec.FieldSpec("id"), IdSpec.MethodSpec("code"))), order.spec())
+        assertEquals("com.acme.Order", order.className())
         assertEquals(listOf("ship", "cancel*"), order.methods())
         assertTrue(order.appliesTo("ship", false))
         assertTrue(order.appliesTo("cancelAll", false))
         assertFalse(order.appliesTo("process", false))
         // Without "@" after ::, @StackTraceAugment does not count.
         assertFalse(order.appliesTo("process", true))
-        assertEquals(IdSpec.Annotations(), config.classEntry("com.acme.Invoice")!!.spec())
-        assertTrue(config.classEntry("com.acme.Invoice")!!.appliesTo("pay", false))
-        assertFalse(config.classEntry("com.acme.Invoice")!!.appliesTo("refund", false))
-        // "@" after :: names the methods annotated with @StackTraceAugment.
-        val parcel = config.classEntry("com.acme.Parcel")!!
-        assertTrue(parcel.appliesTo("ship", true))
-        assertFalse(parcel.appliesTo("ship", false))
-        assertTrue(parcel.appliesTo("weigh", false))
-        // Without :: all methods show the ids.
+        val entries = config.classEntries("com.acme.Order") { it == "com.acme.Order" }
+        assertEquals(listOf("com.acme.Order::ship, cancel*", "com.acme.Order::@", "com.acme.Order"), entries.map { it.key() })
+        assertEquals("com.acme.Order::ship, cancel*", AugmentorConfig.firstApplying(entries, "ship", true)!!.key())
+        assertEquals("com.acme.Order::@", AugmentorConfig.firstApplying(entries, "process", true)!!.key())
+        assertEquals("com.acme.Order", AugmentorConfig.firstApplying(entries, "process", false)!!.key())
+        // Without :: all methods.
         assertEquals(listOf<String>(), config.classEntry("com.acme.Customer")!!.methods())
         assertTrue(config.classEntry("com.acme.Customer")!!.appliesTo("anything", false))
+        assertNull(config.classEntry("com.acme.Unknown"))
         assertEquals(
-            mapOf("com.acme.Order" to listOf("ship", "cancel*"), "com.acme.Invoice" to listOf("pay"), "com.acme.Parcel" to listOf("@", "weigh")),
-            config.receiverMethods(),
-        )
-        assertEquals(
-            "com.acme.Order=[id, code()] :: ship, cancel*, com.acme.Invoice=@ :: pay, com.acme.Customer=customerId, " +
-                "com.acme.Parcel=code :: @, weigh",
+            "com.acme.Order::ship, cancel*=[id, code()], com.acme.Order::@=@, com.acme.Order=number, com.acme.Customer=customerId",
             config.classesDescription(),
         )
-        assertNotEquals(parse("[augment.receiver]\n\"com.acme.A\" = \"id\""), parse("[augment.receiver]\n\"com.acme.A\" = \"id :: a\""))
 
-        assertEquals("test.toml, line 2: must name at least one method after ::", error("[augment.receiver]\n\"com.acme.A\" = \"id ::\""))
-        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"id :: a,,b\"").contains("has an empty item in ' a,,b'"))
-        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"id :: ship()\"").contains("invalid method 'ship()' after ::"))
-        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"id :: a :: b\"").contains("invalid method 'a :: b' after ::"))
-        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"id :: a, a\"").contains("'a' is listed twice"))
-        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"- :: a\"").contains("\"-\" gives no receiver id, so it takes no methods after ::"))
-        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \":: a\"").contains("must name at least one field or method"))
-        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"id :: @@\"").contains("invalid method '@@' after ::"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A::\" = \"id\"").contains("[augment.receiver] keys must name a class or a class pattern"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A::a,,b\" = \"id\"").contains("optionally followed by :: and its methods"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A::ship()\" = \"id\"").contains("optionally followed by :: and its methods"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A::a::b\" = \"id\"").contains("optionally followed by :: and its methods"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A::<init>\" = \"id\"").contains("optionally followed by :: and its methods"))
+        assertTrue(error("[augment.receiver]\n\"::a\" = \"id\"").contains("optionally followed by :: and its methods"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A::a, a\" = \"id\"").contains("'a' is listed twice"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A::a,b\" = \"id\"\n\"com.acme.A::a, b\" = \"x\"").contains("is configured twice"))
+        // The methods no longer go in the value.
+        assertTrue(error("[augment.receiver]\n\"com.acme.A\" = \"id :: a\"").contains("the methods go in the key"))
     }
 
     @Test
@@ -383,8 +385,7 @@ class AugmentorConfigTest {
         )
         assertEquals(
             "test.toml, line 2: must be a string: a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), several of them " +
-                "separated by commas (e.g. \"tenant, getOrderId()\"), \"@\" for its @StackTraceId members, or \"-\" for no receiver id, " +
-                "optionally followed by :: and the methods that show them (e.g. \"orderId :: ship, cancel\"), was 5",
+                "separated by commas (e.g. \"tenant, getOrderId()\"), \"@\" for its @StackTraceId members, or \"-\" for no receiver id, was 5",
             error("[augment.receiver]\n\"com.acme.Order\" = 5"),
         )
         assertTrue(error("[augment.receiver]\n\"com.acme.Order\" = \"@id\"").contains("invalid receiver id '@id'"))
@@ -501,9 +502,9 @@ class AugmentorConfigTest {
             """,
         )
         // [augment.receiver]: the first matching entry decides, "-" included.
-        assertEquals(IdSpec.Annotations(), config.classEntry("com.acme.Order").spec())
-        assertEquals(IdSpec.Excluded(), config.classEntry("com.acme.generated.Gen").spec())
-        assertEquals(IdSpec.FieldSpec("id"), config.classEntry("com.acme.generated.Keep").spec())
+        assertEquals(IdSpec.Annotations(), config.entryOf("com.acme.Order")!!.spec())
+        assertEquals(IdSpec.Excluded(), config.entryOf("com.acme.generated.Gen")!!.spec())
+        assertEquals(IdSpec.FieldSpec("id"), config.entryOf("com.acme.generated.Keep")!!.spec())
 
         // [augment.params]: the first matching entry decides, "-" included; entries are not combined.
         // The exact entry for charge comes after a matching pattern, so it never applies.

@@ -17,11 +17,12 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
   - `[augment.exceptions]` (class name or class pattern → `true` or `false`), which decides the throwables
     whose frames get ids, see the stack trace augmentation spec. Its entries SHALL be read in the order of the
     file. Without entries no throwable gets ids;
-  - `[augment.receiver]` (class name or class pattern → a string: field name, `method()`, several of them
-    separated by commas, `"@"` for
-    the class's `@StackTraceId` members, or `"-"` for no receiver id, optionally followed by `::` and the method
-    names or patterns whose frames show the ids, separated by commas, e.g. `"id :: ship, cancel*"`, where `@` names the
-    methods annotated with `@StackTraceAugment`; without `::` all methods do), which decides the receiver ids, see the id sources spec. Its entries SHALL be read in the order of the file, and the first that matches a class decides;
+  - `[augment.receiver]` (class name or class pattern, optionally followed by `::` and the method names or
+    patterns the entry applies to, separated by commas, e.g. `"com.acme.Order::ship, cancel*"`, where `@` names the
+    methods annotated with `@StackTraceAugment`, without `::` all methods → a string: field name, `method()`,
+    several of them separated by commas, `"@"` for the class's `@StackTraceId` members, or `"-"` for no receiver
+    id), which decides the receiver ids, see the id sources spec. Its entries SHALL be read in the order of the
+    file, and the first that matches a class and applies to a method decides for that method;
   - `[augment.params]` (`"<class pattern>::<method pattern>"`, several method patterns separated by commas, where `@`
     stands for the methods and constructors annotated with `@StackTraceAugment` → a string: parameter names and 0-based
     indexes from 0 to 255, the JVM's maximum number of parameters, separated by commas, each optionally followed by
@@ -117,7 +118,7 @@ invalid in both tables. The message SHALL name the file, the key and its line.
 - **THEN** it is rejected with a message naming the key and its line
 
 #### Scenario: Invalid class entry
-- **GIVEN** `[augment.receiver]` with `"com.acme.Order" = "@id"`, `"com.acme.Order" = ["id"]`, `"com.acme.Order" = "id, @"`, `"com.acme.Order" = "id ::"`, `"com.acme.Order" = "- :: ship"`, `"com.acme.Order" = "id :: ship()"`, or `"com.acme.Ord+er" = "@"`
+- **GIVEN** `[augment.receiver]` with `"com.acme.Order" = "@id"`, `"com.acme.Order" = ["id"]`, `"com.acme.Order" = "id, @"`, `"com.acme.Order" = "id :: ship"` (the methods go in the key), `"com.acme.Order::" = "id"`, `"com.acme.Order::ship()" = "id"`, `"com.acme.Order::<init>" = "id"`, `"com.acme.Order::ship, ship" = "id"`, or `"com.acme.Ord+er" = "@"`
 - **WHEN** the configuration is loaded
 - **THEN** it is rejected with a message naming the key and its line
 

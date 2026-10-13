@@ -33,12 +33,19 @@ public final class FrameSpecs {
     record Param(String label, boolean hashed, int slot, Class<?> type) {
     }
 
-    /** The ids of a method's frames: the receiver's (from the entry of {@code owner}, the declaring class) and parameters. */
-    record Spec(boolean receiver, Class<?> owner, List<Param> params) {
+    /**
+     * The ids of a method's frames: the receiver's (from the {@code [augment.receiver]} entry with key
+     * {@code receiverKey} for {@code owner}, the declaring class; {@code null} for none) and parameters.
+     */
+    record Spec(String receiverKey, Class<?> owner, List<Param> params) {
+
+        boolean receiver() {
+            return receiverKey != null;
+        }
     }
 
     /** Frames that show no ids. */
-    static final Spec NONE = new Spec(false, Object.class, List.of());
+    static final Spec NONE = new Spec(null, Object.class, List.of());
 
     /** For the classes none of whose frames show ids. */
     private static final Map<MethodKey, Spec> IRRELEVANT = Map.of();
@@ -89,8 +96,8 @@ public final class FrameSpecs {
         if (TypeMatching.isIgnoredName(name)) {
             return false;
         }
-        AugmentorConfig.ClassEntry entry = config.classEntry(type);
-        return entry != null && !(entry.spec() instanceof IdSpec.Excluded) || config.hasParamEntries(name);
+        return config.classEntries(type).stream().anyMatch(entry -> !(entry.spec() instanceof IdSpec.Excluded))
+                || config.hasParamEntries(name);
     }
 
     /**
@@ -98,9 +105,8 @@ public final class FrameSpecs {
      * whether the method has {@code @StackTraceAugment} is left open: {@link #spec} decides for the method itself.
      */
     private boolean named(Class<?> type, String methodName) {
-        AugmentorConfig.ClassEntry entry = config.classEntry(type);
-        return entry != null && !(entry.spec() instanceof IdSpec.Excluded) && !methodName.equals(AugmentorConfig.CONSTRUCTOR)
-                && entry.appliesTo(methodName, true)
+        return !methodName.equals(AugmentorConfig.CONSTRUCTOR) && config.classEntries(type).stream()
+                        .anyMatch(entry -> !(entry.spec() instanceof IdSpec.Excluded) && entry.appliesTo(methodName, true))
                 || !config.paramRefs(type.getName(), methodName, false).isEmpty()
                 || !config.paramRefs(type.getName(), methodName, true).isEmpty();
     }
@@ -115,7 +121,8 @@ public final class FrameSpecs {
             MethodDescription method = executable instanceof Method m
                     ? new MethodDescription.ForLoadedMethod(m)
                     : new MethodDescription.ForLoadedConstructor((Constructor<?>) executable);
-            boolean receiver = matching.receiverIds(typeDescription, method);
+            AugmentorConfig.ClassEntry entry = matching.receiverEntry(typeDescription, method);
+            boolean receiver = entry != null;
             List<IdParameter> selected = matching.idParameters(typeDescription, method);
             if (!receiver && selected.isEmpty()) {
                 return NONE;
@@ -126,7 +133,7 @@ public final class FrameSpecs {
                 ParameterDescription parameter = id.parameter();
                 params.add(new Param(id.label(), id.hashed(), parameter.getOffset(), parameterTypes[parameter.getIndex()]));
             }
-            Spec spec = new Spec(receiver, type, List.copyOf(params));
+            Spec spec = new Spec(receiver ? entry.key() : null, type, List.copyOf(params));
             if (Log.isDebug()) {
                 Log.debug(() -> "live stack: frames of " + type.getName() + "." + name + " show "
                         + (receiver ? "the receiver id" : "no receiver id")

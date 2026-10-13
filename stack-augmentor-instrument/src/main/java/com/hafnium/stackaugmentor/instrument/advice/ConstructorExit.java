@@ -131,7 +131,7 @@ public final class ConstructorExit {
         }
 
         /**
-         * Writes a handler: {@code Dispatch.onThrow(null, thrown, owner, "<init>", values, labels)}, then rethrows. Its
+         * Writes a handler: {@code Dispatch.onThrow(null, thrown, null, owner, "<init>", values, labels)}, then rethrows. Its
          * frame names {@code this} as {@code thisType} and the parameters with their declared types. Returns its maximal
          * stack size.
          */
@@ -145,13 +145,14 @@ public final class ConstructorExit {
                 }
                 super.visitFrame(Opcodes.F_NEW, locals.size(), locals.toArray(), 1, new Object[]{THROWABLE});
             }
-            // Stack: thrown, thrown, null -> thrown, null, thrown.
+            // Stack: thrown, thrown, null -> thrown, null, thrown; then null for the receiver key.
             super.visitInsn(Opcodes.DUP);
             super.visitInsn(Opcodes.ACONST_NULL);
             super.visitInsn(Opcodes.SWAP);
+            super.visitInsn(Opcodes.ACONST_NULL);
             StackManipulation.Size size = arguments().apply(mv, context);
             super.visitInsn(Opcodes.ATHROW);
-            return 3 + size.getMaximalSize();
+            return 4 + size.getMaximalSize();
         }
 
         /** Pushes the owner, the method name, the id values and their labels, and calls {@link Dispatch#onThrow}. */
@@ -176,7 +177,7 @@ public final class ConstructorExit {
         private static MethodDescription.InDefinedShape onThrow() {
             try {
                 return new MethodDescription.ForLoadedMethod(Dispatch.class.getMethod("onThrow",
-                        Object.class, Throwable.class, String.class, String.class, Object[].class, String[].class));
+                        Object.class, Throwable.class, String.class, String.class, String.class, Object[].class, String[].class));
             } catch (NoSuchMethodException e) {
                 throw new IllegalStateException(e);
             }

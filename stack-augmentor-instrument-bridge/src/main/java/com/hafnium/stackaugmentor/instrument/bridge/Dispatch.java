@@ -16,7 +16,13 @@ public final class Dispatch {
 
     /** Implemented by the agent, or by the runtime module for build-time instrumentation. */
     public interface Handler {
-        void onThrow(Object self, Throwable thrown, String owner, String method, Object[] paramValues, String[] paramNames);
+        /**
+         * @param self        the receiver where the frame shows receiver ids, else {@code null}
+         * @param receiverKey the key of the frame's deciding {@code [augment.receiver]} entry, or {@code null} without
+         *                    receiver ids
+         */
+        void onThrow(Object self, Throwable thrown, String receiverKey, String owner, String method, Object[] paramValues,
+                     String[] paramNames);
     }
 
     /** Matched by name: this module has no dependencies. */
@@ -35,7 +41,8 @@ public final class Dispatch {
         handler = newHandler;
     }
 
-    public static void onThrow(Object self, Throwable thrown, String owner, String method, Object[] paramValues, String[] paramNames) {
+    public static void onThrow(Object self, Throwable thrown, String receiverKey, String owner, String method, Object[] paramValues,
+                               String[] paramNames) {
         if (ACTIVE.get() != null) {
             return;
         }
@@ -43,7 +50,7 @@ public final class Dispatch {
         try {
             Handler current = handler();
             if (current != null) {
-                current.onThrow(self, thrown, owner, method, paramValues, paramNames);
+                current.onThrow(self, thrown, receiverKey, owner, method, paramValues, paramNames);
             }
         } catch (Throwable ignored) {
             // Never let the augmentation change the exception the application sees.
