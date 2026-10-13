@@ -84,7 +84,7 @@ class ThrowHandlerTest {
 
     @Test
     fun `the context class loader provides the configuration that the runtime jar's loader does not see`(@TempDir dir: Path) {
-        Files.writeString(dir.resolve("stack-augmentor.toml"), "[augment.exceptions]\n\"java.lang.Exception\" = true\n[augment.receiver]\n\"${Annotated::class.java.name}::*\" = \"@\"\n")
+        Files.writeString(dir.resolve("stack-augmentor.toml"), "[augment.exceptions]\n\"java.lang.Exception+\" = true\n[augment.receiver]\n\"${Annotated::class.java.name}::*\" = \"@\"\n")
         val thread = Thread.currentThread()
         val originalLoader = thread.contextClassLoader
         val originalErr = System.err

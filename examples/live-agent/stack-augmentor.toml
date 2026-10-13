@@ -5,7 +5,7 @@ inPlaceModification = true
 
 # Only the example's exceptions get ids: in the live-stack mode the agent looks at the stack of every throwable
 # whose trace the VM records, also those the JDK creates and catches itself, unless no entry gives it ids. A class
-# name also matches its subclasses; the first matching entry wins.
+# name matches that class only ("+" after it would add its subclasses); the first matching entry wins.
 [augment.exceptions]
 "com.hafnium.examples.live.PaymentDeclinedException" = true
 "com.hafnium.examples.live.SlowCallWarning" = true

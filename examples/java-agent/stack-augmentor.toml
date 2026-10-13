@@ -12,11 +12,11 @@ paramsFormat = "{$name=$id, ...}"
 maxIdLength = 64
 
 # Which exceptions get ids: true or false, the first matching entry wins, and an exception that no entry matches
-# gets none (so without entries, none does). A class name also matches its subclasses, as instanceof does; a
-# pattern matches the exception's own class only.
+# gets none (so without entries, none does). A class name matches that class only, "+" after it also its
+# subclasses, as instanceof does; a pattern matches the exception's own class only.
 [augment.exceptions]
-"com.hafnium.examples.agent.CheckoutException" = true    # this class and its subclasses
-"java.lang.IllegalArgumentException" = false             # this class and its subclasses: no ids
+"com.hafnium.examples.agent.CheckoutException+" = true   # this class and its subclasses
+"java.lang.IllegalArgumentException+" = false            # this class and its subclasses: no ids
 "java.lang.*" = true                                     # these classes only, e.g. Exception, IllegalStateException
 
 # The two tables below are independent: [augment.receiver] decides which receivers get ids,
