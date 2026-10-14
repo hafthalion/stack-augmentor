@@ -38,10 +38,10 @@ import java.util.stream.Collectors;
  * paramsFormat = "{$name=$id, ...}"
  * maxIdLength = 64
  *
- * [augment.exceptions]       # which throwables get ids: true or false, the first matching entry wins; a class name
- *                            # matches that class, with "+" its subclasses too, a pattern the runtime class only; a
- *                            # throwable that no entry matches gets none, so without the table none do: "**" = true
- *                            # for all
+ * [augment.exceptions]       # which throwables are augmented: true or false, the first matching entry wins; a
+ *                            # class name matches that class, with "+" its subclasses too, a pattern the runtime class
+ *                            # only; a throwable that no entry matches is not, so without the table none is: "**" =
+ *                            # true for all
  * "com.acme.ControlFlowException+" = false
  * "com.acme.**" = true
  * "java.io.IOException+" = true   # and its subclasses
@@ -52,7 +52,7 @@ import java.util.stream.Collectors;
  * # method the first matching entry of a table wins.
  *
  * [augment.receiver]         # receiver ids: a field, a "method()", several separated by commas, "@" for the
- *                            # @StackTraceId members, "-" for none
+ *                            # @StackTraceReceiver members, "-" for none
  * "com.hafnium.generated.**::*" = "-"
  * "com.hafnium.**::*" = "@"
  * "com.thirdparty.Order+::*" = "getOrderNumber()"   # Order and its subclasses
@@ -150,7 +150,7 @@ public final class AugmentorConfig {
     /** The {@code [augment.exceptions]} entries, in the order of the file. */
     private final List<ExceptionEntry> exceptionEntries;
 
-    /** Per throwable class, whether it gets ids: the value of the first {@code [augment.exceptions]} entry it matches. */
+    /** Per throwable class, whether it is augmented: the value of the first {@code [augment.exceptions]} entry it matches. */
     private final ClassValue<Boolean> augmentedExceptions = new ClassValue<>() {
         @Override
         protected Boolean computeValue(Class<?> type) {
@@ -322,7 +322,7 @@ public final class AugmentorConfig {
     /** The {@code [augment.params]} entries, in the order of the file. */
     private final List<ParamsEntry> paramsEntries;
 
-    /** The defaults: no class or method entries, so nothing gets ids. */
+    /** The defaults: no class or method entries, so nothing is augmented. */
     public AugmentorConfig() {
         this(Map.of(), Map.of(), DEFAULT_FRAME_FORMAT, DEFAULT_RECEIVER_FORMAT, DEFAULT_PARAMS_FORMAT,
                 DEFAULT_MAX_ID_LENGTH, false, false, Map.of());
@@ -333,7 +333,7 @@ public final class AugmentorConfig {
      *                  {@code [augment.receiver]} table
      * @param methods   parameter ids by {@code "<class>::<methods>"} key ({@link EntryKey}): the {@code [augment.params]}
      *                  table
-     * @param exceptions whether throwables get ids, by class name (with {@code +} also the subclasses) or class pattern
+     * @param exceptions whether throwables are augmented, by class name (with {@code +} also the subclasses) or class pattern
      *                  (of the runtime class), in the order the first matching entry is looked for: the {@code [augment.exceptions]}
      *                  table; empty for none, {@code "**" = true} for all
      */
@@ -396,14 +396,14 @@ public final class AugmentorConfig {
         return debug;
     }
 
-    /** The {@code [augment.exceptions]} entries, in the order of the file; empty when no throwable gets ids. */
+    /** The {@code [augment.exceptions]} entries, in the order of the file; empty when no throwable is augmented. */
     public Map<String, Boolean> exceptions() {
         return exceptions;
     }
 
     /**
-     * Whether frames of throwables of this runtime class get ids: the value of the first {@code [augment.exceptions]}
-     * entry that matches decides, and a class that no entry matches gets none, so without entries none does. A class
+     * Whether throwables of this runtime class are augmented: the value of the first {@code [augment.exceptions]}
+     * entry that matches decides, and a class that no entry matches is not, so without entries none is. A class
      * name matches that class only, with {@code +} also its subclasses, as {@code instanceof} does; a pattern matches
      * the name of the runtime class only, as in {@code [augment.receiver]}.
      */
@@ -992,7 +992,7 @@ public final class AugmentorConfig {
         private IdSpec classSpec(List<String> path, Object value) {
             if (!(value instanceof String text)) {
                 throw error(path, "must be a string: a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), "
-                        + "several of them separated by commas (e.g. \"tenant, getOrderId()\"), \"@\" for its @StackTraceId "
+                        + "several of them separated by commas (e.g. \"tenant, getOrderId()\"), \"@\" for its @StackTraceReceiver "
                         + "members, or \"-\" for no receiver id, was " + value);
             }
             if (text.contains(METHOD_SEPARATOR)) {

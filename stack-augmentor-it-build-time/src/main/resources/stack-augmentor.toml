@@ -15,7 +15,7 @@ paramsFormat = "{$name=$id, ...}"
 # Longer ids are cut off with "…".
 maxIdLength = 64
 
-# Which exceptions get ids, at runtime: all throwables (without an entry that is true, none would).
+# Which exceptions are augmented, at runtime: all throwables (without an entry that is true, none would).
 [augment.exceptions]
 "**" = true
 
@@ -26,7 +26,7 @@ maxIdLength = 64
 # all, "@" for those annotated with @StackTraceAugment. '*' matches within a package or name, '**' across packages,
 # '?' one character.
 
-# Receiver ids: "@" uses the class's @StackTraceId (without an "@" entry, it is not used). Classes you
+# Receiver ids: "@" uses the class's @StackTraceReceiver (without an "@" entry, it is not used). Classes you
 # cannot annotate name a method() or a field: an order is identified by its getOrderNumber() method, a
 # customer by its customerId field. The first matching entry wins, so they come before the "@" pattern.
 [augment.receiver]

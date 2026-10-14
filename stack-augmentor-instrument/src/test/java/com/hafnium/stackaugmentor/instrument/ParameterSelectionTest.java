@@ -1,7 +1,7 @@
 package com.hafnium.stackaugmentor.instrument;
 
 import com.hafnium.stackaugmentor.StackTraceAugment;
-import com.hafnium.stackaugmentor.StackTraceId;
+import com.hafnium.stackaugmentor.StackTraceReceiver;
 import com.hafnium.stackaugmentor.StackTraceParam;
 import com.hafnium.stackaugmentor.StackTraceParams;
 import com.hafnium.stackaugmentor.runtime.Log;
@@ -85,7 +85,7 @@ class ParameterSelectionTest {
 
     /** An explicit class entry gives its receiver id; an "@" method entry re-enables the parameter annotations. */
     static class Explicit {
-        @StackTraceId
+        @StackTraceReceiver
         String code = "c";
 
         String getId() {
@@ -99,9 +99,9 @@ class ParameterSelectionTest {
         }
     }
 
-    /** Its only @StackTraceId method takes an argument, so it can never give an id. */
+    /** Its only @StackTraceReceiver method takes an argument, so it can never give an id. */
     static class UnusableId {
-        @StackTraceId
+        @StackTraceReceiver
         String idFor(int version) {
             return "v" + version;
         }
@@ -111,7 +111,7 @@ class ParameterSelectionTest {
     }
 
     static class UsableId {
-        @StackTraceId
+        @StackTraceReceiver
         String id() {
             return "u";
         }
@@ -203,7 +203,7 @@ class ParameterSelectionTest {
 
     @Test
     void annotationsWithoutAnAtEntryAreIgnored() {
-        // An "@" class entry is for @StackTraceId only: the tables are independent.
+        // An "@" class entry is for @StackTraceReceiver only: the tables are independent.
         for (AugmentorConfig config : List.of(new AugmentorConfig(), classes(Map.of(HERE_METHODS, ANNOTATIONS)),
                 methods(Map.of("com.acme.**::*", List.of(new ParamRef.Annotations()))))) {
             IdParameters parameters = new IdParameters(config);
@@ -298,7 +298,7 @@ class ParameterSelectionTest {
         String reason = ": no \"@\" entry in [augment.params] applies";
         assertTrue(output.contains("ignoring the parameter annotations of release, reserve in " + Reservations.class.getName() + reason), output);
         assertTrue(output.contains("ignoring the parameter annotations of move in " + MethodLevel.class.getName() + reason), output);
-        assertTrue(output.contains("ignoring @StackTraceId in " + explicit + ": its [augment.receiver] entry \"" + explicit + "::*\" is not \"@\""),
+        assertTrue(output.contains("ignoring @StackTraceReceiver in " + explicit + ": its [augment.receiver] entry \"" + explicit + "::*\" is not \"@\""),
                 output);
         // failAnnotated is enabled by its method entry.
         assertTrue(output.contains("ignoring the parameter annotations of fail in " + explicit + reason), output);
@@ -386,9 +386,9 @@ class ParameterSelectionTest {
         assertEquals(List.of("y"), labels(parameters, Explicit.class, "failAnnotated"));
         assertTrue(matching.instrument(type(Explicit.class)));
         assertTrue(matching.describe(type(Explicit.class), matching.methods(type(Explicit.class))).contains("(parameter ids only)"));
-        assertTrue(err.toString(StandardCharsets.UTF_8).contains("ignoring @StackTraceId in " + explicit + ": its [augment.receiver] entry \""
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("ignoring @StackTraceReceiver in " + explicit + ": its [augment.receiver] entry \""
                 + explicit + "::*\" is not \"@\""), err.toString(StandardCharsets.UTF_8));
-        // The "@" class entry uses @StackTraceId only: the method entry labels the parameters by name.
+        // The "@" class entry uses @StackTraceReceiver only: the method entry labels the parameters by name.
         assertEquals(List.of("item", "count"), labels(parameters, MethodLevel.class, "move"));
         // A "-" method entry before the pattern wins; the exact entry before the "-" wins.
         assertEquals(List.of("note"), labels(parameters, Service.class, "process"));

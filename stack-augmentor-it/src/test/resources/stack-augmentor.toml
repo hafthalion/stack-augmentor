@@ -1,7 +1,7 @@
 [augment]
 maxIdLength = 20
 
-# All throwables get ids (without an entry that is true, none would), except PlainCause.
+# All throwables are augmented (without an entry that is true, none would be), except PlainCause.
 [augment.exceptions]
 "com.hafnium.it.fixtures.PlainCause" = false
 "**" = true
@@ -15,7 +15,7 @@ maxIdLength = 20
 "com.hafnium.it.fixtures.Overridden::*" = "getId()"
 # The ignored fixtures: no receiver id (parameter ids are not affected)
 "com.hafnium.it.fixtures.ignored.**::*" = "-"
-# The fixtures' receiver ids come from their @StackTraceId
+# The fixtures' receiver ids come from their @StackTraceReceiver
 "com.hafnium.it.fixtures.**::*" = "@"
 # Stand-ins for classes you cannot annotate (Customer's entry does not apply to com.hafnium.it.outside.VipCustomer)
 "com.thirdparty.Order::*" = "getOrderNumber()"

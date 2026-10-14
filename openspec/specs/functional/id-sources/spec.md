@@ -10,8 +10,8 @@ their values are turned into text.
 ### Requirement: Independent receiver and parameter ids
 `[augment.receiver]` SHALL decide the receiver ids and `[augment.params]` the parameter ids, independently:
 no value in one table (a member, a parameter, `"@"` or `"-"`) SHALL change what the other selects. What gets
-instrumented SHALL NOT be configured directly: a class SHALL be instrumented when either table gives it a
-receiver id or a parameter id, and a method when it gets a parameter id or, as an instance method, a
+instrumented SHALL NOT be configured directly: a class SHALL be instrumented when either table augments it with a
+receiver id or a parameter id, and a method when it is augmented with a parameter id or, as an instance method, a
 receiver id.
 
 #### Scenario: Receiver ignored, parameters kept
@@ -20,52 +20,52 @@ receiver id.
 - **THEN** that frame shows `id=7` and no receiver id
 
 #### Scenario: Receiver id only
-- **GIVEN** `"com.acme.**::*" = "@"` as the only entry, and a class `com.acme.Order` with `@StackTraceId val code` and `fun ship(@StackTraceParam to: String)`
+- **GIVEN** `"com.acme.**::*" = "@"` as the only entry, and a class `com.acme.Order` with `@StackTraceReceiver val code` and `fun ship(@StackTraceParam to: String)`
 - **WHEN** `ship("Main St")` throws
 - **THEN** that frame shows the receiver id `code=…` and no parameter ids
 
 ### Requirement: Receiver id from an annotated member
 The system SHALL use every non-static field and every non-static, no-argument method annotated with
-`@StackTraceId` (`com.hafnium.stackaugmentor.StackTraceId`) as a receiver id of the objects of a class
+`@StackTraceReceiver` (`com.hafnium.stackaugmentor.StackTraceReceiver`) as a receiver id of the objects of a class
 whose deciding `[augment.receiver]` entry is `"@"` (see "Annotations in use"), one id per member. The
 annotated members SHALL be looked up in the class that the deciding entry matched and in its superclasses,
 and shown in this order: per class, the class itself first, then its superclasses, nearest first; within a
 class, its fields in declaration order, then its methods by name. A member whose label a member shown
 before it already has, such as a superclass field hidden by a field of the same name, SHALL be left out.
 In Kotlin, a property annotated in the primary constructor has the annotation on its field, because
-`@StackTraceId` does not target parameters. A static member, a method with parameters and a synthetic method
+`@StackTraceReceiver` does not target parameters. A static member, a method with parameters and a synthetic method
 SHALL NOT be id sources, even when annotated, and SHALL NOT make a class count as annotated when the
 instrumentation decides which classes to change. A member that cannot be made accessible SHALL be skipped with a
 warning, and the others SHALL still be used. The annotation SHALL be matched by its class name, so that a copy of the API loaded by
 another class loader is also recognised.
 
 #### Scenario: Annotated method with parameters
-- **GIVEN** a class matched by an `"@"` entry whose only `@StackTraceId` member is `String idFor(int version)`
+- **GIVEN** a class matched by an `"@"` entry whose only `@StackTraceReceiver` member is `String idFor(int version)`
 - **WHEN** the instrumentation decides whether to change the class
 - **THEN** the class is not instrumented for a receiver id
 
 #### Scenario: Annotated field
-- **GIVEN** a class `ObjectClass` with `@StackTraceId val objectId = "object-1"`, matched by an `"@"` entry
+- **GIVEN** a class `ObjectClass` with `@StackTraceReceiver val objectId = "object-1"`, matched by an `"@"` entry
 - **WHEN** an exception leaves an instance method of `ObjectClass`
 - **THEN** that frame shows the receiver id `objectId=object-1`
 
 #### Scenario: Annotated method
-- **GIVEN** a class with `@StackTraceId fun key() = "k-1"`, matched by an `"@"` entry
+- **GIVEN** a class with `@StackTraceReceiver fun key() = "k-1"`, matched by an `"@"` entry
 - **WHEN** an exception leaves one of its instance methods
 - **THEN** that frame shows the receiver id `key=k-1`
 
 #### Scenario: Several annotated members
-- **GIVEN** a class with `@StackTraceId val tenant = "acme"` and `@StackTraceId val orderId = 42`, matched by an `"@"` entry
+- **GIVEN** a class with `@StackTraceReceiver val tenant = "acme"` and `@StackTraceReceiver val orderId = 42`, matched by an `"@"` entry
 - **WHEN** an exception leaves one of its instance methods
 - **THEN** that frame shows the receiver ids `{tenant=acme, orderId=42}`
 
 #### Scenario: Inherited annotation
-- **GIVEN** a class `Derived`, matched by an `"@"` entry, extending a class that declares `@StackTraceId val baseId = "b1"`
+- **GIVEN** a class `Derived`, matched by an `"@"` entry, extending a class that declares `@StackTraceReceiver val baseId = "b1"`
 - **WHEN** an exception leaves a method of `Derived`
 - **THEN** that frame shows the receiver id `baseId=b1`
 
 #### Scenario: Kotlin primary-constructor property
-- **GIVEN** `class Node(@StackTraceId val name: String)`, matched by an `"@"` entry
+- **GIVEN** `class Node(@StackTraceReceiver val name: String)`, matched by an `"@"` entry
 - **WHEN** an exception leaves a method of `Node("c")`
 - **THEN** that frame shows the receiver id `name=c`
 
@@ -77,7 +77,7 @@ configuration spec): a class name with the globs `*` (within one package segment
 commas without duplicates, `*` for all methods and `@` for the methods annotated with `@StackTraceAugment`. The
 entry SHALL apply only to the frames of the methods whose names match one of them; `<init>` SHALL be rejected, as
 constructors show no receiver id. One class MAY have several entries with different methods. A value SHALL be a field name, a no-argument method written
-with `()`, several of them in one string separated by commas without duplicates, `"@"` for the class's `@StackTraceId` members, or
+with `()`, several of them in one string separated by commas without duplicates, `"@"` for the class's `@StackTraceReceiver` members, or
 `"-"` for none. A list SHALL give one receiver id per member, in the listed order; a member that is not found
 SHALL be reported as a single one is and left out, while the others are still shown. Every receiver id SHALL
 be the member's value as text, from `toString()`. A class name SHALL match the class it names; with `+` also its
@@ -89,7 +89,7 @@ no matching entry applies to SHALL keep its frames' parameter ids only. The rece
 the deciding entry of the class that declares the frame's method, read from the object the method runs on,
 whatever the object's runtime class: a subclass, including one generated at runtime (a proxy, a mock, an
 anonymous class or an enum constant with a body), SHALL show the id of its superclass's entry in the frames
-of the methods it inherits. The methods that a subclass declares SHALL get their receiver id from the first
+of the methods it inherits. The methods that a subclass declares SHALL take their receiver id from the first
 entry that matches the subclass: an entry of its own, an entry with `+` for a superclass or an implemented
 interface, or a pattern whose glob matches its name. A default method
 of an interface SHALL likewise show the id of the interface's deciding entry, read from the object,
@@ -153,9 +153,9 @@ name starting with `is`), with the configured name as the label.
 - **THEN** that frame shows the receiver id `number=S-1`
 
 #### Scenario: First matching entry wins
-- **GIVEN** `"com.acme.Order::*" = "getId()"` and then `"com.acme.**::*" = "@"` in `[augment.receiver]`, and `com.acme.Order` with `@StackTraceId val code` and `fun getId()`
+- **GIVEN** `"com.acme.Order::*" = "getId()"` and then `"com.acme.**::*" = "@"` in `[augment.receiver]`, and `com.acme.Order` with `@StackTraceReceiver val code` and `fun getId()`
 - **WHEN** an exception leaves a method of an `Order`
-- **THEN** that frame shows the receiver id `getId=…`, and `Order`'s `@StackTraceId` is not used
+- **THEN** that frame shows the receiver id `getId=…`, and `Order`'s `@StackTraceReceiver` is not used
 - **AND** with the two entries the other way round, `"com.acme.**::*" = "@"` decides and the frame shows `code=…`
 
 #### Scenario: Subclass without an entry
@@ -208,8 +208,8 @@ annotated with `@StackTraceParams` (`com.hafnium.stackaugmentor.StackTraceParams
 method-level annotations"), in both cases only where an `[augment.params]` entry `"@"` applies, or when an
 `[augment.params]` entry selects it by name or index (see "Parameter ids of configured methods").
 This SHALL apply to instance and static methods. A parameter selected more than once SHALL be shown
-once, and parameter ids SHALL be listed in declaration order. `@StackTraceId` on a parameter SHALL NOT
-select it: `@StackTraceId` marks receiver ids only.
+once, and parameter ids SHALL be listed in declaration order. `@StackTraceReceiver` on a parameter SHALL NOT
+select it: `@StackTraceReceiver` marks receiver ids only.
 
 #### Scenario: Annotated parameter
 - **GIVEN** `fun objectMethod(@StackTraceParam orderId: Int)`, matched by an `[augment.params]` `"@"` entry
@@ -258,12 +258,12 @@ index, or by both annotations) SHALL be hashed when either hashes it. The label 
 ### Requirement: Labels
 The label of a receiver id SHALL be the real name of the field or method that supplies it, and the label
 of a parameter id SHALL be the parameter name compiled into the class file, however the parameter is
-selected. Labels SHALL NOT be overridden: `@StackTraceId` has no attributes, `@StackTraceParams` has none, and the only one of `@StackTraceParam` is `secret`. When a class has no parameter names (compiled without
+selected. Labels SHALL NOT be overridden: `@StackTraceReceiver` has no attributes, `@StackTraceParams` has none, and the only one of `@StackTraceParam` is `secret`. When a class has no parameter names (compiled without
 `-parameters`), the label SHALL be `arg<N>`, so Java classes SHOULD be compiled with `javac -parameters` (Kotlin
 with `javaParameters = true`).
 
 #### Scenario: Receiver label
-- **GIVEN** `@StackTraceId val login = "bob"`
+- **GIVEN** `@StackTraceReceiver val login = "bob"`
 - **WHEN** an exception leaves a method of that class
 - **THEN** the frame shows `login=bob`
 
@@ -294,7 +294,7 @@ throws SHALL be shown as `?`.
 - **AND** `ship(null)` shows `order=null`
 
 #### Scenario: Array receiver id
-- **GIVEN** `@StackTraceId val codes = intArrayOf(1, 2)` in a class matched by an `"@"` entry
+- **GIVEN** `@StackTraceReceiver val codes = intArrayOf(1, 2)` in a class matched by an `"@"` entry
 - **WHEN** an exception leaves a method of that class
 - **THEN** the frame shows `codes=[1, 2]`, as an array argument would, not `[I@…`
 
@@ -309,13 +309,13 @@ throws SHALL be shown as `?`.
 - **THEN** the frame shows `point=Point{x=1}`, so that the frame still ends with its `(File.kt:12)`
 
 #### Scenario: Failing id source
-- **GIVEN** `@StackTraceId fun id(): String` that throws
+- **GIVEN** `@StackTraceReceiver fun id(): String` that throws
 - **WHEN** an exception leaves a method of that class
 - **THEN** the frame shows `id=?` and the original exception is unchanged otherwise
 
 ### Requirement: Parameter ids from method-level annotations
 `@StackTraceParams` (on methods and constructors) SHALL select all parameters of that method or constructor. It SHALL NOT apply to
-methods that override it, which need their own annotation. It SHALL only be used where an `[augment.params]` entry `"@"` applies. Methods without parameters SHALL get no parameter ids. Synthetic,
+methods that override it, which need their own annotation. It SHALL only be used where an `[augment.params]` entry `"@"` applies. Methods without parameters SHALL show no parameter ids. Synthetic,
 bridge, abstract and native methods SHALL NOT be instrumented, as for other parameter ids; constructors are
 instrumented as described in the stack trace augmentation specification.
 
@@ -376,13 +376,13 @@ combined with it.
 
 ### Requirement: Ignoring receivers and parameters
 The value `"-"` SHALL select nothing, in either table, and SHALL affect its own table only. A class whose
-deciding `[augment.receiver]` entry is `"-"` SHALL get no receiver id; the entry decides with the same
+deciding `[augment.receiver]` entry is `"-"` SHALL show no receiver id; the entry decides with the same
 first-match rule as other entries. Likewise, a method whose deciding `[augment.params]` entry is `"-"`
-SHALL get no parameter ids, even where a later entry would select some.
+SHALL show no parameter ids, even where a later entry would select some.
 A configuration whose entries are all `"-"` SHALL count as having no entries.
 
 #### Scenario: No receiver ids in a package under an "@" pattern
-- **GIVEN** `"com.acme.generated.**::*" = "-"` and then `"com.acme.**::*" = "@"` in `[augment.receiver]`, and `com.acme.generated.Mapper` with a `@StackTraceId` field
+- **GIVEN** `"com.acme.generated.**::*" = "-"` and then `"com.acme.**::*" = "@"` in `[augment.receiver]`, and `com.acme.generated.Mapper` with a `@StackTraceReceiver` field
 - **WHEN** a method of `Mapper` throws
 - **THEN** its frame shows no receiver id
 
@@ -392,13 +392,13 @@ A configuration whose entries are all `"-"` SHALL count as having no entries.
 - **THEN** the first frame is unchanged, and the second frame shows `reason=disk full`
 
 ### Requirement: Annotations in use
-The system SHALL use `@StackTraceId` annotations (on fields and methods) only in classes whose deciding
+The system SHALL use `@StackTraceReceiver` annotations (on fields and methods) only in classes whose deciding
 `[augment.receiver]` entry is `"@"` (see "Receiver id from external configuration"), and
 `@StackTraceParam` annotations (on parameters) and `@StackTraceParams` annotations (on methods)
 only for methods matched by an `[augment.params]` entry with the value `"@"` (see "Parameter ids of
 configured methods"). Without an `"@"` entry, no annotations SHALL be used. A class whose deciding entry
-names a field or method SHALL get its receiver id from that member: its `@StackTraceId` SHALL NOT be used.
-Classes without an annotation or configuration entry SHALL NOT get ids, even when an `"@"` entry matches
+names a field or method SHALL take its receiver id from that member: its `@StackTraceReceiver` SHALL NOT be used.
+Classes without an annotation or configuration entry SHALL NOT be augmented, even when an `"@"` entry matches
 them.
 
 #### Scenario: Annotated class outside the "@" entries
@@ -407,7 +407,7 @@ them.
 - **THEN** the frame is unchanged
 
 #### Scenario: Subclass of a class with an "@" entry
-- **GIVEN** `"com.hafnium.it.fixtures.**::*" = "@"`, and `com.hafnium.it.outside.DerivedOutside` extending `com.hafnium.it.fixtures.Base`, which declares `@StackTraceId val baseId = "b1"`
+- **GIVEN** `"com.hafnium.it.fixtures.**::*" = "@"`, and `com.hafnium.it.outside.DerivedOutside` extending `com.hafnium.it.fixtures.Base`, which declares `@StackTraceReceiver val baseId = "b1"`
 - **WHEN** an exception leaves a method of `DerivedOutside`
 - **THEN** that frame shows no receiver id: `DerivedOutside` declares `fail()`, and the pattern matches the names of the classes in `com.hafnium.it.fixtures` only, not their subclasses elsewhere
 

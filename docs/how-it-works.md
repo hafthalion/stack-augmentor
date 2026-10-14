@@ -20,7 +20,7 @@ The library modules are written in Java and don't depend on the Kotlin runtime; 
 
 | Module | Contents |
 |---|---|
-| `stack-augmentor-api` | `@StackTraceId`, `@StackTraceParam`, `@StackTraceParams`, `@StackTraceAugment`, and `ExceptionFormat` (no dependencies) |
+| `stack-augmentor-api` | `@StackTraceReceiver`, `@StackTraceParam`, `@StackTraceParams`, `@StackTraceAugment`, and `ExceptionFormat` (no dependencies) |
 | `stack-augmentor-instrument-bridge` | `Dispatch`, which the advice calls, and `LiveDispatch`, which the live-stack mode's code in `Throwable` calls (Java, no dependencies) |
 | `stack-augmentor-runtime` | Configuration, id lookup, frame formatting, and the handler; shared by both ways |
 | `stack-augmentor-instrument` | Which classes and methods get the advice, the advice itself, and the live-stack mode's code in `Throwable` with how it reads ids from the live stack (ByteBuddy); shared by both ways |

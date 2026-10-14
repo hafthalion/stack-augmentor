@@ -1,11 +1,11 @@
 package com.hafnium.examples.live
 
-import com.hafnium.stackaugmentor.StackTraceId
+import com.hafnium.stackaugmentor.StackTraceReceiver
 import com.hafnium.stackaugmentor.StackTraceParams
 
 /** Answers each request with a status, and logs the exceptions that end one. */
 class Shop(
-    @StackTraceId private val name: String,
+    @StackTraceReceiver private val name: String,
     private val payments: PaymentClient,
 ) {
     @StackTraceParams
@@ -24,7 +24,7 @@ class Shop(
 }
 
 class Session(
-    @StackTraceId private val user: String,
+    @StackTraceReceiver private val user: String,
     private val payments: PaymentClient,
 ) {
     @StackTraceParams

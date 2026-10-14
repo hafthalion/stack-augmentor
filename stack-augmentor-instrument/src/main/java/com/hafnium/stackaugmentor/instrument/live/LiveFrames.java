@@ -91,7 +91,7 @@ public final class LiveFrames implements LiveDispatch.Handler {
     /**
      * Writes the rewritten frames of {@code thrown} also into its causes and suppressed exceptions, and theirs, where
      * they share them: the same frames at the same distance from the bottom, whatever ids those exceptions have there
-     * themselves, or whether {@code [augment.exceptions]} gives them any. Printed traces then still collapse the shared
+     * themselves, or whether {@code [augment.exceptions]} augments them. Printed traces then still collapse the shared
      * frames into {@code ... N more}, which compares frames with {@code equals}. The frame of the same call at another
      * line, where the method caught the cause that it wraps, gets the same ids with its own line. As with instrumented
      * classes.

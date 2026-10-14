@@ -25,7 +25,7 @@ final class ClassEntries {
     /** The deciding entry, and the class it matched. */
     record Deciding(TypeDescription owner, AugmentorConfig.ClassEntry entry) {
 
-        /** {@code "@"}: the class's {@code @StackTraceId} is used. */
+        /** {@code "@"}: the class's {@code @StackTraceReceiver} is used. */
         boolean annotations() {
             return entry.spec() instanceof IdSpec.Annotations;
         }

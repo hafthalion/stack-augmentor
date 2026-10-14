@@ -401,7 +401,7 @@ class AugmentorConfigTest {
         )
         assertEquals(
             "test.toml, line 2: must be a string: a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), several of them " +
-                "separated by commas (e.g. \"tenant, getOrderId()\"), \"@\" for its @StackTraceId members, or \"-\" for no receiver id, was 5",
+                "separated by commas (e.g. \"tenant, getOrderId()\"), \"@\" for its @StackTraceReceiver members, or \"-\" for no receiver id, was 5",
             error("[augment.receiver]\n\"com.acme.Order::*\" = 5"),
         )
         assertTrue(error("[augment.receiver]\n\"com.acme.Order::*\" = \"@id\"").contains("invalid receiver id '@id'"))
@@ -636,7 +636,7 @@ class AugmentorConfigTest {
 
     @Test
     fun `exceptions entries, the first matching entry wins`() {
-        // Without entries, no exception gets ids: missing and empty tables alike.
+        // Without entries, no exception is augmented: missing and empty tables alike.
         for (none in listOf(AugmentorConfig(), parse(""), parse("[augment.exceptions]"), parse("augment.exceptions = {}"))) {
             assertTrue(none.exceptions().isEmpty())
             assertFalse(none.augments(Error::class.java))

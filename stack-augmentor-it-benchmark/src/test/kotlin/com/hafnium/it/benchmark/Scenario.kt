@@ -6,7 +6,7 @@ package com.hafnium.it.benchmark
  * frame catches it and throws a new exception with it as the cause, so the caught one has a chain of [causes] causes.
  * The stack is then shallower, so that the stack traces of the whole chain hold [FRAMES] frames together, as the single
  * exception's does. With [excluded], the frames are configured as usual, but the exceptions are of a class that
- * `[augment.exceptions]` turns off, so they get no ids.
+ * `[augment.exceptions]` turns off, so they are not augmented.
  */
 enum class Scenario(val configuredEvery: Int, val caughtNearTop: Boolean, val causes: Int = 0, val excluded: Boolean = false) {
     BOTTOM_CONFIGURED(4, false),

@@ -16,11 +16,11 @@ paramsFormat = "{$name=$id, ...}"
 # Longer ids are cut off with "…".
 maxIdLength = 64
 
-# Which exceptions get ids, at runtime: true or false, the first matching entry wins, and an exception that no
-# entry matches gets none (so without entries, none does). A class name matches that class only, "+" after it also
+# Which exceptions are augmented, at runtime: true or false, the first matching entry wins, and an exception that
+# no entry matches is not (so without entries, none is). A class name matches that class only, "+" after it also
 # its subclasses, as instanceof does; a pattern matches the exception's own class only.
 [augment.exceptions]
-"java.lang.IllegalArgumentException+" = false            # this class and its subclasses: no ids
+"java.lang.IllegalArgumentException+" = false            # this class and its subclasses: not augmented
 "java.lang.*" = true                                     # these classes only, e.g. Exception, IllegalStateException
 
 # Only this project's classes are changed: entries for real library classes don't apply. The com.thirdparty
@@ -30,7 +30,7 @@ maxIdLength = 64
 # all, "@" for those annotated with @StackTraceAugment. '*' matches within a package or name, '**' across packages,
 # '?' one character.
 
-# Receiver ids: "@" uses the class's @StackTraceId (without an "@" entry, it is not used). Classes you
+# Receiver ids: "@" uses the class's @StackTraceReceiver (without an "@" entry, it is not used). Classes you
 # cannot annotate name a method() or a field: an order is identified by its getOrderNumber() method, a
 # customer by its customerId field.
 [augment.receiver]

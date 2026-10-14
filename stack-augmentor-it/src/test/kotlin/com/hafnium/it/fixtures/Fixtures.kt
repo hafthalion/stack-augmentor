@@ -1,36 +1,36 @@
 package com.hafnium.it.fixtures
 
-import com.hafnium.stackaugmentor.StackTraceId
+import com.hafnium.stackaugmentor.StackTraceReceiver
 import com.hafnium.stackaugmentor.StackTraceParam
 import com.thirdparty.Order
 
 class ObjectClass {
-    @StackTraceId
+    @StackTraceReceiver
     val objectId = "object-1"
 
     fun objectMethod(@StackTraceParam orderId: Int): Nothing = throw Exception("An error has occurred")
 }
 
 class KeyedByMethod {
-    @StackTraceId
+    @StackTraceReceiver
     fun key(): String = "k-1"
 
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
-/** Several @StackTraceId members: one id each. */
+/** Several @StackTraceReceiver members: one id each. */
 class MultiKeyed {
-    @StackTraceId
+    @StackTraceReceiver
     val tenant = "acme"
 
-    @StackTraceId
+    @StackTraceReceiver
     val orderId = 42
 
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
 open class Base {
-    @StackTraceId
+    @StackTraceReceiver
     val baseId = "b1"
 }
 
@@ -39,7 +39,7 @@ class Derived : Base() {
 }
 
 /** Annotation on a primary constructor property, without `@field:`. */
-class Node(@StackTraceId val name: String, private val next: Node?) {
+class Node(@StackTraceReceiver val name: String, private val next: Node?) {
     fun walk(@StackTraceParam depth: Int) {
         if (next == null) throw IllegalStateException("end of list")
         next.walk(depth + 1)
@@ -47,7 +47,7 @@ class Node(@StackTraceId val name: String, private val next: Node?) {
 }
 
 /** Creates an exception and passes it to the next relay, which throws it: the next relay's frame is not in the trace. */
-class Relay(@StackTraceId val name: String, private val next: Relay?) {
+class Relay(@StackTraceReceiver val name: String, private val next: Relay?) {
     fun pass(@StackTraceParam depth: Int, error: IllegalStateException?) {
         if (next == null) throw error!!
         next.pass(depth + 1, IllegalStateException("created by $name"))
@@ -56,14 +56,14 @@ class Relay(@StackTraceId val name: String, private val next: Relay?) {
 
 /** A receiver id with parentheses, which would confuse IDEs looking for "(File.kt:12)". */
 class ParenLabels {
-    @StackTraceId
+    @StackTraceReceiver
     val id = "id(7)"
 
     fun fail(@StackTraceParam value: Int): Nothing = throw IllegalStateException("fail $value")
 }
 
 class ManyParams {
-    @StackTraceId
+    @StackTraceReceiver
     val id = "many"
 
     fun six(
@@ -91,7 +91,7 @@ class ManyParams {
 }
 
 class Shipping {
-    @StackTraceId
+    @StackTraceReceiver
     val id = "ship"
 
     fun ship(@StackTraceParam order: Order?): Nothing = throw IllegalStateException("cannot ship")
@@ -101,7 +101,7 @@ class Shipping {
     fun op(@StackTraceParam name: String, y: Int): Nothing = throw IllegalStateException("op string $y")
 }
 
-/** Matched by an "@" entry, but without @StackTraceId: not augmented. */
+/** Matched by an "@" entry, but without @StackTraceReceiver: not augmented. */
 class WithToString {
     override fun toString() = "WTS-1"
     fun fail(): Nothing = throw IllegalStateException("fail")
@@ -112,28 +112,28 @@ class Plain {
 }
 
 class BrokenId {
-    @StackTraceId
+    @StackTraceReceiver
     fun id(): String = throw IllegalStateException("id is broken")
 
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
 class MultiLine {
-    @StackTraceId
+    @StackTraceReceiver
     val text = "line1\nline2"
 
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
 class LongId {
-    @StackTraceId
+    @StackTraceReceiver
     val text = "x".repeat(50)
 
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
 class LambdaHolder {
-    @StackTraceId
+    @StackTraceReceiver
     val id = "lambda"
 
     fun viaLambda() {
@@ -149,7 +149,7 @@ class NoTrace {
 }
 
 class Layers {
-    @StackTraceId
+    @StackTraceReceiver
     val layer = "layers"
 
     fun inner(@StackTraceParam step: Int): Nothing = throw IllegalStateException("inner $step")
@@ -178,7 +178,7 @@ class Layers {
         throw RuntimeException("wrapped plain", e)
     }
 
-    /** As [outerWrap], with a cause that gets no ids of its own. */
+    /** As [outerWrap], with a cause that is not augmented itself. */
     fun outerWrapPlain(): Nothing = wrapPlain()
 
     /** [Closer.close] throws too: its exception is suppressed in the one from [inner]. */
@@ -188,11 +188,11 @@ class Layers {
     fun outerClosing(): Nothing = closing()
 }
 
-/** An exception that [augment.exceptions] gives no ids. */
+/** An exception that [augment.exceptions] does not augment. */
 class PlainCause(message: String) : RuntimeException(message)
 
 class Closer : AutoCloseable {
-    @StackTraceId
+    @StackTraceReceiver
     val name = "closer"
 
     override fun close(): Unit = throw IllegalArgumentException("close failed")
@@ -203,14 +203,14 @@ fun staticWithParam(@StackTraceParam code: Int): Nothing = throw IllegalStateExc
 fun staticWithoutParam(): Nothing = throw IllegalStateException("static")
 
 class ArrayId {
-    @StackTraceId
+    @StackTraceReceiver
     val codes = intArrayOf(1, 2)
 
     fun fail(@StackTraceParam tags: Array<String>): Nothing = throw IllegalStateException("fail ${tags.size}")
 }
 
 class NullId {
-    @StackTraceId
+    @StackTraceReceiver
     val id: String? = null
 
     fun fail(@StackTraceParam note: String?): Nothing = throw IllegalStateException("fail $note")
@@ -224,7 +224,7 @@ class Unprintable {
 }
 
 class Canvas {
-    @StackTraceId
+    @StackTraceReceiver
     val id = "canvas"
 
     fun draw(@StackTraceParam point: Point): Nothing = throw IllegalStateException("draw $point")
@@ -233,7 +233,7 @@ class Canvas {
 }
 
 /** Constructors are not instrumented. */
-class FailingInit(@StackTraceId val id: String) {
+class FailingInit(@StackTraceReceiver val id: String) {
     init {
         check(id.isNotEmpty()) { "empty id" }
     }
@@ -241,7 +241,7 @@ class FailingInit(@StackTraceId val id: String) {
 
 /** The property of an object is compiled to a static field, which is not an id source. */
 object Registry {
-    @StackTraceId
+    @StackTraceReceiver
     val name = "registry"
 
     fun fail(@StackTraceParam key: String): Nothing = throw IllegalStateException("no $key")
@@ -249,14 +249,14 @@ object Registry {
 
 /** Its getter is an instance method, so it is an id source. */
 object GetterRegistry {
-    @get:StackTraceId
+    @get:StackTraceReceiver
     val name = "getter-registry"
 
     fun fail(@StackTraceParam key: String): Nothing = throw IllegalStateException("no $key")
 }
 
 class Chain {
-    @StackTraceId
+    @StackTraceReceiver
     val id = "chain"
 
     fun start(@StackTraceParam n: Int): Nothing = step(n + 1)
@@ -278,7 +278,7 @@ class Chain {
 
 /** Throws exceptions created before the call: in the constructor, or by the first call and reused. */
 class Prepared {
-    @StackTraceId
+    @StackTraceReceiver
     val id = "prepared"
 
     private val created = IllegalStateException("created in the constructor")
@@ -293,7 +293,7 @@ class Prepared {
 }
 
 /** Recurses down to depth 0 and throws there, after parking the thread first if asked: ConcurrencyTest. */
-class Diver(@StackTraceId val name: String) {
+class Diver(@StackTraceReceiver val name: String) {
     fun dive(@StackTraceParam depth: Int, @StackTraceParam park: Boolean) {
         if (depth == 0) {
             if (park) {

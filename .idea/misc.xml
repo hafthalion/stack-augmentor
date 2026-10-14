@@ -7,7 +7,7 @@
   </component>
   <component name="EntryPointsManager">
     <list size="1">
-      <item index="0" class="java.lang.String" itemvalue="com.hafnium.stackaugmentor.StackTraceId" />
+      <item index="0" class="java.lang.String" itemvalue="com.hafnium.stackaugmentor.StackTraceReceiver" />
     </list>
   </component>
   <component name="ExternalStorageConfigurationManager" enabled="true" />

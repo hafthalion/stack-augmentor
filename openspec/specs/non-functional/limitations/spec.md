@@ -17,7 +17,7 @@ normal returns free of cost.
 - **THEN** the frame of `m` and the frames below it show no ids
 
 ### Requirement: Constructors show parameter ids only, not for exceptions from super(...)
-Constructors SHALL NOT get receiver ids, because an exception can leave a constructor before the object is
+Constructors SHALL NOT show receiver ids, because an exception can leave a constructor before the object is
 initialised. Their parameter ids SHALL NOT be shown for exceptions thrown inside the constructor called with
 `super(...)` or `this(...)`: the JVM's verifier accepts no exception handler around that call.
 

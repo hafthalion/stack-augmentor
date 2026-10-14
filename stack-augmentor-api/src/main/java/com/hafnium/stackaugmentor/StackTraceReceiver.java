@@ -20,5 +20,5 @@ import java.lang.annotation.Target;
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD, ElementType.METHOD})
-public @interface StackTraceId {
+public @interface StackTraceReceiver {
 }

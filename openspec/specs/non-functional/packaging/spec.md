@@ -8,7 +8,7 @@ application's classpath.
 
 ### Requirement: Modules
 The project SHALL be split into these modules:
-- `stack-augmentor-api`: the `@StackTraceId`, `@StackTraceParam`, `@StackTraceParams` and `@StackTraceAugment` annotations, and
+- `stack-augmentor-api`: the `@StackTraceReceiver`, `@StackTraceParam`, `@StackTraceParams` and `@StackTraceAugment` annotations, and
   `ExceptionFormat`;
 - `stack-augmentor-instrument-bridge`: `Dispatch`, the class the advice calls, and `LiveDispatch`, the class the
   live-stack mode's code in `Throwable` calls (Java, no dependencies);
@@ -63,7 +63,7 @@ in the live-stack mode, which it SHALL skip with a message when the native libra
 #### Scenario: Running the examples
 - **GIVEN** the project
 - **WHEN** `./gradlew :examples:java-agent:run` and `./gradlew :examples:build-time:run` are run
-- **THEN** both print stack traces with ids
+- **THEN** both print augmented stack traces
 
 #### Scenario: Running the live-stack example
 - **GIVEN** the project, with the native library built

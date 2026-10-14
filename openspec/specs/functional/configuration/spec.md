@@ -15,10 +15,10 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
 - `[augment]`: `frameFormat`, `receiverFormat`, `paramsFormat` (strings), `maxIdLength` (integer
   between 2 and 10000, default 64), and the tables:
   - `[augment.exceptions]` (class name or class pattern → `true` or `false`), which decides the throwables
-    whose frames get ids, see the stack trace augmentation spec. Its entries SHALL be read in the order of the
-    file. Without entries no throwable gets ids;
+    that are augmented, see the stack trace augmentation spec. Its entries SHALL be read in the order of the
+    file. Without entries no throwable is augmented;
   - `[augment.receiver]` (method key, see below → a string: field name, `method()`, several of them separated
-    by commas, `"@"` for the class's `@StackTraceId` members, or `"-"` for no receiver id), which decides the
+    by commas, `"@"` for the class's `@StackTraceReceiver` members, or `"-"` for no receiver id), which decides the
     receiver ids, see the id sources spec;
   - `[augment.params]` (method key → a string: parameter names and 0-based indexes from 0 to 255, the JVM's
     maximum number of parameters, separated by commas, each optionally followed by `#` to hash the value (e.g.
@@ -59,7 +59,7 @@ entries, rather than one silently replacing the other.
 #### Scenario: Empty file
 - **GIVEN** an empty configuration file
 - **WHEN** it is loaded
-- **THEN** all defaults apply, and no class gets ids
+- **THEN** all defaults apply, and nothing is augmented
 
 #### Scenario: Wildcard entry with named parameters
 - **GIVEN** `"com.thirdparty.**.*Service::*" = "order, 1"` in `[augment.params]`
@@ -69,7 +69,7 @@ entries, rather than one silently replacing the other.
 #### Scenario: Class entries
 - **GIVEN** `"com.acme.legacy.*::*" = "getKey()"`, `"com.acme.**::*" = "@"` and `"com.thirdparty.Customer::*" = "customerId"` in `[augment.receiver]`, in this order
 - **WHEN** it is loaded
-- **THEN** the classes under `com.acme` use their `@StackTraceId`, classes directly in `com.acme.legacy` use `getKey()`, and `Customer` uses its `customerId` field, while no parameter annotations are used
+- **THEN** the classes under `com.acme` use their `@StackTraceReceiver`, classes directly in `com.acme.legacy` use `getKey()`, and `Customer` uses its `customerId` field, while no parameter annotations are used
 
 #### Scenario: Method entry with "@"
 - **GIVEN** `"com.acme.legacy.*::*" = "@"` in `[augment.params]`
