@@ -55,8 +55,8 @@ class ByteBuddyPluginTest {
         assertFalse(new ByteBuddyPlugin().matches(tracked()));
 
         String output = err.toString(StandardCharsets.UTF_8);
-        assertTrue(output.contains("WARN build plugin: the configuration has no [augment.receiver] or [augment.params] entries, "
-                + "so nothing will be augmented"), output);
+        assertTrue(output.contains("WARN build plugin: the configuration has no [augment.receiver] or [augment.params] entries other "
+                + "than \"-\", so nothing will be augmented"), output);
     }
 
     @Test

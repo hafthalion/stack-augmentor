@@ -308,7 +308,7 @@ class AugmentorConfigTest {
         assertEquals(emptyList<ParamRef>(), config.paramRefs("com.acme.Invoice", "pay", true))
         assertEquals(listOf(ParamRef.ByIndex(1)), config.paramRefs("com.acme.Invoice", "pay", false))
         assertTrue(config.hasParamEntries("com.acme.Order"))
-        assertEquals("com.acme.Order::@[#0], com.acme.Order::ship[to], com.acme.**::@[-], com.acme.**::*[#1]", config.methodsDescription())
+        assertEquals("com.acme.Order::@[0], com.acme.Order::ship[to], com.acme.**::@[-], com.acme.**::*[1]", config.methodsDescription())
         assertTrue(error("[augment.params]\n\"com.acme.Order::@x\" = \"0\"").contains("keys must name a class and its methods separated by ::"))
         assertTrue(error("[augment.params]\n\"com.acme.Order.ship\" = \"0\"").contains("keys must name a class and its methods separated by ::"))
         assertTrue(error("[augment.params]\n\"::ship\" = \"0\"").contains("keys must name a class and its methods separated by ::"))
@@ -610,7 +610,7 @@ class AugmentorConfigTest {
             listOf(ParamRef.ByName("user"), ParamRef.ByName("email", true), ParamRef.ByIndex(2), ParamRef.ByIndex(3, true)),
             config.paramRefs("com.acme.User", "login", false),
         )
-        assertTrue(config.methodsDescription().contains("com.acme.User::login[user, email#, #2, #3#]"), config.methodsDescription())
+        assertTrue(config.methodsDescription().contains("com.acme.User::login[user, email#, 2, 3#]"), config.methodsDescription())
     }
 
     @Test

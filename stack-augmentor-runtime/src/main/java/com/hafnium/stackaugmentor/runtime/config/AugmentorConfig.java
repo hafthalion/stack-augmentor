@@ -436,7 +436,7 @@ public final class AugmentorConfig {
         return text.isEmpty() ? "none" : text;
     }
 
-    /** An {@code [augment.receiver]} value as written, e.g. {@code getId()} or {@code [tenant, id()]}. */
+    /** An {@code [augment.receiver]} value for the debug log, e.g. {@code getId()}, or {@code [tenant, id()]} for several. */
     public static String specText(IdSpec spec) {
         return switch (spec) {
             case IdSpec.Annotations annotations -> ANNOTATIONS;
@@ -448,13 +448,13 @@ public final class AugmentorConfig {
         };
     }
 
-    /** The {@code [augment.params]} entries for the debug log, e.g. {@code com.acme.Order::process[order, #2]}. */
+    /** The {@code [augment.params]} entries for the debug log, e.g. {@code com.acme.Order::process[order, 2, email#]}. */
     public String methodsDescription() {
         String text = methods.entrySet().stream()
                 .map(entry -> entry.getKey() + entry.getValue().stream()
                         .map(ref -> switch (ref) {
                             case ParamRef.ByName byName -> byName.name() + (byName.hashed() ? "#" : "");
-                            case ParamRef.ByIndex byIndex -> "#" + byIndex.index() + (byIndex.hashed() ? "#" : "");
+                            case ParamRef.ByIndex byIndex -> byIndex.index() + (byIndex.hashed() ? "#" : "");
                             case ParamRef.Annotations annotations -> ANNOTATIONS;
                             case ParamRef.Excluded excluded -> EXCLUDED;
                         })
@@ -889,7 +889,7 @@ public final class AugmentorConfig {
                 fullPath.addAll(path);
                 entries.add(new Entry(fullPath, Objects.requireNonNull(content.get(path))));
             }
-            // In the order of the file: tomlj's tables do not keep it, and in [augment.exceptions] it decides.
+            // In the order of the file: tomlj's tables do not keep it, and in all three tables the first matching entry decides.
             entries.sort(Comparator.comparing((Entry entry) -> toml.inputPositionOf(entry.path()),
                     Comparator.nullsLast(Comparator.comparingInt(TomlPosition::line).thenComparingInt(TomlPosition::column))));
             return entries;

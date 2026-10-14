@@ -16,6 +16,9 @@ import java.lang.annotation.Target;
  * <p>With {@code secret = true} the value is shown as a short hash instead of its text, e.g.
  * {@code invite{email=#71d4f55f}}: the same value gives the same hash, so it can be followed across log lines
  * without appearing in them.
+ *
+ * <p>It is used only in the methods whose {@code [augment.params]} entry is {@code "@"}, e.g.
+ * {@code "com.acme.**::*" = "@"}.
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)

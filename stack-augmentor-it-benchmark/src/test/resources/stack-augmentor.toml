@@ -1,7 +1,7 @@
 # The *_EXCLUDED scenarios throw ExcludedException, which gets no ids although its frames are configured.
 [augment.exceptions]
 "com.hafnium.it.benchmark.ExcludedException" = false
-"com.hafnium.it.benchmark.BenchmarkException" = true
+"com.hafnium.it.benchmark.BenchmarkException+" = true
 
 # The benchmark's frames: Configured shows its name and its depth parameter, Plain shows nothing.
 [augment.receiver]

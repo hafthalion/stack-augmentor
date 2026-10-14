@@ -226,8 +226,8 @@ select it: `@StackTraceId` marks receiver ids only.
 - **WHEN** `staticWithParam(5)` throws
 - **THEN** that frame shows the parameter id `code=5` and no receiver id
 
-#### Scenario: Selected by an annotation and by the configuration
-- **GIVEN** `fun op(@StackTraceParam x: Int, y: Int)` in class `C`, and `"C::*" = "@"` and `"C::op" = "x, y"` in `[augment.params]`
+#### Scenario: Selected by name and by index
+- **GIVEN** `fun op(x: Int, y: Int)` in class `C`, and `"C::op" = "x, y, 0"` in `[augment.params]`
 - **WHEN** `op(1, 2)` throws
 - **THEN** that frame shows `x=1, y=2`, each parameter once
 

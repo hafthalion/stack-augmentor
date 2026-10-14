@@ -16,7 +16,8 @@ import java.util.function.Predicate;
 
 /**
  * Finds the deciding {@code [augment.receiver]} entry of a method: the first entry that matches its type, a pattern by
- * the type's own name, a class name also as a superclass or an implemented interface, and applies to the method
+ * the type's own name, a class name by the type's own name or, with {@code +}, also as a superclass or an implemented
+ * interface, and applies to the method
  * ({@link AugmentorConfig#classEntry(Class, String, boolean)}).
  */
 final class ClassEntries {

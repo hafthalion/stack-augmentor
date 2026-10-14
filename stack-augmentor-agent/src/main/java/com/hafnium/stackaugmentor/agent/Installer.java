@@ -60,7 +60,7 @@ final class Installer {
                     Map.of());
             return true;
         } catch (RuntimeException e) {
-            Log.debug(() -> "agent: java.lang cannot be opened, so stack traces are copied for every frame: " + e);
+            Log.debug(() -> "agent: java.lang cannot be opened, so stack traces are copied (inPlaceModification is not available): " + e);
             return false;
         }
     }

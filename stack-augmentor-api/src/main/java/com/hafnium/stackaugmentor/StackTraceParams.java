@@ -12,6 +12,9 @@ import java.lang.annotation.Target;
  *
  * <p>Labels are the parameter names as compiled into the class file (see {@link StackTraceParam}). To show one of
  * these parameters hashed, annotate it with {@code @StackTraceParam(secret = true)}.
+ *
+ * <p>It is used only in the methods whose {@code [augment.params]} entry is {@code "@"}, e.g.
+ * {@code "com.acme.**::*" = "@"}.
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
