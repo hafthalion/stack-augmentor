@@ -34,7 +34,10 @@ The system SHALL always print a warning to standard error, prefixed `[stack-augm
 - when the runtime handler cannot be created, with the reason;
 - when the build-time runtime handler finds no configuration, so no exception gets ids;
 - when the agent or the build plugin starts with a configuration that has no `[augment.receiver]` and no
-  `[augment.params]` entries, so nothing will be augmented.
+  `[augment.params]` entries other than `"-"`, so nothing will be augmented;
+- when the agent, the build plugin or the runtime starts with `[augment.receiver]` or `[augment.params]` entries but
+  no `[augment.exceptions]` entry that is `true`: `no [augment.exceptions] entry is true, so no exception gets ids;
+  "java.lang.Exception+" = true gives them to all exceptions, "**" = true to all throwables`.
 
 A member missing for an entry with wildcards SHALL only be reported as a debug message.
 
@@ -51,7 +54,7 @@ A member missing for an entry with wildcards SHALL only be reported as a debug m
 #### Scenario: Nothing configured
 - **GIVEN** the agent started without a configuration
 - **WHEN** it starts
-- **THEN** `[stack-augmentor] WARN agent: the configuration has no [augment.receiver] or [augment.params] entries, so nothing will be augmented` is printed
+- **THEN** `[stack-augmentor] WARN agent: the configuration has no [augment.receiver] or [augment.params] entries other than "-", so nothing will be augmented` is printed
 
 ### Requirement: Debug messages
 With `debug = true`, the system SHALL print messages to standard error, prefixed
@@ -59,12 +62,12 @@ With `debug = true`, the system SHALL print messages to standard error, prefixed
 - the configuration, from the agent, the build plugin and the runtime handler alike: its location, the `[augment.receiver]` entries (with `@` for annotations and `-` for none) and the `[augment.params]` entries (with `#` for hashed parameters, `@` for annotations and `-` for none), and the formats;
 - each instrumented class: why it is instrumented (configured receiver id, annotated receiver id, or parameter ids only), and its instrumented methods with their parameter ids;
 - `@StackTraceId` annotations ignored because the class's deciding `[augment.receiver]` entry is not `"@"` or no entry matches the class, and `@StackTraceParam` and `@StackTraceParams` annotations ignored because no `[augment.params]` entry with `"@"` applies to the method, each naming the table that would enable them;
-- `[augment.params]` entries without wildcards that name a missing method, a missing parameter or an index out of range, suggesting `-parameters` or an index when the class has no parameter names;
+- `[augment.params]` entries without wildcards or `+` that name a missing method, a missing parameter or an index out of range, suggesting `-parameters` or an index when the class has no parameter names;
 - members missing for `[augment.receiver]` entries with wildcards;
 - the id source found for each class when it is first needed;
 - exceptions whose frame is not found in their stack trace.
 
-`[augment.params]` entries with wildcards SHALL NOT produce messages for classes or methods they do not
+`[augment.params]` entries with wildcards or `+` SHALL NOT produce messages for classes or methods they do not
 match, or for names and indexes a matched method does not have. With `debug = false`, no debug messages
 SHALL be printed, and the message texts SHALL NOT be built, also for the messages about members missing for
 `[augment.receiver]` entries with wildcards.
@@ -75,7 +78,7 @@ SHALL be printed, and the message texts SHALL NOT be built, also for the message
 - **THEN** a message reports that there is no parameter `missing` and no parameter `#7` in `process(Order order, int quantity, String note)`
 
 #### Scenario: Instrumented class
-- **GIVEN** `debug = true` and `OrderService.process` listed in `[augment.params]`
+- **GIVEN** `debug = true` and `"com.thirdparty.OrderService::process" = "order, 1"` in `[augment.params]`
 - **WHEN** `OrderService` is instrumented
 - **THEN** `instrumenting com.thirdparty.OrderService (parameter ids only): process{order, quantity}` is printed
 

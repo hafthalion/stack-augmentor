@@ -32,7 +32,7 @@ public sealed interface IdSpec {
     record Annotations() implements IdSpec {
     }
 
-    /** {@code "-"}: no receiver id, even if a less specific entry would give one. Parameter ids are not affected. */
+    /** {@code "-"}: no receiver id for the methods its key names, even if a later entry would give one. Parameter ids are not affected. */
     record Excluded() implements IdSpec {
     }
 }

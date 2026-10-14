@@ -11,7 +11,7 @@ open class Customer(private val customerId: String) {
     fun rename(): Nothing = throw IllegalStateException("cannot rename")
 }
 
-/** A list of receiver ids: ["tenant", "lineId()"]. */
+/** A list of receiver ids: "tenant, lineId()". */
 class OrderLine(private val tenant: String, private val lineId: Int) {
     fun lineId(): Int = lineId
 

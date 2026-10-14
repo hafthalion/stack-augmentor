@@ -59,7 +59,7 @@ maxIdLength = 64
 | `[augment.receiver]` | `"<class>::<methods>" = "<members>"` | empty | [Receiver ids](#receiver-ids) |
 | `[augment.params]` | `"<class>::<methods>" = "<parameters>"` | empty | [Parameter ids](#parameter-ids) |
 
-TOML in short: `#` starts a comment, a key with `.`, `::`, `*` or `+` in it must be quoted, and dotted keys (`augment.maxIdLength = 32`) work as well as sections. The order of the tables does not matter. The order of the entries within `[augment.exceptions]`, `[augment.receiver]` and `[augment.params]` does: the first entry that matches decides.
+TOML in short: `#` starts a comment, a key with `::`, `*` or `+` in it must be quoted, an unquoted key with `.` is read as nested tables (which works for `[augment.exceptions]` class names only), and dotted keys (`augment.maxIdLength = 32`) work as well as sections. The order of the tables does not matter. The order of the entries within `[augment.exceptions]`, `[augment.receiver]` and `[augment.params]` does: the first entry that matches decides.
 
 ## Where the file comes from
 
@@ -68,7 +68,7 @@ The file name must end in `.toml`.
 | Who reads it | Where from | What it uses |
 |---|---|---|
 | Java agent, also in the live-stack mode | `-javaagent:stack-augmentor-agent.jar=config=<file>` (or just `=<file>`), otherwise `-Dstackaugmentor.config=<file>` | everything, at JVM start |
-| Build plugin | the plugin's argument in `build.gradle.kts` (see the [README](../README.md#quick-start-build-time-instrumentation)) | `[augment.receiver]` and `[augment.params]`, to decide which classes and methods to instrument and which parameters they pass; `debug` |
+| Build plugin | the plugin's argument in `build.gradle.kts` (see the [README](../README.md#quick-start-build-time-instrumentation)) | `[augment.receiver]` and `[augment.params]`, to decide which classes and methods to instrument and which parameters they pass; `debug`. It validates the whole file and warns if no `[augment.exceptions]` entry is `true` |
 | Runtime of classes instrumented at build time | `-Dstackaugmentor.config=<file>`, otherwise `stack-augmentor.toml` on the classpath (in an application server also from the context class loader of the first throwing thread) | `[augment]`, `[augment.exceptions]`, `[augment.receiver]`, `debug`, `inPlaceModification`; the parameters were chosen at build time |
 
 For build-time instrumentation, one file in `src/main/resources` serves both the build and the runtime. A frame's receiver ids come from the runtime entry with the same key as the entry that decided its method at build time, so if you change a key, rebuild. Without a runtime file, no exception gets ids and a warning says so.
@@ -138,7 +138,7 @@ A method belongs to the class that declares it: a subclass's own methods need an
 - **The keys are classes as above, without methods**: a class name matches that class only, `+` after it also its subclasses, and a pattern the name of the exception's class only.
 - **Unquoted class names work too**, since TOML reads `java.io.IOException = true` as nested tables, which mean the same. Keys with `+` or wildcards must be quoted.
 - **It is checked when an exception leaves an instrumented method** (in the live-stack mode: when it is created). Classes are instrumented as the other two tables say, whatever this table contains.
-- **Causes:** the frames an exception without ids leaves stay as they are, also where its causes share them. An exception with ids still writes its frames into the causes that share them, whatever their class, so printed traces still collapse into `... N more`. See [Causes](causes.md).
+- **Causes:** the frames an exception without ids leaves stay as they are, also where its causes share them. An exception with ids still writes its frames into the causes that share them, whatever their class, so printed traces still collapse into `... N more`. In the live-stack mode, each exception gets ids by its own class only. See [Causes](causes.md).
 
 ## Receiver ids
 
@@ -206,23 +206,23 @@ A method belongs to the class that declares it: a subclass's own methods need an
 
 ## Root options
 
-- **`debug = true`** prints diagnostics to stderr: the configuration and where it came from, which classes and methods get instrumented and by which entry, where each id comes from, and annotations or entries that have no effect. Messages start with their source: `agent:`, `build plugin:` or `runtime:` (classes instrumented at build time, at runtime).
-- **`inPlaceModification = true`** writes each frame into the exception's own stack trace instead of copying the trace, which is faster for deep stacks (see [Limitations](limitations.md)). It needs `java.lang` open: the agent opens it; with build-time instrumentation, start the application with `--add-opens java.base/java.lang=ALL-UNNAMED`, otherwise startup fails. `-Dstackaugmentor.inPlaceModification=true|false` overrides the file.
+- **`debug = true`** prints diagnostics to stderr: the configuration and where it came from, which classes and methods get instrumented and by which entry, where each id comes from, and annotations or entries that have no effect. Startup messages start with their source: `agent:`, `build plugin:` or `runtime:` (classes instrumented at build time, at runtime); the others name the class or the entry they are about.
+- **`inPlaceModification = true`** writes each frame into the exception's own stack trace instead of copying the trace, which is faster for deep stacks (see [Limitations](limitations.md)). It needs `java.lang` open: the agent opens it; with build-time instrumentation, start the application with `--add-opens java.base/java.lang=ALL-UNNAMED`, otherwise the agent stops the JVM at startup, and the runtime of build-time classes prints an error and leaves stack traces unchanged. `-Dstackaugmentor.inPlaceModification=true|false` overrides the file.
 
 ## Errors and warnings
 
-**An invalid configuration stops the JVM (or the build) at startup**, naming the file, the key and its line:
+**An invalid configuration stops the JVM (with the agent) or the build at startup**, naming the file, the key and its line:
 
 ```
 [stack-augmentor] ERROR agent: stack-augmentor.toml, line 3: maxIdLength must be between 2 and 10000, was 1
 ```
 
-With build-time instrumentation, the runtime prints such an error and leaves the stack traces unchanged. Rejected are:
+With build-time instrumentation, the runtime reads its configuration when the first exception needs it; it then prints such an error and leaves the stack traces unchanged, and the application keeps running. Rejected are:
 
 - invalid TOML, and values of the wrong type, e.g. an array instead of a comma-separated string;
 - unknown keys, so typos don't go unnoticed (the message lists the allowed ones);
 - invalid keys, e.g. without `::`, with `+` after a pattern, or `<init>` in `[augment.receiver]`;
-- invalid values, e.g. an index above 255, an empty item in `"a,,b"`, or a name listed twice;
+- invalid values, e.g. an index above 255, an empty item in `"a,,b"`, or a method or receiver member listed twice (a parameter listed twice is shown once);
 - the same key twice, also written differently: `"com.acme.Order"` and unquoted `com.acme.Order`, or `"Order::a,b"` and `"Order::a, b"`;
 - templates with `(`, `)`, an unknown placeholder, or without `.$method`.
 

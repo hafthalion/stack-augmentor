@@ -22,7 +22,7 @@ class BuildTimeInstrumentationTest {
                 "com.hafnium.it.buildtime.ClassWithAnnotation{objectId=object-1}.error",
                 "com.hafnium.it.buildtime.ClassWithAnnotation{objectId=object-1}.method{param=ObjectParam{name=object-param-1}, token=#fb07916a}",
                 "com.hafnium.it.buildtime.ClassWithAnnotation{objectId=object-1}.transfer{from=a, to=b, amount=10}",
-                // The exact entry beats the "@" pattern.
+                // Its own entry comes before the "@" pattern.
                 "com.hafnium.it.buildtime.ClassWithoutAnnotation.method{q=123}",
             ),
             frames(e, 4),
@@ -36,7 +36,7 @@ class BuildTimeInstrumentationTest {
             listOf(
                 "com.hafnium.it.buildtime.configured.Customer{customerId=c-9}.notify{email=#71d4f55f}",
                 "com.hafnium.it.buildtime.configured.Order{getOrderNumber=4711}.ship",
-                // Its "-" entry beats the Inventory* pattern.
+                // Its "-" entry comes before the Inventory* pattern.
                 "com.hafnium.it.buildtime.configured.InventoryAudit.record",
                 "com.hafnium.it.buildtime.configured.InventoryService.reserve{sku=x-1, count=3}",
                 "com.hafnium.it.buildtime.configured.OrderService.process{order=Order#4711, quantity=3}",

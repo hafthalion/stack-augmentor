@@ -27,7 +27,7 @@ a warning.
 - **GIVEN** `examples/build-time`, with the ByteBuddy Gradle plugin, the `DECORATE` entry point and the build plugin with its configuration argument, which has `"com.hafnium.examples.buildtime.**::*" = "@"` in `[augment.receiver]` and `"com.hafnium.examples.buildtime.**::*" = "@"` in `[augment.params]`
 - **WHEN** the project is built and run without `-javaagent`
 - **THEN** the frames of `ClassWithAnnotation` show `{objectId=object-1}` and `{param=ObjectParam{name=object-param-1}, token=#fb07916a}`, the argument's `toString()` with its parentheses replaced by braces and the secret token hashed
-- **AND** the frame of `ClassWithoutAnnotation.method` shows `{q=123}` from its exact `[augment.params]` entry, and no receiver id
+- **AND** the frame of `ClassWithoutAnnotation.method` shows `{q=123}` from its own `[augment.params]` entry, which comes before the `"@"` pattern, and no receiver id
 
 #### Scenario: Configuration change
 - **GIVEN** the `"@"` entries in the build plugin's configuration no longer match the project's classes
@@ -60,8 +60,10 @@ packages, even when an entry matches them.
 When no agent has installed a handler, `Dispatch` SHALL look up the handler with `ServiceLoader` once,
 on the first exception that leaves an instrumented method. `stack-augmentor-runtime` SHALL register
 `com.hafnium.stackaugmentor.runtime.handler.ThrowHandler`, whose no-argument constructor reads the runtime
-configuration. The `[augment.receiver]` entries SHALL apply as with the agent: a class that no entry
-matches SHALL get no receiver id, even if it is annotated or a pattern matches a superclass. If creating the handler fails, a warning with the reason SHALL be printed and
+configuration. The runtime SHALL NOT match classes against `[augment.receiver]` again: the advice passes the key
+of the entry that decided the method at build time, and the runtime entry with that key SHALL give the receiver
+ids. A method that no entry decided at build time, or whose key the runtime configuration does not have (e.g.
+a key changed without rebuilding), SHALL get no receiver id, even if its class is annotated. If creating the handler fails, a warning with the reason SHALL be printed and
 exceptions SHALL keep their original stack traces; an invalid runtime configuration SHALL be printed as an error
 with the file, the key and the line (see the diagnostics specification).
 
@@ -75,6 +77,11 @@ with the file, the key and the line (see the diagnostics specification).
 - **WHEN** one of its methods throws
 - **THEN** the frame stays unchanged, since no `[augment.exceptions]` entry gives the exception ids
 - **AND** a warning says that there is no runtime configuration, so no exception gets ids
+
+#### Scenario: Receiver key changed without a rebuild
+- **GIVEN** a class built with `"com.acme.Svc::*" = "id"`, and a runtime configuration with `"com.acme.Svc+::*" = "id"` instead
+- **WHEN** a method of `Svc` throws
+- **THEN** the frame shows no receiver id, since the runtime has no entry with the key `com.acme.Svc::*`
 
 #### Scenario: Parameter entry only
 - **GIVEN** `"com.acme.Svc::run" = "0"` in `[augment.params]`, no `[augment.receiver]` entry for `Svc`, and `Svc` with a `@StackTraceId` field

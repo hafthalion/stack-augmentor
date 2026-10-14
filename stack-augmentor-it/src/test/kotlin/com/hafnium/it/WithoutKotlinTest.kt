@@ -87,8 +87,8 @@ class WithoutKotlinTest {
         record("JavaMain, with the agent and no configuration", result.output)
         assertTrue(
             result.output.contains(
-                "[stack-augmentor] WARN agent: the configuration has no [augment.receiver] or [augment.params] entries, " +
-                    "so nothing will be augmented",
+                "[stack-augmentor] WARN agent: the configuration has no [augment.receiver] or [augment.params] entries other than " +
+                    "\"-\", so nothing will be augmented",
             ),
             result.output,
         )

@@ -33,7 +33,7 @@ public final class IdResolver {
     /** Name of the annotation that selects one parameter. */
     public static final String STACK_TRACE_PARAM = "com.hafnium.stackaugmentor.StackTraceParam";
 
-    /** Name of the annotation that selects all parameters of a method, or of the methods of a class. */
+    /** Name of the annotation that selects all parameters of a method or constructor. */
     public static final String STACK_TRACE_PARAMS = "com.hafnium.stackaugmentor.StackTraceParams";
 
     /** Name of the annotation that {@code "@"} after {@code ::} selects methods by, in both tables. */
@@ -99,7 +99,7 @@ public final class IdResolver {
         this.config = config;
     }
 
-    /** Whether frames of this throwable get ids: {@code [augment] exceptions}, see {@link AugmentorConfig#augments}. */
+    /** Whether frames of this throwable get ids: {@code [augment.exceptions]}, see {@link AugmentorConfig#augments}. */
     public boolean augments(Throwable thrown) {
         return config.augments(thrown.getClass());
     }

@@ -29,8 +29,9 @@ import java.util.Objects;
  * instrumentation no agent does that: {@link Dispatch} creates it through {@code ServiceLoader} with the
  * no-argument constructor, which reads the configuration from {@code -Dstackaugmentor.config} or from
  * {@code stack-augmentor.toml} on the classpath. What gets instrumented was decided at build time; at runtime,
- * {@code [augment]}, {@code debug} and the {@code [augment.receiver]} entries apply, as with the agent: a class
- * without an entry gets no receiver id, even if it is annotated.
+ * {@code [augment]}, {@code [augment.exceptions]}, {@code debug}, {@code inPlaceModification} and the
+ * {@code [augment.receiver]} entries apply, the latter by the key of the entry that decided the method at build time:
+ * a method without such an entry gets no receiver id, even if its class is annotated.
  */
 public final class ThrowHandler implements Dispatch.Handler {
 

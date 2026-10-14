@@ -17,8 +17,9 @@ call `Dispatch.onThrow`. Exceptions inside the advice SHALL be suppressed.
 - **THEN** the only added work is the null check of the thrown value
 
 ### Requirement: Lazily built advice arguments
-The receiver, the parameter values and their labels SHALL be bound through custom ByteBuddy offset
-mappings (`@IdArgs` for an `Object[]` of the id parameters, boxing primitives, and `@IdArgNames` for a
+The receiver, the key of the deciding `[augment.receiver]` entry, the parameter values and their labels SHALL be
+bound through custom ByteBuddy offset mappings (`@IdReceiver` for `this`, or `null` where no receiver id applies,
+`@IdReceiverKey` for the entry key as a constant, `@IdArgs` for an `Object[]` of the id parameters, boxing primitives, and `@IdArgNames` for a
 `String[]` of labels), so that the arrays are built only where the advice reads them: inside the
 exception branch. Methods without id parameters SHALL get `null` for both.
 
@@ -39,7 +40,7 @@ classes and `Dispatch`.
 - **THEN** they load and run without `NoClassDefFoundError`
 
 ### Requirement: Single dispatch point
-All instrumented code SHALL call the static `Dispatch.onThrow(self, thrown, owner, method, paramValues, paramNames)`,
+All instrumented code SHALL call the static `Dispatch.onThrow(self, thrown, receiverKey, owner, method, paramValues, paramNames)`,
 which forwards to one installed `Dispatch.Handler`. The agent SHALL install the handler explicitly;
 otherwise `Dispatch` SHALL look it up once with `ServiceLoader`. A thread-local flag SHALL prevent
 re-entrant calls, and any `Throwable` from the handler SHALL be swallowed.
@@ -102,9 +103,10 @@ type matching and advice.
 - **THEN** the frame shows the original method name (no renamed or synthetic copies)
 
 ### Requirement: Matching by name
-The agent, build plugin and runtime SHALL recognise `@StackTraceId`, `@StackTraceParam` and
-`@StackTraceParams` by their class names (`com.hafnium.stackaugmentor.StackTraceId`,
-`com.hafnium.stackaugmentor.StackTraceParam`, `com.hafnium.stackaugmentor.StackTraceParams`), without
+The agent, build plugin and runtime SHALL recognise `@StackTraceId`, `@StackTraceParam`,
+`@StackTraceParams` and `@StackTraceAugment` by their class names (`com.hafnium.stackaugmentor.StackTraceId`,
+`com.hafnium.stackaugmentor.StackTraceParam`, `com.hafnium.stackaugmentor.StackTraceParams`,
+`com.hafnium.stackaugmentor.StackTraceAugment`), without
 depending on the API module. The annotations SHALL have no attributes other than `secret` on `@StackTraceParam`.
 
 #### Scenario: API loaded by an application class loader
@@ -136,7 +138,7 @@ The configuration SHALL be parsed with tomlj and mapped directly onto an immutab
 Java class, with typed access and value-based equality. Every key SHALL be validated. The receiver id
 sources, parameter references and named ids SHALL be Java records, grouped under sealed interfaces
 where there are alternatives (`IdSpec`, `ParamRef`). The frame templates SHALL be parsed and validated
-once, when the agent starts or the runtime handler is created.
+whenever the configuration is loaded, also by the build plugin, which does not render frames.
 
 #### Scenario: Template error at startup
 - **GIVEN** an invalid `receiverFormat`

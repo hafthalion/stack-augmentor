@@ -42,7 +42,7 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
 Sections, dotted keys (`augment.maxIdLength = 32`) and inline tables SHALL be equivalent. Quoted and
 unquoted class names in `[augment.exceptions]` SHALL be equivalent; keys with wildcards, and the keys of
 `[augment.receiver]` and `[augment.params]`, which contain `::`, SHALL be quoted, as TOML requires. Two entries of
-one table whose keys name the same class or methods, such as `com.acme.Order` and `"com.acme.Order"`, or
+one table whose keys differ only in quoting or in spaces, such as `com.acme.Order` and `"com.acme.Order"`, or
 `"com.acme.Order::a,b"` and `"com.acme.Order::a, b"`, SHALL be rejected, naming the key and the lines of both
 entries, rather than one silently replacing the other.
 
@@ -85,17 +85,17 @@ entries, rather than one silently replacing the other.
 The system SHALL reject a configuration with a TOML syntax error, a value of the wrong type, a value out
 of range, an invalid `[augment.receiver]` or `[augment.params]` entry, an invalid `frameFormat`,
 `receiverFormat` or `paramsFormat` (see the frame format specification), or an unknown key in any
-section, including keys in the wrong section (such as `maxIdLength` at the top level). An `[augment.receiver]` entry SHALL
-be invalid when its key contains characters other than identifier characters, `$`, `.`, `*` and `?`, or
-when its value is not a string with a field name, a `method()`, several of them separated by commas without
-duplicates or empty items, `"@"` or `"-"`, or when the part after `::` is not method names or patterns
-(identifier characters, `$`, `*` and `?`) or `@` separated by commas without duplicates or empty items, or follows `"-"`.
-Spaces around the items SHALL NOT matter. An `[augment.params]` entry SHALL be invalid
-when its key is not a class part and a method part separated by one `::`, when the class part contains characters
-other than identifier characters, `$`, `.`, `*` and `?`, when the method part is not a list of such names or patterns
-without `.`, `<init>` or `@`, separated by commas without duplicates or empty items, or when its value is not a string with `"@"`, `"-"` or
-parameter names and indexes separated by commas, each optionally followed by `#`, without empty items (`"*"`,
-`"@"` and `"-"` are not allowed among the items, and `"*"` is not allowed as the value). A TOML array SHALL be
+section, including keys in the wrong section (such as `maxIdLength` at the top level). `[augment.receiver]` and `[augment.params]` keys SHALL
+be invalid when they are not a class part and a method part separated by `::`; when the class part is not
+dotted segments of identifier characters, `$`, `*` and `?`, optionally followed by `+`, or has `+` after a
+pattern; or when the method part is not method names or patterns (identifier characters, `$`, `*` and `?`)
+or `@` separated by commas, without duplicates or empty items. `<init>` SHALL be allowed in the method part of
+`[augment.params]` keys only. An `[augment.receiver]` value SHALL be invalid when it is not a string with a field
+name, a `method()`, several of them separated by commas without duplicates or empty items, `"@"` or `"-"`, or
+when it contains `::`. An `[augment.params]` value SHALL be invalid when it is not a string with `"@"`, `"-"` or
+parameter names and indexes (0 to 255) separated by commas, each optionally followed by `#`, without empty
+items (`"*"`, `"@"` and `"-"` are not allowed among the items, and `"*"` is not allowed as the value). Spaces
+around the items SHALL NOT matter. A TOML array SHALL be
 invalid in both tables. The message SHALL name the file, the key and its line.
 
 #### Scenario: Exceptions entry that is not a boolean
@@ -157,11 +157,12 @@ server or a fat jar, the runtime jar can be loaded by a parent of the applicatio
 ### Requirement: Sections by phase
 What gets instrumented SHALL NOT be configured directly: the agent, when classes are loaded, and the build
 plugin, at build time, SHALL instrument the classes and methods that `[augment.receiver]` and
-`[augment.params]` need. The formats in `[augment]`, `debug` and `inPlaceModification` SHALL be read at runtime in both modes, and
-so SHALL `[augment.receiver]`, to find the receiver id sources of instrumented classes. One
+`[augment.params]` need. The formats in `[augment]`, `[augment.exceptions]`, `debug` and `inPlaceModification` SHALL be read at runtime
+in both modes, and so SHALL `[augment.receiver]`, to find the receiver id sources of instrumented classes (with
+build-time instrumentation by the key of the entry that decided the method at build time). One
 file SHALL be usable for both phases of build-time instrumentation.
 
 #### Scenario: One file for build-time instrumentation
 - **GIVEN** `src/main/resources/stack-augmentor.toml` is passed to the build plugin and packaged as a resource
 - **WHEN** the project is built and run
-- **THEN** the build plugin applies its `[augment.receiver]` and `[augment.params]` tables and the runtime applies its `[augment]` section with `[augment.receiver]`
+- **THEN** the build plugin applies its `[augment.receiver]` and `[augment.params]` tables and the runtime applies its `[augment]` section with `[augment.exceptions]` and `[augment.receiver]`
