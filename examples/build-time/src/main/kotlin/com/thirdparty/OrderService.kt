@@ -1,6 +1,6 @@
 package com.thirdparty
 
-// Stand-ins for library classes: no annotations, ids come from stack-augmentor.toml. Build-time
+// Stand-ins for library classes: no annotations, stack-augmentor.toml augments them. Build-time
 // instrumentation only changes this project's classes: these are compiled here, real library classes would not be.
 
 class Order(private val orderNumber: Long) {
@@ -31,7 +31,7 @@ class InventoryService(private val audit: InventoryAudit) {
     }
 }
 
-/** Matched by the Inventory* entry, but its own "-" entry comes first: no parameter ids. */
+/** Matched by the Inventory* entry, but its own "-" entry comes first: no parameter values. */
 class InventoryAudit {
     fun record(sku: String, count: Int, order: Order) {
         order.ship(Customer("c-9"))

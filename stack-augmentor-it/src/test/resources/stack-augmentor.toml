@@ -6,21 +6,21 @@ maxValueLength = 20
 "com.hafnium.it.fixtures.PlainCause" = false
 "**" = true
 
-# The two tables are independent: [augment.receiver] for the receiver ids, [augment.params] for the parameter ids.
+# The two tables are independent: [augment.receiver] for the receiver members, [augment.params] for the parameter values.
 # Their keys are "<class>::<methods>": a class name matches that class only, "+" after it its subclasses too, a
 # pattern matches class names; "*" after '::' stands for all methods.
 [augment.receiver]
 # The first matching entry wins, so the more specific entries come first.
 # Overridden's exact entry, before the fixtures' pattern
 "com.hafnium.it.fixtures.Overridden::*" = "getId()"
-# The ignored fixtures: no receiver id (parameter ids are not affected)
+# The ignored fixtures: no receiver members (parameter values are not affected)
 "com.hafnium.it.fixtures.ignored.**::*" = "-"
-# The fixtures' receiver ids come from their @StackTraceReceiver
+# The fixtures' receiver members come from their @StackTraceReceiver
 "com.hafnium.it.fixtures.**::*" = "@"
 # Stand-ins for classes you cannot annotate (Customer's entry does not apply to com.hafnium.it.outside.VipCustomer)
 "com.thirdparty.Order::*" = "getOrderNumber()"
 "com.thirdparty.Customer::*" = "customerId"
-# Several receiver ids, in this order
+# Several receiver members, in this order
 "com.thirdparty.OrderLine::*" = "tenant, lineId()"
 "com.thirdparty.*Account::*" = "number"
 # '?' matches one character: Ledger1, not Ledger12
@@ -68,7 +68,7 @@ maxValueLength = 20
 "com.hafnium.it.fixtures.Overridden::failAnnotated" = "@"
 "com.hafnium.it.fixtures.Overridden::*" = "-"
 "com.hafnium.it.fixtures.Overlap::op" = "x, y, 0"
-# ... and the other fixtures' parameter ids come from their @StackTraceParam and @StackTraceParams
+# ... and the other fixtures' parameter values come from their @StackTraceParam and @StackTraceParams
 # ("*" matches constructors, <init>, too)
 "com.hafnium.it.fixtures.**::*" = "@"
 "com.thirdparty.OrderService::process" = "order, 1"

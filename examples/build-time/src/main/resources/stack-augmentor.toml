@@ -13,7 +13,7 @@ inPlaceModification = false
 frameFormat = "$class$receiver.$method$params"
 receiverFormat = "{$name=$value, ...}"
 paramsFormat = "{$name=$value, ...}"
-# Longer ids are cut off with "…".
+# Longer values are cut off with "…".
 maxValueLength = 64
 
 # Which exceptions are augmented, at runtime: true or false, the first matching entry wins, and an exception that
@@ -30,7 +30,7 @@ maxValueLength = 64
 # all, "@" for those annotated with @StackTraceAugment. '*' matches within a package or name, '**' across packages,
 # '?' one character.
 
-# Receiver ids: "@" uses the class's @StackTraceReceiver (without an "@" entry, it is not used). Classes you
+# Receiver members: "@" uses the class's @StackTraceReceiver (without an "@" entry, it is not used). Classes you
 # cannot annotate name a method() or a field: an order is identified by its getOrderNumber() method, a
 # customer by its customerId field.
 [augment.receiver]
@@ -38,7 +38,7 @@ maxValueLength = 64
 "com.thirdparty.Order::*" = "getOrderNumber()"
 "com.thirdparty.Customer::*" = "customerId"
 
-# Parameter ids, independently of the receivers: "@" uses the methods' @StackTraceParam and @StackTraceParams
+# Parameter values, independently of the receivers: "@" uses the methods' @StackTraceParam and @StackTraceParams
 # annotations. Otherwise parameters are selected by name or 0-based index, separated by commas, "#" after one shows its value
 # hashed, and "-" selects none. When several entries match a method, the first one applies, so the more
 # specific entries come first.
@@ -46,6 +46,6 @@ maxValueLength = 64
 "com.hafnium.examples.buildtime.ClassWithoutAnnotation::method" = "q"   # before the "@" pattern
 "com.hafnium.examples.buildtime.**::*" = "@"
 "com.thirdparty.OrderService::process" = "order, 1"                     # by name and by index
-"com.thirdparty.InventoryAudit::*" = "-"                                  # InventoryAudit's first: no parameter ids ...
+"com.thirdparty.InventoryAudit::*" = "-"                                  # InventoryAudit's first: no parameter values ...
 "com.thirdparty.Inventory*::*" = "sku, count"                         # ... then all methods of the other Inventory* classes
 "com.thirdparty.Customer::notify" = "email#"                            # hashed

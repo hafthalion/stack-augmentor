@@ -26,8 +26,8 @@ import java.util.Set;
  * <p>Read from the top, the frames then follow the stack upwards, each printed once: every exception leaves out the
  * frames it shares with the one that wrapped it, which follows it. Suppressed exceptions follow the frames of the
  * exception they were suppressed in, indented and headed {@code Suppressed:}, their own causes again root first. It
- * prints the stack traces as {@link Throwable#getStackTrace()} returns them, so with the ids that Stack Augmentor
- * added.
+ * prints the stack traces as {@link Throwable#getStackTrace()} returns them, so augmented by Stack
+ * Augmentor.
  *
  * <p>Logback and Log4j 2 print the same order with the {@code %rEx} conversion word; this is for code that formats
  * exceptions itself, or logs through {@code java.util.logging}.

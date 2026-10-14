@@ -7,7 +7,7 @@ import com.hafnium.stackaugmentor.StackTraceParams
 /** An argument is shown with its toString(). */
 data class ObjectParam(private val name: String)
 
-/** Receiver id from @StackTraceReceiver, parameter ids from the parameter annotations. */
+/** Receiver member from @StackTraceReceiver, parameter values from the parameter annotations. */
 data class ClassWithAnnotation(
     @StackTraceReceiver
     private val objectId: String

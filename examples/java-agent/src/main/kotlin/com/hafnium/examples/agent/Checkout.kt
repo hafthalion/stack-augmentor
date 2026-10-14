@@ -9,7 +9,7 @@ import com.thirdparty.OrderService
 
 /**
  * A simple cause chain: [submit] wraps the third-party exception in one of its own. The frames below it, [Shop.buy]
- * and main, are in both stack traces and show the same ids in both.
+ * and main, are in both stack traces and are augmented the same way in both.
  */
 class Checkout(@StackTraceReceiver private val checkoutId: String) {
     fun submit(@StackTraceParam order: Order) {

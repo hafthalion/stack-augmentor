@@ -12,7 +12,7 @@ debug = false
 frameFormat = "$class$receiver.$method$params"
 receiverFormat = "{$name=$value, ...}"
 paramsFormat = "{$name=$value, ...}"
-# Longer ids are cut off with "…".
+# Longer values are cut off with "…".
 maxValueLength = 64
 
 # Which exceptions are augmented, at runtime: all throwables (without an entry that is true, none would).
@@ -20,13 +20,13 @@ maxValueLength = 64
 "**" = true
 
 # Only this project's classes are changed. The classes in com.hafnium.it.buildtime.configured have no
-# annotations: their ids come from the entries below.
+# annotations: the entries below augment them.
 # Keys are "<class>::<methods>": a class name matches that class only, "+" after it ("com.acme.Order+::*") its
 # subclasses too, and a pattern matches class names. The methods are names or patterns separated by commas, "*" for
 # all, "@" for those annotated with @StackTraceAugment. '*' matches within a package or name, '**' across packages,
 # '?' one character.
 
-# Receiver ids: "@" uses the class's @StackTraceReceiver (without an "@" entry, it is not used). Classes you
+# Receiver members: "@" uses the class's @StackTraceReceiver (without an "@" entry, it is not used). Classes you
 # cannot annotate name a method() or a field: an order is identified by its getOrderNumber() method, a
 # customer by its customerId field. The first matching entry wins, so they come before the "@" pattern.
 [augment.receiver]
@@ -34,14 +34,14 @@ maxValueLength = 64
 "com.hafnium.it.buildtime.configured.Customer::*" = "customerId"
 "com.hafnium.it.buildtime.**::*" = "@"
 
-# Parameter ids, independently of the receivers: "@" uses the methods' @StackTraceParam and @StackTraceParams
+# Parameter values, independently of the receivers: "@" uses the methods' @StackTraceParam and @StackTraceParams
 # annotations. Otherwise parameters are selected by name or 0-based index, separated by commas, "#" after one shows its value
 # hashed, and "-" selects none. When several entries match a method, the first one applies, so the more
 # specific entries come first.
 [augment.params]
 "com.hafnium.it.buildtime.ClassWithoutAnnotation::method" = "q"                # before the "@" pattern
 "com.hafnium.it.buildtime.configured.OrderService::process" = "order, 1"       # by name and by index
-"com.hafnium.it.buildtime.configured.InventoryAudit::*" = "-"                    # InventoryAudit's first: no parameter ids ...
+"com.hafnium.it.buildtime.configured.InventoryAudit::*" = "-"                    # InventoryAudit's first: no parameter values ...
 "com.hafnium.it.buildtime.configured.Inventory*::*" = "sku, count"           # ... then all methods of the other Inventory* classes
 "com.hafnium.it.buildtime.configured.Customer::notify" = "email#"              # hashed
 "com.hafnium.it.buildtime.configured.Shipment::<init>" = "orderId, weight"   # constructors: "<init>"
