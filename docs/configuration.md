@@ -2,95 +2,240 @@
 
 [Back to the README](../README.md)
 
-The configuration is a TOML file (ending in `.toml`). `[augment]` sets how frames look, `[augment.receiver]` which receivers get ids and `[augment.params]` which parameters:
+Everything Stack Augmentor does is set in one TOML file. It says which exceptions get ids, which frames show a receiver id and which show parameter ids, and how the frames look. Without a file nothing is augmented.
+
+- [The file at a glance](#the-file-at-a-glance)
+- [Where the file comes from](#where-the-file-comes-from)
+- [Keys: classes and methods](#keys-classes-and-methods)
+- [Exceptions](#exceptions): `[augment.exceptions]`
+- [Receiver ids](#receiver-ids): `[augment.receiver]`
+- [Parameter ids](#parameter-ids): `[augment.params]`
+- [Formats](#formats): `[augment]`
+- [Root options](#root-options): `debug`, `inPlaceModification`
+- [Errors and warnings](#errors-and-warnings)
+- [Tips](#tips)
+
+[Where ids come from](ids.md) explains what the entries do to a frame in more detail: inherited methods, interfaces, constructors and hashed values.
+
+## The file at a glance
 
 ```toml
-# Print diagnostics to stderr: the configuration, which classes and methods get instrumented and why,
-# where each id comes from, and config entries or annotations that have no effect.
-debug = false
+debug = false                  # print what gets instrumented and where each id comes from
+inPlaceModification = false    # write frames into the exception's own stack trace instead of copying it
 
-# Write each frame into the exception's own stack trace instead of copying the trace (see limitations.md).
-# -Dstackaugmentor.inPlaceModification=true|false overrides it.
-inPlaceModification = false
-
-# How frames look: read at runtime, in both modes (these are the defaults).
-[augment]
+[augment]                      # how frames look (these are the defaults)
 frameFormat = "$class$receiver.$method$params"
 receiverFormat = "{$name=$id, ...}"
 paramsFormat = "{$name=$id, ...}"
 maxIdLength = 64
 
-# Which exceptions get ids: true or false. The first entry that matches decides, in the order of the file; an
-# exception that no entry matches gets none. The keys are the class parts of the keys below, without methods: a
-# class name matches that class only, "+" after it also its subclasses, as instanceof does; a pattern matches the
-# name of the exception's runtime class only.
-# Without this table, or with an empty one, no exception gets ids: "java.lang.Exception+" = true gives them to all
-# exceptions, "**" = true to all throwables.
-[augment.exceptions]
-"java.io.FileNotFoundException+" = false             # except this one and its subclasses
-"java.io.IOException+" = true                        # and its subclasses
-"com.acme.flow.**" = false                           # these classes, not their subclasses elsewhere
-"com.acme.**" = true
+[augment.exceptions]           # which exceptions get ids: the first matching entry decides
+"java.io.FileNotFoundException+" = false
+"java.lang.Exception+" = true
 
-# Which receivers and parameters get ids: two independent tables. Read by the agent when classes load, or by
-# the build plugin at build time, which instrument whatever classes and methods they need.
-# Both have keys "<class>::<methods>", matched against the class that declares a frame's method: a class name
-# matches that class only, "+" after it also its subclasses (and for an interface the classes implementing it), and
-# a pattern matches class names only: '*' within one package (or name), '**' across packages, '?' one character.
-# After "::" the method names or patterns separated by commas, "*" for all, "@" for those annotated with
-# @StackTraceAugment. For each method the first entry that matches decides, in the order of the file.
+[augment.receiver]             # which frames show a receiver id, and where it comes from
+"com.acme.generated.**::*" = "-"
+"com.acme.**::*" = "@"
+"com.thirdparty.Order+::*" = "getOrderNumber()"
+"com.thirdparty.OrderLine::*" = "tenant, lineId()"
+"com.thirdparty.Parcel::ship, cancel*" = "trackingCode"
 
-# Receiver ids: "@" for the class's @StackTraceId (without an "@" entry, it is not used), or, for classes you
-# cannot annotate, a field or a no-argument method ending in "()", or several separated by commas; "-" for none.
-[augment.receiver]
-"com.hafnium.generated.**::*" = "-"                  # these first ...
-"com.hafnium.**::*" = "@"                            # ... then the rest of com.hafnium
-"com.acme.orders.*::*" = "@"
-"com.thirdparty.Order+::*" = "getOrderNumber()"      # Order and its subclasses
-"com.thirdparty.Customer::*" = "customerId"
-"com.thirdparty.OrderLine::*" = "tenant, lineId()"   # several ids
-"com.thirdparty.Parcel::ship, cancel*" = "trackingCode"  # only in these methods ...
-"com.thirdparty.Parcel::weigh" = "weight"                # ... and another id in this one
-"com.thirdparty.**.*Account::*" = "number"
-
-# Parameter ids: parameter names and 0-based indexes separated by commas, a "#" after one to show its value
-# hashed, "@" for the method's @StackTraceParam and @StackTraceParams annotations, or "-" for none. Entries that
-# match the same method are not combined: the first entry that matches decides. Constructors are named <init>.
-[augment.params]
-"com.hafnium.**::*" = "@"                             # the annotations of these methods
-"com.acme.orders.*::*" = "@"
-"com.thirdparty.OrderService+::process" = "order, 2"  # also in subclasses
-"com.thirdparty.InventoryService::*" = "sku"         # all methods of a class
-"com.thirdparty.**.AuditRepository::find*" = "-"      # these first ...
-"com.thirdparty.**.*Repository::find*" = "0"          # ... then the others, across packages
-"com.thirdparty.UserService::invite" = "user, email#"     # email hashed
-"com.thirdparty.Shipment::<init>" = "orderId"       # constructors: <init>
+[augment.params]               # which frames show parameter ids, and which parameters
+"com.acme.**::*" = "@"
+"com.thirdparty.OrderService+::process" = "order, 2"
+"com.thirdparty.UserService::invite" = "user, email#"
+"com.thirdparty.Shipment::<init>" = "orderId"
 ```
 
-- **Quote the keys.** `[augment.receiver]` and `[augment.params]` keys contain `::`, so they must be quoted. In `[augment.exceptions]`, TOML reads an unquoted class name's `.` as nested tables; that works too, but keys with wildcards or `+` must be quoted. Dotted keys (`augment.maxIdLength = 32`) work as well as sections.
-- **Keep wildcards narrow.** `"com.**::*" = "@"` makes the agent instrument many classes, which slows down class loading.
-- **`[augment.exceptions]`** is checked when an exception leaves a method, against the class of the exception: classes still get instrumented as `[augment.receiver]` and `[augment.params]` say. No entry, no ids: to give all exceptions ids, write `"java.lang.Exception+" = true` (`"**" = true` includes errors), and to exclude only some, put their `false` entries before it. If receivers or parameters are configured but no entry is `true`, startup warns. The frames that an exception without ids leaves stay as they are, also where its causes share them; a cause with ids wrapped in it keeps the ids of the frames it left itself. An exception with ids still writes its frames into the causes that share them, whatever their class, so printed traces still collapse into `... N more`.
-- **`debug = true`** lists the configuration, every instrumented class and the annotations that have no effect. Messages start with their source: `agent:`, `build plugin:` or `runtime:` (build-time instrumentation at runtime).
-- **Missing members** are a warning for exact class names, and a debug message for patterns.
-- **An invalid configuration stops the JVM (or the build) at startup**, naming the key and its line, e.g. `stack-augmentor.toml, line 3: maxIdLength must be between 2 and 10000, was 1`. Unknown keys are rejected, so typos don't go unnoticed.
+| Key | Value | Default | Section |
+|---|---|---|---|
+| `debug` | `true` or `false` | `false` | [Root options](#root-options) |
+| `inPlaceModification` | `true` or `false` | `false` | [Root options](#root-options) |
+| `[augment]` `frameFormat` | template | `"$class$receiver.$method$params"` | [Formats](#formats) |
+| `[augment]` `receiverFormat` | template | `"{$name=$id, ...}"` | [Formats](#formats) |
+| `[augment]` `paramsFormat` | template | `"{$name=$id, ...}"` | [Formats](#formats) |
+| `[augment]` `maxIdLength` | 2 to 10000 | `64` | [Formats](#formats) |
+| `[augment.exceptions]` | `"<class>" = true` or `false` | empty: no exception gets ids | [Exceptions](#exceptions) |
+| `[augment.receiver]` | `"<class>::<methods>" = "<members>"` | empty | [Receiver ids](#receiver-ids) |
+| `[augment.params]` | `"<class>::<methods>" = "<parameters>"` | empty | [Parameter ids](#parameter-ids) |
+
+TOML in short: `#` starts a comment, a key with `.`, `::`, `*` or `+` in it must be quoted, and dotted keys (`augment.maxIdLength = 32`) work as well as sections. The order of the tables does not matter. The order of the entries within `[augment.exceptions]`, `[augment.receiver]` and `[augment.params]` does: the first entry that matches decides.
+
+## Where the file comes from
+
+The file name must end in `.toml`.
+
+| Who reads it | Where from | What it uses |
+|---|---|---|
+| Java agent, also in the live-stack mode | `-javaagent:stack-augmentor-agent.jar=config=<file>` (or just `=<file>`), otherwise `-Dstackaugmentor.config=<file>` | everything, at JVM start |
+| Build plugin | the plugin's argument in `build.gradle.kts` (see the [README](../README.md#quick-start-build-time-instrumentation)) | `[augment.receiver]` and `[augment.params]`, to decide which classes and methods to instrument and which parameters they pass; `debug` |
+| Runtime of classes instrumented at build time | `-Dstackaugmentor.config=<file>`, otherwise `stack-augmentor.toml` on the classpath (in an application server also from the context class loader of the first throwing thread) | `[augment]`, `[augment.exceptions]`, `[augment.receiver]`, `debug`, `inPlaceModification`; the parameters were chosen at build time |
+
+For build-time instrumentation, one file in `src/main/resources` serves both the build and the runtime. A frame's receiver ids come from the runtime entry with the same key as the entry that decided its method at build time, so if you change a key, rebuild. Without a runtime file, no exception gets ids and a warning says so.
+
+## Keys: classes and methods
+
+`[augment.receiver]` and `[augment.params]` have the same keys, `"<class>::<methods>"`. They match a frame by the class that declares its method and by the method's name. `[augment.exceptions]` keys are just the `<class>` part.
+
+**The class** is one of:
+
+- **a class name**, e.g. `com.acme.Order`: that class only. Nested classes are written with `$`, as in stack traces: `com.acme.Order$Line`.
+- **a class name with `+`**, e.g. `com.acme.Order+`: the class and its subclasses, and for an interface the classes implementing it, as `instanceof` does. The supertypes are known by name, so no class is loaded for it.
+- **a pattern**, which matches class names only, never subclasses elsewhere:
+  - `*` any characters within one package (or name), e.g. `com.acme.*` or `com.acme.*Repository`;
+  - `**` any characters across packages, e.g. `com.acme.**`, or `**` for every class;
+  - `?` one character.
+
+  A pattern takes no `+`.
+
+**The methods**, after `::`, are required. They are names or patterns separated by commas:
+
+- a name, e.g. `ship`, or a pattern with `*` and `?`, e.g. `cancel*`;
+- `*` for all methods;
+- `@` for the methods annotated with `@StackTraceAugment` (from `stack-augmentor-api`; it has no attributes);
+- `<init>` for the constructors, in `[augment.params]` only, since constructors show no receiver id. Patterns such as `*` match constructors too.
+
+Keys can contain letters, digits, `_`, `$` and the wildcards. Spaces around the commas don't matter.
+
+| Key | Matches |
+|---|---|
+| `"com.acme.Order::ship"` | `Order.ship` |
+| `"com.acme.Order::ship, cancel*"` | `Order.ship` and `Order`'s methods starting with `cancel` |
+| `"com.acme.Order::*"` | all methods of `Order` |
+| `"com.acme.Order::@"` | `Order`'s methods annotated with `@StackTraceAugment` |
+| `"com.acme.Order::ship, @"` | `Order.ship` and the annotated ones |
+| `"com.acme.Order+::*"` | all methods of `Order`, of its subclasses and, for an interface, of its implementing classes |
+| `"com.acme.*::*"` | all methods of the classes in `com.acme`, including nested classes such as `com.acme.Order$Line` |
+| `"com.acme.**::*"` | all methods of the classes in `com.acme` and its subpackages |
+| `"com.acme.**.*Repository::find*"` | the `find…` methods of every `…Repository` class under `com.acme` |
+| `"com.acme.Shipment::<init>"` | the constructors of `Shipment` (`[augment.params]` only) |
+
+**The first match decides.** For each method, the first entry in the file whose class and methods match decides, so put the specific entries before the general ones. One class may have several entries, e.g. one per group of methods. Entries are never combined: the entry that decides gives all of that method's ids from this table, and `"-"` gives none.
+
+```toml
+[augment.receiver]
+"com.acme.Order::export" = "-"          # no receiver id in export ...
+"com.acme.Order::*" = "getId()"         # ... getId() in Order's other methods ...
+"com.acme.generated.**::*" = "-"        # ... nothing in the generated classes ...
+"com.acme.**::*" = "@"                  # ... and @StackTraceId in the rest of com.acme
+```
+
+A method belongs to the class that declares it: a subclass's own methods need an entry that matches the subclass, its own or the superclass's with `+`, while the methods it inherits use the superclass's entry. [Where ids come from](ids.md) has examples, including proxies, mocks and interface default methods.
+
+## Exceptions
+
+`[augment.exceptions]` says which exceptions get ids: `true` or `false` per class or pattern. The first entry that matches the class of the thrown exception decides, in the order of the file. An exception that no entry matches gets none.
+
+```toml
+[augment.exceptions]
+"java.io.FileNotFoundException+" = false   # not this one and its subclasses ...
+"java.io.IOException+" = true              # ... but the other IOExceptions
+"com.acme.flow.**" = false                 # not these classes (their subclasses elsewhere are not matched)
+"com.acme.**" = true
+```
+
+- **Without this table, or with an empty one, no exception gets ids.** `"java.lang.Exception+" = true` gives them to all exceptions, `"**" = true` to all throwables, errors included. To exclude only some, put their `false` entries before it.
+- **The keys are classes as above, without methods**: a class name matches that class only, `+` after it also its subclasses, and a pattern the name of the exception's class only.
+- **Unquoted class names work too**, since TOML reads `java.io.IOException = true` as nested tables, which mean the same. Keys with `+` or wildcards must be quoted.
+- **It is checked when an exception leaves an instrumented method** (in the live-stack mode: when it is created). Classes are instrumented as the other two tables say, whatever this table contains.
+- **Causes:** the frames an exception without ids leaves stay as they are, also where its causes share them. An exception with ids still writes its frames into the causes that share them, whatever their class, so printed traces still collapse into `... N more`. See [Causes](causes.md).
+
+## Receiver ids
+
+`[augment.receiver]` says which frames show the ids of the object the method runs on, and where they come from. The value is a string:
+
+| Value | Receiver ids |
+|---|---|
+| `"orderId"` | the field `orderId`, looked up in the class and its superclasses; without such a field, its getter (`getOrderId()`, as for Kotlin properties of interfaces) |
+| `"getOrderId()"` | the result of the no-argument method `getOrderId()`, also a default method of an implemented interface |
+| `"tenant, lineId()"` | several of them, one id each, in this order: `OrderLine{tenant=acme, lineId=3}.cancel` |
+| `"@"` | every `@StackTraceId` field, no-argument method or (Kotlin) primary-constructor `val` of the class and its superclasses |
+| `"-"` | none, also for the entries after it that would match |
+
+- **Each id is the member's value as text**, from `toString()`, labelled with the member's real name: `{orderId=42}`, `{getKey=…}`.
+- **`@StackTraceId` counts only through an `"@"` entry.** An annotated class without one gets no receiver id.
+- **A member the class does not have is left out**, with a warning (see [Errors and warnings](#errors-and-warnings)).
+- **The methods go in the key, not in the value**: `"com.acme.Parcel::weigh" = "weight"`.
+- **Constructors never show a receiver id**, so `<init>` is not allowed in these keys.
+
+## Parameter ids
+
+`[augment.params]` says which frames show parameter ids, and which parameters. They are shown after the method name, in declaration order. The value is a string:
+
+| Value | Parameter ids |
+|---|---|
+| `"order"` | the parameter named `order` |
+| `"2"` | the third parameter (0-based index, 0 to 255) |
+| `"order, 2"` | several of them, by name or index |
+| `"user, email#, 3#"` | `#` after a name or index shows the value hashed: `email=#71d4f55f` |
+| `"@"` | the parameters the annotations select: `@StackTraceParam` on a parameter, `@StackTraceParams` on the method (all its parameters); `@StackTraceParam(secret = true)` hashes |
+| `"-"` | none, also for the entries after it that would match |
+
+- **There is no wildcard for parameters.** Each one is named, indexed or selected by an annotation.
+- **Labels are the parameter names compiled into the class**, so compile Java with `javac -parameters` (Kotlin: `javaParameters = true`); otherwise they are `arg0`, `arg1`, ….
+- **The value is the argument's `toString()`** (arrays with their elements), read when the exception leaves the method.
+- **A hash** is `#` and the first 8 hex digits of the SHA-256 of the `toString()`, the same for the same value, so it can be followed across log lines. It is not salted: leave values from a small set, such as PINs, out rather than hashing them. `null` stays `null`.
+- **Constructors** are `<init>`: `"com.acme.Shipment::<init>" = "orderId"` gives `com.acme.Shipment.<init>{orderId=42}`.
+- **Static methods** work as instance methods do; they just have no receiver id.
+
+`[augment.receiver]` and `[augment.params]` are independent: a class can take its receiver id from an explicit member and its parameter ids from annotations, or have only one of them.
 
 ## Formats
 
-| Template | Placeholders |
+`[augment]` sets how a frame with ids is written. It is read at runtime, in every mode.
+
+| Key | Placeholders |
 |---|---|
 | `frameFormat` | `$class`, `$simpleClass`, `$method`, `$receiver`, `$params` |
 | `receiverFormat` | `$name`, `$id`, and `...` to mark repetition. Renders empty when the frame has no receiver id. |
 | `paramsFormat` | `$name`, `$id`, and `...` to mark repetition. Renders empty when the method has no parameter ids. |
+| `maxIdLength` | longer ids are cut to this many characters (2 to 10000, default 64) |
 
 - **`receiverFormat` and `paramsFormat`** are split as follows. The text before the first placeholder and the text after `...` wrap the list. The part from the first to the last placeholder is repeated for each id. The text between the last placeholder and `...` separates the items. So `[$name: $id; ...]` renders `[orderId: 42; customer: 7]`. Without `...`, the whole template is repeated, separated by `,`: `<$id>` renders `<acme>,<3>` for two receiver ids.
-- **In all three templates**, placeholders start with `$` and everything else is literal, braces included; `$$` is a literal `$`. A placeholder name ends at the first character that is not a letter or digit, so `$class$receiver.$method$params` needs no separators. When letters or digits follow directly, write the name in braces: `${method}X` renders `processX`, while `$methodX` is rejected as an unknown placeholder. A brace without a `$` before it is literal. `(` and `)` are not allowed, because IDEs find a frame's file and line by the `(File.java:12)` at its end; ids have theirs replaced by `{` and `}` for the same reason.
+- **In all three templates**, placeholders start with `$` and everything else is literal, braces included; `$$` is a literal `$`. A placeholder name ends at the first character that is not a letter or digit, so `$class$receiver.$method$params` needs no separators. When letters or digits follow directly, write the name in braces: `${method}X` renders `processX`, while `$methodX` is rejected as an unknown placeholder. A brace without a `$` before it is literal.
+- **`(` and `)` are not allowed**, because IDEs find a frame's file and line by the `(File.java:12)` at its end. Ids have theirs replaced by `{` and `}` for the same reason, and line breaks by a space.
 - **`frameFormat` must contain `.$method` (or `.${method}`) exactly once**, because the JDK always prints `<class>.<method>(<file>:<line>)`.
-
-Examples:
 
 | Setting | Frame |
 |---|---|
 | defaults | `com.hafnium.ObjectClass{objectId=1}.process{orderId=42}(ObjectClass.java:13)` |
 | `frameFormat = "$class.$method$receiver$params"` | `com.hafnium.ObjectClass.process{objectId=1}{orderId=42}(ObjectClass.java:13)` |
+| `frameFormat = "$simpleClass$receiver.$method$params"` | `ObjectClass{objectId=1}.process{orderId=42}(ObjectClass.java:13)` |
 | `receiverFormat = "<$id>"` | `com.hafnium.ObjectClass<1>.process{orderId=42}(ObjectClass.java:13)` |
 | `receiverFormat = "[$name=$id, ...]"`, `paramsFormat = "[$name=$id, ...]"` | `com.hafnium.ObjectClass[objectId=1].process[orderId=42](ObjectClass.java:13)` |
+
+## Root options
+
+- **`debug = true`** prints diagnostics to stderr: the configuration and where it came from, which classes and methods get instrumented and by which entry, where each id comes from, and annotations or entries that have no effect. Messages start with their source: `agent:`, `build plugin:` or `runtime:` (classes instrumented at build time, at runtime).
+- **`inPlaceModification = true`** writes each frame into the exception's own stack trace instead of copying the trace, which is faster for deep stacks (see [Limitations](limitations.md)). It needs `java.lang` open: the agent opens it; with build-time instrumentation, start the application with `--add-opens java.base/java.lang=ALL-UNNAMED`, otherwise startup fails. `-Dstackaugmentor.inPlaceModification=true|false` overrides the file.
+
+## Errors and warnings
+
+**An invalid configuration stops the JVM (or the build) at startup**, naming the file, the key and its line:
+
+```
+[stack-augmentor] ERROR agent: stack-augmentor.toml, line 3: maxIdLength must be between 2 and 10000, was 1
+```
+
+With build-time instrumentation, the runtime prints such an error and leaves the stack traces unchanged. Rejected are:
+
+- invalid TOML, and values of the wrong type, e.g. an array instead of a comma-separated string;
+- unknown keys, so typos don't go unnoticed (the message lists the allowed ones);
+- invalid keys, e.g. without `::`, with `+` after a pattern, or `<init>` in `[augment.receiver]`;
+- invalid values, e.g. an index above 255, an empty item in `"a,,b"`, or a name listed twice;
+- the same key twice, also written differently: `"com.acme.Order"` and unquoted `com.acme.Order`, or `"Order::a,b"` and `"Order::a, b"`;
+- templates with `(`, `)`, an unknown placeholder, or without `.$method`.
+
+**Warnings** don't stop anything:
+
+- no configuration file, or one without `[augment.receiver]` and `[augment.params]` entries: nothing is augmented;
+- receiver or parameter entries, but no `[augment.exceptions]` entry that is `true`: no exception would get ids;
+- a receiver member the class does not have, for a key with a class name. For a pattern it is a debug message, since a pattern may match classes that don't have it. So are parameter names that a method does not have.
+
+## Tips
+
+- **Put specific entries first**, general ones (`"com.acme.**::*"`) last.
+- **Keep patterns narrow.** `"com.**::*"` makes the agent instrument many classes, which slows down class loading.
+- **Prefer annotations in your own code** (`"com.acme.**::*" = "@"` in both tables), and explicit members for classes you cannot change.
+- **Use `+` for class hierarchies and proxies**, e.g. `"com.acme.Order+::*"`, so that subclasses' own methods and overrides get the ids as well.
+- **Turn on `debug`** when a frame does not show what you expect: it says which entry decided each method.

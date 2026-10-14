@@ -37,7 +37,7 @@ public final class ThrowHandler implements Dispatch.Handler {
     public static final String CLASSPATH_CONFIG = "stack-augmentor.toml";
 
     static final String NO_RUNTIME_CONFIG = "no " + CLASSPATH_CONFIG + " on the classpath and no -D"
-            + AugmentorConfig.CONFIG_PROPERTY + ", so frames show no receiver ids";
+            + AugmentorConfig.CONFIG_PROPERTY + ", so no exception gets ids";
 
     /** Reflection frames are part of stack traces, so the walker shows them too. */
     private static final StackWalker WALKER = StackWalker.getInstance(StackWalker.Option.SHOW_REFLECT_FRAMES);
