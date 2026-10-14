@@ -54,7 +54,7 @@ entries, rather than one silently replacing the other.
 #### Scenario: Class configured twice
 - **GIVEN** `"com.acme.Order::a,b" = "x"` on line 2 and `"com.acme.Order::a, b" = "y"` on line 3 of `[augment.receiver]` in `stack-augmentor.toml`
 - **WHEN** it is loaded
-- **THEN** it is rejected with `stack-augmentor.toml, line 3: 'com.acme.Order::a, b' is configured twice; it is already configured on line 2 (keys that differ in spaces only name the same methods)`
+- **THEN** it is rejected with `stack-augmentor.toml, line 3: 'com.acme.Order::a, b' is configured twice; it is already configured on line 2 (keys that differ in spaces or in the order of their methods name the same methods)`
 
 #### Scenario: Empty file
 - **GIVEN** an empty configuration file
