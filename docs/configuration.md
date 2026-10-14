@@ -2,25 +2,25 @@
 
 [Back to the README](../README.md)
 
-Everything Stack Augmentor does is set in one TOML file. It says which exceptions are augmented, which frames show a receiver id and which show parameter ids, and how the frames look. Without a file nothing is augmented.
+Everything Stack Augmentor does is set in one TOML file. It says which exceptions are augmented, which frames show receiver members and which show parameter values, and how the frames look. Without a file nothing is augmented.
 
 - [The file at a glance](#the-file-at-a-glance)
 - [Where the file comes from](#where-the-file-comes-from)
 - [Keys: classes and methods](#keys-classes-and-methods)
 - [Exceptions](#exceptions): `[augment.exceptions]`
-- [Receiver ids](#receiver-ids): `[augment.receiver]`
-- [Parameter ids](#parameter-ids): `[augment.params]`
+- [Receiver members](#receiver-members): `[augment.receiver]`
+- [Parameter values](#parameter-values): `[augment.params]`
 - [Formats](#formats): `[augment]`
 - [Root options](#root-options): `debug`, `inPlaceModification`
 - [Errors and warnings](#errors-and-warnings)
 - [Tips](#tips)
 
-[Where ids come from](ids.md) explains what the entries do to a frame in more detail: inherited methods, interfaces, constructors and hashed values.
+[Receivers and parameters](receivers-and-parameters.md) explains what the entries do to a frame in more detail: inherited methods, interfaces, constructors and hashed values.
 
 ## The file at a glance
 
 ```toml
-debug = false                  # print what gets instrumented and where each id comes from
+debug = false                  # print what gets instrumented and where each value comes from
 inPlaceModification = false    # write frames into the exception's own stack trace instead of copying it
 
 [augment]                      # how frames look (these are the defaults)
@@ -33,14 +33,14 @@ maxValueLength = 64
 "java.io.FileNotFoundException+" = false
 "java.lang.Exception+" = true
 
-[augment.receiver]             # which frames show a receiver id, and where it comes from
+[augment.receiver]             # which frames show receiver members, and which ones
 "com.acme.generated.**::*" = "-"
 "com.acme.**::*" = "@"
 "com.thirdparty.Order+::*" = "getOrderNumber()"
 "com.thirdparty.OrderLine::*" = "tenant, lineId()"
 "com.thirdparty.Parcel::ship, cancel*" = "trackingCode"
 
-[augment.params]               # which frames show parameter ids, and which parameters
+[augment.params]               # which frames show parameter values, and which parameters
 "com.acme.**::*" = "@"
 "com.thirdparty.OrderService+::process" = "order, 2"
 "com.thirdparty.UserService::invite" = "user, email#"
@@ -56,8 +56,8 @@ maxValueLength = 64
 | `[augment]` `paramsFormat` | template | `"{$name=$value, ...}"` | [Formats](#formats) |
 | `[augment]` `maxValueLength` | 2 to 10000 | `64` | [Formats](#formats) |
 | `[augment.exceptions]` | `"<class>" = true` or `false` | empty: no exception is augmented | [Exceptions](#exceptions) |
-| `[augment.receiver]` | `"<class>::<methods>" = "<members>"` | empty | [Receiver ids](#receiver-ids) |
-| `[augment.params]` | `"<class>::<methods>" = "<parameters>"` | empty | [Parameter ids](#parameter-ids) |
+| `[augment.receiver]` | `"<class>::<methods>" = "<members>"` | empty | [Receiver members](#receiver-members) |
+| `[augment.params]` | `"<class>::<methods>" = "<parameters>"` | empty | [Parameter values](#parameter-values) |
 
 TOML in short: `#` starts a comment, a key with `::`, `*` or `+` in it must be quoted, an unquoted key with `.` is read as nested tables (which works for `[augment.exceptions]` class names only), and dotted keys (`augment.maxValueLength = 32`) work as well as sections. The order of the tables does not matter. The order of the entries within `[augment.exceptions]`, `[augment.receiver]` and `[augment.params]` does: the first entry that matches decides.
 
@@ -71,7 +71,7 @@ The file name must end in `.toml`.
 | Build plugin | the plugin's argument in `build.gradle.kts` (see the [README](../README.md#quick-start-build-time-instrumentation)) | `[augment.receiver]` and `[augment.params]`, to decide which classes and methods to instrument and which parameters they pass; `debug`. It validates the whole file and warns if no `[augment.exceptions]` entry is `true` |
 | Runtime of classes instrumented at build time | `-Dstackaugmentor.config=<file>`, otherwise `stack-augmentor.toml` on the classpath (in an application server also from the context class loader of the first throwing thread) | `[augment]`, `[augment.exceptions]`, `[augment.receiver]`, `debug`, `inPlaceModification`; the parameters were chosen at build time |
 
-For build-time instrumentation, one file in `src/main/resources` serves both the build and the runtime. A frame's receiver ids come from the runtime entry with the same key as the entry that decided its method at build time, so if you change a key, rebuild. Without a runtime file, no exception is augmented and a warning says so.
+For build-time instrumentation, one file in `src/main/resources` serves both the build and the runtime. A frame's receiver members come from the runtime entry with the same key as the entry that decided its method at build time, so if you change a key, rebuild. Without a runtime file, no exception is augmented and a warning says so.
 
 ## Keys: classes and methods
 
@@ -93,7 +93,7 @@ For build-time instrumentation, one file in `src/main/resources` serves both the
 - a name, e.g. `ship`, or a pattern with `*` and `?`, e.g. `cancel*`;
 - `*` for all methods;
 - `@` for the methods annotated with `@StackTraceAugment` (from `stack-augmentor-api`; it has no attributes);
-- `<init>` for the constructors, in `[augment.params]` only, since constructors show no receiver id. Patterns such as `*` match constructors too.
+- `<init>` for the constructors, in `[augment.params]` only, since constructors show no receiver members. Patterns such as `*` match constructors too.
 
 Keys can contain letters, digits, `_`, `$` and the wildcards. Spaces around the commas don't matter.
 
@@ -110,17 +110,17 @@ Keys can contain letters, digits, `_`, `$` and the wildcards. Spaces around the 
 | `"com.acme.**.*Repository::find*"` | the `find…` methods of every `…Repository` class under `com.acme` |
 | `"com.acme.Shipment::<init>"` | the constructors of `Shipment` (`[augment.params]` only) |
 
-**The first match decides.** For each method, the first entry in the file whose class and methods match decides, so put the specific entries before the general ones. One class may have several entries, e.g. one per group of methods. Entries are never combined: the entry that decides gives all of that method's ids from this table, and `"-"` gives none.
+**The first match decides.** For each method, the first entry in the file whose class and methods match decides, so put the specific entries before the general ones. One class may have several entries, e.g. one per group of methods. Entries are never combined: the entry that decides gives everything this table shows for that method, and `"-"` gives nothing.
 
 ```toml
 [augment.receiver]
-"com.acme.Order::export" = "-"          # no receiver id in export ...
+"com.acme.Order::export" = "-"          # no receiver members in export ...
 "com.acme.Order::*" = "getId()"         # ... getId() in Order's other methods ...
 "com.acme.generated.**::*" = "-"        # ... nothing in the generated classes ...
 "com.acme.**::*" = "@"                  # ... and @StackTraceReceiver in the rest of com.acme
 ```
 
-A method belongs to the class that declares it: a subclass's own methods need an entry that matches the subclass, its own or the superclass's with `+`, while the methods it inherits use the superclass's entry. [Where ids come from](ids.md) has examples, including proxies, mocks and interface default methods.
+A method belongs to the class that declares it: a subclass's own methods need an entry that matches the subclass, its own or the superclass's with `+`, while the methods it inherits use the superclass's entry. [Receivers and parameters](receivers-and-parameters.md) has examples, including proxies, mocks and interface default methods.
 
 ## Exceptions
 
@@ -140,29 +140,29 @@ A method belongs to the class that declares it: a subclass's own methods need an
 - **It is checked when an exception leaves an instrumented method** (in the live-stack mode: when it is created). Classes are instrumented as the other two tables say, whatever this table contains.
 - **Causes:** the frames an exception that is not augmented leaves stay as they are, also where its causes share them. An augmented exception still writes its frames into the causes that share them, whatever their class, so printed traces still collapse into `... N more`, in both modes. See [Causes](causes.md).
 
-## Receiver ids
+## Receiver members
 
-`[augment.receiver]` says which frames show the ids of the object the method runs on, and where they come from. The value is a string:
+`[augment.receiver]` says which frames show members of the object the method runs on, and which members. The value is a string:
 
-| Value | Receiver ids |
+| Value | Receiver members |
 |---|---|
 | `"orderId"` | the field `orderId`, looked up in the class and its superclasses; without such a field, its getter (`getOrderId()`, as for Kotlin properties of interfaces) |
 | `"getOrderId()"` | the result of the no-argument method `getOrderId()`, also a default method of an implemented interface |
-| `"tenant, lineId()"` | several of them, one id each, in this order: `OrderLine{tenant=acme, lineId=3}.cancel` |
+| `"tenant, lineId()"` | several of them, one value each, in this order: `OrderLine{tenant=acme, lineId=3}.cancel` |
 | `"@"` | every `@StackTraceReceiver` field, no-argument method or (Kotlin) primary-constructor `val` of the class and its superclasses |
 | `"-"` | none, also for the entries after it that would match |
 
-- **Each id is the member's value as text**, from `toString()`, labelled with the member's real name: `{orderId=42}`, `{getKey=…}`.
-- **`@StackTraceReceiver` counts only through an `"@"` entry.** An annotated class without one shows no receiver id.
+- **Each member shows its value as text**, from `toString()`, labelled with the member's real name: `{orderId=42}`, `{getKey=…}`.
+- **`@StackTraceReceiver` counts only through an `"@"` entry.** An annotated class without one shows no receiver members.
 - **A member the class does not have is left out**, with a warning (see [Errors and warnings](#errors-and-warnings)).
 - **The methods go in the key, not in the value**: `"com.acme.Parcel::weigh" = "weight"`.
-- **Constructors never show a receiver id**, so `<init>` is not allowed in these keys.
+- **Constructors never show receiver members**, so `<init>` is not allowed in these keys.
 
-## Parameter ids
+## Parameter values
 
-`[augment.params]` says which frames show parameter ids, and which parameters. They are shown after the method name, in declaration order. The value is a string:
+`[augment.params]` says which frames show parameter values, and which parameters. They are shown after the method name, in declaration order. The value is a string:
 
-| Value | Parameter ids |
+| Value | Parameter values |
 |---|---|
 | `"order"` | the parameter named `order` |
 | `"2"` | the third parameter (0-based index, 0 to 255) |
@@ -176,9 +176,9 @@ A method belongs to the class that declares it: a subclass's own methods need an
 - **The value is the argument's `toString()`** (arrays with their elements), read when the exception leaves the method.
 - **A hash** is `#` and the first 8 hex digits of the SHA-256 of the `toString()`, the same for the same value, so it can be followed across log lines. It is not salted: leave values from a small set, such as PINs, out rather than hashing them. `null` stays `null`.
 - **Constructors** are `<init>`: `"com.acme.Shipment::<init>" = "orderId"` gives `com.acme.Shipment.<init>{orderId=42}`.
-- **Static methods** work as instance methods do; they just have no receiver id.
+- **Static methods** work as instance methods do; they just have no receiver members.
 
-`[augment.receiver]` and `[augment.params]` are independent: a class can take its receiver id from an explicit member and its parameter ids from annotations, or have only one of them.
+`[augment.receiver]` and `[augment.params]` are independent: a class can take its receiver members from explicit names and its parameter values from annotations, or have only one of them.
 
 ## Formats
 
@@ -187,13 +187,13 @@ A method belongs to the class that declares it: a subclass's own methods need an
 | Key | Placeholders |
 |---|---|
 | `frameFormat` | `$class`, `$simpleClass`, `$method`, `$receiver`, `$params` |
-| `receiverFormat` | `$name`, `$value`, and `...` to mark repetition. Renders empty when the frame has no receiver id. |
-| `paramsFormat` | `$name`, `$value`, and `...` to mark repetition. Renders empty when the method has no parameter ids. |
-| `maxValueLength` | longer ids are cut to this many characters (2 to 10000, default 64) |
+| `receiverFormat` | `$name`, `$value`, and `...` to mark repetition. Renders empty when the frame has no receiver members. |
+| `paramsFormat` | `$name`, `$value`, and `...` to mark repetition. Renders empty when the method has no parameter values. |
+| `maxValueLength` | longer values are cut to this many characters (2 to 10000, default 64) |
 
-- **`receiverFormat` and `paramsFormat`** are split as follows. The text before the first placeholder and the text after `...` wrap the list. The part from the first to the last placeholder is repeated for each id. The text between the last placeholder and `...` separates the items. So `[$name: $value; ...]` renders `[orderId: 42; customer: 7]`. Without `...`, the whole template is repeated, separated by `,`: `<$value>` renders `<acme>,<3>` for two receiver ids.
+- **`receiverFormat` and `paramsFormat`** are split as follows. The text before the first placeholder and the text after `...` wrap the list. The part from the first to the last placeholder is repeated for each item. The text between the last placeholder and `...` separates the items. So `[$name: $value; ...]` renders `[orderId: 42; customer: 7]`. Without `...`, the whole template is repeated, separated by `,`: `<$value>` renders `<acme>,<3>` for two receiver members.
 - **In all three templates**, placeholders start with `$` and everything else is literal, braces included; `$$` is a literal `$`. A placeholder name ends at the first character that is not a letter or digit, so `$class$receiver.$method$params` needs no separators. When letters or digits follow directly, write the name in braces: `${method}X` renders `processX`, while `$methodX` is rejected as an unknown placeholder. A brace without a `$` before it is literal.
-- **`(` and `)` are not allowed**, because IDEs find a frame's file and line by the `(File.java:12)` at its end. Ids have theirs replaced by `{` and `}` for the same reason, and line breaks by a space.
+- **`(` and `)` are not allowed**, because IDEs find a frame's file and line by the `(File.java:12)` at its end. Values have theirs replaced by `{` and `}` for the same reason, and line breaks by a space.
 - **`frameFormat` must contain `.$method` (or `.${method}`) exactly once**, because the JDK always prints `<class>.<method>(<file>:<line>)`.
 
 | Setting | Frame |
@@ -206,7 +206,7 @@ A method belongs to the class that declares it: a subclass's own methods need an
 
 ## Root options
 
-- **`debug = true`** prints diagnostics to stderr: the configuration and where it came from, which classes and methods get instrumented and by which entry, where each id comes from, and annotations or entries that have no effect. Startup messages start with their source: `agent:`, `build plugin:` or `runtime:` (classes instrumented at build time, at runtime); the others name the class or the entry they are about.
+- **`debug = true`** prints diagnostics to stderr: the configuration and where it came from, which classes and methods get instrumented and by which entry, where each value comes from, and annotations or entries that have no effect. Startup messages start with their source: `agent:`, `build plugin:` or `runtime:` (classes instrumented at build time, at runtime); the others name the class or the entry they are about.
 - **`inPlaceModification = true`** writes each frame into the exception's own stack trace instead of copying the trace, which is faster for deep stacks (see [Limitations](limitations.md)). It needs `java.lang` open: the agent opens it; with build-time instrumentation, start the application with `--add-opens java.base/java.lang=ALL-UNNAMED`, otherwise the agent stops the JVM at startup, and the runtime of build-time classes prints an error and leaves stack traces unchanged. `-Dstackaugmentor.inPlaceModification=true|false` overrides the file.
 
 ## Errors and warnings

@@ -1,6 +1,6 @@
 # Causes, root cause first
 
-The JDK prints an exception with its causes outermost first: each cause follows as `Caused by:`, and leaves out the frames it shares with the exception it caused as `... N more`. With Stack Augmentor these shared frames show the same ids in every exception of the chain, so they still collapse (see [How it works](how-it-works.md)).
+The JDK prints an exception with its causes outermost first: each cause follows as `Caused by:`, and leaves out the frames it shares with the exception it caused as `... N more`. With Stack Augmentor these shared frames show the same values in every exception of the chain, so they still collapse (see [How it works](how-it-works.md)).
 
 Often the root cause is what matters, and it comes last. Two ways to print it first:
 
@@ -18,7 +18,7 @@ Both loggers print the root cause first with the `%rEx` (or `%rootException`) co
 <PatternLayout pattern="%d %-5level %logger - %msg%n%rEx"/>
 ```
 
-Both leave out the frames each exception shares with its wrapper: Logback as `... N common frames omitted`, Log4j 2 as `... N more`; Log4j 2's `%rEx{filters(...)}` can also leave out the frames of given packages. Both read the stack traces with `getStackTrace()`, so they show the ids.
+Both leave out the frames each exception shares with its wrapper: Logback as `... N common frames omitted`, Log4j 2 as `... N more`; Log4j 2's `%rEx{filters(...)}` can also leave out the frames of given packages. Both read the stack traces with `getStackTrace()`, so they show the augmented frames.
 
 `java.util.logging` has no such option; its `SimpleFormatter` prints what `printStackTrace` prints. Use a `Formatter` of your own with `ExceptionFormat.rootCauseFirst` (below).
 
