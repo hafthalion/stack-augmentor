@@ -14,7 +14,7 @@ java -agentpath:/path/to/libstackaugmentor.so -javaagent:stack-augmentor-agent-<
 
 Differences from instrumenting classes:
 
-- **Every frame on the stack when the exception is created gets ids**, also the method that catches it and the frames below.
+- **Every frame on the stack when the exception is created is augmented**, also the method that catches it and the frames below.
 - **Constructors show their parameter ids also for exceptions from `super(...)` or `this(...)`.** Still no receiver id.
 - **Ids are read when the exception is created**, not when it leaves each method.
 - **Every exception that [`[augment.exceptions]`](configuration.md#exceptions) selects pays a stack walk**, also when no frame is configured: measured with JDK 25 on a Linux container, about 4 µs for a 10-frame stack and 13 µs for a 100-frame one, plus 2 to 4 µs per configured frame. `stack-augmentor-it-benchmark` compares the modes at 1000 frames. Exceptions created while a class loads, such as a class loader's `ClassNotFoundException`, are skipped. The others pay only a class check, cached per class.

@@ -1,4 +1,4 @@
-# The *_EXCLUDED scenarios throw ExcludedException, which gets no ids although its frames are configured.
+# The *_EXCLUDED scenarios throw ExcludedException, which is not augmented although its frames are configured.
 [augment.exceptions]
 "com.hafnium.it.benchmark.ExcludedException" = false
 "com.hafnium.it.benchmark.BenchmarkException+" = true

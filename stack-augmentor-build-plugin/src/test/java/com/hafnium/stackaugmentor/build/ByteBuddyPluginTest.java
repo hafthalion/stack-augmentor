@@ -1,7 +1,7 @@
 package com.hafnium.stackaugmentor.build;
 
 import com.hafnium.buildfixture.Tracked;
-import com.hafnium.stackaugmentor.StackTraceId;
+import com.hafnium.stackaugmentor.StackTraceReceiver;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.ConfigException;
 import net.bytebuddy.description.type.TypeDescription;
@@ -24,7 +24,7 @@ class ByteBuddyPluginTest {
 
     /** In a stack-augmentor package, which neither the agent nor the build plugin instruments. */
     static class Annotated {
-        @StackTraceId
+        @StackTraceReceiver
         String id = "a-1";
 
         void fail() {

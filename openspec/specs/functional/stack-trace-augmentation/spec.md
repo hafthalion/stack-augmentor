@@ -14,7 +14,7 @@ cases:
 - instance or static methods that have at least one parameter id.
 
 Constructors that are not synthetic SHALL be instrumented when they have at least one parameter id, for
-those ids only: they SHALL never get a receiver id. ByteBuddy's advice cannot catch exceptions in
+those ids only: they SHALL never show a receiver id. ByteBuddy's advice cannot catch exceptions in
 constructors, so the system SHALL add its own handlers, covering the code before and the code after the
 `super(...)` or `this(...)` call, that pass the parameter ids with the method name `<init>` and rethrow the
 exception unchanged. Exceptions thrown inside the called constructor SHALL leave the frame unchanged.
@@ -67,15 +67,15 @@ matching entry, in the order of the file, has the value `true`. The keys SHALL h
 `[augment.receiver]` and `[augment.params]` keys, matched the same way, without methods: a class name SHALL match
 throwables of that class only; with `+` after it (`"java.io.IOException+"`) the throwables that are instances of
 that class, as `instanceof` does, subclasses included; a key with the class pattern wildcards SHALL match the name
-of the throwable's runtime class only, and not its superclasses. A throwable that no entry matches SHALL get no ids. The frames that other throwables leave SHALL be
-left unchanged, in their own traces and in those of their causes and suppressed exceptions; a frame that a
-throwable with ids leaves SHALL still be written into the traces it shares, whatever their class, so that
+of the throwable's runtime class only, and not its superclasses. A throwable that no entry matches SHALL NOT be augmented. The frames that other throwables leave SHALL be
+left unchanged, in their own traces and in those of their causes and suppressed exceptions; a frame that an
+augmented throwable leaves SHALL still be written into the traces it shares, whatever their class, so that
 printed traces still collapse. What gets instrumented SHALL NOT depend on it. This SHALL hold in both modes and
-in the live-stack mode. Without the table, or with an empty one, no throwable SHALL get ids, as without
+in the live-stack mode. Without the table, or with an empty one, no throwable SHALL be augmented, as without
 `[augment.receiver]` and `[augment.params]` entries; when those have entries but no `[augment.exceptions]` entry
 is `true`, startup SHALL warn.
 
-#### Scenario: Cause without ids
+#### Scenario: Cause that is not augmented
 - **GIVEN** `"com.acme.PlainCause" = false` before `"**" = true`, and `wrap()` catches a `PlainCause` from `inner()` and throws `RuntimeException("wrapped", cause)`
 - **WHEN** the wrapper is printed, in either mode
 - **THEN** the cause's `inner` frame is unchanged, its frames shared with the wrapper show the wrapper's ids, and they collapse into `... N more`
@@ -110,7 +110,7 @@ When the system rewrites a frame of an exception, it SHALL write the same rewrit
 causes and suppressed exceptions, and theirs, whose trace has an equal frame at the same distance from the
 bottom with equal frames below it. Printed traces SHALL then still collapse the shared frames into
 `... N more`, as without augmentation. A frame of the same method at that place but at another line, the same
-call, e.g. where the method caught the cause it wraps, SHALL get the same ids with its own line.
+call, e.g. where the method caught the cause it wraps, SHALL be augmented the same way, with its own line.
 
 #### Scenario: Wrapped exception with an instrumented caller
 - **GIVEN** `outer()` calls `wrap()`, which catches the exception of `inner(2)` and throws `RuntimeException("wrapped", cause)`

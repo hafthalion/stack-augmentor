@@ -32,12 +32,12 @@ The system SHALL always print a warning to standard error, prefixed `[stack-augm
   missing-member warning, also for an entry with wildcards;
 - when an annotated id source cannot be made accessible;
 - when the runtime handler cannot be created, with the reason;
-- when the build-time runtime handler finds no configuration, so no exception gets ids;
+- when the build-time runtime handler finds no configuration, so no exception is augmented;
 - when the agent or the build plugin starts with a configuration that has no `[augment.receiver]` and no
   `[augment.params]` entries other than `"-"`, so nothing will be augmented;
 - when the agent, the build plugin or the runtime starts with `[augment.receiver]` or `[augment.params]` entries but
-  no `[augment.exceptions]` entry that is `true`: `no [augment.exceptions] entry is true, so no exception gets ids;
-  "java.lang.Exception+" = true gives them to all exceptions, "**" = true to all throwables`.
+  no `[augment.exceptions]` entry that is `true`: `no [augment.exceptions] entry is true, so no exception is augmented;
+  "java.lang.Exception+" = true augments all exceptions, "**" = true all throwables`.
 
 A member missing for an entry with wildcards SHALL only be reported as a debug message.
 
@@ -61,7 +61,7 @@ With `debug = true`, the system SHALL print messages to standard error, prefixed
 `[stack-augmentor] DEBUG`, for:
 - the configuration, from the agent, the build plugin and the runtime handler alike: its location, the `[augment.receiver]` entries (with `@` for annotations and `-` for none) and the `[augment.params]` entries (with `#` for hashed parameters, `@` for annotations and `-` for none), and the formats;
 - each instrumented class: why it is instrumented (configured receiver id, annotated receiver id, or parameter ids only), and its instrumented methods with their parameter ids;
-- `@StackTraceId` annotations ignored because the class's deciding `[augment.receiver]` entry is not `"@"` or no entry matches the class, and `@StackTraceParam` and `@StackTraceParams` annotations ignored because no `[augment.params]` entry with `"@"` applies to the method, each naming the table that would enable them;
+- `@StackTraceReceiver` annotations ignored because the class's deciding `[augment.receiver]` entry is not `"@"` or no entry matches the class, and `@StackTraceParam` and `@StackTraceParams` annotations ignored because no `[augment.params]` entry with `"@"` applies to the method, each naming the table that would enable them;
 - `[augment.params]` entries without wildcards or `+` that name a missing method, a missing parameter or an index out of range, suggesting `-parameters` or an index when the class has no parameter names;
 - members missing for `[augment.receiver]` entries with wildcards;
 - the id source found for each class when it is first needed;
@@ -88,9 +88,9 @@ SHALL be printed, and the message texts SHALL NOT be built, also for the message
 - **THEN** no message about the entry is printed for `Customer`
 
 #### Scenario: Ignored annotations
-- **GIVEN** `debug = true`, `"com.hafnium.it.fixtures.**::*" = "@"` in `[augment.receiver]`, and a class in `com.hafnium.it.outside` with `@StackTraceId` and `@StackTraceParam`
+- **GIVEN** `debug = true`, `"com.hafnium.it.fixtures.**::*" = "@"` in `[augment.receiver]`, and a class in `com.hafnium.it.outside` with `@StackTraceReceiver` and `@StackTraceParam`
 - **WHEN** the class is loaded
-- **THEN** one message reports that its `@StackTraceId` is ignored because no `[augment.receiver]` entry applies, and one that its parameter annotations are ignored because no `"@"` entry in `[augment.params]` applies
+- **THEN** one message reports that its `@StackTraceReceiver` is ignored because no `[augment.receiver]` entry applies, and one that its parameter annotations are ignored because no `"@"` entry in `[augment.params]` applies
 
 #### Scenario: Debug off
 - **GIVEN** `debug = false`

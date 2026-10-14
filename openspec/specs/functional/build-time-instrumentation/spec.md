@@ -63,7 +63,7 @@ on the first exception that leaves an instrumented method. `stack-augmentor-runt
 configuration. The runtime SHALL NOT match classes against `[augment.receiver]` again: the advice passes the key
 of the entry that decided the method at build time, and the runtime entry with that key SHALL give the receiver
 ids. A method that no entry decided at build time, or whose key the runtime configuration does not have (e.g.
-a key changed without rebuilding), SHALL get no receiver id, even if its class is annotated. If creating the handler fails, a warning with the reason SHALL be printed and
+a key changed without rebuilding), SHALL show no receiver id, even if its class is annotated. If creating the handler fails, a warning with the reason SHALL be printed and
 exceptions SHALL keep their original stack traces; an invalid runtime configuration SHALL be printed as an error
 with the file, the key and the line (see the diagnostics specification).
 
@@ -73,10 +73,10 @@ with the file, the key and the line (see the diagnostics specification).
 - **THEN** the handler is created through `ServiceLoader` and the frame shows the ids
 
 #### Scenario: No runtime configuration
-- **GIVEN** a class with `@StackTraceId`, instrumented at build time, and no `stack-augmentor.toml` on the runtime classpath
+- **GIVEN** a class with `@StackTraceReceiver`, instrumented at build time, and no `stack-augmentor.toml` on the runtime classpath
 - **WHEN** one of its methods throws
-- **THEN** the frame stays unchanged, since no `[augment.exceptions]` entry gives the exception ids
-- **AND** a warning says that there is no runtime configuration, so no exception gets ids
+- **THEN** the frame stays unchanged, since no `[augment.exceptions]` entry augments the exception
+- **AND** a warning says that there is no runtime configuration, so no exception is augmented
 
 #### Scenario: Receiver key changed without a rebuild
 - **GIVEN** a class built with `"com.acme.Svc::*" = "id"`, and a runtime configuration with `"com.acme.Svc+::*" = "id"` instead
@@ -84,6 +84,6 @@ with the file, the key and the line (see the diagnostics specification).
 - **THEN** the frame shows no receiver id, since the runtime has no entry with the key `com.acme.Svc::*`
 
 #### Scenario: Parameter entry only
-- **GIVEN** `"com.acme.Svc::run" = "0"` in `[augment.params]`, no `[augment.receiver]` entry for `Svc`, and `Svc` with a `@StackTraceId` field
+- **GIVEN** `"com.acme.Svc::run" = "0"` in `[augment.params]`, no `[augment.receiver]` entry for `Svc`, and `Svc` with a `@StackTraceReceiver` field
 - **WHEN** `run` throws in a build-time instrumented application
 - **THEN** the frame shows the parameter id of `run`'s first parameter and no receiver id

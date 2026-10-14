@@ -31,7 +31,7 @@ outermost exception SHALL print all its frames. Read from the top, every frame o
 #### Scenario: Augmented cause chain
 - **GIVEN** an instrumented `outer()` calls `wrap()`, which catches the exception of `inner(2)` and throws `RuntimeException("wrapped", cause)`
 - **WHEN** the wrapper leaves `outer()` and is formatted root cause first
-- **THEN** the cause prints only the frames below `wrap`, with ids, then `... N common frames omitted`, and the wrapper prints its frames with the same ids in `outer`
+- **THEN** the cause prints only the frames below `wrap`, augmented, then `... N common frames omitted`, and the wrapper prints its frames augmented the same way in `outer`
 
 ### Requirement: Suppressed exceptions and cycles
 Suppressed exceptions SHALL follow the frames of the exception they were suppressed in, each line indented by one

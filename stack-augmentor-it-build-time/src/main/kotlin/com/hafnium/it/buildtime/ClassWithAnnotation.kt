@@ -1,15 +1,15 @@
 package com.hafnium.it.buildtime
 
-import com.hafnium.stackaugmentor.StackTraceId
+import com.hafnium.stackaugmentor.StackTraceReceiver
 import com.hafnium.stackaugmentor.StackTraceParam
 import com.hafnium.stackaugmentor.StackTraceParams
 
 /** An argument is shown with its toString(). */
 data class ObjectParam(private val name: String)
 
-/** Receiver id from @StackTraceId, parameter ids from the parameter annotations. */
+/** Receiver id from @StackTraceReceiver, parameter ids from the parameter annotations. */
 data class ClassWithAnnotation(
-    @StackTraceId
+    @StackTraceReceiver
     private val objectId: String
 ) {
     /** All parameters are shown. */

@@ -15,8 +15,8 @@ For each method, the first entry in the file whose class and methods match decid
 
 - a field, or a no-argument `method()`, looked up in that class and its superclasses (for an interface: in it and the interfaces it extends); a method or getter is also found as a default method of an implemented interface; a name without a field, such as a Kotlin property of an interface, uses the property's getter (`code` reads `getCode()`);
 - several of them separated by commas, e.g. `"tenant, lineId()"`: one id each, in this order, e.g. `OrderLine{tenant=acme, lineId=3}.cancel`. A member that is missing is left out, with the same warning as for a single one;
-- `"@"`: every `@StackTraceId` on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`, one id each: fields first, in declaration order, then methods by name, starting with the class itself and then its superclasses; or
-- `"-"`: nothing, so the methods the key names get no receiver id. Their parameter ids are not affected.
+- `"@"`: every `@StackTraceReceiver` on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`, one id each: fields first, in declaration order, then methods by name, starting with the class itself and then its superclasses; or
+- `"-"`: nothing, so the methods the key names show no receiver id. Their parameter ids are not affected.
 
 `"com.thirdparty.Parcel::ship, cancel*" = "trackingCode"` shows `Parcel{trackingCode=…}.ship` and `Parcel{trackingCode=…}.cancelLater`, while `Parcel.weigh` stays without receiver id (its parameter ids are not affected). `"com.acme.Dispatcher::@" = "hub"` shows the ids in the methods annotated with `@StackTraceAugment` only. A class may have several entries, e.g. `"com.thirdparty.Parcel::weigh" = "weight"` after the one above gives `weigh` its own id. Constructors never show a receiver id, so `<init>` is not allowed here.
 

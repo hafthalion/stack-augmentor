@@ -1,6 +1,6 @@
 package com.hafnium.it.fixtures
 
-import com.hafnium.stackaugmentor.StackTraceId
+import com.hafnium.stackaugmentor.StackTraceReceiver
 import com.hafnium.stackaugmentor.StackTraceParam
 import com.hafnium.stackaugmentor.StackTraceParams
 
@@ -46,7 +46,7 @@ class Wide {
  * failAnnotated, whose exact [augment.params] "@" entry comes before the "-".
  */
 class Overridden {
-    @StackTraceId
+    @StackTraceReceiver
     val code = "c-1"
 
     fun getId() = "o-1"

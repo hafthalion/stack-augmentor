@@ -103,8 +103,8 @@ type matching and advice.
 - **THEN** the frame shows the original method name (no renamed or synthetic copies)
 
 ### Requirement: Matching by name
-The agent, build plugin and runtime SHALL recognise `@StackTraceId`, `@StackTraceParam`,
-`@StackTraceParams` and `@StackTraceAugment` by their class names (`com.hafnium.stackaugmentor.StackTraceId`,
+The agent, build plugin and runtime SHALL recognise `@StackTraceReceiver`, `@StackTraceParam`,
+`@StackTraceParams` and `@StackTraceAugment` by their class names (`com.hafnium.stackaugmentor.StackTraceReceiver`,
 `com.hafnium.stackaugmentor.StackTraceParam`, `com.hafnium.stackaugmentor.StackTraceParams`,
 `com.hafnium.stackaugmentor.StackTraceAugment`), without
 depending on the API module. The annotations SHALL have no attributes other than `secret` on `@StackTraceParam`.

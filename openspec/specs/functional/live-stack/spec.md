@@ -50,7 +50,7 @@ The configuration and the formats SHALL be the same as with instrumentation.
 ### Requirement: Values the JIT optimized away
 An argument of an object type that reads as `null` in a JIT-compiled frame while the JVM may eliminate allocations
 (`-XX:+EliminateAllocations`, the default) SHALL be shown as `?`. A receiver that is not an instance of the declaring
-class SHALL give no receiver id.
+class SHALL show no receiver id.
 
 #### Scenario: Allocations not eliminated
 - **GIVEN** the JVM started with `-XX:-EliminateAllocations`

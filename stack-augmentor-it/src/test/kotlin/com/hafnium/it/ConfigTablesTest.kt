@@ -46,7 +46,7 @@ class ConfigTablesTest {
     }
 
     @Test
-    fun `several @StackTraceId members give several receiver ids`() {
+    fun `several @StackTraceReceiver members give several receiver ids`() {
         assertEquals("com.hafnium.it.fixtures.MultiKeyed{tenant=acme, orderId=42}", frame("MultiKeyed().fail()", MultiKeyed()) { it.fail() }.className)
     }
 

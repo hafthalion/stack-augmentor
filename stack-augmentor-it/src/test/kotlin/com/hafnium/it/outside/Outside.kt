@@ -8,7 +8,7 @@ import com.thirdparty.Customer
 import com.thirdparty.SavingsAccount
 
 // No [augment.receiver] entry matches these classes, except Dispatcher's, and entries of their superclasses do not
-// apply to them: their @StackTraceId is ignored. Their parameter annotations are ignored, unless an [augment.params]
+// apply to them: their @StackTraceReceiver is ignored. Their parameter annotations are ignored, unless an [augment.params]
 // "@" entry applies.
 
 class DerivedOutside : Base() {

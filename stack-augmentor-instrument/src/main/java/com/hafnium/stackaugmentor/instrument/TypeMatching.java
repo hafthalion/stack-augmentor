@@ -91,7 +91,7 @@ public final class TypeMatching {
         }
         List<String> receivers = classEntries.entries(type).stream().filter(used::contains)
                 .map(entry -> entry.spec() instanceof IdSpec.Annotations
-                        ? "@StackTraceId (\"" + entry.key() + "\" = \"@\")"
+                        ? "@StackTraceReceiver (\"" + entry.key() + "\" = \"@\")"
                         : "[augment.receiver] \"" + entry.key() + "\"")
                 .toList();
         String reason = receivers.isEmpty() ? "parameter ids only" : "receiver id from " + String.join(", ", receivers);
@@ -160,7 +160,7 @@ public final class TypeMatching {
     /**
      * The deciding {@code [augment.receiver]} entry of the frames of this method if they show receiver ids, else
      * {@code null}: a method, not a constructor, that is not static, whose deciding entry names a field or method, or is
-     * {@code "@"} for a class that has an {@code @StackTraceId} member or whose superclasses have one. Not with
+     * {@code "@"} for a class that has an {@code @StackTraceReceiver} member or whose superclasses have one. Not with
      * {@code "-"}.
      */
     public AugmentorConfig.ClassEntry receiverEntry(TypeDescription type, MethodDescription method) {
@@ -181,7 +181,7 @@ public final class TypeMatching {
     /** The last answer of {@link #annotated}: it is asked for once per method of a type. */
     private volatile Annotated lastAnnotated;
 
-    /** Whether the type or one of its superclasses has an {@code @StackTraceId} member. */
+    /** Whether the type or one of its superclasses has an {@code @StackTraceReceiver} member. */
     private boolean annotated(TypeDescription type) {
         Annotated last = lastAnnotated;
         if (last == null || last.type() != type) {
@@ -243,7 +243,7 @@ public final class TypeMatching {
                     ? "its [augment.receiver] entry \"" + entries.get(0).key() + "\" is not \"@\""
                     : "its [augment.receiver] entries " + entries.stream().map(it -> "\"" + it.key() + "\"")
                             .collect(Collectors.joining(", ")) + " are not \"@\"";
-            Log.debug(() -> "ignoring @StackTraceId in " + type.getName() + ": " + why);
+            Log.debug(() -> "ignoring @StackTraceReceiver in " + type.getName() + ": " + why);
         }
         List<String> methods = new ArrayList<>();
         for (MethodDescription method : type.getDeclaredMethods()) {
@@ -269,17 +269,17 @@ public final class TypeMatching {
 
     /**
      * Has a receiver id source: a field or a usable method ({@link IdResolver#isUsableIdMethod}) with
-     * {@code @StackTraceId}, as Kotlin properties have on their field.
+     * {@code @StackTraceReceiver}, as Kotlin properties have on their field.
      */
     private static boolean hasAnnotatedMember(TypeDescription type) {
         for (FieldDescription field : type.getDeclaredFields()) {
-            if (!field.isStatic() && annotation(field.getDeclaredAnnotations(), IdResolver.STACK_TRACE_ID) != null) {
+            if (!field.isStatic() && annotation(field.getDeclaredAnnotations(), IdResolver.STACK_TRACE_RECEIVER) != null) {
                 return true;
             }
         }
         for (MethodDescription method : type.getDeclaredMethods()) {
             if (method.isMethod() && IdResolver.isUsableIdMethod(method.isStatic(), method.getParameters().size(), method.isSynthetic())
-                    && annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_ID) != null) {
+                    && annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_RECEIVER) != null) {
                 return true;
             }
         }

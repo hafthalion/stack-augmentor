@@ -266,10 +266,10 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `a cause without ids of its own shows those of the frames it shares with the wrapper`() {
+    fun `a cause that is not augmented itself shows the ids of the frames it shares with the wrapper`() {
         val e = report.thrown<RuntimeException, _>("Layers().outerWrapPlain()", Layers()) { it.outerWrapPlain() }
         val cause = e.cause!!.stackTrace
-        // Its own frame stays plain: [augment.exceptions] gives PlainCause no ids.
+        // Its own frame stays plain: [augment.exceptions] does not augment PlainCause.
         assertEquals("com.hafnium.it.fixtures.Layers", cause[0].className)
         assertEquals("plainInner", cause[0].methodName)
         val outer = e.stackTrace.indexOfFirst { it.methodName == "outerWrapPlain" }

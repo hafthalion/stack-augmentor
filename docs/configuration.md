@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-Everything Stack Augmentor does is set in one TOML file. It says which exceptions get ids, which frames show a receiver id and which show parameter ids, and how the frames look. Without a file nothing is augmented.
+Everything Stack Augmentor does is set in one TOML file. It says which exceptions are augmented, which frames show a receiver id and which show parameter ids, and how the frames look. Without a file nothing is augmented.
 
 - [The file at a glance](#the-file-at-a-glance)
 - [Where the file comes from](#where-the-file-comes-from)
@@ -29,7 +29,7 @@ receiverFormat = "{$name=$id, ...}"
 paramsFormat = "{$name=$id, ...}"
 maxIdLength = 64
 
-[augment.exceptions]           # which exceptions get ids: the first matching entry decides
+[augment.exceptions]           # which exceptions are augmented: the first matching entry decides
 "java.io.FileNotFoundException+" = false
 "java.lang.Exception+" = true
 
@@ -55,7 +55,7 @@ maxIdLength = 64
 | `[augment]` `receiverFormat` | template | `"{$name=$id, ...}"` | [Formats](#formats) |
 | `[augment]` `paramsFormat` | template | `"{$name=$id, ...}"` | [Formats](#formats) |
 | `[augment]` `maxIdLength` | 2 to 10000 | `64` | [Formats](#formats) |
-| `[augment.exceptions]` | `"<class>" = true` or `false` | empty: no exception gets ids | [Exceptions](#exceptions) |
+| `[augment.exceptions]` | `"<class>" = true` or `false` | empty: no exception is augmented | [Exceptions](#exceptions) |
 | `[augment.receiver]` | `"<class>::<methods>" = "<members>"` | empty | [Receiver ids](#receiver-ids) |
 | `[augment.params]` | `"<class>::<methods>" = "<parameters>"` | empty | [Parameter ids](#parameter-ids) |
 
@@ -71,7 +71,7 @@ The file name must end in `.toml`.
 | Build plugin | the plugin's argument in `build.gradle.kts` (see the [README](../README.md#quick-start-build-time-instrumentation)) | `[augment.receiver]` and `[augment.params]`, to decide which classes and methods to instrument and which parameters they pass; `debug`. It validates the whole file and warns if no `[augment.exceptions]` entry is `true` |
 | Runtime of classes instrumented at build time | `-Dstackaugmentor.config=<file>`, otherwise `stack-augmentor.toml` on the classpath (in an application server also from the context class loader of the first throwing thread) | `[augment]`, `[augment.exceptions]`, `[augment.receiver]`, `debug`, `inPlaceModification`; the parameters were chosen at build time |
 
-For build-time instrumentation, one file in `src/main/resources` serves both the build and the runtime. A frame's receiver ids come from the runtime entry with the same key as the entry that decided its method at build time, so if you change a key, rebuild. Without a runtime file, no exception gets ids and a warning says so.
+For build-time instrumentation, one file in `src/main/resources` serves both the build and the runtime. A frame's receiver ids come from the runtime entry with the same key as the entry that decided its method at build time, so if you change a key, rebuild. Without a runtime file, no exception is augmented and a warning says so.
 
 ## Keys: classes and methods
 
@@ -117,14 +117,14 @@ Keys can contain letters, digits, `_`, `$` and the wildcards. Spaces around the 
 "com.acme.Order::export" = "-"          # no receiver id in export ...
 "com.acme.Order::*" = "getId()"         # ... getId() in Order's other methods ...
 "com.acme.generated.**::*" = "-"        # ... nothing in the generated classes ...
-"com.acme.**::*" = "@"                  # ... and @StackTraceId in the rest of com.acme
+"com.acme.**::*" = "@"                  # ... and @StackTraceReceiver in the rest of com.acme
 ```
 
 A method belongs to the class that declares it: a subclass's own methods need an entry that matches the subclass, its own or the superclass's with `+`, while the methods it inherits use the superclass's entry. [Where ids come from](ids.md) has examples, including proxies, mocks and interface default methods.
 
 ## Exceptions
 
-`[augment.exceptions]` says which exceptions get ids: `true` or `false` per class or pattern. The first entry that matches the class of the thrown exception decides, in the order of the file. An exception that no entry matches gets none.
+`[augment.exceptions]` says which exceptions are augmented: `true` or `false` per class or pattern. The first entry that matches the class of the thrown exception decides, in the order of the file. An exception that no entry matches is not augmented.
 
 ```toml
 [augment.exceptions]
@@ -134,11 +134,11 @@ A method belongs to the class that declares it: a subclass's own methods need an
 "com.acme.**" = true
 ```
 
-- **Without this table, or with an empty one, no exception gets ids.** `"java.lang.Exception+" = true` gives them to all exceptions, `"**" = true` to all throwables, errors included. To exclude only some, put their `false` entries before it.
+- **Without this table, or with an empty one, no exception is augmented.** `"java.lang.Exception+" = true` augments all exceptions, `"**" = true` all throwables, errors included. To exclude only some, put their `false` entries before it.
 - **The keys are classes as above, without methods**: a class name matches that class only, `+` after it also its subclasses, and a pattern the name of the exception's class only.
 - **Unquoted class names work too**, since TOML reads `java.io.IOException = true` as nested tables, which mean the same. Keys with `+` or wildcards must be quoted.
 - **It is checked when an exception leaves an instrumented method** (in the live-stack mode: when it is created). Classes are instrumented as the other two tables say, whatever this table contains.
-- **Causes:** the frames an exception without ids leaves stay as they are, also where its causes share them. An exception with ids still writes its frames into the causes that share them, whatever their class, so printed traces still collapse into `... N more`, in both modes. See [Causes](causes.md).
+- **Causes:** the frames an exception that is not augmented leaves stay as they are, also where its causes share them. An augmented exception still writes its frames into the causes that share them, whatever their class, so printed traces still collapse into `... N more`, in both modes. See [Causes](causes.md).
 
 ## Receiver ids
 
@@ -149,11 +149,11 @@ A method belongs to the class that declares it: a subclass's own methods need an
 | `"orderId"` | the field `orderId`, looked up in the class and its superclasses; without such a field, its getter (`getOrderId()`, as for Kotlin properties of interfaces) |
 | `"getOrderId()"` | the result of the no-argument method `getOrderId()`, also a default method of an implemented interface |
 | `"tenant, lineId()"` | several of them, one id each, in this order: `OrderLine{tenant=acme, lineId=3}.cancel` |
-| `"@"` | every `@StackTraceId` field, no-argument method or (Kotlin) primary-constructor `val` of the class and its superclasses |
+| `"@"` | every `@StackTraceReceiver` field, no-argument method or (Kotlin) primary-constructor `val` of the class and its superclasses |
 | `"-"` | none, also for the entries after it that would match |
 
 - **Each id is the member's value as text**, from `toString()`, labelled with the member's real name: `{orderId=42}`, `{getKey=…}`.
-- **`@StackTraceId` counts only through an `"@"` entry.** An annotated class without one gets no receiver id.
+- **`@StackTraceReceiver` counts only through an `"@"` entry.** An annotated class without one shows no receiver id.
 - **A member the class does not have is left out**, with a warning (see [Errors and warnings](#errors-and-warnings)).
 - **The methods go in the key, not in the value**: `"com.acme.Parcel::weigh" = "weight"`.
 - **Constructors never show a receiver id**, so `<init>` is not allowed in these keys.
@@ -182,7 +182,7 @@ A method belongs to the class that declares it: a subclass's own methods need an
 
 ## Formats
 
-`[augment]` sets how a frame with ids is written. It is read at runtime, in every mode.
+`[augment]` sets how an augmented frame is written. It is read at runtime, in every mode.
 
 | Key | Placeholders |
 |---|---|
@@ -229,7 +229,7 @@ With build-time instrumentation, the runtime reads its configuration when the fi
 **Warnings** don't stop anything:
 
 - no configuration file, or one without `[augment.receiver]` and `[augment.params]` entries: nothing is augmented;
-- receiver or parameter entries, but no `[augment.exceptions]` entry that is `true`: no exception would get ids;
+- receiver or parameter entries, but no `[augment.exceptions]` entry that is `true`: no exception would be augmented;
 - a receiver member the class does not have, for a key with a class name. For a pattern it is a debug message, since a pattern may match classes that don't have it. So are parameter names that a method does not have.
 
 ## Tips
@@ -237,5 +237,5 @@ With build-time instrumentation, the runtime reads its configuration when the fi
 - **Put specific entries first**, general ones (`"com.acme.**::*"`) last.
 - **Keep patterns narrow.** `"com.**::*"` makes the agent instrument many classes, which slows down class loading.
 - **Prefer annotations in your own code** (`"com.acme.**::*" = "@"` in both tables), and explicit members for classes you cannot change.
-- **Use `+` for class hierarchies and proxies**, e.g. `"com.acme.Order+::*"`, so that subclasses' own methods and overrides get the ids as well.
+- **Use `+` for class hierarchies and proxies**, e.g. `"com.acme.Order+::*"`, so that subclasses' own methods and overrides are augmented as well.
 - **Turn on `debug`** when a frame does not show what you expect: it says which entry decided each method.
