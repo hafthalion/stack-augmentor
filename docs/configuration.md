@@ -138,7 +138,7 @@ A method belongs to the class that declares it: a subclass's own methods need an
 - **The keys are classes as above, without methods**: a class name matches that class only, `+` after it also its subclasses, and a pattern the name of the exception's class only.
 - **Unquoted class names work too**, since TOML reads `java.io.IOException = true` as nested tables, which mean the same. Keys with `+` or wildcards must be quoted.
 - **It is checked when an exception leaves an instrumented method** (in the live-stack mode: when it is created). Classes are instrumented as the other two tables say, whatever this table contains.
-- **Causes:** the frames an exception without ids leaves stay as they are, also where its causes share them. An exception with ids still writes its frames into the causes that share them, whatever their class, so printed traces still collapse into `... N more`. In the live-stack mode, each exception gets ids by its own class only. See [Causes](causes.md).
+- **Causes:** the frames an exception without ids leaves stay as they are, also where its causes share them. An exception with ids still writes its frames into the causes that share them, whatever their class, so printed traces still collapse into `... N more`, in both modes. See [Causes](causes.md).
 
 ## Receiver ids
 
@@ -222,8 +222,8 @@ With build-time instrumentation, the runtime reads its configuration when the fi
 - invalid TOML, and values of the wrong type, e.g. an array instead of a comma-separated string;
 - unknown keys, so typos don't go unnoticed (the message lists the allowed ones);
 - invalid keys, e.g. without `::`, with `+` after a pattern, or `<init>` in `[augment.receiver]`;
-- invalid values, e.g. an index above 255, an empty item in `"a,,b"`, or a method or receiver member listed twice (a parameter listed twice is shown once);
-- the same key twice, also written differently: `"com.acme.Order"` and unquoted `com.acme.Order`, or `"Order::a,b"` and `"Order::a, b"`;
+- invalid values, e.g. an index above 255, an empty item in `"a,,b"`, or a method, receiver member or parameter listed twice (`"email, email#"` too; a name and an index of the same parameter are allowed, and it is shown once);
+- the same key twice, also written differently: `"com.acme.Order"` and unquoted `com.acme.Order`, or `"Order::a, b"`, `"Order::a,b"` and `"Order::b, a"`;
 - templates with `(`, `)`, an unknown placeholder, or without `.$method`.
 
 **Warnings** don't stop anything:

@@ -1,8 +1,9 @@
 [augment]
 maxIdLength = 20
 
-# All throwables get ids (without an entry that is true, none would).
+# All throwables get ids (without an entry that is true, none would), except PlainCause.
 [augment.exceptions]
+"com.hafnium.it.fixtures.PlainCause" = false
 "**" = true
 
 # The two tables are independent: [augment.receiver] for the receiver ids, [augment.params] for the parameter ids.
