@@ -73,7 +73,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `receiver id from an annotated method uses the method name`() {
+    fun `receiver members from an annotated method uses the method name`() {
         val e = report.thrown<IllegalStateException, _>("KeyedByMethod().fail()", KeyedByMethod()) { it.fail() }
         assertEquals("com.hafnium.it.fixtures.KeyedByMethod{key=k-1}", e.stackTrace[0].className)
     }
@@ -105,7 +105,7 @@ class StackTraceIdsTest {
     fun `object parameter is shown with toString(), not with the id source of its class`() {
         val e = report.thrown<IllegalStateException, _>("Shipping().ship(Order(4711))", Shipping()) { it.ship(Order(4711)) }
         assertEquals("com.hafnium.it.fixtures.Shipping{id=ship}", e.stackTrace[0].className)
-        // Order has the entry "getOrderNumber()", but no toString(): Object.toString(), cut at maxIdLength = 20.
+        // Order has the entry "getOrderNumber()", but no toString(): Object.toString(), cut at maxValueLength = 20.
         assertEquals("ship{order=com.thirdparty.Orde…}", e.stackTrace[0].methodName)
     }
 
@@ -176,7 +176,7 @@ class StackTraceIdsTest {
         val multiLine = report.thrown<IllegalStateException, _>("MultiLine().fail()", MultiLine()) { it.fail() }
         assertEquals("com.hafnium.it.fixtures.MultiLine{text=line1 line2}", multiLine.stackTrace[0].className)
 
-        // maxIdLength = 20 in stack-augmentor.toml
+        // maxValueLength = 20 in stack-augmentor.toml
         val long = report.thrown<IllegalStateException, _>("LongId().fail()", LongId()) { it.fail() }
         assertEquals("com.hafnium.it.fixtures.LongId{text=${"x".repeat(19)}…}", long.stackTrace[0].className)
     }
@@ -374,7 +374,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `a Kotlin object takes its receiver id from an annotated getter, not from its static field`() {
+    fun `a Kotlin object takes its receiver members from an annotated getter, not from its static field`() {
         val field = report.thrown<IllegalStateException, _>("Registry.fail(\"k\")", Registry) { it.fail("k") }
         assertEquals("com.hafnium.it.fixtures.Registry", field.stackTrace[0].className)
         assertEquals("fail{key=k}", field.stackTrace[0].methodName)

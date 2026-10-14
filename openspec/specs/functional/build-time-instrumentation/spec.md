@@ -19,7 +19,7 @@ plugin does not show the cause of a failing plugin constructor. It SHALL be disc
 a warning.
 
 #### Scenario: Invalid template
-- **GIVEN** `paramsFormat = "($name=$id, ...)"` on line 14 of the build plugin's configuration
+- **GIVEN** `paramsFormat = "($name=$value, ...)"` on line 14 of the build plugin's configuration
 - **WHEN** the project is built
 - **THEN** the build fails, and `[stack-augmentor] ERROR build plugin: stack-augmentor.toml, line 14: paramsFormat must not contain '('` … is printed
 

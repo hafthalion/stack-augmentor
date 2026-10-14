@@ -76,7 +76,7 @@ class WithoutKotlinTest {
         } else {
             assertTrue(result.output.contains("[stack-augmentor] DEBUG instrumenting com.hafnium.it.fixtures.JavaFixture"), result.output)
         }
-        assertTrue(result.output.contains("[stack-augmentor] DEBUG id sources of com.hafnium.it.fixtures.JavaFixture"), result.output)
+        assertTrue(result.output.contains("[stack-augmentor] DEBUG receiver members of com.hafnium.it.fixtures.JavaFixture"), result.output)
         assertNoKotlin(result.output)
     }
 
@@ -98,10 +98,10 @@ class WithoutKotlinTest {
 
     @Test
     fun `invalid configuration is reported without the Kotlin runtime`(@TempDir dir: Path) {
-        val result = run(config(dir, "debug = false\n[augment]\nmaxIdLength = 1\n"))
+        val result = run(config(dir, "debug = false\n[augment]\nmaxValueLength = 1\n"))
         assertNotEquals(0, result.exitCode, result.output)
         assertTrue(
-            result.output.contains("[stack-augmentor] ERROR agent: stack-augmentor.toml, line 3: maxIdLength must be between 2 and 10000, was 1"),
+            result.output.contains("[stack-augmentor] ERROR agent: stack-augmentor.toml, line 3: maxValueLength must be between 2 and 10000, was 1"),
             result.output,
         )
         assertNoKotlin(result.output)

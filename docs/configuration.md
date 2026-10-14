@@ -25,9 +25,9 @@ inPlaceModification = false    # write frames into the exception's own stack tra
 
 [augment]                      # how frames look (these are the defaults)
 frameFormat = "$class$receiver.$method$params"
-receiverFormat = "{$name=$id, ...}"
-paramsFormat = "{$name=$id, ...}"
-maxIdLength = 64
+receiverFormat = "{$name=$value, ...}"
+paramsFormat = "{$name=$value, ...}"
+maxValueLength = 64
 
 [augment.exceptions]           # which exceptions are augmented: the first matching entry decides
 "java.io.FileNotFoundException+" = false
@@ -52,14 +52,14 @@ maxIdLength = 64
 | `debug` | `true` or `false` | `false` | [Root options](#root-options) |
 | `inPlaceModification` | `true` or `false` | `false` | [Root options](#root-options) |
 | `[augment]` `frameFormat` | template | `"$class$receiver.$method$params"` | [Formats](#formats) |
-| `[augment]` `receiverFormat` | template | `"{$name=$id, ...}"` | [Formats](#formats) |
-| `[augment]` `paramsFormat` | template | `"{$name=$id, ...}"` | [Formats](#formats) |
-| `[augment]` `maxIdLength` | 2 to 10000 | `64` | [Formats](#formats) |
+| `[augment]` `receiverFormat` | template | `"{$name=$value, ...}"` | [Formats](#formats) |
+| `[augment]` `paramsFormat` | template | `"{$name=$value, ...}"` | [Formats](#formats) |
+| `[augment]` `maxValueLength` | 2 to 10000 | `64` | [Formats](#formats) |
 | `[augment.exceptions]` | `"<class>" = true` or `false` | empty: no exception is augmented | [Exceptions](#exceptions) |
 | `[augment.receiver]` | `"<class>::<methods>" = "<members>"` | empty | [Receiver ids](#receiver-ids) |
 | `[augment.params]` | `"<class>::<methods>" = "<parameters>"` | empty | [Parameter ids](#parameter-ids) |
 
-TOML in short: `#` starts a comment, a key with `::`, `*` or `+` in it must be quoted, an unquoted key with `.` is read as nested tables (which works for `[augment.exceptions]` class names only), and dotted keys (`augment.maxIdLength = 32`) work as well as sections. The order of the tables does not matter. The order of the entries within `[augment.exceptions]`, `[augment.receiver]` and `[augment.params]` does: the first entry that matches decides.
+TOML in short: `#` starts a comment, a key with `::`, `*` or `+` in it must be quoted, an unquoted key with `.` is read as nested tables (which works for `[augment.exceptions]` class names only), and dotted keys (`augment.maxValueLength = 32`) work as well as sections. The order of the tables does not matter. The order of the entries within `[augment.exceptions]`, `[augment.receiver]` and `[augment.params]` does: the first entry that matches decides.
 
 ## Where the file comes from
 
@@ -187,11 +187,11 @@ A method belongs to the class that declares it: a subclass's own methods need an
 | Key | Placeholders |
 |---|---|
 | `frameFormat` | `$class`, `$simpleClass`, `$method`, `$receiver`, `$params` |
-| `receiverFormat` | `$name`, `$id`, and `...` to mark repetition. Renders empty when the frame has no receiver id. |
-| `paramsFormat` | `$name`, `$id`, and `...` to mark repetition. Renders empty when the method has no parameter ids. |
-| `maxIdLength` | longer ids are cut to this many characters (2 to 10000, default 64) |
+| `receiverFormat` | `$name`, `$value`, and `...` to mark repetition. Renders empty when the frame has no receiver id. |
+| `paramsFormat` | `$name`, `$value`, and `...` to mark repetition. Renders empty when the method has no parameter ids. |
+| `maxValueLength` | longer ids are cut to this many characters (2 to 10000, default 64) |
 
-- **`receiverFormat` and `paramsFormat`** are split as follows. The text before the first placeholder and the text after `...` wrap the list. The part from the first to the last placeholder is repeated for each id. The text between the last placeholder and `...` separates the items. So `[$name: $id; ...]` renders `[orderId: 42; customer: 7]`. Without `...`, the whole template is repeated, separated by `,`: `<$id>` renders `<acme>,<3>` for two receiver ids.
+- **`receiverFormat` and `paramsFormat`** are split as follows. The text before the first placeholder and the text after `...` wrap the list. The part from the first to the last placeholder is repeated for each id. The text between the last placeholder and `...` separates the items. So `[$name: $value; ...]` renders `[orderId: 42; customer: 7]`. Without `...`, the whole template is repeated, separated by `,`: `<$value>` renders `<acme>,<3>` for two receiver ids.
 - **In all three templates**, placeholders start with `$` and everything else is literal, braces included; `$$` is a literal `$`. A placeholder name ends at the first character that is not a letter or digit, so `$class$receiver.$method$params` needs no separators. When letters or digits follow directly, write the name in braces: `${method}X` renders `processX`, while `$methodX` is rejected as an unknown placeholder. A brace without a `$` before it is literal.
 - **`(` and `)` are not allowed**, because IDEs find a frame's file and line by the `(File.java:12)` at its end. Ids have theirs replaced by `{` and `}` for the same reason, and line breaks by a space.
 - **`frameFormat` must contain `.$method` (or `.${method}`) exactly once**, because the JDK always prints `<class>.<method>(<file>:<line>)`.
@@ -201,8 +201,8 @@ A method belongs to the class that declares it: a subclass's own methods need an
 | defaults | `com.hafnium.ObjectClass{objectId=1}.process{orderId=42}(ObjectClass.java:13)` |
 | `frameFormat = "$class.$method$receiver$params"` | `com.hafnium.ObjectClass.process{objectId=1}{orderId=42}(ObjectClass.java:13)` |
 | `frameFormat = "$simpleClass$receiver.$method$params"` | `ObjectClass{objectId=1}.process{orderId=42}(ObjectClass.java:13)` |
-| `receiverFormat = "<$id>"` | `com.hafnium.ObjectClass<1>.process{orderId=42}(ObjectClass.java:13)` |
-| `receiverFormat = "[$name=$id, ...]"`, `paramsFormat = "[$name=$id, ...]"` | `com.hafnium.ObjectClass[objectId=1].process[orderId=42](ObjectClass.java:13)` |
+| `receiverFormat = "<$value>"` | `com.hafnium.ObjectClass<1>.process{orderId=42}(ObjectClass.java:13)` |
+| `receiverFormat = "[$name=$value, ...]"`, `paramsFormat = "[$name=$value, ...]"` | `com.hafnium.ObjectClass[objectId=1].process[orderId=42](ObjectClass.java:13)` |
 
 ## Root options
 
@@ -214,7 +214,7 @@ A method belongs to the class that declares it: a subclass's own methods need an
 **An invalid configuration stops the JVM (with the agent) or the build at startup**, naming the file, the key and its line:
 
 ```
-[stack-augmentor] ERROR agent: stack-augmentor.toml, line 3: maxIdLength must be between 2 and 10000, was 1
+[stack-augmentor] ERROR agent: stack-augmentor.toml, line 3: maxValueLength must be between 2 and 10000, was 1
 ```
 
 With build-time instrumentation, the runtime reads its configuration when the first exception needs it; it then prints such an error and leaves the stack traces unchanged, and the application keeps running. Rejected are:

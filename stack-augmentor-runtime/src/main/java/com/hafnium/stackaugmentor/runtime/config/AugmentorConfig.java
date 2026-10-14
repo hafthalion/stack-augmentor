@@ -34,9 +34,9 @@ import java.util.stream.Collectors;
  *
  * [augment]                   # how frames look
  * frameFormat = "$class$receiver.$method$params"
- * receiverFormat = "{$name=$id, ...}"
- * paramsFormat = "{$name=$id, ...}"
- * maxIdLength = 64
+ * receiverFormat = "{$name=$value, ...}"
+ * paramsFormat = "{$name=$value, ...}"
+ * maxValueLength = 64
  *
  * [augment.exceptions]       # which throwables are augmented: true or false, the first matching entry wins; a
  *                            # class name matches that class, with "+" its subclasses too, a pattern the runtime class
@@ -93,9 +93,9 @@ public final class AugmentorConfig {
     public static final String METHOD_SEPARATOR = "::";
 
     public static final String DEFAULT_FRAME_FORMAT = "$class$receiver.$method$params";
-    public static final String DEFAULT_RECEIVER_FORMAT = "{$name=$id, ...}";
-    public static final String DEFAULT_PARAMS_FORMAT = "{$name=$id, ...}";
-    public static final int DEFAULT_MAX_ID_LENGTH = 64;
+    public static final String DEFAULT_RECEIVER_FORMAT = "{$name=$value, ...}";
+    public static final String DEFAULT_PARAMS_FORMAT = "{$name=$value, ...}";
+    public static final int DEFAULT_MAX_VALUE_LENGTH = 64;
     public static final String CONFIG_PROPERTY = "stackaugmentor.config";
     /** Overrides {@code inPlaceModification} of the file: {@code -Dstackaugmentor.inPlaceModification=true}. */
     public static final String IN_PLACE_MODIFICATION_PROPERTY = "stackaugmentor.inPlaceModification";
@@ -114,7 +114,7 @@ public final class AugmentorConfig {
     private final String frameFormat;
     private final String receiverFormat;
     private final String paramsFormat;
-    private final int maxIdLength;
+    private final int maxValueLength;
     private final boolean debug;
     private final boolean inPlaceModification;
     private final Map<String, Boolean> exceptions;
@@ -325,7 +325,7 @@ public final class AugmentorConfig {
     /** The defaults: no class or method entries, so nothing is augmented. */
     public AugmentorConfig() {
         this(Map.of(), Map.of(), DEFAULT_FRAME_FORMAT, DEFAULT_RECEIVER_FORMAT, DEFAULT_PARAMS_FORMAT,
-                DEFAULT_MAX_ID_LENGTH, false, false, Map.of());
+                DEFAULT_MAX_VALUE_LENGTH, false, false, Map.of());
     }
 
     /**
@@ -338,7 +338,7 @@ public final class AugmentorConfig {
      *                  table; empty for none, {@code "**" = true} for all
      */
     public AugmentorConfig(Map<String, IdSpec> classes, Map<String, List<ParamRef>> methods,
-                           String frameFormat, String receiverFormat, String paramsFormat, int maxIdLength,
+                           String frameFormat, String receiverFormat, String paramsFormat, int maxValueLength,
                            boolean debug, boolean inPlaceModification, Map<String, Boolean> exceptions) {
         this.classes = Collections.unmodifiableMap(new LinkedHashMap<>(classes));
         Map<String, List<ParamRef>> methodsCopy = new LinkedHashMap<>();
@@ -347,7 +347,7 @@ public final class AugmentorConfig {
         this.frameFormat = Objects.requireNonNull(frameFormat, "frameFormat");
         this.receiverFormat = Objects.requireNonNull(receiverFormat, "receiverFormat");
         this.paramsFormat = Objects.requireNonNull(paramsFormat, "paramsFormat");
-        this.maxIdLength = maxIdLength;
+        this.maxValueLength = maxValueLength;
         this.debug = debug;
         this.inPlaceModification = inPlaceModification;
         this.exceptions = Collections.unmodifiableMap(new LinkedHashMap<>(exceptions));
@@ -388,8 +388,8 @@ public final class AugmentorConfig {
         return paramsFormat;
     }
 
-    public int maxIdLength() {
-        return maxIdLength;
+    public int maxValueLength() {
+        return maxValueLength;
     }
 
     public boolean debug() {
@@ -653,7 +653,7 @@ public final class AugmentorConfig {
                 && frameFormat.equals(that.frameFormat)
                 && receiverFormat.equals(that.receiverFormat)
                 && paramsFormat.equals(that.paramsFormat)
-                && maxIdLength == that.maxIdLength
+                && maxValueLength == that.maxValueLength
                 && debug == that.debug
                 && inPlaceModification == that.inPlaceModification
                 && exceptions.equals(that.exceptions);
@@ -661,7 +661,7 @@ public final class AugmentorConfig {
 
     @Override
     public int hashCode() {
-        return Objects.hash(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug, inPlaceModification,
+        return Objects.hash(classes, methods, frameFormat, receiverFormat, paramsFormat, maxValueLength, debug, inPlaceModification,
                 exceptions);
     }
 
@@ -669,7 +669,7 @@ public final class AugmentorConfig {
     public String toString() {
         return "AugmentorConfig[classes=" + classes + ", methods=" + methods
                 + ", frameFormat=" + frameFormat + ", receiverFormat=" + receiverFormat + ", paramsFormat=" + paramsFormat
-                + ", maxIdLength=" + maxIdLength + ", debug=" + debug + ", inPlaceModification=" + inPlaceModification + ", exceptions=" + exceptions + "]";
+                + ", maxValueLength=" + maxValueLength + ", debug=" + debug + ", inPlaceModification=" + inPlaceModification + ", exceptions=" + exceptions + "]";
     }
 
     /** Starts from the defaults; every setter replaces one value. */
@@ -680,7 +680,7 @@ public final class AugmentorConfig {
         private String frameFormat = DEFAULT_FRAME_FORMAT;
         private String receiverFormat = DEFAULT_RECEIVER_FORMAT;
         private String paramsFormat = DEFAULT_PARAMS_FORMAT;
-        private int maxIdLength = DEFAULT_MAX_ID_LENGTH;
+        private int maxValueLength = DEFAULT_MAX_VALUE_LENGTH;
         private boolean debug;
         private boolean inPlaceModification;
         private Map<String, Boolean> exceptions = Map.of();
@@ -713,8 +713,8 @@ public final class AugmentorConfig {
             return this;
         }
 
-        public Builder maxIdLength(int maxIdLength) {
-            this.maxIdLength = maxIdLength;
+        public Builder maxValueLength(int maxValueLength) {
+            this.maxValueLength = maxValueLength;
             return this;
         }
 
@@ -738,7 +738,7 @@ public final class AugmentorConfig {
         }
 
         public AugmentorConfig build() {
-            return new AugmentorConfig(classes, methods, frameFormat, receiverFormat, paramsFormat, maxIdLength, debug,
+            return new AugmentorConfig(classes, methods, frameFormat, receiverFormat, paramsFormat, maxValueLength, debug,
                     inPlaceModification, exceptions);
         }
     }
@@ -752,7 +752,7 @@ public final class AugmentorConfig {
         private static final List<String> EXCEPTIONS = List.of("augment", "exceptions");
 
         private static final List<String> ROOT_KEYS = List.of("debug", "inPlaceModification", "augment");
-        private static final List<String> AUGMENT_KEYS = List.of("frameFormat", "receiverFormat", "paramsFormat", "maxIdLength",
+        private static final List<String> AUGMENT_KEYS = List.of("frameFormat", "receiverFormat", "paramsFormat", "maxValueLength",
                 "exceptions", "receiver", "params");
 
         /** A class name or class pattern: dotted segments of identifier characters and wildcards. */
@@ -803,9 +803,9 @@ public final class AugmentorConfig {
             if (paramsFormat != null) {
                 config.paramsFormat(paramsFormat);
             }
-            Long maxIdLength = value(plus(AUGMENT, "maxIdLength"), Long.class, "an integer");
-            if (maxIdLength != null) {
-                config.maxIdLength(maxIdLength(maxIdLength));
+            Long maxValueLength = value(plus(AUGMENT, "maxValueLength"), Long.class, "an integer");
+            if (maxValueLength != null) {
+                config.maxValueLength(maxValueLength(maxValueLength));
             }
             Map<String, Boolean> exceptions = new LinkedHashMap<>();
             Map<String, List<String>> exceptionPaths = new HashMap<>();
@@ -993,7 +993,7 @@ public final class AugmentorConfig {
             if (!(value instanceof String text)) {
                 throw error(path, "must be a string: a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), "
                         + "several of them separated by commas (e.g. \"tenant, getOrderId()\"), \"@\" for its @StackTraceReceiver "
-                        + "members, or \"-\" for no receiver id, was " + value);
+                        + "members, or \"-\" for no receiver members, was " + value);
             }
             if (text.contains(METHOD_SEPARATOR)) {
                 throw error(path, "the methods go in the key: \"com.acme.Order::ship, cancel\" = \"orderId\"");
@@ -1008,7 +1008,7 @@ public final class AugmentorConfig {
             for (String member : items(path, text, "field or method")) {
                 IdSpec.MemberSpec spec = memberSpec(member);
                 if (spec == null) {
-                    throw error(path, "invalid receiver id '" + member + "': use a field name (e.g. \"orderId\") or a "
+                    throw error(path, "invalid receiver member '" + member + "': use a field name (e.g. \"orderId\") or a "
                             + "method (e.g. \"getOrderId()\"), several separated by commas");
                 }
                 if (members.stream().anyMatch(it -> it.memberName().equals(spec.memberName()))) {
@@ -1088,9 +1088,9 @@ public final class AugmentorConfig {
                     + "optionally followed by # to hash the value, e.g. \"email#\" or \"1#\"");
         }
 
-        private int maxIdLength(long value) {
+        private int maxValueLength(long value) {
             if (value < 2 || value > 10_000) {
-                throw error(plus(AUGMENT, "maxIdLength"), "maxIdLength must be between 2 and 10000, was " + value);
+                throw error(plus(AUGMENT, "maxValueLength"), "maxValueLength must be between 2 and 10000, was " + value);
             }
             return (int) value;
         }

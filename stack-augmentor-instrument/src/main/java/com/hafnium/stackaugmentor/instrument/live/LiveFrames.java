@@ -282,7 +282,7 @@ public final class LiveFrames implements LiveDispatch.Handler {
             if (index < 0) {
                 if (Log.isDebug()) {
                     Log.debug(() -> "live stack: " + frame.className() + "." + frame.methodName() + " is not at position " + frame.index()
-                            + " of the stack trace, so it shows no ids");
+                            + " of the stack trace, so it is not augmented");
                 }
                 continue;
             }

@@ -34,8 +34,8 @@ class AugmentorConfigTest {
     fun defaults() {
         assertEquals(AugmentorConfig(), parse(""))
         assertEquals("\$class\$receiver.\$method\$params", AugmentorConfig().frameFormat())
-        assertEquals("{\$name=\$id, ...}", AugmentorConfig().receiverFormat())
-        assertEquals("{\$name=\$id, ...}", AugmentorConfig().paramsFormat())
+        assertEquals("{\$name=\$value, ...}", AugmentorConfig().receiverFormat())
+        assertEquals("{\$name=\$value, ...}", AugmentorConfig().paramsFormat())
         assertFalse(AugmentorConfig().hasAugmentEntries())
         assertNull(AugmentorConfig().entryOf("any.pkg.Class"))
         assertFalse(AugmentorConfig().inPlaceModification())
@@ -59,9 +59,9 @@ class AugmentorConfigTest {
 
             [augment]
             frameFormat = "${'$'}class.${'$'}method${'$'}receiver${'$'}params"
-            receiverFormat = "<${'$'}id>"
-            paramsFormat = "[${'$'}name: ${'$'}id; ...]"
-            maxIdLength = 32
+            receiverFormat = "<${'$'}value>"
+            paramsFormat = "[${'$'}name: ${'$'}value; ...]"
+            maxValueLength = 32
             """,
         )
         assertEquals(
@@ -80,9 +80,9 @@ class AugmentorConfigTest {
                     ),
                 )
                 .frameFormat("\$class.\$method\$receiver\$params")
-                .receiverFormat("<\$id>")
-                .paramsFormat("[\$name: \$id; ...]")
-                .maxIdLength(32)
+                .receiverFormat("<\$value>")
+                .paramsFormat("[\$name: \$value; ...]")
+                .maxValueLength(32)
                 .debug(true)
                 .inPlaceModification(true)
                 .build(),
@@ -114,11 +114,11 @@ class AugmentorConfigTest {
             [augment.receiver]
             "com.acme.**::*" = "@"
             [augment]
-            maxIdLength = 20
+            maxValueLength = 20
             """,
         )
-        assertEquals(sections, parse("augment.receiver.\"com.acme.**::*\" = \"@\"\naugment.maxIdLength = 20"))
-        assertEquals(sections, parse("augment = { receiver = { \"com.acme.**::*\" = \"@\" }, maxIdLength = 20 }"))
+        assertEquals(sections, parse("augment.receiver.\"com.acme.**::*\" = \"@\"\naugment.maxValueLength = 20"))
+        assertEquals(sections, parse("augment = { receiver = { \"com.acme.**::*\" = \"@\" }, maxValueLength = 20 }"))
     }
 
     @Test
@@ -231,8 +231,8 @@ class AugmentorConfigTest {
             IdSpec.MemberList(listOf(IdSpec.FieldSpec("tenant"), IdSpec.MethodSpec("lineId"))),
             parse("[augment.receiver]\n\"com.acme.OrderLine::*\" = \"tenant,lineId() \"").entryOf("com.acme.OrderLine")?.spec(),
         )
-        assertTrue(error("[augment.receiver]\n\"com.acme.A::*\" = \"id, @\"").contains("invalid receiver id '@'"))
-        assertTrue(error("[augment.receiver]\n\"com.acme.A::*\" = \"id, 1\"").contains("invalid receiver id '1'"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A::*\" = \"id, @\"").contains("invalid receiver member '@'"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.A::*\" = \"id, 1\"").contains("invalid receiver member '1'"))
         assertTrue(error("[augment.receiver]\n\"com.acme.A::*\" = \"id, id()\"").contains("'id()' is listed twice"))
     }
 
@@ -349,7 +349,7 @@ class AugmentorConfigTest {
 
     @Test
     fun `syntax errors report their position`() {
-        val message = error("[augment]\nmaxIdLength = ")
+        val message = error("[augment]\nmaxValueLength = ")
         assertTrue(message.startsWith("Invalid TOML in test.toml:"), message)
         assertTrue(message.contains("line"), message)
     }
@@ -357,11 +357,11 @@ class AugmentorConfigTest {
     @Test
     fun `invalid values name the key and its line`() {
         assertEquals(
-            "test.toml, line 3: maxIdLength must be between 2 and 10000, was 1",
-            error("debug = false\n[augment]\nmaxIdLength = 1"),
+            "test.toml, line 3: maxValueLength must be between 2 and 10000, was 1",
+            error("debug = false\n[augment]\nmaxValueLength = 1"),
         )
-        assertTrue(error("augment.maxIdLength = \"64\"").contains("'augment.maxIdLength' must be an integer"))
-        assertTrue(error("augment.maxIdLength = 1.5").contains("'augment.maxIdLength' must be an integer"))
+        assertTrue(error("augment.maxValueLength = \"64\"").contains("'augment.maxValueLength' must be an integer"))
+        assertTrue(error("augment.maxValueLength = 1.5").contains("'augment.maxValueLength' must be an integer"))
         assertTrue(error("debug = \"yes\"").contains("'debug' must be true or false"))
         assertTrue(error("inPlaceModification = 1").contains("'inPlaceModification' must be true or false"))
         assertTrue(error("augment = \"x\"").contains("'augment' must be a table"))
@@ -373,7 +373,7 @@ class AugmentorConfigTest {
         assertEquals(
             "test.toml, line 3: paramsFormat must not contain '(' (at position 0), because IDEs find a frame's file by the " +
                 "'(File.java:12)' at its end; use e.g. '{' and '}' or '[' and ']'; was '(\$name; ...)'",
-            error("[augment]\nmaxIdLength = 32\nparamsFormat = \"(\$name; ...)\""),
+            error("[augment]\nmaxValueLength = 32\nparamsFormat = \"(\$name; ...)\""),
         )
         assertTrue(error("[augment]\nframeFormat = \"\$class#\$method\"").startsWith("test.toml, line 2: frameFormat must contain"))
         assertTrue(error("[augment]\n\nreceiverFormat = \"\$nam\"").startsWith("test.toml, line 3: receiverFormat uses unknown placeholder"))
@@ -382,29 +382,29 @@ class AugmentorConfigTest {
     @Test
     fun `unknown keys are rejected, in every section`() {
         assertEquals(
-            "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxIdLength, " +
+            "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxValueLength, " +
                 "exceptions, receiver, params",
             error("[augment]\nframe = \"\$class.\$method\""),
         )
         assertTrue(error("[other]\nx = 1").contains("unknown key 'other'; allowed: debug, inPlaceModification, augment"))
         // Keys in the wrong place are rejected, not silently ignored.
-        assertTrue(error("maxIdLength = 64").contains("unknown key 'maxIdLength'; allowed: debug, inPlaceModification, augment"))
+        assertTrue(error("maxValueLength = 64").contains("unknown key 'maxValueLength'; allowed: debug, inPlaceModification, augment"))
         assertTrue(error("[augment.other]\nx = 1").contains("unknown key 'other' in [augment]"))
     }
 
     @Test
     fun `invalid classes and methods entries`() {
         assertEquals(
-            "test.toml, line 3: invalid receiver id 'get-id()': use a field name (e.g. \"orderId\") or a method (e.g. \"getOrderId()\"), " +
+            "test.toml, line 3: invalid receiver member 'get-id()': use a field name (e.g. \"orderId\") or a method (e.g. \"getOrderId()\"), " +
                 "several separated by commas",
             error("debug = false\n[augment.receiver]\n\"com.acme.Order::*\" = \"get-id()\""),
         )
         assertEquals(
             "test.toml, line 2: must be a string: a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), several of them " +
-                "separated by commas (e.g. \"tenant, getOrderId()\"), \"@\" for its @StackTraceReceiver members, or \"-\" for no receiver id, was 5",
+                "separated by commas (e.g. \"tenant, getOrderId()\"), \"@\" for its @StackTraceReceiver members, or \"-\" for no receiver members, was 5",
             error("[augment.receiver]\n\"com.acme.Order::*\" = 5"),
         )
-        assertTrue(error("[augment.receiver]\n\"com.acme.Order::*\" = \"@id\"").contains("invalid receiver id '@id'"))
+        assertTrue(error("[augment.receiver]\n\"com.acme.Order::*\" = \"@id\"").contains("invalid receiver member '@id'"))
         assertEquals(
             "test.toml, line 2: [augment.receiver] keys must name a class and its methods separated by ::, e.g. " +
                 "\"com.acme.Order::ship, cancel*\" or \"com.acme.Order::*\"; + after the class name includes its subclasses " +
@@ -591,13 +591,13 @@ class AugmentorConfigTest {
     @Test
     fun `load reads toml files only`(@TempDir dir: Path) {
         val toml = dir.resolve("agent.toml")
-        Files.writeString(toml, "augment.maxIdLength = 10")
-        assertEquals(10, AugmentorConfig.load("config=$toml").maxIdLength())
-        assertEquals(10, AugmentorConfig.load(toml.toString()).maxIdLength())
-        assertEquals(10, AugmentorConfig.load(toml).maxIdLength())
+        Files.writeString(toml, "augment.maxValueLength = 10")
+        assertEquals(10, AugmentorConfig.load("config=$toml").maxValueLength())
+        assertEquals(10, AugmentorConfig.load(toml.toString()).maxValueLength())
+        assertEquals(10, AugmentorConfig.load(toml).maxValueLength())
 
         val properties = dir.resolve("agent.properties")
-        Files.writeString(properties, "maxIdLength=10")
+        Files.writeString(properties, "maxValueLength=10")
         val message = assertThrows<ConfigException> { AugmentorConfig.load("config=$properties") }.message!!
         assertTrue(message.contains("must be a TOML file ending in .toml"), message)
 

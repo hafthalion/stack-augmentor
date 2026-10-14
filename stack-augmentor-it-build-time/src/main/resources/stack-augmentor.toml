@@ -10,10 +10,10 @@ debug = false
 # How frames look, at runtime (these are the defaults, see the README).
 [augment]
 frameFormat = "$class$receiver.$method$params"
-receiverFormat = "{$name=$id, ...}"
-paramsFormat = "{$name=$id, ...}"
+receiverFormat = "{$name=$value, ...}"
+paramsFormat = "{$name=$value, ...}"
 # Longer ids are cut off with "…".
-maxIdLength = 64
+maxValueLength = 64
 
 # Which exceptions are augmented, at runtime: all throwables (without an entry that is true, none would).
 [augment.exceptions]

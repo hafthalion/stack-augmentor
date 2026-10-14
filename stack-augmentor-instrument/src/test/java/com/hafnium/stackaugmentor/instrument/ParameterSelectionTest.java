@@ -341,7 +341,7 @@ class ParameterSelectionTest {
         assertFalse(matching.receiverIds(type(Explicit.class), method(Explicit.class, "failAnnotated")));
         assertEquals(explicit + "::*", matching.receiverEntry(type(Explicit.class), method(Explicit.class, "getId")).key());
         String description = matching.describe(type(Explicit.class), matching.methods(type(Explicit.class)));
-        assertTrue(description.contains("receiver id from [augment.receiver] \"" + explicit + "::fail\", [augment.receiver] \"" + explicit + "::*\""),
+        assertTrue(description.contains("receiver members from [augment.receiver] \"" + explicit + "::fail\", [augment.receiver] \"" + explicit + "::*\""),
                 description);
     }
 
@@ -385,7 +385,7 @@ class ParameterSelectionTest {
         assertEquals(List.of("x"), labels(parameters, Explicit.class, "fail"));
         assertEquals(List.of("y"), labels(parameters, Explicit.class, "failAnnotated"));
         assertTrue(matching.instrument(type(Explicit.class)));
-        assertTrue(matching.describe(type(Explicit.class), matching.methods(type(Explicit.class))).contains("(parameter ids only)"));
+        assertTrue(matching.describe(type(Explicit.class), matching.methods(type(Explicit.class))).contains("(parameter values only)"));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("ignoring @StackTraceReceiver in " + explicit + ": its [augment.receiver] entry \""
                 + explicit + "::*\" is not \"@\""), err.toString(StandardCharsets.UTF_8));
         // The "@" class entry uses @StackTraceReceiver only: the method entry labels the parameters by name.

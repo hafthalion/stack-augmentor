@@ -62,7 +62,7 @@ class ByteBuddyPluginTest {
     @Test
     void invalidTemplatesFailTheBuild(@TempDir Path dir) throws IOException {
         Path config = dir.resolve("stack-augmentor.toml");
-        Files.writeString(config, "[augment]\nparamsFormat = \"($name: $id; ...)\"\n\n[augment.receiver]\n\"com.hafnium.**::*\" = \"@\"\n");
+        Files.writeString(config, "[augment]\nparamsFormat = \"($name: $value; ...)\"\n\n[augment.receiver]\n\"com.hafnium.**::*\" = \"@\"\n");
         ByteArrayOutputStream err = captureErr();
         ConfigException error = assertThrows(ConfigException.class, () -> new ByteBuddyPlugin(config.toString()));
         assertTrue(error.getMessage().startsWith("stack-augmentor.toml, line 2: paramsFormat must not contain '('"), error.getMessage());
@@ -87,7 +87,7 @@ class ByteBuddyPluginTest {
     @Test
     void debugDescribesTheConfigurationAsTheAgentDoes(@TempDir Path dir) throws IOException {
         Path config = dir.resolve("stack-augmentor.toml");
-        Files.writeString(config, "debug = true\n[augment]\nmaxIdLength = 32\n[augment.receiver]\n\"com.hafnium.**::*\" = \"@\"\n");
+        Files.writeString(config, "debug = true\n[augment]\nmaxValueLength = 32\n[augment.receiver]\n\"com.hafnium.**::*\" = \"@\"\n");
         ByteArrayOutputStream err = captureErr();
         try {
             new ByteBuddyPlugin(config.toString());
@@ -99,6 +99,6 @@ class ByteBuddyPluginTest {
         assertTrue(output.contains("DEBUG build plugin: [augment.receiver] com.hafnium.**::*=@"), output);
         assertTrue(output.contains("DEBUG build plugin: [augment.params] none"), output);
         assertTrue(output.contains("DEBUG build plugin: [augment] frameFormat="), output);
-        assertTrue(output.contains("maxIdLength=32"), output);
+        assertTrue(output.contains("maxValueLength=32"), output);
     }
 }

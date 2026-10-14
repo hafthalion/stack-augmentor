@@ -12,7 +12,7 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
 - `inPlaceModification` (boolean, default `false`): write rewritten frames into the throwable's own stack
   trace instead of copying it, see the performance spec; the system property
   `stackaugmentor.inPlaceModification` SHALL override it;
-- `[augment]`: `frameFormat`, `receiverFormat`, `paramsFormat` (strings), `maxIdLength` (integer
+- `[augment]`: `frameFormat`, `receiverFormat`, `paramsFormat` (strings), `maxValueLength` (integer
   between 2 and 10000, default 64), and the tables:
   - `[augment.exceptions]` (class name or class pattern → `true` or `false`), which decides the throwables
     that are augmented, see the stack trace augmentation spec. Its entries SHALL be read in the order of the
@@ -39,7 +39,7 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
   The tables default to empty. They SHALL be independent: no value in one table SHALL change what the
   other selects.
 
-Sections, dotted keys (`augment.maxIdLength = 32`) and inline tables SHALL be equivalent. Quoted and
+Sections, dotted keys (`augment.maxValueLength = 32`) and inline tables SHALL be equivalent. Quoted and
 unquoted class names in `[augment.exceptions]` SHALL be equivalent; keys with wildcards, and the keys of
 `[augment.receiver]` and `[augment.params]`, which contain `::`, SHALL be quoted, as TOML requires. Two entries of
 one table whose keys differ only in quoting, in spaces or in the order of their methods, such as `com.acme.Order` and `"com.acme.Order"`, or
@@ -85,7 +85,7 @@ entries, rather than one silently replacing the other.
 The system SHALL reject a configuration with a TOML syntax error, a value of the wrong type, a value out
 of range, an invalid `[augment.receiver]` or `[augment.params]` entry, an invalid `frameFormat`,
 `receiverFormat` or `paramsFormat` (see the frame format specification), or an unknown key in any
-section, including keys in the wrong section (such as `maxIdLength` at the top level). `[augment.receiver]` and `[augment.params]` keys SHALL
+section, including keys in the wrong section (such as `maxValueLength` at the top level). `[augment.receiver]` and `[augment.params]` keys SHALL
 be invalid when they are not a class part and a method part separated by `::`; when the class part is not
 dotted segments of identifier characters, `$`, `*` and `?`, optionally followed by `+`, or has `+` after a
 pattern; or when the method part is not method names or patterns (identifier characters, `$`, `*` and `?`)
@@ -104,9 +104,9 @@ invalid in both tables. The message SHALL name the file, the key and its line.
 - **THEN** it is rejected with `stack-augmentor.toml, line 2: must be true to augment the exceptions of this class or class pattern, or false not to, was @`
 
 #### Scenario: Value out of range
-- **GIVEN** `[augment]` with `maxIdLength = 1` on line 3 of `stack-augmentor.toml`
+- **GIVEN** `[augment]` with `maxValueLength = 1` on line 3 of `stack-augmentor.toml`
 - **WHEN** the configuration is loaded
-- **THEN** it is rejected with `stack-augmentor.toml, line 3: maxIdLength must be between 2 and 10000, was 1`
+- **THEN** it is rejected with `stack-augmentor.toml, line 3: maxValueLength must be between 2 and 10000, was 1`
 
 #### Scenario: Unknown key
 - **GIVEN** `[augment]` with `frame = "$class.$method"`

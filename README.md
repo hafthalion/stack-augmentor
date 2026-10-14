@@ -39,7 +39,7 @@ An application with classes instrumented at build time can also run with the age
 | `[augment.exceptions]` | configuration | empty: no exception is augmented | which exceptions are augmented, e.g. `"java.lang.Exception+" = true` ([Exceptions](docs/configuration.md#exceptions)) |
 | `[augment.receiver]` | configuration | empty | which frames show a receiver id, and where it comes from, e.g. `"com.acme.**::*" = "@"` ([Receiver ids](docs/configuration.md#receiver-ids)) |
 | `[augment.params]` | configuration | empty | which frames show parameter ids, and which parameters, e.g. `"com.acme.Order::ship, cancel*" = "orderId"` ([Parameter ids](docs/configuration.md#parameter-ids)) |
-| `[augment]` | configuration | see [Formats](docs/configuration.md#formats) | how frames look: `frameFormat`, `receiverFormat`, `paramsFormat`, `maxIdLength` |
+| `[augment]` | configuration | see [Formats](docs/configuration.md#formats) | how frames look: `frameFormat`, `receiverFormat`, `paramsFormat`, `maxValueLength` |
 | `debug` | configuration | `false` | prints what gets instrumented and where each id comes from |
 | `inPlaceModification` | configuration, or `-Dstackaugmentor.inPlaceModification=true` | `false` | writes each frame into the exception's own stack trace instead of copying the trace; faster for deep stacks, needs `java.lang` open (see [Limitations](docs/limitations.md)) |
 | Live stack | `-agentpath:<native library>` | off | the agent reads ids from the live stack instead of instrumenting classes (see [Live stack](docs/live-stack.md)) |

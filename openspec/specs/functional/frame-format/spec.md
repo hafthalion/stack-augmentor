@@ -9,7 +9,7 @@ Defines how the ids are laid out in a stack trace frame, through the `frameForma
 ### Requirement: Default layout
 By default, the receiver id SHALL follow the class name and the parameter ids SHALL follow the method
 name, each in braces. The defaults SHALL be `frameFormat = "$class$receiver.$method$params"`,
-`receiverFormat = "{$name=$id, ...}"` and `paramsFormat = "{$name=$id, ...}"`.
+`receiverFormat = "{$name=$value, ...}"` and `paramsFormat = "{$name=$value, ...}"`.
 
 #### Scenario: Receiver and parameter ids
 - **GIVEN** the default formats
@@ -45,8 +45,8 @@ frame's class, the rest its method.
 - **THEN** it is rejected with a message that `frameFormat` must contain `.$method` exactly once
 
 ### Requirement: Receiver and parameter templates
-`receiverFormat` and `paramsFormat` SHALL support the placeholders `$name` and `$id`. All other text,
-braces included, SHALL be literal, and `$$` SHALL be a literal `$`; as in `frameFormat`, `${name}` and `${id}` are
+`receiverFormat` and `paramsFormat` SHALL support the placeholders `$name` and `$value`. All other text,
+braces included, SHALL be literal, and `$$` SHALL be a literal `$`; as in `frameFormat`, `${name}` and `${value}` are
 the braced forms. In both, `...` SHALL mark
 repetition: the text before the first placeholder and after `...` wraps the list, the text from the
 first to the last placeholder is repeated for each receiver id or parameter id, and the text between the last placeholder
@@ -54,7 +54,7 @@ and `...` separates the items. Without `...`, the whole template SHALL be repeat
 A template that renders no ids SHALL render as empty text.
 
 #### Scenario: Custom parameter list
-- **GIVEN** `paramsFormat = "[$name: $id; ...]"`
+- **GIVEN** `paramsFormat = "[$name: $value; ...]"`
 - **WHEN** a frame has the parameter ids `orderId=42` and `customer=7`
 - **THEN** the method part reads `process[orderId: 42; customer: 7]`
 
@@ -64,19 +64,19 @@ A template that renders no ids SHALL render as empty text.
 - **THEN** the class part reads `OrderLine{tenant=acme, lineId=3}`
 
 #### Scenario: Value only
-- **GIVEN** `receiverFormat = "<$id>"`
+- **GIVEN** `receiverFormat = "<$value>"`
 - **WHEN** a frame with the receiver id `objectId=123` is rendered
 - **THEN** the class part reads `ObjectClass<123>`
 
 ### Requirement: Template validation
 The system SHALL reject, when the configuration is loaded, a template with an unknown placeholder (for
 example `$klass`, `$line`, `$idx`, `${nam}` or a lone `$`), an unclosed `${`, a
-`receiverFormat` or `paramsFormat` without `$name` or `$id`, one with placeholders after `...`, and any template
+`receiverFormat` or `paramsFormat` without `$name` or `$value`, one with placeholders after `...`, and any template
 containing `(` or `)`: IDEs find a frame's file and line by the parenthesised `(File.java:12)` that the JDK
 appends, which parentheses in the frame's class or method part would confuse.
 
 #### Scenario: Parentheses in a template
-- **GIVEN** `paramsFormat = "($name: $id; ...)"`
+- **GIVEN** `paramsFormat = "($name: $value; ...)"`
 - **WHEN** the configuration is loaded
 - **THEN** it is rejected with a message that `paramsFormat` must not contain `(`
 

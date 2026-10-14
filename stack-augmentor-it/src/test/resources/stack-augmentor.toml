@@ -1,5 +1,5 @@
 [augment]
-maxIdLength = 20
+maxValueLength = 20
 
 # All throwables are augmented (without an entry that is true, none would be), except PlainCause.
 [augment.exceptions]

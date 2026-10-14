@@ -22,8 +22,8 @@ class FrameFormatTest {
 
     @Test
     fun `default format`() {
-        assertEquals("{\$name=\$id, ...}", AugmentorConfig.DEFAULT_RECEIVER_FORMAT)
-        assertEquals("{\$name=\$id, ...}", AugmentorConfig.DEFAULT_PARAMS_FORMAT)
+        assertEquals("{\$name=\$value, ...}", AugmentorConfig.DEFAULT_RECEIVER_FORMAT)
+        assertEquals("{\$name=\$value, ...}", AugmentorConfig.DEFAULT_PARAMS_FORMAT)
         val result = rewrite().rewrite(element, listOf(receiver), listOf(orderId))
         assertEquals("com.hafnium.ObjectClass{objectId=123}", result.className)
         assertEquals("process{orderId=42}", result.methodName)
@@ -44,13 +44,13 @@ class FrameFormatTest {
 
     @Test
     fun `value only and simple class name`() {
-        val result = rewrite(frameFormat = "\$simpleClass\$receiver.\$method", receiverFormat = "<\$id>").rewrite(element, listOf(receiver), listOf(orderId))
+        val result = rewrite(frameFormat = "\$simpleClass\$receiver.\$method", receiverFormat = "<\$value>").rewrite(element, listOf(receiver), listOf(orderId))
         assertEquals("ObjectClass<123>.process(ObjectClass.java:13)", result.toString())
     }
 
     @Test
     fun `brackets instead of braces`() {
-        val result = rewrite(receiverFormat = "[\$name=\$id]", paramsFormat = "[\$name=\$id, ...]").rewrite(element, listOf(receiver), listOf(orderId, customer))
+        val result = rewrite(receiverFormat = "[\$name=\$value]", paramsFormat = "[\$name=\$value, ...]").rewrite(element, listOf(receiver), listOf(orderId, customer))
         assertEquals("com.hafnium.ObjectClass[objectId=123].process[orderId=42, customer=7](ObjectClass.java:13)", result.toString())
     }
 
@@ -64,8 +64,8 @@ class FrameFormatTest {
     fun `braced placeholders end at the brace`() {
         val result = rewrite(
             frameFormat = "\${simpleClass}Impl\$receiver.\${method}X\$params",
-            receiverFormat = "<\${name}s=\$id>",
-            paramsFormat = "[\${name}Id=\${id}, ...]",
+            receiverFormat = "<\${name}s=\$value>",
+            paramsFormat = "[\${name}Id=\${value}, ...]",
         ).rewrite(element, listOf(receiver), listOf(orderId, customer))
         assertEquals("ObjectClassImpl<objectIds=123>.processX[orderIdId=42, customerId=7](ObjectClass.java:13)", result.toString())
     }
@@ -75,7 +75,7 @@ class FrameFormatTest {
         val result = rewrite(frameFormat = "{\$class}\$receiver.\$method\$params}").rewrite(element, listOf(receiver), listOf(orderId))
         assertEquals("{com.hafnium.ObjectClass}{objectId=123}.process{orderId=42}}(ObjectClass.java:13)", result.toString())
         // $$ before a brace is a literal dollar followed by a literal brace.
-        assertEquals("com.hafnium.ObjectClass\${123}", rewrite(receiverFormat = "\$\${\$id}").rewrite(element, listOf(receiver), emptyList()).className)
+        assertEquals("com.hafnium.ObjectClass\${123}", rewrite(receiverFormat = "\$\${\$value}").rewrite(element, listOf(receiver), emptyList()).className)
     }
 
     @Test
@@ -86,13 +86,13 @@ class FrameFormatTest {
         )
         assertEquals(
             "process[orderId: 42; customer: 7]",
-            rewrite(paramsFormat = "[\$name: \$id; ...]").rewrite(element, emptyList(), listOf(orderId, customer)).methodName,
+            rewrite(paramsFormat = "[\$name: \$value; ...]").rewrite(element, emptyList(), listOf(orderId, customer)).methodName,
         )
     }
 
     @Test
     fun `params format without repetition marker repeats the whole template`() {
-        val format = rewrite(paramsFormat = "{\$name=\$id}")
+        val format = rewrite(paramsFormat = "{\$name=\$value}")
         assertEquals("process{orderId=42}", format.rewrite(element, emptyList(), listOf(orderId)).methodName)
         assertEquals("process{orderId=42},{customer=7}", format.rewrite(element, emptyList(), listOf(orderId, customer)).methodName)
     }
@@ -105,7 +105,7 @@ class FrameFormatTest {
 
     @Test
     fun `double dollar is a literal dollar`() {
-        val result = rewrite(receiverFormat = "\$\$\$id").rewrite(element, listOf(receiver), emptyList())
+        val result = rewrite(receiverFormat = "\$\$\$value").rewrite(element, listOf(receiver), emptyList())
         assertEquals("com.hafnium.ObjectClass\$123", result.className)
     }
 
@@ -126,14 +126,14 @@ class FrameFormatTest {
         // They would confuse IDEs looking for the frame's (File.java:12).
         for ((frame, receiver, params) in listOf(
             Triple("\$class.\$method(\$params)", AugmentorConfig.DEFAULT_RECEIVER_FORMAT, AugmentorConfig.DEFAULT_PARAMS_FORMAT),
-            Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, "(\$id)", AugmentorConfig.DEFAULT_PARAMS_FORMAT),
-            Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, AugmentorConfig.DEFAULT_RECEIVER_FORMAT, "(\$name: \$id; ...)"),
-            Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, AugmentorConfig.DEFAULT_RECEIVER_FORMAT, "{\$name=\$id), ...}"),
+            Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, "(\$value)", AugmentorConfig.DEFAULT_PARAMS_FORMAT),
+            Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, AugmentorConfig.DEFAULT_RECEIVER_FORMAT, "(\$name: \$value; ...)"),
+            Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, AugmentorConfig.DEFAULT_RECEIVER_FORMAT, "{\$name=\$value), ...}"),
         )) {
             val message = assertThrows<ConfigException>("frame=$frame receiver=$receiver params=$params") { rewrite(frame, receiver, params) }.message!!
             assertTrue(message.contains("must not contain '('") || message.contains("must not contain ')'"), message)
         }
-        val message = assertThrows<ConfigException> { rewrite(paramsFormat = "(\$name: \$id; ...)") }.message!!
+        val message = assertThrows<ConfigException> { rewrite(paramsFormat = "(\$name: \$value; ...)") }.message!!
         assertTrue(message.startsWith("paramsFormat must not contain '(' (at position 0)"), message)
     }
 
@@ -148,15 +148,15 @@ class FrameFormatTest {
             Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, "\$idx", AugmentorConfig.DEFAULT_PARAMS_FORMAT),
             Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, "cost \$", AugmentorConfig.DEFAULT_PARAMS_FORMAT),
             Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, AugmentorConfig.DEFAULT_RECEIVER_FORMAT, "{...}"),
-            Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, AugmentorConfig.DEFAULT_RECEIVER_FORMAT, "{\$name, ...\$id}"),
+            Triple(AugmentorConfig.DEFAULT_FRAME_FORMAT, AugmentorConfig.DEFAULT_RECEIVER_FORMAT, "{\$name, ...\$value}"),
         )
         for ((frame, receiver, params) in invalid) {
             assertThrows<ConfigException>("frame=$frame receiver=$receiver params=$params") { rewrite(frame, receiver, params) }
         }
-        for (receiver in listOf("\${nam}", "\${id", "\${}", "\${ id}")) {
+        for (receiver in listOf("\${nam}", "\${value", "\${}", "\${ id}")) {
             assertThrows<ConfigException>(receiver) { rewrite(receiverFormat = receiver) }
         }
-        assertTrue(assertThrows<ConfigException> { rewrite(receiverFormat = "<\${id>") }.message!!.contains("unclosed '\${'"))
+        assertTrue(assertThrows<ConfigException> { rewrite(receiverFormat = "<\${value>") }.message!!.contains("unclosed '\${'"))
         assertTrue(assertThrows<ConfigException> { rewrite(frameFormat = "\${class}#\${method}") }.message!!.contains(".\$method"))
         val message = assertThrows<ConfigException> { rewrite(receiverFormat = "{\$nam}") }.message!!
         assertTrue(message.contains("unknown placeholder '\$nam'"), message)
@@ -167,10 +167,10 @@ class FrameFormatTest {
         val tenant = NamedId("tenant", "acme")
         assertEquals("com.hafnium.ObjectClass{tenant=acme, objectId=123}", rewrite().rewrite(element, listOf(tenant, receiver), emptyList()).className)
         assertEquals("com.hafnium.ObjectClass[acme|123]",
-            rewrite(receiverFormat = "[\$id|...]").rewrite(element, listOf(tenant, receiver), emptyList()).className)
+            rewrite(receiverFormat = "[\$value|...]").rewrite(element, listOf(tenant, receiver), emptyList()).className)
         // Without "...", the whole template repeats, separated by commas.
         assertEquals("com.hafnium.ObjectClass<acme>,<123>",
-            rewrite(receiverFormat = "<\$id>").rewrite(element, listOf(tenant, receiver), emptyList()).className)
+            rewrite(receiverFormat = "<\$value>").rewrite(element, listOf(tenant, receiver), emptyList()).className)
         assertTrue(assertThrows<ConfigException> { rewrite(receiverFormat = "{...}") }.message!!.startsWith("receiverFormat must contain"))
     }
 

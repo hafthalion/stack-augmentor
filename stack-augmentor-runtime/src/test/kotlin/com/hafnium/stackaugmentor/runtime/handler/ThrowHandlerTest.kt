@@ -64,7 +64,7 @@ class ThrowHandlerTest {
     @Test
     fun `an invalid runtime configuration is reported with its file, key and line`(@TempDir dir: Path) {
         val config = dir.resolve("stack-augmentor.toml")
-        Files.writeString(config, "[augment]\nmaxIdLength = 1\n")
+        Files.writeString(config, "[augment]\nmaxValueLength = 1\n")
         val originalErr = System.err
         val err = ByteArrayOutputStream()
         System.setErr(PrintStream(err, true, Charsets.UTF_8))
@@ -77,7 +77,7 @@ class ThrowHandlerTest {
         }
         val output = err.toString(Charsets.UTF_8)
         assertTrue(
-            output.contains("[stack-augmentor] ERROR runtime: stack-augmentor.toml, line 2: maxIdLength must be between 2 and 10000, was 1"),
+            output.contains("[stack-augmentor] ERROR runtime: stack-augmentor.toml, line 2: maxValueLength must be between 2 and 10000, was 1"),
             output,
         )
     }

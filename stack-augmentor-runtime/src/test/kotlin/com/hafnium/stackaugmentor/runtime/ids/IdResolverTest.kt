@@ -92,7 +92,7 @@ class IdResolverTest {
     /** A key without methods gets "::*", all methods. */
     private fun resolver(vararg classes: Pair<String, IdSpec>) = IdResolver(
         AugmentorConfig.builder().classes(classes.associate { (key, spec) -> (if ("::" in key) key else "$key::*") to spec })
-            .maxIdLength(10).exceptions(mapOf("**" to true)).build(),
+            .maxValueLength(10).exceptions(mapOf("**" to true)).build(),
     )
 
     private fun name(type: Class<*>) = type.name
@@ -272,7 +272,7 @@ class IdResolverTest {
         assertEquals("null", resolver.paramId(null))
         assertEquals("42", resolver.paramId(42))
         assertEquals("RED", resolver.paramId(Color.RED))
-        // Not the receiver id "c" of its entry: toString(), cut at maxIdLength = 10.
+        // Not the receiver id "c" of its entry: toString(), cut at maxValueLength = 10.
         assertEquals("Unannotat…", resolver.paramId(Unannotated("c")))
         assertEquals("[1, 2, 3]", resolver.paramId(intArrayOf(1, 2, 3)))
         assertEquals("a b", resolver.paramId("a\r\nb"))
