@@ -8,7 +8,7 @@ import java.lang.annotation.Target;
 
 /**
  * Marks a method or constructor that the configuration selects with {@code "@"} after {@code ::} in a key: in
- * {@code [augment.receiver]}, a {@code "com.acme.Order::@"} key shows the receiver ids in the frames of the annotated
+ * {@code [augment.receiver]}, a {@code "com.acme.Order::@"} key shows the receiver members in the frames of the annotated
  * methods of {@code Order} only, and in {@code [augment.params]}, it matches the annotated methods and constructors of
  * {@code Order}. Methods that override it are not affected.
  */

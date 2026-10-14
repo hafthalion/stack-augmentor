@@ -35,7 +35,7 @@ class Session(
     fun receipt(orderNumber: Int): String = Receipt(ORDERS.getValue(orderNumber)).text
 }
 
-/** Shown with its toString() where it is an id. */
+/** Shown with its toString() where it is a receiver member or a parameter value. */
 class Order(val number: Int, val total: Double, val card: String) {
     override fun toString() = "Order#$number"
 }
