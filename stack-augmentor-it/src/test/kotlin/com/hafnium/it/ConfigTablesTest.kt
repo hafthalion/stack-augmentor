@@ -46,7 +46,7 @@ class ConfigTablesTest {
     }
 
     @Test
-    fun `several @StackTraceReceiver members give several receiver ids`() {
+    fun `several @AugmentedReceiver members give several receiver ids`() {
         assertEquals("com.hafnium.it.fixtures.MultiKeyed{tenant=acme, orderId=42}", frame("MultiKeyed().fail()", MultiKeyed()) { it.fail() }.className)
     }
 
@@ -65,7 +65,7 @@ class ConfigTablesTest {
     }
 
     @Test
-    fun `'@' after double colon selects the methods annotated with @StackTraceAugment, in both tables`() {
+    fun `'@' after double colon selects the methods annotated with @Augmented, in both tables`() {
         val send = frame("Dispatcher(\"H-1\").send(\"o-1\")", Dispatcher("H-1")) { it.send("o-1") }
         assertEquals("com.hafnium.it.outside.Dispatcher{hub=H-1}", send.className)
         assertEquals("send{order=o-1}", send.methodName)

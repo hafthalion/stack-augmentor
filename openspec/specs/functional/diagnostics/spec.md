@@ -61,7 +61,7 @@ With `debug = true`, the system SHALL print messages to standard error, prefixed
 `[stack-augmentor] DEBUG`, for:
 - the configuration, from the agent, the build plugin and the runtime handler alike: its location, the `[augment.receiver]` entries (with `@` for annotations and `-` for none) and the `[augment.params]` entries (with `#` for hashed parameters, `@` for annotations and `-` for none), and the formats;
 - each instrumented class: why it is instrumented (configured receiver members, annotated receiver members, or parameter values only), and its instrumented methods with their parameter values;
-- `@StackTraceReceiver` annotations ignored because the class's deciding `[augment.receiver]` entry is not `"@"` or no entry matches the class, and `@StackTraceParam` and `@StackTraceParams` annotations ignored because no `[augment.params]` entry with `"@"` applies to the method, each naming the table that would enable them;
+- `@AugmentedReceiver` annotations ignored because the class's deciding `[augment.receiver]` entry is not `"@"` or no entry matches the class, and `@AugmentedParam` and `@AugmentedParams` annotations ignored because no `[augment.params]` entry with `"@"` applies to the method, each naming the table that would enable them;
 - `[augment.params]` entries without wildcards or `+` that name a missing method, a missing parameter or an index out of range, suggesting `-parameters` or an index when the class has no parameter names;
 - members missing for `[augment.receiver]` entries with wildcards;
 - the receiver members found for each class when they are first needed;
@@ -88,9 +88,9 @@ SHALL be printed, and the message texts SHALL NOT be built, also for the message
 - **THEN** no message about the entry is printed for `Customer`
 
 #### Scenario: Ignored annotations
-- **GIVEN** `debug = true`, `"com.hafnium.it.fixtures.**::*" = "@"` in `[augment.receiver]`, and a class in `com.hafnium.it.outside` with `@StackTraceReceiver` and `@StackTraceParam`
+- **GIVEN** `debug = true`, `"com.hafnium.it.fixtures.**::*" = "@"` in `[augment.receiver]`, and a class in `com.hafnium.it.outside` with `@AugmentedReceiver` and `@AugmentedParam`
 - **WHEN** the class is loaded
-- **THEN** one message reports that its `@StackTraceReceiver` is ignored because no `[augment.receiver]` entry applies, and one that its parameter annotations are ignored because no `"@"` entry in `[augment.params]` applies
+- **THEN** one message reports that its `@AugmentedReceiver` is ignored because no `[augment.receiver]` entry applies, and one that its parameter annotations are ignored because no `"@"` entry in `[augment.params]` applies
 
 #### Scenario: Debug off
 - **GIVEN** `debug = false`

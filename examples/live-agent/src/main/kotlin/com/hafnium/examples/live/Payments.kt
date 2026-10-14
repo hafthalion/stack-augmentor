@@ -1,11 +1,11 @@
 package com.hafnium.examples.live
 
-import com.hafnium.stackaugmentor.StackTraceReceiver
-import com.hafnium.stackaugmentor.StackTraceParam
-import com.hafnium.stackaugmentor.StackTraceParams
+import com.hafnium.stackaugmentor.AugmentedReceiver
+import com.hafnium.stackaugmentor.AugmentedParam
+import com.hafnium.stackaugmentor.AugmentedParams
 
 class Checkout(
-    @StackTraceReceiver private val order: Order,
+    @AugmentedReceiver private val order: Order,
     private val payments: PaymentClient,
 ) {
     /** A declined payment is logged here and not passed on. */
@@ -18,10 +18,10 @@ class Checkout(
     }
 }
 
-class PaymentClient(@StackTraceReceiver private val endpoint: String) {
+class PaymentClient(@AugmentedReceiver private val endpoint: String) {
     /** The card number is shown hashed. */
-    @StackTraceParams
-    fun charge(@StackTraceParam(secret = true) card: String, amount: Double) {
+    @AugmentedParams
+    fun charge(@AugmentedParam(secret = true) card: String, amount: Double) {
         if (card.startsWith("4000")) {
             throw PaymentDeclinedException("Card declined")
         }

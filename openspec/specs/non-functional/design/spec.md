@@ -103,11 +103,11 @@ type matching and advice.
 - **THEN** the frame shows the original method name (no renamed or synthetic copies)
 
 ### Requirement: Matching by name
-The agent, build plugin and runtime SHALL recognise `@StackTraceReceiver`, `@StackTraceParam`,
-`@StackTraceParams` and `@StackTraceAugment` by their class names (`com.hafnium.stackaugmentor.StackTraceReceiver`,
-`com.hafnium.stackaugmentor.StackTraceParam`, `com.hafnium.stackaugmentor.StackTraceParams`,
-`com.hafnium.stackaugmentor.StackTraceAugment`), without
-depending on the API module. The annotations SHALL have no attributes other than `secret` on `@StackTraceParam`.
+The agent, build plugin and runtime SHALL recognise `@AugmentedReceiver`, `@AugmentedParam`,
+`@AugmentedParams` and `@Augmented` by their class names (`com.hafnium.stackaugmentor.AugmentedReceiver`,
+`com.hafnium.stackaugmentor.AugmentedParam`, `com.hafnium.stackaugmentor.AugmentedParams`,
+`com.hafnium.stackaugmentor.Augmented`), without
+depending on the API module. The annotations SHALL have no attributes other than `secret` on `@AugmentedParam`.
 
 #### Scenario: API loaded by an application class loader
 - **GIVEN** the application loads its own copy of `stack-augmentor-api`

@@ -1,14 +1,14 @@
 package com.hafnium.it.outside
 
 import com.hafnium.it.fixtures.Base
-import com.hafnium.stackaugmentor.StackTraceAugment
-import com.hafnium.stackaugmentor.StackTraceParam
-import com.hafnium.stackaugmentor.StackTraceParams
+import com.hafnium.stackaugmentor.Augmented
+import com.hafnium.stackaugmentor.AugmentedParam
+import com.hafnium.stackaugmentor.AugmentedParams
 import com.thirdparty.Customer
 import com.thirdparty.SavingsAccount
 
 // No [augment.receiver] entry matches these classes, except Dispatcher's, and entries of their superclasses do not
-// apply to them: their @StackTraceReceiver is ignored. Their parameter annotations are ignored, unless an [augment.params]
+// apply to them: their @AugmentedReceiver is ignored. Their parameter annotations are ignored, unless an [augment.params]
 // "@" entry applies.
 
 class DerivedOutside : Base() {
@@ -16,22 +16,22 @@ class DerivedOutside : Base() {
 }
 
 class ParamsOnly {
-    fun withParam(@StackTraceParam code: Int): Nothing = throw IllegalStateException("code $code")
+    fun withParam(@AugmentedParam code: Int): Nothing = throw IllegalStateException("code $code")
 }
 
 class AllParamsOutside {
-    @StackTraceParams
+    @AugmentedParams
     fun run(x: Int): Nothing = throw IllegalStateException("run $x")
 }
 
 /** Its parameter annotations are enabled by an [augment.params] "@" entry. */
 class MethodAnnotationsOutside {
-    fun run(@StackTraceParam code: Int): Nothing = throw IllegalStateException("run $code")
+    fun run(@AugmentedParam code: Int): Nothing = throw IllegalStateException("run $code")
 }
 
-/** Its @StackTraceParams is enabled by an [augment.params] "@" entry for all its methods. */
+/** Its @AugmentedParams is enabled by an [augment.params] "@" entry for all its methods. */
 class ClassParamsViaMethods {
-    @StackTraceParams
+    @AugmentedParams
     fun run(a: Int, b: String): Nothing = throw IllegalStateException("run $a $b")
 }
 
@@ -51,11 +51,11 @@ class VipCustomer(customerId: String) : Customer(customerId) {
 }
 
 /**
- * Selected by "@" after "::" in both tables: "Dispatcher::@" in [augment.receiver] applies to its @StackTraceAugment methods
+ * Selected by "@" after "::" in both tables: "Dispatcher::@" in [augment.receiver] applies to its @Augmented methods
  * only, "Dispatcher::@, track" in [augment.params] to them and to track.
  */
 class Dispatcher(private val hub: String) {
-    @StackTraceAugment
+    @Augmented
     fun send(order: String): Nothing = throw IllegalStateException("cannot send $order")
 
     fun track(order: String): Nothing = throw IllegalStateException("cannot track $order")

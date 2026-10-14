@@ -21,7 +21,7 @@ public sealed interface ParamRef {
         }
     }
 
-    /** {@code "@"}: the method's {@code @StackTraceParam} and {@code @StackTraceParams} annotations. */
+    /** {@code "@"}: the method's {@code @AugmentedParam} and {@code @AugmentedParams} annotations. */
     record Annotations() implements ParamRef {
     }
 

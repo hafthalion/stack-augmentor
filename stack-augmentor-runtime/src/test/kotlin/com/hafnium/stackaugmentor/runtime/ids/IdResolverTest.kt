@@ -1,6 +1,6 @@
 package com.hafnium.stackaugmentor.runtime.ids
 
-import com.hafnium.stackaugmentor.StackTraceReceiver
+import com.hafnium.stackaugmentor.AugmentedReceiver
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig
 import com.hafnium.stackaugmentor.runtime.config.IdSpec
 import java.io.ByteArrayOutputStream
@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test
 class IdResolverTest {
 
     class Annotated {
-        @StackTraceReceiver
+        @AugmentedReceiver
         val objectId = "a-1"
 
         @Suppress("unused")
@@ -24,44 +24,44 @@ class IdResolverTest {
     }
 
     class ByMethod {
-        @StackTraceReceiver
+        @AugmentedReceiver
         fun computeKey() = "k-${1 + 1}"
     }
 
-    class ConstructorProperty(@StackTraceReceiver val code: String)
+    class ConstructorProperty(@AugmentedReceiver val code: String)
 
     class Unannotated(private val customerId: String) {
         override fun toString() = "Unannotated($customerId)"
     }
 
     class Throwing {
-        @StackTraceReceiver
+        @AugmentedReceiver
         fun id(): String = throw IllegalStateException("no id")
     }
 
     open class BaseWithId {
-        @StackTraceReceiver
+        @AugmentedReceiver
         val baseId = "b1"
     }
 
     class ChildOfBase : BaseWithId()
 
     open class MultiAnnotated {
-        @StackTraceReceiver
+        @AugmentedReceiver
         val tenant = "acme"
 
-        @StackTraceReceiver
+        @AugmentedReceiver
         val orderId = 42
 
-        @StackTraceReceiver
+        @AugmentedReceiver
         fun region() = "eu"
 
-        @StackTraceReceiver
+        @AugmentedReceiver
         fun channel() = "web"
     }
 
     class ChildOfMulti : MultiAnnotated() {
-        @StackTraceReceiver
+        @AugmentedReceiver
         val lineId = 7
     }
 
@@ -76,7 +76,7 @@ class IdResolverTest {
     }
 
     class WithArrayId {
-        @StackTraceReceiver
+        @AugmentedReceiver
         val codes = intArrayOf(1, 2)
     }
 

@@ -18,7 +18,7 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
     that are augmented, see the stack trace augmentation spec. Its entries SHALL be read in the order of the
     file. Without entries no throwable is augmented;
   - `[augment.receiver]` (method key, see below → a string: field name, `method()`, several of them separated
-    by commas, `"@"` for the class's `@StackTraceReceiver` members, or `"-"` for no receiver members), which decides the
+    by commas, `"@"` for the class's `@AugmentedReceiver` members, or `"-"` for no receiver members), which decides the
     receiver members, see the receivers and parameters spec;
   - `[augment.params]` (method key → a string: parameter names and 0-based indexes from 0 to 255, the JVM's
     maximum number of parameters, separated by commas, each optionally followed by `#` to hash the value (e.g.
@@ -29,7 +29,7 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
   `"<class>::<methods>"`: a class name, optionally followed by `+`, or a class pattern; then `::`, which is
   required; then method names or patterns separated by commas without duplicates, where `*` alone stands for all
   methods and `@` for the methods (and in `[augment.params]` the constructors) annotated with
-  `@StackTraceAugment`. A class name SHALL match the class that declares a frame's method; with `+` also its
+  `@Augmented`. A class name SHALL match the class that declares a frame's method; with `+` also its
   subclasses and, for an interface, the classes implementing it, as `instanceof` does; a pattern SHALL match
   class names only. `+` after a pattern SHALL be rejected. The method part `<init>` names the constructors, in
   `[augment.params]` only; wildcards in the method part SHALL match it like any method name. The entries of
@@ -69,17 +69,17 @@ entries, rather than one silently replacing the other.
 #### Scenario: Class entries
 - **GIVEN** `"com.acme.legacy.*::*" = "getKey()"`, `"com.acme.**::*" = "@"` and `"com.thirdparty.Customer::*" = "customerId"` in `[augment.receiver]`, in this order
 - **WHEN** it is loaded
-- **THEN** the classes under `com.acme` use their `@StackTraceReceiver`, classes directly in `com.acme.legacy` use `getKey()`, and `Customer` uses its `customerId` field, while no parameter annotations are used
+- **THEN** the classes under `com.acme` use their `@AugmentedReceiver`, classes directly in `com.acme.legacy` use `getKey()`, and `Customer` uses its `customerId` field, while no parameter annotations are used
 
 #### Scenario: Method entry with "@"
 - **GIVEN** `"com.acme.legacy.*::*" = "@"` in `[augment.params]`
 - **WHEN** it is loaded
-- **THEN** the methods of the classes directly in `com.acme.legacy` use their `@StackTraceParam` and `@StackTraceParams` annotations, and so do their constructors
+- **THEN** the methods of the classes directly in `com.acme.legacy` use their `@AugmentedParam` and `@AugmentedParams` annotations, and so do their constructors
 
 #### Scenario: Constructor entry
 - **GIVEN** `"com.acme.legacy.*::<init>" = "@"` and then `"com.acme.legacy.*::*" = "0"` in `[augment.params]`
 - **WHEN** it is loaded
-- **THEN** the constructors of the classes directly in `com.acme.legacy` use their `@StackTraceParam` and `@StackTraceParams` annotations; the `<init>` entry comes first and wins over `*`, and their methods show their first parameter
+- **THEN** the constructors of the classes directly in `com.acme.legacy` use their `@AugmentedParam` and `@AugmentedParams` annotations; the `<init>` entry comes first and wins over `*`, and their methods show their first parameter
 
 ### Requirement: Invalid configuration
 The system SHALL reject a configuration with a TOML syntax error, a value of the wrong type, a value out

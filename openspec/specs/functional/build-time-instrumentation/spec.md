@@ -35,7 +35,7 @@ a warning.
 - **THEN** its classes are not instrumented, and with `debug = true` the build lists the ignored annotations
 
 #### Scenario: Method-level parameter annotation
-- **GIVEN** a project class whose only annotation is `@StackTraceParams` on a method, which an `[augment.params]` `"@"` entry matches
+- **GIVEN** a project class whose only annotation is `@AugmentedParams` on a method, which an `[augment.params]` `"@"` entry matches
 - **WHEN** the project is built
 - **THEN** that method is instrumented and shows its parameter values
 
@@ -73,7 +73,7 @@ with the file, the key and the line (see the diagnostics specification).
 - **THEN** the handler is created through `ServiceLoader` and the frame shows the augmentation
 
 #### Scenario: No runtime configuration
-- **GIVEN** a class with `@StackTraceReceiver`, instrumented at build time, and no `stack-augmentor.toml` on the runtime classpath
+- **GIVEN** a class with `@AugmentedReceiver`, instrumented at build time, and no `stack-augmentor.toml` on the runtime classpath
 - **WHEN** one of its methods throws
 - **THEN** the frame stays unchanged, since no `[augment.exceptions]` entry augments the exception
 - **AND** a warning says that there is no runtime configuration, so no exception is augmented
@@ -84,6 +84,6 @@ with the file, the key and the line (see the diagnostics specification).
 - **THEN** the frame shows no receiver members, since the runtime has no entry with the key `com.acme.Svc::*`
 
 #### Scenario: Parameter entry only
-- **GIVEN** `"com.acme.Svc::run" = "0"` in `[augment.params]`, no `[augment.receiver]` entry for `Svc`, and `Svc` with a `@StackTraceReceiver` field
+- **GIVEN** `"com.acme.Svc::run" = "0"` in `[augment.params]`, no `[augment.receiver]` entry for `Svc`, and `Svc` with a `@AugmentedReceiver` field
 - **WHEN** `run` throws in a build-time instrumented application
 - **THEN** the frame shows the parameter value of `run`'s first parameter and no receiver members

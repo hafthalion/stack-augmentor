@@ -48,24 +48,24 @@ import java.util.stream.Collectors;
  *
  * # Keys of [augment.receiver] and [augment.params]: "<class>::<methods>". A class name matches that class only, with
  * # "+" after it also its subclasses and implementing classes; a pattern matches class names only. The methods are
- * # names or patterns separated by commas, "@" for those annotated with @StackTraceAugment, "*" for all. For each
+ * # names or patterns separated by commas, "@" for those annotated with @Augmented, "*" for all. For each
  * # method the first matching entry of a table wins.
  *
  * [augment.receiver]         # receiver ids: a field, a "method()", several separated by commas, "@" for the
- *                            # @StackTraceReceiver members, "-" for none
+ *                            # @AugmentedReceiver members, "-" for none
  * "com.hafnium.generated.**::*" = "-"
  * "com.hafnium.**::*" = "@"
  * "com.thirdparty.Order+::*" = "getOrderNumber()"   # Order and its subclasses
  * "com.thirdparty.OrderLine::*" = "tenant, lineId()"
  * "com.thirdparty.Invoice::pay, cancel*" = "number"   # frames of pay and cancel... show the number,
  * "com.thirdparty.Invoice::print" = "copy"             # frames of print the copy, the others no receiver id
- * "com.acme.Dispatcher::@" = "hub"          # only frames of methods annotated with @StackTraceAugment
+ * "com.acme.Dispatcher::@" = "hub"          # only frames of methods annotated with @Augmented
  *
  * [augment.params]           # parameter ids: names and indexes separated by commas ("#" after one hashes it), "@" for
  *                            # the annotations, "-" for none
  * "com.hafnium.**::*" = "@"
  * "com.thirdparty.Shipment::<init>" = "orderId"   # constructors, also matched by wildcards such as "::*"
- * "com.acme.Dispatcher::@" = "order"        # the methods annotated with @StackTraceAugment
+ * "com.acme.Dispatcher::@" = "order"        # the methods annotated with @Augmented
  * "com.thirdparty.OrderService+::process" = "order, 2, email#, 3#"
  * "com.thirdparty.**.AuditRepository::*" = "-"
  * "com.thirdparty.**.*Repository::find*" = "0"
@@ -168,7 +168,7 @@ public final class AugmentorConfig {
      * class name, which matches that class only, or with {@code +} after it ({@code "com.acme.Order+"}) also its
      * subclasses and, for an interface, the classes implementing it, as {@code instanceof} does; or a class pattern,
      * which matches class names only. After {@code ::} the method names or patterns, {@code "@"} for the methods
-     * annotated with {@code @StackTraceAugment}, separated by commas. The class is the one that declares a frame's
+     * annotated with {@code @Augmented}, separated by commas. The class is the one that declares a frame's
      * method.
      */
     public static final class EntryKey {
@@ -231,7 +231,7 @@ public final class AugmentorConfig {
          * Whether the key applies to frames of this method: one of the names or patterns matches it, or it has
          * {@code "@"} and the method is annotated.
          *
-         * @param augmented whether the method is annotated with {@code @StackTraceAugment}
+         * @param augmented whether the method is annotated with {@code @Augmented}
          */
         public boolean appliesTo(String methodName, boolean augmented) {
             if (augmented && methods.contains(ANNOTATIONS)) {
@@ -482,7 +482,7 @@ public final class AugmentorConfig {
      * whose class part matches the class that declares the frame's method (see {@link #classEntries(Class)}) and whose
      * methods include the method.
      *
-     * @param augmented whether the method is annotated with {@code @StackTraceAugment}
+     * @param augmented whether the method is annotated with {@code @Augmented}
      */
     public ClassEntry classEntry(Class<?> type, String methodName, boolean augmented) {
         return firstApplying(classEntries(type), methodName, augmented);
@@ -545,7 +545,7 @@ public final class AugmentorConfig {
      * later entry would select parameters. {@code [augment.receiver]} plays no part either.
      *
      * @param isA       see {@link EntryKey#matchesClass}
-     * @param augmented whether the method is annotated with {@code @StackTraceAugment}
+     * @param augmented whether the method is annotated with {@code @Augmented}
      */
     public List<ParamRef> paramRefs(String className, Predicate<String> isA, String methodName, boolean augmented) {
         for (ParamsEntry entry : paramsEntries) {
@@ -985,14 +985,14 @@ public final class AugmentorConfig {
             return error(path, "[" + name(table) + "] keys must name a class and its methods separated by ::, e.g. "
                     + "\"com.acme.Order::ship, cancel*\" or \"com.acme.Order::*\"; + after the class name includes its "
                     + "subclasses (\"com.acme.Order+::*\"), a class pattern matches class names only (\"com.acme.**::*\"), "
-                    + "@ stands for the methods annotated with @StackTraceAugment"
+                    + "@ stands for the methods annotated with @Augmented"
                     + (table.equals(METHODS) ? ", <init> for the constructors" : "") + "; " + ALLOWED_CHARACTERS);
         }
 
         private IdSpec classSpec(List<String> path, Object value) {
             if (!(value instanceof String text)) {
                 throw error(path, "must be a string: a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), "
-                        + "several of them separated by commas (e.g. \"tenant, getOrderId()\"), \"@\" for its @StackTraceReceiver "
+                        + "several of them separated by commas (e.g. \"tenant, getOrderId()\"), \"@\" for its @AugmentedReceiver "
                         + "members, or \"-\" for no receiver members, was " + value);
             }
             if (text.contains(METHOD_SEPARATOR)) {

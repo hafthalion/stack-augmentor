@@ -1,14 +1,14 @@
 package com.hafnium.examples.live
 
-import com.hafnium.stackaugmentor.StackTraceReceiver
-import com.hafnium.stackaugmentor.StackTraceParams
+import com.hafnium.stackaugmentor.AugmentedReceiver
+import com.hafnium.stackaugmentor.AugmentedParams
 
 /** Answers each request with a status, and logs the exceptions that end one. */
 class Shop(
-    @StackTraceReceiver private val name: String,
+    @AugmentedReceiver private val name: String,
     private val payments: PaymentClient,
 ) {
-    @StackTraceParams
+    @AugmentedParams
     fun handle(user: String, path: String) {
         val status = try {
             val session = Session(user, payments)
@@ -24,14 +24,14 @@ class Shop(
 }
 
 class Session(
-    @StackTraceReceiver private val user: String,
+    @AugmentedReceiver private val user: String,
     private val payments: PaymentClient,
 ) {
-    @StackTraceParams
+    @AugmentedParams
     fun checkout(orderNumber: Int): String =
         if (Checkout(ORDERS.getValue(orderNumber), payments).pay()) "200 OK" else "402 Payment Required"
 
-    @StackTraceParams
+    @AugmentedParams
     fun receipt(orderNumber: Int): String = Receipt(ORDERS.getValue(orderNumber)).text
 }
 

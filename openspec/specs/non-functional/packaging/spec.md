@@ -8,7 +8,7 @@ application's classpath.
 
 ### Requirement: Modules
 The project SHALL be split into these modules:
-- `stack-augmentor-api`: the `@StackTraceReceiver`, `@StackTraceParam`, `@StackTraceParams` and `@StackTraceAugment` annotations, and
+- `stack-augmentor-api`: the `@AugmentedReceiver`, `@AugmentedParam`, `@AugmentedParams` and `@Augmented` annotations, and
   `ExceptionFormat`;
 - `stack-augmentor-instrument-bridge`: `Dispatch`, the class the advice calls, and `LiveDispatch`, the class the
   live-stack mode's code in `Throwable` calls (Java, no dependencies);

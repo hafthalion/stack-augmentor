@@ -20,13 +20,13 @@ constructors, so the system SHALL add its own handlers, covering the code before
 exception unchanged. Exceptions thrown inside the called constructor SHALL leave the frame unchanged.
 
 #### Scenario: Constructor with parameter values
-- **GIVEN** `class Shipment(@StackTraceParam val orderId: Long, val weight: Int)` whose `init` block calls
+- **GIVEN** `class Shipment(@AugmentedParam val orderId: Long, val weight: Int)` whose `init` block calls
   `require(weight > 0)`, and an entry `"com.acme.**::<init>" = "@"`
 - **WHEN** `Shipment(42, 0)` throws
 - **THEN** its frame shows `Shipment.<init>{orderId=42}`
 
 #### Scenario: Exception while computing the arguments of super(...)
-- **GIVEN** `class Crate @StackTraceParams constructor(code: String?) : Parcel(requireNotNull(code))`
+- **GIVEN** `class Crate @AugmentedParams constructor(code: String?) : Parcel(requireNotNull(code))`
 - **WHEN** `Crate(null)` throws
 - **THEN** its frame shows `Crate.<init>{code=null}`
 

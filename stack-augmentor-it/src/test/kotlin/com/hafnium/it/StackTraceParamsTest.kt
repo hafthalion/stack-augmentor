@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
 
 /**
- * @StackTraceParams and wildcard [augment.params] entries; runs with the agent, see build.gradle.kts. [FrameReport]
+ * @AugmentedParams and wildcard [augment.params] entries; runs with the agent, see build.gradle.kts. [FrameReport]
  * writes the frames each test caught to build/reports/frames/StackTraceParamsTest.html.
  */
 class StackTraceParamsTest {

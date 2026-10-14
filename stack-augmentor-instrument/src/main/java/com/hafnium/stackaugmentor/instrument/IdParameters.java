@@ -18,8 +18,8 @@ import java.util.stream.Collectors;
 
 /**
  * Finds the id parameters of a method: those the {@code [augment.params]} config table selects, by name, index,
- * or {@code "@"} for the method's {@code @StackTraceParam} and {@code @StackTraceParams} annotations, and whether their
- * values are hashed: {@code #} after a name or index, or {@code @StackTraceParam(secret = true)}. {@code [augment.receiver]}
+ * or {@code "@"} for the method's {@code @AugmentedParam} and {@code @AugmentedParams} annotations, and whether their
+ * values are hashed: {@code #} after a name or index, or {@code @AugmentedParam(secret = true)}. {@code [augment.receiver]}
  * plays no part.
  */
 public final class IdParameters {
@@ -51,9 +51,9 @@ public final class IdParameters {
         return last;
     }
 
-    /** Whether the method has {@code @StackTraceAugment}, which {@code "@"} after {@code ::} selects by. */
+    /** Whether the method has {@code @Augmented}, which {@code "@"} after {@code ::} selects by. */
     static boolean augmented(MethodDescription method) {
-        return annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_AUGMENT) != null;
+        return annotation(method.getDeclaredAnnotations(), IdResolver.AUGMENTED) != null;
     }
 
     private static boolean hasAnnotationsRef(List<ParamRef> refs) {
@@ -65,13 +65,13 @@ public final class IdParameters {
         return false;
     }
 
-    /** Whether the method has parameter annotations: {@code @StackTraceParam}, or {@code @StackTraceParams} on it. */
+    /** Whether the method has parameter annotations: {@code @AugmentedParam}, or {@code @AugmentedParams} on it. */
     static boolean hasParameterAnnotations(MethodDescription method) {
-        if (annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null) {
+        if (annotation(method.getDeclaredAnnotations(), IdResolver.AUGMENTED_PARAMS) != null) {
             return true;
         }
         for (ParameterDescription parameter : method.getParameters()) {
-            if (annotation(parameter.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAM) != null) {
+            if (annotation(parameter.getDeclaredAnnotations(), IdResolver.AUGMENTED_PARAM) != null) {
                 return true;
             }
         }
@@ -112,19 +112,19 @@ public final class IdParameters {
     }
 
     /**
-     * The parameters the annotations select: all of them with {@code @StackTraceParams} on the method, and those with
-     * {@code @StackTraceParam}. Hashed with {@code @StackTraceParam(secret = true)}, also
-     * under {@code @StackTraceParams}.
+     * The parameters the annotations select: all of them with {@code @AugmentedParams} on the method, and those with
+     * {@code @AugmentedParam}. Hashed with {@code @AugmentedParam(secret = true)}, also
+     * under {@code @AugmentedParams}.
      */
     private static void annotated(MethodDescription method, TreeMap<Integer, Boolean> selected) {
         ParameterList<?> parameters = method.getParameters();
-        if (annotation(method.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAMS) != null) {
+        if (annotation(method.getDeclaredAnnotations(), IdResolver.AUGMENTED_PARAMS) != null) {
             for (ParameterDescription parameter : parameters) {
                 selected.merge(parameter.getIndex(), false, Boolean::logicalOr);
             }
         }
         for (ParameterDescription parameter : parameters) {
-            AnnotationDescription one = annotation(parameter.getDeclaredAnnotations(), IdResolver.STACK_TRACE_PARAM);
+            AnnotationDescription one = annotation(parameter.getDeclaredAnnotations(), IdResolver.AUGMENTED_PARAM);
             if (one != null) {
                 selected.merge(parameter.getIndex(), secret(one), Boolean::logicalOr);
             }
@@ -173,7 +173,7 @@ public final class IdParameters {
                     }
                 }
                 if (named.isEmpty()) {
-                    messages.add(entry + ": " + type.getName() + (byAnnotation ? " has no method annotated with @StackTraceAugment"
+                    messages.add(entry + ": " + type.getName() + (byAnnotation ? " has no method annotated with @Augmented"
                             : " has no method '" + methodName + "'"));
                 }
                 for (MethodDescription method : named) {

@@ -26,7 +26,7 @@ public sealed interface IdSpec {
     }
 
     /**
-     * {@code "@"}: the {@code @StackTraceReceiver} members of the class, one receiver id each. The parameter annotations are
+     * {@code "@"}: the {@code @AugmentedReceiver} members of the class, one receiver id each. The parameter annotations are
      * {@code [augment.params]}'s.
      */
     record Annotations() implements IdSpec {

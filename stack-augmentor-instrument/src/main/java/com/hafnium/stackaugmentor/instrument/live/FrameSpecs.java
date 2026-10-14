@@ -102,7 +102,7 @@ public final class FrameSpecs {
 
     /**
      * Whether an entry of either table names the method's class, so that its frames may show ids. By name only, so
-     * whether the method has {@code @StackTraceAugment} is left open: {@link #spec} decides for the method itself.
+     * whether the method has {@code @Augmented} is left open: {@link #spec} decides for the method itself.
      */
     private boolean named(Class<?> type, String methodName) {
         return !methodName.equals(AugmentorConfig.CONSTRUCTOR) && config.classEntries(type).stream()
