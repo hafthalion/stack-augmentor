@@ -81,10 +81,19 @@ class WithoutKotlinTest {
     }
 
     @Test
-    fun `without a configuration nothing is augmented`() {
+    fun `without a configuration the built-in one augments the annotated members and parameters`() {
         val result = run(null)
         assertEquals(0, result.exitCode, result.output)
         record("JavaMain, with the agent and no configuration", result.output)
+        assertFalse(result.output.contains("[stack-augmentor] WARN"), result.output)
+        assertTrue(result.output.contains("at com.hafnium.it.fixtures.JavaFixture{key=java-1}.run{arg0=42}(JavaFixture.java:"), result.output)
+        assertNoKotlin(result.output)
+    }
+
+    @Test
+    fun `a configuration without entries augments nothing`(@TempDir dir: Path) {
+        val result = run(config(dir, "debug = false\n"))
+        assertEquals(0, result.exitCode, result.output)
         assertTrue(
             result.output.contains(
                 "[stack-augmentor] WARN agent: the configuration has no [augment.receiver] or [augment.params] entries other than " +

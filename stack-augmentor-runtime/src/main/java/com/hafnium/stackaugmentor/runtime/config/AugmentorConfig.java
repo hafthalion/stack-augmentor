@@ -322,7 +322,25 @@ public final class AugmentorConfig {
     /** The {@code [augment.params]} entries, in the order of the file. */
     private final List<ParamsEntry> paramsEntries;
 
-    /** The defaults: no class or method entries, so nothing is augmented. */
+    /**
+     * The configuration that applies when none is given: all exceptions are augmented, with the annotated receiver
+     * members and parameter values of all classes.
+     */
+    public static final String BUILT_IN = """
+            [augment.exceptions]
+            "java.lang.Exception+" = true
+
+            [augment.receiver]
+            "**::*" = "@"
+
+            [augment.params]
+            "**::*" = "@"
+            """;
+
+    /** Where the {@link #BUILT_IN} configuration comes from, for the debug output. */
+    public static final String BUILT_IN_LOCATION = "none, using the built-in configuration";
+
+    /** The default values: no class, method or exception entries, so nothing is augmented. See {@link #builtIn()}. */
     public AugmentorConfig() {
         this(Map.of(), Map.of(), DEFAULT_FRAME_FORMAT, DEFAULT_RECEIVER_FORMAT, DEFAULT_PARAMS_FORMAT,
                 DEFAULT_MAX_VALUE_LENGTH, false, false, Map.of());
@@ -576,11 +594,17 @@ public final class AugmentorConfig {
 
     /**
      * Loads the TOML file named by the agent arguments ({@code config=<path>} or just {@code <path>}),
-     * or by the {@code stackaugmentor.config} system property. Without either, the defaults apply.
+     * or by the {@code stackaugmentor.config} system property. Without either, the {@link #builtIn()} configuration
+     * applies.
      */
     public static AugmentorConfig load(String agentArgs) {
         String location = location(agentArgs);
-        return location != null ? load(Path.of(location)) : new AugmentorConfig();
+        return location != null ? load(Path.of(location)) : builtIn();
+    }
+
+    /** The {@link #BUILT_IN} configuration, for when none is given. */
+    public static AugmentorConfig builtIn() {
+        return parse(BUILT_IN, "built-in configuration");
     }
 
     /** Loads a TOML configuration file. */

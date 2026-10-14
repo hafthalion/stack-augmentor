@@ -23,9 +23,10 @@ import java.nio.file.Path;
  * At runtime, the application needs {@code stack-augmentor-runtime} on its classpath.
  *
  * <p>Argument 0 is the path of a TOML configuration: its {@code [augment.receiver]} and {@code [augment.params]}
- * entries decide which receivers and parameters get ids, and the classes and methods that need the advice for that
- * are instrumented, as with the agent; {@code debug} logs what gets instrumented. Without
- * it (e.g. when discovered through {@code META-INF/net.bytebuddy/build.plugins}), nothing is instrumented.
+ * entries decide which receiver members and parameter values are shown, and the classes and methods that need the
+ * advice for that are instrumented, as with the agent; {@code debug} logs what gets instrumented. Without it (e.g. when
+ * discovered through {@code META-INF/net.bytebuddy/build.plugins}), the built-in configuration applies
+ * ({@link AugmentorConfig#BUILT_IN}): the methods of classes with annotated receiver members or parameters are instrumented.
  */
 public final class ByteBuddyPlugin implements Plugin {
 
@@ -34,7 +35,7 @@ public final class ByteBuddyPlugin implements Plugin {
     private final Advice advice;
 
     public ByteBuddyPlugin() {
-        this(new AugmentorConfig(), "none, using the defaults");
+        this(AugmentorConfig.builtIn(), AugmentorConfig.BUILT_IN_LOCATION);
     }
 
     /** @param configFile a TOML configuration; its {@code [augment.receiver]} and {@code [augment.params]} apply. */

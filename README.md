@@ -35,7 +35,7 @@ An application with classes instrumented at build time can also run with the age
 
 | Option | Where | Default | What it does |
 |---|---|---|---|
-| Configuration file | `-javaagent:...=config=<file>`, `-Dstackaugmentor.config=<file>`, or (build-time) `stack-augmentor.toml` on the classpath | none: nothing is augmented | the TOML file with everything below ([where it comes from](docs/configuration.md#where-the-file-comes-from)) |
+| Configuration file | `-javaagent:...=config=<file>`, `-Dstackaugmentor.config=<file>`, or (build-time) `stack-augmentor.toml` on the classpath | none: the [built-in configuration](docs/configuration.md#the-built-in-configuration) augments all exceptions with the annotated members and parameters | the TOML file with everything below ([where it comes from](docs/configuration.md#where-the-file-comes-from)) |
 | `[augment.exceptions]` | configuration | empty: no exception is augmented | which exceptions are augmented, e.g. `"java.lang.Exception+" = true` ([Exceptions](docs/configuration.md#exceptions)) |
 | `[augment.receiver]` | configuration | empty | which frames show receiver members, and which ones, e.g. `"com.acme.**::*" = "@"` ([Receiver members](docs/configuration.md#receiver-members)) |
 | `[augment.params]` | configuration | empty | which frames show parameter values, and which parameters, e.g. `"com.acme.Order::ship, cancel*" = "orderId"` ([Parameter values](docs/configuration.md#parameter-values)) |
@@ -110,7 +110,7 @@ Use it in your own application:
    java -javaagent:stack-augmentor-agent-<version>.jar=config=stack-augmentor.toml -jar app.jar
    ```
 
-   Without a configuration, or with empty `[augment.receiver]` and `[augment.params]`, nothing is augmented and the agent prints a warning.
+   Without a configuration, the [built-in one](docs/configuration.md#the-built-in-configuration) applies, the same as this example for all classes. With empty `[augment.receiver]` and `[augment.params]`, nothing is augmented and the agent prints a warning.
 
 ## Quick start: build-time instrumentation
 
@@ -139,7 +139,7 @@ byteBuddy {
     entryPoint = EntryPoint.Default.DECORATE   // only add advice, keep the methods as they are
     transformation {
         pluginName = "com.hafnium.stackaugmentor.build.ByteBuddyPlugin"
-        argument { value = stackAugmentorConfig.asFile.absolutePath }   // required: its [augment.*] tables
+        argument { value = stackAugmentorConfig.asFile.absolutePath }   // its [augment.*] tables; without it, the built-in configuration
     }
 }
 
@@ -149,11 +149,11 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 }
 ```
 
-- **At build time**, the plugin instruments the classes and methods that `[augment.receiver]` and `[augment.params]` need. Without the configuration argument, nothing is instrumented and the build prints a warning.
+- **At build time**, the plugin instruments the classes and methods that `[augment.receiver]` and `[augment.params]` need. Without the configuration argument, the built-in configuration applies: the methods of classes with annotated members or parameters are instrumented.
 - **At runtime**, the application needs only `stack-augmentor-api` and `stack-augmentor-runtime` (no agent, no ByteBuddy, no Kotlin). The runtime reads `stack-augmentor.toml` from the classpath, or the file in `-Dstackaugmentor.config`, for `[augment]`, `[augment.exceptions]`, `[augment.receiver]` (receiver members), `debug` and `inPlaceModification`. In an application server it also asks the context class loader of the first throwing thread.
 - **One file serves both** when it is in `src/main/resources`.
 - A frame's receiver members come from the runtime `[augment.receiver]` entry with the same key as the entry that decided its method at build time; without that key they are left out.
-- Without a runtime configuration, a warning says so and no exception is augmented, since `[augment.exceptions]` is empty. An invalid one is printed as an error, and stack traces stay unchanged.
+- Without a runtime configuration, a warning says so and the built-in configuration applies; it finds only the receiver members of methods built with it. An invalid one is printed as an error, and stack traces stay unchanged.
 
 ## Limitations in short
 
