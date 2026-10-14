@@ -32,7 +32,7 @@ The system SHALL always print a warning to standard error, prefixed `[stack-augm
   missing-member warning, also for an entry with wildcards;
 - when an annotated id source cannot be made accessible;
 - when the runtime handler cannot be created, with the reason;
-- when the build-time runtime handler finds no configuration, so frames show no receiver ids;
+- when the build-time runtime handler finds no configuration, so no exception gets ids;
 - when the agent or the build plugin starts with a configuration that has no `[augment.receiver]` and no
   `[augment.params]` entries, so nothing will be augmented.
 

@@ -73,8 +73,8 @@ with the file, the key and the line (see the diagnostics specification).
 #### Scenario: No runtime configuration
 - **GIVEN** a class with `@StackTraceId`, instrumented at build time, and no `stack-augmentor.toml` on the runtime classpath
 - **WHEN** one of its methods throws
-- **THEN** the frame shows no receiver id
-- **AND** a warning says that there is no runtime configuration, so frames show no receiver ids
+- **THEN** the frame stays unchanged, since no `[augment.exceptions]` entry gives the exception ids
+- **AND** a warning says that there is no runtime configuration, so no exception gets ids
 
 #### Scenario: Parameter entry only
 - **GIVEN** `"com.acme.Svc::run" = "0"` in `[augment.params]`, no `[augment.receiver]` entry for `Svc`, and `Svc` with a `@StackTraceId` field

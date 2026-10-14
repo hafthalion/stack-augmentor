@@ -8,7 +8,15 @@ Exception in thread "main" java.lang.Exception: An error has occurred
 	at com.hafnium.Main.main(Main.kt:15)
 ```
 
-The ids come from annotations on your classes (`@StackTraceId`, `@StackTraceParam`, `@StackTraceParams`), or from a configuration file for classes you cannot change. Classes without either stay as they are. It works for Java and Kotlin; the library itself is Java and does not need the Kotlin runtime.
+Stack Augmentor adds ids to the frames of stack traces, so a logged exception says which order, customer or account the failing code was working on. Every logger and printer shows them, since the frames themselves are changed. Frames without ids, and exceptions you don't select, stay as they are.
+
+- **Receiver ids**: the object a frame's method runs on, from `@StackTraceId` fields and methods, or from fields and getters named in the configuration.
+- **Parameter ids**: selected arguments, from `@StackTraceParam` and `@StackTraceParams`, or by name or index; sensitive values can be shown as a hash.
+- **Classes you cannot change**: one TOML file selects classes by name, with their subclasses (`+`) or by pattern, and methods by name, pattern or `@StackTraceAugment`; it also selects which exceptions get ids and how frames look. See [Configuration](docs/configuration.md).
+- **Three ways to run**: a Java agent, the agent reading every frame from the live stack (experimental), or build-time instrumentation without an agent.
+- **Cause chains**: the frames a cause shares with its wrapper get the same ids, so `... N more` still works; `ExceptionFormat.rootCauseFirst` prints the root cause first.
+- **Java and Kotlin**, constructors included; the library is Java and does not need the Kotlin runtime.
+- **Cheap**: with instrumented classes, a few microseconds per configured frame an exception leaves, nothing on normal returns; `debug = true` shows what gets instrumented and why.
 
 ## Three ways to use it
 
@@ -27,16 +35,16 @@ An application with classes instrumented at build time can also run with the age
 
 | Option | Where | Default | What it does |
 |---|---|---|---|
-| Configuration file | `-javaagent:...=config=<file>`, `-Dstackaugmentor.config=<file>`, or (build-time) `stack-augmentor.toml` on the classpath | none: nothing is augmented | the TOML file with everything below |
-| `[augment.exceptions]` | configuration | empty: no exception gets ids | which exceptions get ids: `true` or `false`, the first matching entry wins; a class name matches that class only, with `+` also its subclasses, as in the other tables, so `"java.lang.Exception+" = true` covers all exceptions and `"**" = true` all throwables |
-| `[augment.receiver]` | configuration | empty | which methods show a receiver id, and where it comes from, by `"<class>::<methods>"` keys as in `[augment.params]`; the first matching entry wins |
-| `[augment.params]` | configuration | empty | which methods show parameter ids, and which parameters, by `"<class>::<methods>"` keys: `"com.acme.Order::ship, cancel*"`, `"com.acme.Order::*"` for all methods, `"com.acme.Order::@"` for those annotated with `@StackTraceAugment`, `"com.acme.Order+::*"` with the subclasses, `"com.acme.**::*"` by pattern; the first matching entry wins |
+| Configuration file | `-javaagent:...=config=<file>`, `-Dstackaugmentor.config=<file>`, or (build-time) `stack-augmentor.toml` on the classpath | none: nothing is augmented | the TOML file with everything below ([where it comes from](docs/configuration.md#where-the-file-comes-from)) |
+| `[augment.exceptions]` | configuration | empty: no exception gets ids | which exceptions get ids, e.g. `"java.lang.Exception+" = true` ([Exceptions](docs/configuration.md#exceptions)) |
+| `[augment.receiver]` | configuration | empty | which frames show a receiver id, and where it comes from, e.g. `"com.acme.**::*" = "@"` ([Receiver ids](docs/configuration.md#receiver-ids)) |
+| `[augment.params]` | configuration | empty | which frames show parameter ids, and which parameters, e.g. `"com.acme.Order::ship, cancel*" = "orderId"` ([Parameter ids](docs/configuration.md#parameter-ids)) |
 | `[augment]` | configuration | see [Formats](docs/configuration.md#formats) | how frames look: `frameFormat`, `receiverFormat`, `paramsFormat`, `maxIdLength` |
 | `debug` | configuration | `false` | prints what gets instrumented and where each id comes from |
 | `inPlaceModification` | configuration, or `-Dstackaugmentor.inPlaceModification=true` | `false` | writes each frame into the exception's own stack trace instead of copying the trace; faster for deep stacks, needs `java.lang` open (see [Limitations](docs/limitations.md)) |
 | Live stack | `-agentpath:<native library>` | off | the agent reads ids from the live stack instead of instrumenting classes (see [Live stack](docs/live-stack.md)) |
 
-See [Configuration](docs/configuration.md) for the file in full.
+All three tables have keys `"<class>::<methods>"` (just `"<class>"` for exceptions), and the first matching entry decides: a class name matches that class only, `+` after it also its subclasses, and a pattern (`*`, `**`, `?`) matches class names. [Configuration](docs/configuration.md) describes the file in full: the syntax, every table and option, and the errors and warnings.
 
 ## Quick start: Java agent
 
@@ -137,10 +145,10 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 ```
 
 - **At build time**, the plugin instruments the classes and methods that `[augment.receiver]` and `[augment.params]` need. Without the configuration argument, nothing is instrumented and the build prints a warning.
-- **At runtime**, the application needs only `stack-augmentor-api` and `stack-augmentor-runtime` (no agent, no ByteBuddy, no Kotlin). The runtime reads `stack-augmentor.toml` from the classpath, or the file in `-Dstackaugmentor.config`, for `[augment]`, `[augment.receiver]` (receiver ids), `debug` and `inPlaceModification`. In an application server it also asks the context class loader of the first throwing thread.
+- **At runtime**, the application needs only `stack-augmentor-api` and `stack-augmentor-runtime` (no agent, no ByteBuddy, no Kotlin). The runtime reads `stack-augmentor.toml` from the classpath, or the file in `-Dstackaugmentor.config`, for `[augment]`, `[augment.exceptions]`, `[augment.receiver]` (receiver ids), `debug` and `inPlaceModification`. In an application server it also asks the context class loader of the first throwing thread.
 - **One file serves both** when it is in `src/main/resources`.
 - A frame's receiver ids come from the runtime `[augment.receiver]` entry with the same key as the entry that decided its method at build time; without that key they are left out.
-- Without a runtime configuration, a warning says so and frames show only the parameter ids chosen at build time. An invalid one is printed as an error, and stack traces stay unchanged.
+- Without a runtime configuration, a warning says so and no exception gets ids, since `[augment.exceptions]` is empty. An invalid one is printed as an error, and stack traces stay unchanged.
 
 ## Limitations in short
 
@@ -153,7 +161,7 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 ## More documentation
 
 - [Where ids come from](docs/ids.md): receiver and parameter ids, subclasses, interfaces, constructors, hashed values
-- [Configuration](docs/configuration.md): the file in full, and the frame formats
+- [Configuration](docs/configuration.md): the file in full: keys, tables, formats, options, errors and warnings
 - [Causes, root cause first](docs/causes.md): `%rEx` in Logback and Log4j 2, and `ExceptionFormat.rootCauseFirst` in the API
 - [Live stack](docs/live-stack.md): the experimental mode with the native library
 - [Limitations](docs/limitations.md): the details, with measured costs
