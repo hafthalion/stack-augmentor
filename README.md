@@ -8,10 +8,10 @@ Exception in thread "main" java.lang.Exception: An error has occurred
 	at com.hafnium.Main.main(Main.kt:15)
 ```
 
-Stack Augmentor adds ids to the frames of stack traces, so a logged exception says which order, customer or account the failing code was working on. Every logger and printer shows them, since the frames themselves are changed. Frames without ids, and exceptions you don't select, stay as they are.
+Stack Augmentor augments the frames of stack traces with receiver members and parameter values, so a logged exception says which order, customer or account the failing code was working on. Every logger and printer shows them, since the frames themselves are changed. Other frames, and exceptions you don't select, stay as they are.
 
-- **Receiver ids**: the object a frame's method runs on, from `@StackTraceReceiver` fields and methods, or from fields and getters named in the configuration.
-- **Parameter ids**: selected arguments, from `@StackTraceParam` and `@StackTraceParams`, or by name or index; sensitive values can be shown as a hash.
+- **Receiver members**: members of the object a frame's method runs on, from `@StackTraceReceiver` fields and methods, or from fields and getters named in the configuration.
+- **Parameter values**: selected arguments, from `@StackTraceParam` and `@StackTraceParams`, or by name or index; sensitive values can be shown as a hash.
 - **Classes you cannot change**: one TOML file selects classes by name, with their subclasses (`+`) or by pattern, and methods by name, pattern or `@StackTraceAugment`; it also selects which exceptions are augmented and how frames look. See [Configuration](docs/configuration.md).
 - **Three ways to run**: a Java agent, the agent reading every frame from the live stack (experimental), or build-time instrumentation without an agent.
 - **Cause chains**: the frames a cause shares with its wrapper are augmented the same way, so `... N more` still works; `ExceptionFormat.rootCauseFirst` prints the root cause first.
@@ -37,16 +37,16 @@ An application with classes instrumented at build time can also run with the age
 |---|---|---|---|
 | Configuration file | `-javaagent:...=config=<file>`, `-Dstackaugmentor.config=<file>`, or (build-time) `stack-augmentor.toml` on the classpath | none: nothing is augmented | the TOML file with everything below ([where it comes from](docs/configuration.md#where-the-file-comes-from)) |
 | `[augment.exceptions]` | configuration | empty: no exception is augmented | which exceptions are augmented, e.g. `"java.lang.Exception+" = true` ([Exceptions](docs/configuration.md#exceptions)) |
-| `[augment.receiver]` | configuration | empty | which frames show a receiver id, and where it comes from, e.g. `"com.acme.**::*" = "@"` ([Receiver ids](docs/configuration.md#receiver-ids)) |
-| `[augment.params]` | configuration | empty | which frames show parameter ids, and which parameters, e.g. `"com.acme.Order::ship, cancel*" = "orderId"` ([Parameter ids](docs/configuration.md#parameter-ids)) |
+| `[augment.receiver]` | configuration | empty | which frames show receiver members, and which ones, e.g. `"com.acme.**::*" = "@"` ([Receiver members](docs/configuration.md#receiver-members)) |
+| `[augment.params]` | configuration | empty | which frames show parameter values, and which parameters, e.g. `"com.acme.Order::ship, cancel*" = "orderId"` ([Parameter values](docs/configuration.md#parameter-values)) |
 | `[augment]` | configuration | see [Formats](docs/configuration.md#formats) | how frames look: `frameFormat`, `receiverFormat`, `paramsFormat`, `maxValueLength` |
-| `debug` | configuration | `false` | prints what gets instrumented and where each id comes from |
+| `debug` | configuration | `false` | prints what gets instrumented and where each value comes from |
 | `inPlaceModification` | configuration, or `-Dstackaugmentor.inPlaceModification=true` | `false` | writes each frame into the exception's own stack trace instead of copying the trace; faster for deep stacks, needs `java.lang` open (see [Limitations](docs/limitations.md)) |
-| Live stack | `-agentpath:<native library>` | off | the agent reads ids from the live stack instead of instrumenting classes (see [Live stack](docs/live-stack.md)) |
+| Live stack | `-agentpath:<native library>` | off | the agent reads the values from the live stack instead of instrumenting classes (see [Live stack](docs/live-stack.md)) |
 
 In all three tables the first matching entry decides, and classes are written the same way: a class name matches that class only, `+` after it also its subclasses, and a pattern (`*`, `**`, `?`) matches class names. The tables differ in their keys and values:
 
-- `[augment.receiver]` and `[augment.params]` keys name a class and its methods, `"<class>::<methods>"`, and their values say which ids to show: `"com.acme.Order::ship, cancel*" = "orderId"`.
+- `[augment.receiver]` and `[augment.params]` keys name a class and its methods, `"<class>::<methods>"`, and their values say what to show: `"com.acme.Order::ship, cancel*" = "orderId"`.
 - `[augment.exceptions]` keys name only a class, matched against the class of the thrown exception, and their values are `true` or `false`: `"java.io.IOException+" = true`.
 
 [Configuration](docs/configuration.md) describes the file in full: the syntax, every table and option, and the errors and warnings.
@@ -91,16 +91,16 @@ Use it in your own application:
    }
    ```
 
-2. Say which exceptions are augmented and which classes use their annotations, in `stack-augmentor.toml`. Receiver ids and parameter ids are configured separately:
+2. Say which exceptions are augmented and which classes use their annotations, in `stack-augmentor.toml`. Receiver members and parameter values are configured separately:
 
    ```toml
    [augment.exceptions]    # without an entry that is true, no exception is augmented
    "java.lang.Exception+" = true
 
-   [augment.receiver]      # receiver ids: @StackTraceReceiver
+   [augment.receiver]      # receiver members: @StackTraceReceiver
    "com.acme.**::*" = "@"
 
-   [augment.params]      # parameter ids: @StackTraceParam and @StackTraceParams
+   [augment.params]      # parameter values: @StackTraceParam and @StackTraceParams
    "com.acme.**::*" = "@"
    ```
 
@@ -150,22 +150,22 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 ```
 
 - **At build time**, the plugin instruments the classes and methods that `[augment.receiver]` and `[augment.params]` need. Without the configuration argument, nothing is instrumented and the build prints a warning.
-- **At runtime**, the application needs only `stack-augmentor-api` and `stack-augmentor-runtime` (no agent, no ByteBuddy, no Kotlin). The runtime reads `stack-augmentor.toml` from the classpath, or the file in `-Dstackaugmentor.config`, for `[augment]`, `[augment.exceptions]`, `[augment.receiver]` (receiver ids), `debug` and `inPlaceModification`. In an application server it also asks the context class loader of the first throwing thread.
+- **At runtime**, the application needs only `stack-augmentor-api` and `stack-augmentor-runtime` (no agent, no ByteBuddy, no Kotlin). The runtime reads `stack-augmentor.toml` from the classpath, or the file in `-Dstackaugmentor.config`, for `[augment]`, `[augment.exceptions]`, `[augment.receiver]` (receiver members), `debug` and `inPlaceModification`. In an application server it also asks the context class loader of the first throwing thread.
 - **One file serves both** when it is in `src/main/resources`.
-- A frame's receiver ids come from the runtime `[augment.receiver]` entry with the same key as the entry that decided its method at build time; without that key they are left out.
+- A frame's receiver members come from the runtime `[augment.receiver]` entry with the same key as the entry that decided its method at build time; without that key they are left out.
 - Without a runtime configuration, a warning says so and no exception is augmented, since `[augment.exceptions]` is empty. An invalid one is printed as an error, and stack traces stay unchanged.
 
 ## Limitations in short
 
 - Only the frames the exception leaves are augmented, except in the live stack mode.
-- Constructors show parameter ids only.
-- An exception thrown more than once keeps the ids of its first throw.
+- Constructors show parameter values only.
+- An exception thrown more than once keeps the values of its first throw.
 - Each configured frame an exception leaves costs a few microseconds; normal returns cost nothing.
 - Changed class and method names may confuse tools that parse stack traces.
 
 ## More documentation
 
-- [Where ids come from](docs/ids.md): receiver and parameter ids, subclasses, interfaces, constructors, hashed values
+- [Receivers and parameters](docs/receivers-and-parameters.md): receiver members and parameter values, subclasses, interfaces, constructors, hashed values
 - [Configuration](docs/configuration.md): the file in full: keys, tables, formats, options, errors and warnings
 - [Causes, root cause first](docs/causes.md): `%rEx` in Logback and Log4j 2, and `ExceptionFormat.rootCauseFirst` in the API
 - [Live stack](docs/live-stack.md): the experimental mode with the native library
