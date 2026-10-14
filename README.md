@@ -44,7 +44,12 @@ An application with classes instrumented at build time can also run with the age
 | `inPlaceModification` | configuration, or `-Dstackaugmentor.inPlaceModification=true` | `false` | writes each frame into the exception's own stack trace instead of copying the trace; faster for deep stacks, needs `java.lang` open (see [Limitations](docs/limitations.md)) |
 | Live stack | `-agentpath:<native library>` | off | the agent reads ids from the live stack instead of instrumenting classes (see [Live stack](docs/live-stack.md)) |
 
-All three tables have keys `"<class>::<methods>"` (just `"<class>"` for exceptions), and the first matching entry decides: a class name matches that class only, `+` after it also its subclasses, and a pattern (`*`, `**`, `?`) matches class names. [Configuration](docs/configuration.md) describes the file in full: the syntax, every table and option, and the errors and warnings.
+In all three tables the first matching entry decides, and classes are written the same way: a class name matches that class only, `+` after it also its subclasses, and a pattern (`*`, `**`, `?`) matches class names. The tables differ in their keys and values:
+
+- `[augment.receiver]` and `[augment.params]` keys name a class and its methods, `"<class>::<methods>"`, and their values say which ids to show: `"com.acme.Order::ship, cancel*" = "orderId"`.
+- `[augment.exceptions]` keys name only a class, matched against the class of the thrown exception, and their values are `true` or `false`: `"java.io.IOException+" = true`.
+
+[Configuration](docs/configuration.md) describes the file in full: the syntax, every table and option, and the errors and warnings.
 
 ## Quick start: Java agent
 
