@@ -32,7 +32,7 @@ The system SHALL always print a warning to standard error, prefixed `[stack-augm
   missing-member warning, also for an entry with wildcards;
 - when an annotated receiver member cannot be made accessible;
 - when the runtime handler cannot be created, with the reason;
-- when the build-time runtime handler finds no configuration, so no exception is augmented;
+- when the build-time runtime handler finds no configuration, so the built-in configuration is used;
 - when the agent or the build plugin starts with a configuration that has no `[augment.receiver]` and no
   `[augment.params]` entries other than `"-"`, so nothing will be augmented;
 - when the agent, the build plugin or the runtime starts with `[augment.receiver]` or `[augment.params]` entries but
@@ -52,7 +52,7 @@ A member missing for an entry with wildcards SHALL only be reported as a debug m
 - **THEN** no warning is printed and frames of `Customer` show no receiver members
 
 #### Scenario: Nothing configured
-- **GIVEN** the agent started without a configuration
+- **GIVEN** the agent started with a configuration that has only `debug = false`
 - **WHEN** it starts
 - **THEN** `[stack-augmentor] WARN agent: the configuration has no [augment.receiver] or [augment.params] entries other than "-", so nothing will be augmented` is printed
 

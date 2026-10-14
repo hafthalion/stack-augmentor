@@ -602,7 +602,18 @@ class AugmentorConfigTest {
         assertTrue(message.contains("must be a TOML file ending in .toml"), message)
 
         assertTrue(assertThrows<ConfigException> { AugmentorConfig.load("config=${dir.resolve("missing.toml")}") }.message!!.contains("not found"))
-        assertEquals(AugmentorConfig(), AugmentorConfig.load(null as String?))
+        assertEquals(AugmentorConfig.builtIn(), AugmentorConfig.load(null as String?))
+    }
+
+    @Test
+    fun `without a file the built-in configuration augments all exceptions with the annotated members and parameters`() {
+        val config = AugmentorConfig.builtIn()
+        assertTrue(config.hasAugmentEntries())
+        assertTrue(config.augments(IllegalStateException::class.java))
+        assertFalse(config.augments(Error::class.java))
+        assertEquals("**::*=@", config.classesDescription())
+        assertEquals(listOf(ParamRef.Annotations()), config.paramRefs("com.acme.Order", "process", false))
+        assertEquals(listOf(ParamRef.Annotations()), config.paramRefs("com.acme.Order", "<init>", false))
     }
 
     @Test

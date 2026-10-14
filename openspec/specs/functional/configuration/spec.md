@@ -59,7 +59,7 @@ entries, rather than one silently replacing the other.
 #### Scenario: Empty file
 - **GIVEN** an empty configuration file
 - **WHEN** it is loaded
-- **THEN** all defaults apply, and nothing is augmented
+- **THEN** the default values apply, the built-in configuration does not, and nothing is augmented
 
 #### Scenario: Wildcard entry with named parameters
 - **GIVEN** `"com.thirdparty.**.*Service::*" = "order, 1"` in `[augment.params]`
@@ -130,14 +130,29 @@ invalid in both tables. The message SHALL name the file, the key and its line.
 
 ### Requirement: Locating the configuration
 With the Java agent, the configuration SHALL be taken from the agent arguments (`config=<path>` or
-`<path>`), otherwise from the `stackaugmentor.config` system property, otherwise the defaults apply. With
+`<path>`), otherwise from the `stackaugmentor.config` system property, otherwise the built-in configuration applies. With
 build-time instrumentation, the build plugin SHALL read the file passed as its argument, and at runtime
 the configuration SHALL be taken from the `stackaugmentor.config` system property, otherwise from
-`stack-augmentor.toml` on the classpath, otherwise the defaults apply. The classpath resource SHALL be looked
+`stack-augmentor.toml` on the classpath, otherwise the built-in configuration applies. The classpath resource SHALL be looked
 up through the runtime jar's class loader, and when that loader does not find it, through the context class
 loader of the thread that creates the handler, i.e. the thread of the first exception: in an application
-server or a fat jar, the runtime jar can be loaded by a parent of the application's class loader. The defaults contain no
-`[augment.receiver]` or `[augment.params]` entries, so the agent with the defaults augments nothing.
+server or a fat jar, the runtime jar can be loaded by a parent of the application's class loader. Without a configuration
+the build plugin SHALL apply the built-in configuration as well.
+
+The built-in configuration SHALL be:
+
+```toml
+[augment.exceptions]
+"java.lang.Exception+" = true
+
+[augment.receiver]
+"**::*" = "@"
+
+[augment.params]
+"**::*" = "@"
+```
+
+It SHALL apply only when no file is given; a file SHALL replace it completely, also where it leaves a table out.
 
 #### Scenario: Configuration visible only to the application's class loader
 - **GIVEN** a build-time instrumented application whose `stack-augmentor.toml` is visible to the context class loader of the throwing thread, but not to the class loader of `stack-augmentor-runtime`
@@ -145,8 +160,13 @@ server or a fat jar, the runtime jar can be loaded by a parent of the applicatio
 - **THEN** the runtime handler uses that `stack-augmentor.toml`
 
 #### Scenario: Agent without configuration
-- **GIVEN** `-javaagent:stack-augmentor-agent.jar` without arguments and without the system property
-- **WHEN** the application starts
+- **GIVEN** `-javaagent:stack-augmentor-agent.jar` without arguments and without the system property, and a class with an `@AugmentedReceiver` field `key = "java-1"` and a method `run(@AugmentedParam int value)` that throws an `IllegalStateException`
+- **WHEN** `run(42)` throws
+- **THEN** the built-in configuration applies, the frame shows `{key=java-1}` and `{value=42}`, and no warning is printed
+
+#### Scenario: File without receiver and parameter entries
+- **GIVEN** `config=stack-augmentor.toml` with only `debug = false`
+- **WHEN** the agent starts
 - **THEN** no class is augmented, and a warning says that the configuration has no `[augment.receiver]` or `[augment.params]` entries
 
 #### Scenario: Missing file

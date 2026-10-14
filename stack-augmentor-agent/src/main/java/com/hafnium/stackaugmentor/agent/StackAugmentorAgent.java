@@ -36,7 +36,7 @@ public final class StackAugmentorAgent {
         AugmentorConfig config = Startup.load(Startup.AGENT, () -> AugmentorConfig.load(agentArgs));
         FrameFormat format = FrameFormat.create(config);
         String location = AugmentorConfig.location(agentArgs);
-        Startup.configure(Startup.AGENT, location != null ? location : "none, using the defaults", config);
+        Startup.configure(Startup.AGENT, location != null ? location : AugmentorConfig.BUILT_IN_LOCATION, config);
         Startup.warnIfNothingConfigured(Startup.AGENT, config);
         BridgeInjector.inject(instrumentation);
         Installer.install(instrumentation, config, format);

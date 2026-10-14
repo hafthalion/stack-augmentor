@@ -2,10 +2,11 @@
 
 [Back to the README](../README.md)
 
-Everything Stack Augmentor does is set in one TOML file. It says which exceptions are augmented, which frames show receiver members and which show parameter values, and how the frames look. Without a file nothing is augmented.
+Everything Stack Augmentor does is set in one TOML file. It says which exceptions are augmented, which frames show receiver members and which show parameter values, and how the frames look. Without a file, the [built-in configuration](#the-built-in-configuration) applies: all exceptions are augmented, with the annotated receiver members and parameter values.
 
 - [The file at a glance](#the-file-at-a-glance)
 - [Where the file comes from](#where-the-file-comes-from)
+- [The built-in configuration](#the-built-in-configuration)
 - [Keys: classes and methods](#keys-classes-and-methods)
 - [Exceptions](#exceptions): `[augment.exceptions]`
 - [Receiver members](#receiver-members): `[augment.receiver]`
@@ -71,7 +72,26 @@ The file name must end in `.toml`.
 | Build plugin | the plugin's argument in `build.gradle.kts` (see the [README](../README.md#quick-start-build-time-instrumentation)) | `[augment.receiver]` and `[augment.params]`, to decide which classes and methods to instrument and which parameters they pass; `debug`. It validates the whole file and warns if no `[augment.exceptions]` entry is `true` |
 | Runtime of classes instrumented at build time | `-Dstackaugmentor.config=<file>`, otherwise `stack-augmentor.toml` on the classpath (in an application server also from the context class loader of the first throwing thread) | `[augment]`, `[augment.exceptions]`, `[augment.receiver]`, `debug`, `inPlaceModification`; the parameters were chosen at build time |
 
-For build-time instrumentation, one file in `src/main/resources` serves both the build and the runtime. A frame's receiver members come from the runtime entry with the same key as the entry that decided its method at build time, so if you change a key, rebuild. Without a runtime file, no exception is augmented and a warning says so.
+For build-time instrumentation, one file in `src/main/resources` serves both the build and the runtime. A frame's receiver members come from the runtime entry with the same key as the entry that decided its method at build time, so if you change a key, rebuild. Without a runtime file, the built-in configuration applies and a warning says so: a forgotten file would otherwise go unnoticed, since the built-in configuration does not have the keys of your build file.
+
+The defaults in the table above are those of a file that leaves a key out: an empty file augments nothing.
+
+## The built-in configuration
+
+When no file is given, to the agent, to the build plugin or to the runtime of classes instrumented at build time, this configuration applies:
+
+```toml
+[augment.exceptions]
+"java.lang.Exception+" = true
+
+[augment.receiver]
+"**::*" = "@"
+
+[augment.params]
+"**::*" = "@"
+```
+
+So all exceptions (not errors) are augmented, and every class's methods show its `@AugmentedReceiver` members and their own `@AugmentedParam` and `@AugmentedParams` parameters; constructors show their annotated parameters. The agent then checks every loaded class for these annotations, apart from the JDK, Kotlin and ByteBuddy, which costs some class-loading time; a file with your own packages, such as `"com.acme.**::*" = "@"`, keeps that narrow. A file replaces the built-in configuration completely: its tables are not merged.
 
 ## Keys: classes and methods
 
@@ -134,7 +154,7 @@ A method belongs to the class that declares it: a subclass's own methods need an
 "com.acme.**" = true
 ```
 
-- **Without this table, or with an empty one, no exception is augmented.** `"java.lang.Exception+" = true` augments all exceptions, `"**" = true` all throwables, errors included. To exclude only some, put their `false` entries before it.
+- **In a file without this table, or with an empty one, no exception is augmented.** `"java.lang.Exception+" = true` augments all exceptions, `"**" = true` all throwables, errors included. To exclude only some, put their `false` entries before it.
 - **The keys are classes as above, without methods**: a class name matches that class only, `+` after it also its subclasses, and a pattern the name of the exception's class only.
 - **Unquoted class names work too**, since TOML reads `java.io.IOException = true` as nested tables, which mean the same. Keys with `+` or wildcards must be quoted.
 - **It is checked when an exception leaves an instrumented method** (in the live-stack mode: when it is created). Classes are instrumented as the other two tables say, whatever this table contains.
@@ -228,7 +248,8 @@ With build-time instrumentation, the runtime reads its configuration when the fi
 
 **Warnings** don't stop anything:
 
-- no configuration file, or one without `[augment.receiver]` and `[augment.params]` entries: nothing is augmented;
+- a configuration without `[augment.receiver]` and `[augment.params]` entries: nothing is augmented;
+- no runtime configuration for classes instrumented at build time: the built-in configuration is used;
 - receiver or parameter entries, but no `[augment.exceptions]` entry that is `true`: no exception would be augmented;
 - a receiver member the class does not have, for a key with a class name. For a pattern it is a debug message, since a pattern may match classes that don't have it. So are parameter names that a method does not have.
 

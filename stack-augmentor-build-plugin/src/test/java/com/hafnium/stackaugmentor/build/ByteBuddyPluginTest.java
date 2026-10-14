@@ -1,5 +1,6 @@
 package com.hafnium.stackaugmentor.build;
 
+import com.hafnium.buildfixture.Plain;
 import com.hafnium.buildfixture.Tracked;
 import com.hafnium.stackaugmentor.AugmentedReceiver;
 import com.hafnium.stackaugmentor.runtime.Log;
@@ -49,10 +50,24 @@ class ByteBuddyPluginTest {
     }
 
     @Test
-    void withoutConfigurationNothingIsInstrumented() {
+    void withoutConfigurationTheAnnotatedClassesAreInstrumented() {
         ByteArrayOutputStream err = captureErr();
 
-        assertFalse(new ByteBuddyPlugin().matches(tracked()));
+        ByteBuddyPlugin plugin = new ByteBuddyPlugin();
+        assertTrue(plugin.matches(tracked()));
+        assertFalse(plugin.matches(TypeDescription.ForLoadedType.of(Plain.class)));
+
+        String output = err.toString(StandardCharsets.UTF_8);
+        assertFalse(output.contains("WARN"), output);
+    }
+
+    @Test
+    void aConfigurationWithoutEntriesInstrumentsNothing(@TempDir Path dir) throws IOException {
+        Path config = dir.resolve("stack-augmentor.toml");
+        Files.writeString(config, "debug = false\n");
+        ByteArrayOutputStream err = captureErr();
+
+        assertFalse(new ByteBuddyPlugin(config.toString()).matches(tracked()));
 
         String output = err.toString(StandardCharsets.UTF_8);
         assertTrue(output.contains("WARN build plugin: the configuration has no [augment.receiver] or [augment.params] entries other "

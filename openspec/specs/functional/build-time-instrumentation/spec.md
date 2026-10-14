@@ -15,8 +15,8 @@ path of a TOML configuration as argument 0, it SHALL apply that file's `[augment
 configuration. An invalid configuration, including an invalid `[augment]` template that only the runtime
 renders, SHALL fail the build, and the reason SHALL be printed as an error, because the ByteBuddy Gradle
 plugin does not show the cause of a failing plugin constructor. It SHALL be discoverable through
-`META-INF/net.bytebuddy/build.plugins`. Without a configuration, it SHALL instrument nothing and SHALL print
-a warning.
+`META-INF/net.bytebuddy/build.plugins`. Without a configuration, it SHALL apply the built-in configuration (see the
+configuration spec), instrumenting the classes with annotated receiver members or parameters.
 
 #### Scenario: Invalid template
 - **GIVEN** `paramsFormat = "($name=$value, ...)"` on line 14 of the build plugin's configuration
@@ -42,7 +42,7 @@ a warning.
 #### Scenario: No configuration
 - **GIVEN** the build plugin discovered through `META-INF/net.bytebuddy/build.plugins`, without an argument
 - **WHEN** the project is built
-- **THEN** no class is changed and a warning says that nothing will be augmented
+- **THEN** the classes with an `@AugmentedReceiver` member or an annotated parameter are instrumented, the others are not changed, and no warning is printed
 
 ### Requirement: Only the project's own classes
 Build-time instrumentation SHALL change only the classes of the project being built. Libraries SHALL
@@ -73,10 +73,15 @@ with the file, the key and the line (see the diagnostics specification).
 - **THEN** the handler is created through `ServiceLoader` and the frame shows the augmentation
 
 #### Scenario: No runtime configuration
-- **GIVEN** a class with `@AugmentedReceiver`, instrumented at build time, and no `stack-augmentor.toml` on the runtime classpath
-- **WHEN** one of its methods throws
-- **THEN** the frame stays unchanged, since no `[augment.exceptions]` entry augments the exception
-- **AND** a warning says that there is no runtime configuration, so no exception is augmented
+- **GIVEN** a class with `@AugmentedReceiver`, instrumented at build time with the key `com.acme.Svc::*`, and no `stack-augmentor.toml` on the runtime classpath
+- **WHEN** one of its methods throws an exception
+- **THEN** the built-in configuration applies: the exception is augmented, but the frame shows no receiver members, since the built-in configuration has no entry with that key
+- **AND** a warning says that there is no runtime configuration, so the built-in configuration is used
+
+#### Scenario: Built-in configuration at build time and at runtime
+- **GIVEN** a class with `@AugmentedReceiver`, instrumented by the build plugin without a configuration, and no runtime configuration
+- **WHEN** one of its methods throws an exception
+- **THEN** the frame shows the annotated receiver members, since both use the key `**::*`
 
 #### Scenario: Receiver key changed without a rebuild
 - **GIVEN** a class built with `"com.acme.Svc::*" = "id"`, and a runtime configuration with `"com.acme.Svc+::*" = "id"` instead

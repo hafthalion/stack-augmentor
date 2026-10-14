@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 
-/** This module has no stack-augmentor.toml on its test classpath, so ThrowHandler() uses the defaults. */
+/** This module has no stack-augmentor.toml on its test classpath, so ThrowHandler() uses the built-in configuration. */
 class ThrowHandlerTest {
 
     class Annotated {
@@ -45,19 +45,25 @@ class ThrowHandlerTest {
     }
 
     @Test
-    fun `build-time handler needs an entry and warns without a runtime configuration`() {
+    fun `build-time handler uses the built-in configuration and warns without a runtime configuration`() {
         assertNull(AugmentorConfig.location(null), "the test must run without -Dstackaugmentor.config")
         val target = Annotated()
-        val thrown = thrownBy(target)
+        val built = thrownBy(target)
+        val other = thrownBy(target)
         val originalErr = System.err
         val err = ByteArrayOutputStream()
         System.setErr(PrintStream(err, true, Charsets.UTF_8))
         try {
-            ThrowHandler().onThrow(target, thrown, Annotated::class.java.name + "::*", Annotated::class.java.name, "fail", null, null)
+            val handler = ThrowHandler()
+            // Built with the built-in configuration too: its key is found.
+            handler.onThrow(target, built, "**::*", Annotated::class.java.name, "fail", null, null)
+            // Built with another key: the built-in configuration does not have it.
+            handler.onThrow(target, other, Annotated::class.java.name + "::*", Annotated::class.java.name, "fail", null, null)
         } finally {
             System.setErr(originalErr)
         }
-        assertEquals(Annotated::class.java.name, thrown.stackTrace[0].className)
+        assertEquals(Annotated::class.java.name + "{objectId=a-1}", built.stackTrace[0].className)
+        assertEquals(Annotated::class.java.name, other.stackTrace[0].className)
         assertTrue(err.toString(Charsets.UTF_8).contains("WARN runtime: " + ThrowHandler.NO_RUNTIME_CONFIG), err.toString(Charsets.UTF_8))
     }
 
