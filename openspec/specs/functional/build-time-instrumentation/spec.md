@@ -27,7 +27,7 @@ a warning.
 - **GIVEN** `examples/build-time`, with the ByteBuddy Gradle plugin, the `DECORATE` entry point and the build plugin with its configuration argument, which has `"com.hafnium.examples.buildtime.**::*" = "@"` in `[augment.receiver]` and `"com.hafnium.examples.buildtime.**::*" = "@"` in `[augment.params]`
 - **WHEN** the project is built and run without `-javaagent`
 - **THEN** the frames of `ClassWithAnnotation` show `{objectId=object-1}` and `{param=ObjectParam{name=object-param-1}, token=#fb07916a}`, the argument's `toString()` with its parentheses replaced by braces and the secret token hashed
-- **AND** the frame of `ClassWithoutAnnotation.method` shows `{q=123}` from its own `[augment.params]` entry, which comes before the `"@"` pattern, and no receiver id
+- **AND** the frame of `ClassWithoutAnnotation.method` shows `{q=123}` from its own `[augment.params]` entry, which comes before the `"@"` pattern, and no receiver members
 
 #### Scenario: Configuration change
 - **GIVEN** the `"@"` entries in the build plugin's configuration no longer match the project's classes
@@ -37,7 +37,7 @@ a warning.
 #### Scenario: Method-level parameter annotation
 - **GIVEN** a project class whose only annotation is `@StackTraceParams` on a method, which an `[augment.params]` `"@"` entry matches
 - **WHEN** the project is built
-- **THEN** that method is instrumented and shows its parameter ids
+- **THEN** that method is instrumented and shows its parameter values
 
 #### Scenario: No configuration
 - **GIVEN** the build plugin discovered through `META-INF/net.bytebuddy/build.plugins`, without an argument
@@ -62,15 +62,15 @@ on the first exception that leaves an instrumented method. `stack-augmentor-runt
 `com.hafnium.stackaugmentor.runtime.handler.ThrowHandler`, whose no-argument constructor reads the runtime
 configuration. The runtime SHALL NOT match classes against `[augment.receiver]` again: the advice passes the key
 of the entry that decided the method at build time, and the runtime entry with that key SHALL give the receiver
-ids. A method that no entry decided at build time, or whose key the runtime configuration does not have (e.g.
-a key changed without rebuilding), SHALL show no receiver id, even if its class is annotated. If creating the handler fails, a warning with the reason SHALL be printed and
+members. A method that no entry decided at build time, or whose key the runtime configuration does not have (e.g.
+a key changed without rebuilding), SHALL show no receiver members, even if its class is annotated. If creating the handler fails, a warning with the reason SHALL be printed and
 exceptions SHALL keep their original stack traces; an invalid runtime configuration SHALL be printed as an error
 with the file, the key and the line (see the diagnostics specification).
 
 #### Scenario: Tests without an agent
 - **GIVEN** the tests of `stack-augmentor-it-build-time`, which run without `-javaagent`
 - **WHEN** an instrumented method throws
-- **THEN** the handler is created through `ServiceLoader` and the frame shows the ids
+- **THEN** the handler is created through `ServiceLoader` and the frame shows the augmentation
 
 #### Scenario: No runtime configuration
 - **GIVEN** a class with `@StackTraceReceiver`, instrumented at build time, and no `stack-augmentor.toml` on the runtime classpath
@@ -81,9 +81,9 @@ with the file, the key and the line (see the diagnostics specification).
 #### Scenario: Receiver key changed without a rebuild
 - **GIVEN** a class built with `"com.acme.Svc::*" = "id"`, and a runtime configuration with `"com.acme.Svc+::*" = "id"` instead
 - **WHEN** a method of `Svc` throws
-- **THEN** the frame shows no receiver id, since the runtime has no entry with the key `com.acme.Svc::*`
+- **THEN** the frame shows no receiver members, since the runtime has no entry with the key `com.acme.Svc::*`
 
 #### Scenario: Parameter entry only
 - **GIVEN** `"com.acme.Svc::run" = "0"` in `[augment.params]`, no `[augment.receiver]` entry for `Svc`, and `Svc` with a `@StackTraceReceiver` field
 - **WHEN** `run` throws in a build-time instrumented application
-- **THEN** the frame shows the parameter id of `run`'s first parameter and no receiver id
+- **THEN** the frame shows the parameter value of `run`'s first parameter and no receiver members

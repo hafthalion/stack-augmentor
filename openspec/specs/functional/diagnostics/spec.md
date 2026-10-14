@@ -30,7 +30,7 @@ The system SHALL always print a warning to standard error, prefixed `[stack-augm
 - when the member named by an `[augment.receiver]` entry exists but cannot be made accessible, and no
   accessible field or getter of that name replaces it; this warning, which names the member, SHALL replace the
   missing-member warning, also for an entry with wildcards;
-- when an annotated id source cannot be made accessible;
+- when an annotated receiver member cannot be made accessible;
 - when the runtime handler cannot be created, with the reason;
 - when the build-time runtime handler finds no configuration, so no exception is augmented;
 - when the agent or the build plugin starts with a configuration that has no `[augment.receiver]` and no
@@ -43,13 +43,13 @@ A member missing for an entry with wildcards SHALL only be reported as a debug m
 
 #### Scenario: Missing configured member
 - **GIVEN** `"com.thirdparty.Customer::*" = "customerNo"`, a misspelling: `Customer` has a field `customerId`, but no field and no getter for `customerNo`; and `debug = false`
-- **WHEN** the id source of `Customer` is first needed
+- **WHEN** the receiver members of `Customer` are first needed
 - **THEN** `[stack-augmentor] WARN [augment.receiver] "com.thirdparty.Customer::*": no field or property customerNo found` is printed
 
 #### Scenario: Missing member for a wildcard entry
 - **GIVEN** `"com.thirdparty.*::*" = "getId()"`, `debug = false`, and `com.thirdparty.Customer` without `getId()`
-- **WHEN** the id source of `Customer` is first needed
-- **THEN** no warning is printed and frames of `Customer` show no receiver id
+- **WHEN** the receiver members of `Customer` are first needed
+- **THEN** no warning is printed and frames of `Customer` show no receiver members
 
 #### Scenario: Nothing configured
 - **GIVEN** the agent started without a configuration
@@ -60,11 +60,11 @@ A member missing for an entry with wildcards SHALL only be reported as a debug m
 With `debug = true`, the system SHALL print messages to standard error, prefixed
 `[stack-augmentor] DEBUG`, for:
 - the configuration, from the agent, the build plugin and the runtime handler alike: its location, the `[augment.receiver]` entries (with `@` for annotations and `-` for none) and the `[augment.params]` entries (with `#` for hashed parameters, `@` for annotations and `-` for none), and the formats;
-- each instrumented class: why it is instrumented (configured receiver id, annotated receiver id, or parameter ids only), and its instrumented methods with their parameter ids;
+- each instrumented class: why it is instrumented (configured receiver members, annotated receiver members, or parameter values only), and its instrumented methods with their parameter values;
 - `@StackTraceReceiver` annotations ignored because the class's deciding `[augment.receiver]` entry is not `"@"` or no entry matches the class, and `@StackTraceParam` and `@StackTraceParams` annotations ignored because no `[augment.params]` entry with `"@"` applies to the method, each naming the table that would enable them;
 - `[augment.params]` entries without wildcards or `+` that name a missing method, a missing parameter or an index out of range, suggesting `-parameters` or an index when the class has no parameter names;
 - members missing for `[augment.receiver]` entries with wildcards;
-- the id source found for each class when it is first needed;
+- the receiver members found for each class when they are first needed;
 - exceptions whose frame is not found in their stack trace.
 
 `[augment.params]` entries with wildcards or `+` SHALL NOT produce messages for classes or methods they do not
@@ -80,7 +80,7 @@ SHALL be printed, and the message texts SHALL NOT be built, also for the message
 #### Scenario: Instrumented class
 - **GIVEN** `debug = true` and `"com.thirdparty.OrderService::process" = "order, 1"` in `[augment.params]`
 - **WHEN** `OrderService` is instrumented
-- **THEN** `instrumenting com.thirdparty.OrderService (parameter ids only): process{order, quantity}` is printed
+- **THEN** `instrumenting com.thirdparty.OrderService (parameter values only): process{order, quantity}` is printed
 
 #### Scenario: Wildcard entry
 - **GIVEN** `debug = true` and `"com.thirdparty.*::*" = "order"`

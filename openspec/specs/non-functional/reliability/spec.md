@@ -9,31 +9,31 @@ and that configuration mistakes are found early.
 ### Requirement: The application's exceptions are never changed otherwise
 Apart from the frames of its stack trace, an exception SHALL reach the application unchanged: same
 object, type, message, cause and suppressed exceptions. Any failure inside the augmentation, including
-failures of id sources and of creating the handler, SHALL be contained and SHALL NOT be thrown to the
+failures of receiver members and of creating the handler, SHALL be contained and SHALL NOT be thrown to the
 application.
 
-#### Scenario: Id source throws
-- **GIVEN** an annotated id method that throws `IllegalStateException`
+#### Scenario: Receiver member throws
+- **GIVEN** an annotated receiver member `id()` that throws `IllegalStateException`
 - **WHEN** a method of that class throws `IllegalStateException("fail")`
 - **THEN** the application receives the original exception with the message `fail`, and the frame shows `id=?`
 
 ### Requirement: No recursion
-Exceptions thrown while the augmentation itself runs on a thread, for example by an id source that is an
+Exceptions thrown while the augmentation itself runs on a thread, for example by a receiver member that is an
 instrumented method, SHALL NOT be augmented.
 
-#### Scenario: Instrumented id source throws
-- **GIVEN** an id source that is itself an instrumented method and throws
-- **WHEN** it is called to build an id
-- **THEN** its exception is not augmented and the id is shown as `?`
+#### Scenario: Instrumented receiver member throws
+- **GIVEN** a receiver member that is itself an instrumented method and throws
+- **WHEN** it is called to read its value
+- **THEN** its exception is not augmented and the value is shown as `?`
 
 ### Requirement: No retained objects
-The augmentation SHALL NOT keep references to application objects or exceptions beyond their use: ids
+The augmentation SHALL NOT keep references to application objects or exceptions beyond their use: values
 SHALL be converted to text immediately, and per-exception state SHALL be held weakly.
 
 #### Scenario: Exception becomes unreachable
 - **GIVEN** an augmented exception that the application no longer references
 - **WHEN** the garbage collector runs
-- **THEN** the exception and the objects its ids came from can be collected
+- **THEN** the exception and the objects its values came from can be collected
 
 ### Requirement: Fail fast on invalid configuration
 An invalid configuration SHALL stop the JVM when the agent starts, or fail the build when the build

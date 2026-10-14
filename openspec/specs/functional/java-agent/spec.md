@@ -14,7 +14,7 @@ jar SHALL be self-contained.
 #### Scenario: Demo application
 - **GIVEN** the `examples/java-agent` application started with the agent and its `stack-augmentor.toml`
 - **WHEN** its methods throw
-- **THEN** the printed stack traces show the ids of the annotated classes and of the configured third-party classes
+- **THEN** the printed stack traces show the receiver members and parameter values of the annotated classes and of the configured third-party classes
 
 ### Requirement: Instrumenting at class load
 The agent SHALL instrument classes when they are loaded, and classes already loaded by retransformation.
@@ -44,7 +44,7 @@ Classes in the ignored packages SHALL stay uninstrumented, even when a wildcard 
 - **WHEN** `InventoryService().reserve("x-1", 2)` throws
 - **THEN** the frame reads `com.thirdparty.InventoryService.reserve{sku=x-1, count=2}(…)`
 
-#### Scenario: Library classes with a receiver id selected by a wildcard
+#### Scenario: Library classes with a receiver member selected by a wildcard
 - **GIVEN** `"com.thirdparty.*Account::*" = "number"` in `[augment.receiver]`
 - **WHEN** `SavingsAccount("S-1").withdraw()` throws
 - **THEN** the frame reads `com.thirdparty.SavingsAccount{number=S-1}.withdraw(…)`
@@ -63,4 +63,4 @@ install its handler before any class is instrumented.
 #### Scenario: Class loaded by a child class loader
 - **GIVEN** an instrumented class loaded by an application-specific class loader
 - **WHEN** one of its methods throws
-- **THEN** the frame shows its ids
+- **THEN** the frame shows its augmentation

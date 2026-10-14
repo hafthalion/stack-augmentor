@@ -1,7 +1,7 @@
 # Design Specification
 
 ## Purpose
-Non-functional requirements that record the current design decisions: how ids are captured, dispatched
+Non-functional requirements that record the current design decisions: how receiver members and parameter values are captured, dispatched
 and rendered, and how the Java agent loads, so that changes to them are made deliberately.
 
 ## Requirements
@@ -18,13 +18,13 @@ call `Dispatch.onThrow`. Exceptions inside the advice SHALL be suppressed.
 
 ### Requirement: Lazily built advice arguments
 The receiver, the key of the deciding `[augment.receiver]` entry, the parameter values and their labels SHALL be
-bound through custom ByteBuddy offset mappings (`@IdReceiver` for `this`, or `null` where no receiver id applies,
-`@IdReceiverKey` for the entry key as a constant, `@IdArgs` for an `Object[]` of the id parameters, boxing primitives, and `@IdArgNames` for a
+bound through custom ByteBuddy offset mappings (`@IdReceiver` for `this`, or `null` where no receiver members apply,
+`@IdReceiverKey` for the entry key as a constant, `@IdArgs` for an `Object[]` of the selected parameters, boxing primitives, and `@IdArgNames` for a
 `String[]` of labels), so that the arrays are built only where the advice reads them: inside the
-exception branch. Methods without id parameters SHALL get `null` for both.
+exception branch. Methods without selected parameters SHALL get `null` for both.
 
-#### Scenario: Six primitive id parameters
-- **GIVEN** a method with six `Int` id parameters
+#### Scenario: Six selected primitive parameters
+- **GIVEN** a method with six selected `Int` parameters
 - **WHEN** it returns normally
 - **THEN** no `Object[]`, `String[]` or boxed `Integer` is created
 
@@ -46,8 +46,8 @@ otherwise `Dispatch` SHALL look it up once with `ServiceLoader`. A thread-local 
 re-entrant calls, and any `Throwable` from the handler SHALL be swallowed.
 
 #### Scenario: Handler already running on the thread
-- **GIVEN** the handler is building an id on a thread
-- **WHEN** an instrumented method called by the id source throws on the same thread
+- **GIVEN** the handler is building a value on a thread
+- **WHEN** an instrumented method called by a receiver member throws on the same thread
 - **THEN** `Dispatch.onThrow` returns immediately
 
 ### Requirement: Bridge on the bootstrap class path
@@ -115,8 +115,8 @@ depending on the API module. The annotations SHALL have no attributes other than
 - **THEN** the annotations are recognised
 
 ### Requirement: Caching and weak state
-Id sources SHALL be looked up once per class and cached in a `ClassValue`. The per-exception search
-position SHALL be kept in a weak, identity-based map. Ids SHALL be converted to `String` when captured.
+Receiver members SHALL be looked up once per class and cached in a `ClassValue`. The per-exception search
+position SHALL be kept in a weak, identity-based map. Values SHALL be converted to `String` when captured.
 
 #### Scenario: Exceptions that override equals
 - **GIVEN** two distinct exceptions that are `equals` to each other
@@ -135,8 +135,8 @@ file name and line number. It SHALL be installed with `Throwable.setStackTrace`.
 
 ### Requirement: Configuration model
 The configuration SHALL be parsed with tomlj and mapped directly onto an immutable `AugmentorConfig`
-Java class, with typed access and value-based equality. Every key SHALL be validated. The receiver id
-sources, parameter references and named ids SHALL be Java records, grouped under sealed interfaces
+Java class, with typed access and value-based equality. Every key SHALL be validated. The receiver
+members, parameter references and labelled values SHALL be Java records, grouped under sealed interfaces
 where there are alternatives (`IdSpec`, `ParamRef`). The frame templates SHALL be parsed and validated
 whenever the configuration is loaded, also by the build plugin, which does not render frames.
 

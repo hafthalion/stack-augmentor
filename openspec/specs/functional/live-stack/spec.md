@@ -22,35 +22,35 @@ naming the reason, change nothing, and instrument classes as usual.
 - **GIVEN** a native library whose version the agent does not expect
 - **THEN** the agent warns and instruments classes as usual
 
-### Requirement: Capturing ids from the live stack
+### Requirement: Capturing values from the live stack
 In this mode the agent SHALL add code only to `java.lang.Throwable`: when the JVM has recorded a stack trace, for each
 frame of that trace whose method an entry selects, as decided by the same rules as for instrumentation, it SHALL read
-the receiver and the selected arguments from the live stack and turn them into ids right away. Exceptions created while
-a class is being loaded SHALL be skipped. The ids SHALL be written into the throwable's stack trace array when that is
+the receiver and the selected arguments from the live stack and turn them into text right away. Exceptions created while
+a class is being loaded SHALL be skipped. The augmentation SHALL be written into the throwable's stack trace array when that is
 created from the recorded frames, once, and SHALL not be written if the application replaced the stack trace.
 The configuration and the formats SHALL be the same as with instrumentation.
 
 #### Scenario: Frames below a catch
 - **GIVEN** `Layers.catchAndReturn()` catches the exception that `Layers.inner(1)` throws, and returns it
-- **THEN** both frames show the receiver id, `inner` also its parameter id
+- **THEN** both frames show the receiver member, `inner` also its parameter value
 
 #### Scenario: Exception from the superclass constructor
 - **GIVEN** `ExpressParcel(code, priority)` calls `super(code)`, which throws
-- **THEN** the `ExpressParcel.<init>` frame shows its parameter ids, and no receiver id
+- **THEN** the `ExpressParcel.<init>` frame shows its parameter values, and no receiver members
 
 #### Scenario: JIT-compiled frames
 - **GIVEN** a configured method called often enough to be compiled
 - **WHEN** it throws
-- **THEN** its frame shows the same ids as before it was compiled
+- **THEN** its frame shows the same augmentation as before it was compiled
 
 #### Scenario: Replaced stack trace
-- **GIVEN** an exception with captured ids whose stack trace the application replaced with `setStackTrace`
+- **GIVEN** an exception with captured values whose stack trace the application replaced with `setStackTrace`
 - **THEN** the stack trace is exactly the one the application set
 
 ### Requirement: Values the JIT optimized away
 An argument of an object type that reads as `null` in a JIT-compiled frame while the JVM may eliminate allocations
 (`-XX:+EliminateAllocations`, the default) SHALL be shown as `?`. A receiver that is not an instance of the declaring
-class SHALL show no receiver id.
+class SHALL show no receiver members.
 
 #### Scenario: Allocations not eliminated
 - **GIVEN** the JVM started with `-XX:-EliminateAllocations`

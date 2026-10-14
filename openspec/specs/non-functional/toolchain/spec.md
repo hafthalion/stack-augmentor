@@ -42,7 +42,7 @@ relocating them under `com.hafnium.stackaugmentor.shaded`.
 - **THEN** ByteBuddy, tomlj and ANTLR appear only under `com/hafnium/stackaugmentor/shaded/`, and no Kotlin classes appear anywhere
 
 ### Requirement: Tests
-The project SHALL have unit tests for configuration, frame formatting, id resolution and the weak map,
+The project SHALL have unit tests for configuration, frame formatting, the resolution of receiver members and parameter values, and the weak map,
 integration tests that run fixtures in a test JVM started with the built agent jar and a test
 configuration, and tests in `stack-augmentor-it-build-time` that run fixtures instrumented at build time
 without an agent. The integration tests SHALL also run in the agent's live-stack mode, unless no C compiler built the
@@ -55,7 +55,7 @@ native library. `./gradlew build` SHALL run them all.
 
 ### Requirement: Allocation check
 A test SHALL verify the no-allocation requirement by measuring the calling thread's allocated bytes over
-many normal calls of an instrumented method with primitive id parameters.
+many normal calls of an instrumented method with selected primitive parameters.
 
 #### Scenario: Advice changed to allocate
 - **GIVEN** a change that makes the advice build its arguments on every call

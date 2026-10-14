@@ -12,9 +12,9 @@ The project SHALL be split into these modules:
   `ExceptionFormat`;
 - `stack-augmentor-instrument-bridge`: `Dispatch`, the class the advice calls, and `LiveDispatch`, the class the
   live-stack mode's code in `Throwable` calls (Java, no dependencies);
-- `stack-augmentor-runtime`: configuration, id lookup, frame formatting and `ThrowHandler`;
+- `stack-augmentor-runtime`: configuration, resolution of receiver members and parameter values, frame formatting and `ThrowHandler`;
 - `stack-augmentor-instrument`: type and method matching, the exit advice, and the live-stack mode's code in
-  `Throwable` with how it reads ids from the live stack (ByteBuddy);
+  `Throwable` with how it reads the receivers and arguments from the live stack (ByteBuddy);
 - `stack-augmentor-agent`: the Java agent;
 - `stack-augmentor-native`: the native library (C) of the agent's experimental live-stack mode;
 - `stack-augmentor-build-plugin`: the ByteBuddy build plugin.
@@ -68,5 +68,5 @@ in the live-stack mode, which it SHALL skip with a message when the native libra
 #### Scenario: Running the live-stack example
 - **GIVEN** the project, with the native library built
 - **WHEN** `./gradlew :examples:live-agent:run` is run
-- **THEN** every frame of its stack traces, except `Main.main`, shows ids, also below the catching method, for an
+- **THEN** every frame of its stack traces, except `Main.main`, is augmented, also below the catching method, for an
   exception that is never thrown, and for the constructor whose `super(...)` call throws

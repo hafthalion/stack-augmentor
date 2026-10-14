@@ -18,12 +18,12 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
     that are augmented, see the stack trace augmentation spec. Its entries SHALL be read in the order of the
     file. Without entries no throwable is augmented;
   - `[augment.receiver]` (method key, see below → a string: field name, `method()`, several of them separated
-    by commas, `"@"` for the class's `@StackTraceReceiver` members, or `"-"` for no receiver id), which decides the
-    receiver ids, see the id sources spec;
+    by commas, `"@"` for the class's `@StackTraceReceiver` members, or `"-"` for no receiver members), which decides the
+    receiver members, see the receivers and parameters spec;
   - `[augment.params]` (method key → a string: parameter names and 0-based indexes from 0 to 255, the JVM's
     maximum number of parameters, separated by commas, each optionally followed by `#` to hash the value (e.g.
     `"order, 2, email#"`), `"@"` for the method's parameter annotations, or `"-"` for none; there is no wildcard
-    value for the parameters), which decides the parameter ids.
+    value for the parameters), which decides the parameter values.
 
   The keys of `[augment.receiver]` and `[augment.params]` SHALL have the same syntax and matching,
   `"<class>::<methods>"`: a class name, optionally followed by `+`, or a class pattern; then `::`, which is
@@ -158,7 +158,7 @@ server or a fat jar, the runtime jar can be loaded by a parent of the applicatio
 What gets instrumented SHALL NOT be configured directly: the agent, when classes are loaded, and the build
 plugin, at build time, SHALL instrument the classes and methods that `[augment.receiver]` and
 `[augment.params]` need. The formats in `[augment]`, `[augment.exceptions]`, `debug` and `inPlaceModification` SHALL be read at runtime
-in both modes, and so SHALL `[augment.receiver]`, to find the receiver id sources of instrumented classes (with
+in both modes, and so SHALL `[augment.receiver]`, to find the receiver members of instrumented classes (with
 build-time instrumentation by the key of the entry that decided the method at build time). One
 file SHALL be usable for both phases of build-time instrumentation.
 

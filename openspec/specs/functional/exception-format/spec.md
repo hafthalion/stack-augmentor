@@ -11,7 +11,7 @@ order with `%rEx`.
 `ExceptionFormat.rootCauseFirst(Throwable)` SHALL return the throwable and its causes in reverse order: the root
 cause first, then each exception that wrapped it, headed `Wrapped by: ` followed by its `toString()`.
 `rootCauseFirst(Throwable, Appendable)` SHALL append the same text to the `Appendable`. Each frame SHALL be printed
-as `\tat ` followed by the `StackTraceElement`, as `Throwable.getStackTrace()` returns it, so with the ids that
+as `\tat ` followed by the `StackTraceElement`, as `Throwable.getStackTrace()` returns it, so with the augmentation that
 Stack Augmentor added; each line SHALL end with `\n`.
 
 #### Scenario: Cause chain
