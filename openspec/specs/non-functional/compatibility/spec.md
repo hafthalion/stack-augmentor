@@ -18,13 +18,13 @@ run on Java 25.
 ### Requirement: Java and Kotlin classes
 Instrumentation SHALL work for classes compiled from Java and from Kotlin, including Kotlin top-level
 functions, primary-constructor properties and data classes, and Java classes compiled with or without
-`-parameters`. Parameter ids are labelled with the compiled parameter names, so Java code SHOULD be compiled with
+`-parameters`. Parameter values are labelled with the compiled parameter names, so Java code SHOULD be compiled with
 `javac -parameters`; without it, the labels are `arg<N>`.
 
 #### Scenario: Java class without parameter names
 - **GIVEN** a Java class compiled without `-parameters`
 - **WHEN** an annotated parameter's method throws
-- **THEN** the frame shows the parameter id labelled `arg<N>`
+- **THEN** the frame shows the parameter value labelled `arg<N>`
 
 ### Requirement: No conflicts with the application's dependencies
 The Java agent SHALL shade and relocate its dependencies (ByteBuddy, tomlj, ANTLR), so that it does not
@@ -58,17 +58,17 @@ JVM prints when the bootstrap class path is extended SHALL be the only expected 
 ### Requirement: Java applications without the Kotlin runtime
 Both modes SHALL work for an application that does not have the Kotlin standard library on its
 classpath: the agent and the runtime handler SHALL NOT load any `kotlin.*` class, whether they
-instrument classes, resolve ids, format frames, log or report configuration errors.
+instrument classes, resolve receiver members and parameter values, format frames, log or report configuration errors.
 
 #### Scenario: Agent with a Java application
 - **GIVEN** a Java application without `kotlin-stdlib`, started with the agent and `debug = true`
 - **WHEN** an annotated method throws
-- **THEN** the frame shows its ids, and no `NoClassDefFoundError` or `ClassNotFoundException` for a `kotlin.*` class occurs
+- **THEN** the frame shows its augmentation, and no `NoClassDefFoundError` or `ClassNotFoundException` for a `kotlin.*` class occurs
 
 #### Scenario: Build-time instrumentation of a Java application
 - **GIVEN** a Java application instrumented at build time, with only `stack-augmentor-api` and `stack-augmentor-runtime` added
 - **WHEN** an annotated method throws
-- **THEN** the frame shows its ids
+- **THEN** the frame shows its augmentation
 
 #### Scenario: Invalid configuration
 - **GIVEN** a Java application without `kotlin-stdlib` and an invalid `stack-augmentor.toml`

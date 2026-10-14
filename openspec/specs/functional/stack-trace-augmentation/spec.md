@@ -1,7 +1,7 @@
 # Stack Trace Augmentation Specification
 
 ## Purpose
-Defines which methods are instrumented, when ids are captured, and how the frames of an exception's
+Defines which methods are instrumented, when receiver members and parameter values are captured, and how the frames of an exception's
 stack trace are rewritten to show them.
 
 ## Requirements
@@ -9,17 +9,17 @@ stack trace are rewritten to show them.
 ### Requirement: Instrumented methods
 The system SHALL add exit advice to methods that are not abstract, native, bridge or synthetic, in these
 cases:
-- instance methods of a class that has a receiver id source (a field or method named by its deciding
+- instance methods of a class that has a receiver member (a field or method named by its deciding
   `[augment.receiver]` entry, or an annotated member when that entry is `"@"`);
-- instance or static methods that have at least one parameter id.
+- instance or static methods that have at least one parameter value.
 
-Constructors that are not synthetic SHALL be instrumented when they have at least one parameter id, for
-those ids only: they SHALL never show a receiver id. ByteBuddy's advice cannot catch exceptions in
+Constructors that are not synthetic SHALL be instrumented when they have at least one parameter value, for
+those values only: they SHALL never show receiver members. ByteBuddy's advice cannot catch exceptions in
 constructors, so the system SHALL add its own handlers, covering the code before and the code after the
-`super(...)` or `this(...)` call, that pass the parameter ids with the method name `<init>` and rethrow the
+`super(...)` or `this(...)` call, that pass the parameter values with the method name `<init>` and rethrow the
 exception unchanged. Exceptions thrown inside the called constructor SHALL leave the frame unchanged.
 
-#### Scenario: Constructor with parameter ids
+#### Scenario: Constructor with parameter values
 - **GIVEN** `class Shipment(@StackTraceParam val orderId: Long, val weight: Int)` whose `init` block calls
   `require(weight > 0)`, and an entry `"com.acme.**::<init>" = "@"`
 - **WHEN** `Shipment(42, 0)` throws
@@ -31,22 +31,22 @@ exception unchanged. Exceptions thrown inside the called constructor SHALL leave
 - **THEN** its frame shows `Crate.<init>{code=null}`
 
 #### Scenario: Exception from the superclass constructor
-- **GIVEN** a constructor with parameter ids whose superclass constructor throws
+- **GIVEN** a constructor with parameter values whose superclass constructor throws
 - **WHEN** the stack trace is inspected
 - **THEN** that constructor's frame is unchanged
 
-#### Scenario: Static method without parameter ids
-- **GIVEN** a static function without id parameters
+#### Scenario: Static method without parameter values
+- **GIVEN** a static function without selected parameters
 - **WHEN** it throws
 - **THEN** its frame is unchanged
 
-#### Scenario: Class with parameter ids only
+#### Scenario: Class with parameter values only
 - **GIVEN** a third-party class `OrderService` that is only listed in `[augment.params]`
 - **WHEN** `process` throws
-- **THEN** the frame shows the parameter ids after the method name and no receiver id
+- **THEN** the frame shows the parameter values after the method name and no receiver members
 
 ### Requirement: Capture when an exception leaves a method
-The system SHALL capture the receiver and parameter ids when an exception leaves an instrumented method,
+The system SHALL capture the receiver members and parameter values when an exception leaves an instrumented method,
 reading the parameters' values at that moment. Frames of methods the exception did not leave, such as the
 method that caught it and the frames below, SHALL be left unchanged, except for frames shared with an
 exception that left them.
@@ -54,12 +54,12 @@ exception that left them.
 #### Scenario: Caught and returned exception
 - **GIVEN** `inner(1)` throws and its caller `catchAndReturn()` catches the exception
 - **WHEN** the stack trace is inspected
-- **THEN** the `inner` frame shows its ids and the `catchAndReturn` frame is unchanged
+- **THEN** the `inner` frame shows its augmentation and the `catchAndReturn` frame is unchanged
 
 #### Scenario: Wrapped exception
 - **GIVEN** `wrap()` catches the exception of `inner(2)` and throws `RuntimeException("wrapped", cause)`
 - **WHEN** the wrapper is printed
-- **THEN** the wrapper's `wrap` frame and the cause's `inner` frame both show their ids
+- **THEN** the wrapper's `wrap` frame and the cause's `inner` frame both show their augmentation
 
 ### Requirement: Only some exceptions
 With `[augment.exceptions]`, the system SHALL capture and rewrite frames only of throwables for which the first
@@ -78,17 +78,17 @@ is `true`, startup SHALL warn.
 #### Scenario: Cause that is not augmented
 - **GIVEN** `"com.acme.PlainCause" = false` before `"**" = true`, and `wrap()` catches a `PlainCause` from `inner()` and throws `RuntimeException("wrapped", cause)`
 - **WHEN** the wrapper is printed, in either mode
-- **THEN** the cause's `inner` frame is unchanged, its frames shared with the wrapper show the wrapper's ids, and they collapse into `... N more`
+- **THEN** the cause's `inner` frame is unchanged, its frames shared with the wrapper show the wrapper's augmentation, and they collapse into `... N more`
 
 #### Scenario: First matching entry
 - **GIVEN** `"java.io.FileNotFoundException" = false` before `"java.io.IOException+" = true`
 - **WHEN** configured methods throw `FileNotFoundException` and `IOException`
-- **THEN** the frames of the `FileNotFoundException` are unchanged and those of the `IOException` show their ids
+- **THEN** the frames of the `FileNotFoundException` are unchanged and those of the `IOException` show their augmentation
 
 #### Scenario: Subclass of an entry with plus
 - **GIVEN** only `"java.io.IOException+" = true` and a configured method that throws `FileNotFoundException`
 - **WHEN** the stack trace is inspected
-- **THEN** its frame shows the ids
+- **THEN** its frame is augmented
 
 #### Scenario: Subclass of an exact entry
 - **GIVEN** only `"java.io.IOException" = true` and a configured method that throws `FileNotFoundException`
@@ -115,27 +115,27 @@ call, e.g. where the method caught the cause it wraps, SHALL be augmented the sa
 #### Scenario: Wrapped exception with an instrumented caller
 - **GIVEN** `outer()` calls `wrap()`, which catches the exception of `inner(2)` and throws `RuntimeException("wrapped", cause)`
 - **WHEN** the wrapper leaves `outer()` and is printed
-- **THEN** the cause's `outer` frame shows the same ids as the wrapper's, and the cause section ends with `... N more` as without augmentation
+- **THEN** the cause's `outer` frame shows the same augmentation as the wrapper's, and the cause section ends with `... N more` as without augmentation
 
 #### Scenario: Frame that caught the cause
 - **GIVEN** `wrap()` catches the exception of `inner(2)` and throws `RuntimeException("wrapped", cause)`
 - **WHEN** the wrapper leaves `wrap()`
-- **THEN** the cause's `wrap` frame, at the line of the call to `inner(2)`, shows the same ids as the wrapper's `wrap` frame
+- **THEN** the cause's `wrap` frame, at the line of the call to `inner(2)`, shows the same augmentation as the wrapper's `wrap` frame
 
 #### Scenario: Suppressed exception
 - **GIVEN** `outerClosing()` calls `closing()`, where `inner(3)` throws and closing the resource throws too
 - **WHEN** the exception leaves `outerClosing()`
-- **THEN** the suppressed exception's `outerClosing` frame shows the same ids as the exception's
+- **THEN** the suppressed exception's `outerClosing` frame shows the same augmentation as the exception's
 
 ### Requirement: Rewriting the frame
 The system SHALL find the frame of the method the exception left in the exception's own stack trace. It
 SHALL search from the frame after the last one handled for that exception, and match on class name and
 method name. When the handler is called from instrumented code, a matching frame SHALL also have the
 exiting method's caller below it (the same class, method and line), so that another frame of the same
-method is not taken for it; the bottom frame of a trace SHALL match without a frame below it. It SHALL replace that frame with one whose class and method parts show the ids according to
+method is not taken for it; the bottom frame of a trace SHALL match without a frame below it. It SHALL replace that frame with one whose class and method parts show the receiver members and parameter values according to
 the frame format, and SHALL keep the file name, the line number (including native methods) and the class
 loader or module prefix. It SHALL install the result with `setStackTrace`, so that every printer and
-logger shows the ids. A frame without any id SHALL be left unchanged.
+logger shows the augmentation. A frame without any receiver member or parameter value SHALL be left unchanged.
 
 #### Scenario: Recursion
 - **GIVEN** a linked list of `Node`s named `a`, `b`, `c`, where `walk(depth)` calls the next node
@@ -155,7 +155,7 @@ logger shows the ids. A frame without any id SHALL be left unchanged.
 #### Scenario: Reused exception instance
 - **GIVEN** one exception instance that is thrown more than once, e.g. a preallocated static exception with a stack trace
 - **WHEN** it leaves instrumented methods the second time
-- **THEN** its frames keep what the first throw wrote, and no new ids are added (a known limitation)
+- **THEN** its frames keep what the first throw wrote, and no new values are added (a known limitation)
 
 #### Scenario: Stack trace not writable
 - **GIVEN** an exception created with `writableStackTrace = false`
@@ -169,4 +169,4 @@ instrumented SHALL be left unchanged.
 #### Scenario: Lambda inside an instrumented method
 - **GIVEN** `viaLambda()` of an annotated class runs a `Runnable` lambda that throws
 - **WHEN** the stack trace is inspected
-- **THEN** the lambda frame is unchanged and the `viaLambda` frame shows the receiver id
+- **THEN** the lambda frame is unchanged and the `viaLambda` frame shows the receiver member

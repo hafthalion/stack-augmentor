@@ -1,24 +1,24 @@
 # Frame Format Specification
 
 ## Purpose
-Defines how the ids are laid out in a stack trace frame, through the `frameFormat`, `receiverFormat` and
+Defines how the receiver members and parameter values are laid out in a stack trace frame, through the `frameFormat`, `receiverFormat` and
 `paramsFormat` templates of the `[augment]` configuration section.
 
 ## Requirements
 
 ### Requirement: Default layout
-By default, the receiver id SHALL follow the class name and the parameter ids SHALL follow the method
+By default, the receiver members SHALL follow the class name and the parameter values SHALL follow the method
 name, each in braces. The defaults SHALL be `frameFormat = "$class$receiver.$method$params"`,
 `receiverFormat = "{$name=$value, ...}"` and `paramsFormat = "{$name=$value, ...}"`.
 
-#### Scenario: Receiver and parameter ids
+#### Scenario: Receiver members and parameter values
 - **GIVEN** the default formats
-- **WHEN** `ObjectClass.objectMethod` with receiver id `objectId=object-1` and parameter id `orderId=42` throws
+- **WHEN** `ObjectClass.objectMethod` with receiver member `objectId=object-1` and parameter value `orderId=42` throws
 - **THEN** the frame is printed as `com.hafnium.ObjectClass{objectId=object-1}.objectMethod{orderId=42}(ObjectClass.kt:13)`
 
 #### Scenario: Missing groups
 - **GIVEN** the default formats
-- **WHEN** a frame has parameter ids but no receiver id
+- **WHEN** a frame has parameter values but no receiver members
 - **THEN** the receiver group is empty, e.g. `com.thirdparty.OrderService.process{order=Order#4711, quantity=3}(OrderService.kt:14)`
 
 ### Requirement: Frame template
@@ -29,14 +29,14 @@ brace without a `$` before it, SHALL be literal, and `$$` SHALL be a literal `$`
 because the JDK always prints `<class>.<method>(<file>:<line>)`: the part before that `.` becomes the
 frame's class, the rest its method.
 
-#### Scenario: Ids after the method
+#### Scenario: Receiver and parameters after the method
 - **GIVEN** `frameFormat = "$class.$method$receiver$params"`
-- **WHEN** a frame with both ids is rendered
+- **WHEN** a frame with a receiver member and a parameter value is rendered
 - **THEN** it reads `com.hafnium.ObjectClass.process{objectId=123}{orderId=42}(ObjectClass.java:13)`
 
 #### Scenario: Braced placeholder followed by letters
 - **GIVEN** `frameFormat = "$class$receiver.${method}X$params"`
-- **WHEN** a frame without ids is rendered
+- **WHEN** a frame without augmentation is rendered
 - **THEN** it reads `com.hafnium.ObjectClass.processX(ObjectClass.java:13)`, while `$methodX` would be rejected as an unknown placeholder
 
 #### Scenario: Missing .$method
@@ -49,23 +49,23 @@ frame's class, the rest its method.
 braces included, SHALL be literal, and `$$` SHALL be a literal `$`; as in `frameFormat`, `${name}` and `${value}` are
 the braced forms. In both, `...` SHALL mark
 repetition: the text before the first placeholder and after `...` wraps the list, the text from the
-first to the last placeholder is repeated for each receiver id or parameter id, and the text between the last placeholder
+first to the last placeholder is repeated for each receiver member or parameter value, and the text between the last placeholder
 and `...` separates the items. Without `...`, the whole template SHALL be repeated and joined with `,`.
-A template that renders no ids SHALL render as empty text.
+A template that renders no values SHALL render as empty text.
 
 #### Scenario: Custom parameter list
 - **GIVEN** `paramsFormat = "[$name: $value; ...]"`
-- **WHEN** a frame has the parameter ids `orderId=42` and `customer=7`
+- **WHEN** a frame has the parameter values `orderId=42` and `customer=7`
 - **THEN** the method part reads `process[orderId: 42; customer: 7]`
 
-#### Scenario: Several receiver ids
+#### Scenario: Several receiver members
 - **GIVEN** the default `receiverFormat`
-- **WHEN** a frame has the receiver ids `tenant=acme` and `lineId=3`
+- **WHEN** a frame has the receiver members `tenant=acme` and `lineId=3`
 - **THEN** the class part reads `OrderLine{tenant=acme, lineId=3}`
 
 #### Scenario: Value only
 - **GIVEN** `receiverFormat = "<$value>"`
-- **WHEN** a frame with the receiver id `objectId=123` is rendered
+- **WHEN** a frame with the receiver member `objectId=123` is rendered
 - **THEN** the class part reads `ObjectClass<123>`
 
 ### Requirement: Template validation

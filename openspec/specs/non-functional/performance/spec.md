@@ -12,15 +12,15 @@ It SHALL NOT allocate: the array of parameter values, the boxing of primitive pa
 SHALL only be created when an exception leaves the method.
 
 #### Scenario: Many calls with primitive parameters
-- **GIVEN** an instrumented method with six `Int` id parameters, called 2,000 times with values outside the `Integer` cache
+- **GIVEN** an instrumented method with six selected `Int` parameters, called 2,000 times with values outside the `Integer` cache
 - **WHEN** the calls return normally
 - **THEN** the calling thread allocates less than 32 KB in total
 
 ### Requirement: Bounded cost on exceptions
 The work done when an exception leaves an instrumented method SHALL be limited to that exception: one
 search of its stack trace from the last handled frame, one walk of the current thread's stack to find the
-exiting method's caller when a frame of the same class and method is found, the id lookups for the frame,
-and one write of the rewritten frame. The id source of each class SHALL be looked up once and cached.
+exiting method's caller when a frame of the same class and method is found, the lookups of the frame's receiver members and parameter values,
+and one write of the rewritten frame. The receiver members of each class SHALL be looked up once and cached.
 By default the trace SHALL be copied once (`getStackTrace`) and written back once (`setStackTrace`). With
 `inPlaceModification = true` the handler SHALL write the frame into the throwable's own stack trace array, so
 no trace is copied; this needs `java.lang` open to the runtime classes. The Java agent SHALL open it; build-time
@@ -52,7 +52,7 @@ instrumented frames costs O(N × trace length); the JVM caps the trace length
 - **THEN** an error names `--add-opens java.base/java.lang=ALL-UNNAMED`, and stack traces stay unchanged
 
 #### Scenario: Repeated exceptions of one class
-- **GIVEN** a class whose id source is an annotated field
+- **GIVEN** a class whose receiver member is an annotated field
 - **WHEN** many exceptions leave its methods
 - **THEN** the field is found by reflection only once
 
