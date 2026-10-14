@@ -1,10 +1,10 @@
 package com.hafnium.it.buildtime
 
-import com.hafnium.stackaugmentor.StackTraceReceiver
+import com.hafnium.stackaugmentor.AugmentedReceiver
 
 /** Wraps an exception: the wrapper and its cause share the frame of [outer]. */
 class Wrapping(
-    @StackTraceReceiver
+    @AugmentedReceiver
     private val name: String
 ) {
     fun outer(): Nothing = wrap()

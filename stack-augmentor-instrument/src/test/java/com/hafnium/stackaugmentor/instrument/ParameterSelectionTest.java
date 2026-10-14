@@ -1,9 +1,9 @@
 package com.hafnium.stackaugmentor.instrument;
 
-import com.hafnium.stackaugmentor.StackTraceAugment;
-import com.hafnium.stackaugmentor.StackTraceReceiver;
-import com.hafnium.stackaugmentor.StackTraceParam;
-import com.hafnium.stackaugmentor.StackTraceParams;
+import com.hafnium.stackaugmentor.Augmented;
+import com.hafnium.stackaugmentor.AugmentedReceiver;
+import com.hafnium.stackaugmentor.AugmentedParam;
+import com.hafnium.stackaugmentor.AugmentedParams;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
 import com.hafnium.stackaugmentor.runtime.config.IdSpec;
@@ -30,8 +30,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ParameterSelectionTest {
 
     static class MethodLevel {
-        @StackTraceParams
-        void move(@StackTraceParam String item, int count) {
+        @AugmentedParams
+        void move(@AugmentedParam String item, int count) {
         }
 
         void plain(String item) {
@@ -39,11 +39,11 @@ class ParameterSelectionTest {
     }
 
     static class Reservations {
-        @StackTraceParams
+        @AugmentedParams
         void reserve(String sku, int count) {
         }
 
-        @StackTraceParams
+        @AugmentedParams
         static void release(String sku) {
         }
 
@@ -62,15 +62,15 @@ class ParameterSelectionTest {
         }
     }
 
-    /** Selected by "@" after "::" in both tables: ship and the constructor are annotated with @StackTraceAugment. */
+    /** Selected by "@" after "::" in both tables: ship and the constructor are annotated with @Augmented. */
     static class Shipping {
         String code = "s";
 
-        @StackTraceAugment
+        @Augmented
         Shipping(String code) {
         }
 
-        @StackTraceAugment
+        @Augmented
         void ship(String to, int count) {
         }
 
@@ -85,23 +85,23 @@ class ParameterSelectionTest {
 
     /** An explicit class entry gives its receiver id; an "@" method entry re-enables the parameter annotations. */
     static class Explicit {
-        @StackTraceReceiver
+        @AugmentedReceiver
         String code = "c";
 
         String getId() {
             return "i";
         }
 
-        void fail(@StackTraceParam int x) {
+        void fail(@AugmentedParam int x) {
         }
 
-        void failAnnotated(@StackTraceParam int y) {
+        void failAnnotated(@AugmentedParam int y) {
         }
     }
 
-    /** Its only @StackTraceReceiver method takes an argument, so it can never give an id. */
+    /** Its only @AugmentedReceiver method takes an argument, so it can never give an id. */
     static class UnusableId {
-        @StackTraceReceiver
+        @AugmentedReceiver
         String idFor(int version) {
             return "v" + version;
         }
@@ -111,7 +111,7 @@ class ParameterSelectionTest {
     }
 
     static class UsableId {
-        @StackTraceReceiver
+        @AugmentedReceiver
         String id() {
             return "u";
         }
@@ -121,7 +121,7 @@ class ParameterSelectionTest {
     }
 
     static class Built {
-        @StackTraceParams
+        @AugmentedParams
         Built(String code, long size) {
         }
 
@@ -203,7 +203,7 @@ class ParameterSelectionTest {
 
     @Test
     void annotationsWithoutAnAtEntryAreIgnored() {
-        // An "@" class entry is for @StackTraceReceiver only: the tables are independent.
+        // An "@" class entry is for @AugmentedReceiver only: the tables are independent.
         for (AugmentorConfig config : List.of(new AugmentorConfig(), classes(Map.of(HERE_METHODS, ANNOTATIONS)),
                 methods(Map.of("com.acme.**::*", List.of(new ParamRef.Annotations()))))) {
             IdParameters parameters = new IdParameters(config);
@@ -228,7 +228,7 @@ class ParameterSelectionTest {
         assertEquals(List.of(), labels(withMethods, Explicit.class, "fail"));
         assertEquals(List.of("y"), labels(withMethods, Explicit.class, "failAnnotated"));
 
-        // @StackTraceParams, enabled by a method entry for that method alone.
+        // @AugmentedParams, enabled by a method entry for that method alone.
         IdParameters classLevel = new IdParameters(AugmentorConfig.builder()
                 .methods(Map.of(Reservations.class.getName() + "::reserve", List.of(new ParamRef.Annotations())))
                 .build());
@@ -298,7 +298,7 @@ class ParameterSelectionTest {
         String reason = ": no \"@\" entry in [augment.params] applies";
         assertTrue(output.contains("ignoring the parameter annotations of release, reserve in " + Reservations.class.getName() + reason), output);
         assertTrue(output.contains("ignoring the parameter annotations of move in " + MethodLevel.class.getName() + reason), output);
-        assertTrue(output.contains("ignoring @StackTraceReceiver in " + explicit + ": its [augment.receiver] entry \"" + explicit + "::*\" is not \"@\""),
+        assertTrue(output.contains("ignoring @AugmentedReceiver in " + explicit + ": its [augment.receiver] entry \"" + explicit + "::*\" is not \"@\""),
                 output);
         // failAnnotated is enabled by its method entry.
         assertTrue(output.contains("ignoring the parameter annotations of fail in " + explicit + reason), output);
@@ -386,9 +386,9 @@ class ParameterSelectionTest {
         assertEquals(List.of("y"), labels(parameters, Explicit.class, "failAnnotated"));
         assertTrue(matching.instrument(type(Explicit.class)));
         assertTrue(matching.describe(type(Explicit.class), matching.methods(type(Explicit.class))).contains("(parameter values only)"));
-        assertTrue(err.toString(StandardCharsets.UTF_8).contains("ignoring @StackTraceReceiver in " + explicit + ": its [augment.receiver] entry \""
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("ignoring @AugmentedReceiver in " + explicit + ": its [augment.receiver] entry \""
                 + explicit + "::*\" is not \"@\""), err.toString(StandardCharsets.UTF_8));
-        // The "@" class entry uses @StackTraceReceiver only: the method entry labels the parameters by name.
+        // The "@" class entry uses @AugmentedReceiver only: the method entry labels the parameters by name.
         assertEquals(List.of("item", "count"), labels(parameters, MethodLevel.class, "move"));
         // A "-" method entry before the pattern wins; the exact entry before the "-" wins.
         assertEquals(List.of("note"), labels(parameters, Service.class, "process"));
@@ -404,11 +404,11 @@ class ParameterSelectionTest {
     }
 
     static class Secrets {
-        void login(@StackTraceParam String userName, @StackTraceParam(secret = true) String email, int attempt) {
+        void login(@AugmentedParam String userName, @AugmentedParam(secret = true) String email, int attempt) {
         }
 
-        @StackTraceParams
-        void update(String name, @StackTraceParam(secret = true) String token) {
+        @AugmentedParams
+        void update(String name, @AugmentedParam(secret = true) String token) {
         }
     }
 
@@ -431,7 +431,7 @@ class ParameterSelectionTest {
         IdParameters annotations = new IdParameters(methods(Map.of(
                 Secrets.class.getName() + "::*", List.of(new ParamRef.Annotations()))));
         assertEquals(List.of("userName", "email#"), encoded(annotations, Secrets.class, "login"));
-        // Under @StackTraceParams, @StackTraceParam(secret = true) hashes one parameter.
+        // Under @AugmentedParams, @AugmentedParam(secret = true) hashes one parameter.
         assertEquals(List.of("name", "token#"), encoded(annotations, Secrets.class, "update"));
         // A name entry before the pattern decides alone: the annotations, secret included, do not apply.
         IdParameters named = new IdParameters(methods(inOrder(

@@ -10,9 +10,9 @@ Exception in thread "main" java.lang.Exception: An error has occurred
 
 Stack Augmentor augments the frames of stack traces with receiver members and parameter values, so a logged exception says which order, customer or account the failing code was working on. Every logger and printer shows them, since the frames themselves are changed. Other frames, and exceptions you don't select, stay as they are.
 
-- **Receiver members**: members of the object a frame's method runs on, from `@StackTraceReceiver` fields and methods, or from fields and getters named in the configuration.
-- **Parameter values**: selected arguments, from `@StackTraceParam` and `@StackTraceParams`, or by name or index; sensitive values can be shown as a hash.
-- **Classes you cannot change**: one TOML file selects classes by name, with their subclasses (`+`) or by pattern, and methods by name, pattern or `@StackTraceAugment`; it also selects which exceptions are augmented and how frames look. See [Configuration](docs/configuration.md).
+- **Receiver members**: members of the object a frame's method runs on, from `@AugmentedReceiver` fields and methods, or from fields and getters named in the configuration.
+- **Parameter values**: selected arguments, from `@AugmentedParam` and `@AugmentedParams`, or by name or index; sensitive values can be shown as a hash.
+- **Classes you cannot change**: one TOML file selects classes by name, with their subclasses (`+`) or by pattern, and methods by name, pattern or `@Augmented`; it also selects which exceptions are augmented and how frames look. See [Configuration](docs/configuration.md).
 - **Three ways to run**: a Java agent, the agent reading every frame from the live stack (experimental), or build-time instrumentation without an agent.
 - **Cause chains**: the frames a cause shares with its wrapper are augmented the same way, so `... N more` still works; `ExceptionFormat.rootCauseFirst` prints the root cause first.
 - **Java and Kotlin**, constructors included; the library is Java and does not need the Kotlin runtime.
@@ -63,15 +63,15 @@ Use it in your own application:
 
    ```java
    public class ObjectClass {
-       @StackTraceReceiver
+       @AugmentedReceiver
        private final String objectId = "object-1";
 
-       public void objectMethod(@StackTraceParam int orderId) { }
+       public void objectMethod(@AugmentedParam int orderId) { }
 
-       @StackTraceParams   // all parameters
+       @AugmentedParams   // all parameters
        public void transfer(String from, String to, long amount) { }
 
-       public void invite(@StackTraceParam String user, @StackTraceParam(secret = true) String email) { }
+       public void invite(@AugmentedParam String user, @AugmentedParam(secret = true) String email) { }
    }
    ```
 
@@ -79,15 +79,15 @@ Use it in your own application:
 
    ```kotlin
    class ObjectClass {
-       @StackTraceReceiver
+       @AugmentedReceiver
        val objectId = "object-1"
 
-       fun objectMethod(@StackTraceParam orderId: Int) { }
+       fun objectMethod(@AugmentedParam orderId: Int) { }
 
-       @StackTraceParams   // all parameters
+       @AugmentedParams   // all parameters
        fun transfer(from: String, to: String, amount: Long) { }
 
-       fun invite(@StackTraceParam user: String, @StackTraceParam(secret = true) email: String) { }
+       fun invite(@AugmentedParam user: String, @AugmentedParam(secret = true) email: String) { }
    }
    ```
 
@@ -97,10 +97,10 @@ Use it in your own application:
    [augment.exceptions]    # without an entry that is true, no exception is augmented
    "java.lang.Exception+" = true
 
-   [augment.receiver]      # receiver members: @StackTraceReceiver
+   [augment.receiver]      # receiver members: @AugmentedReceiver
    "com.acme.**::*" = "@"
 
-   [augment.params]      # parameter values: @StackTraceParam and @StackTraceParams
+   [augment.params]      # parameter values: @AugmentedParam and @AugmentedParams
    "com.acme.**::*" = "@"
    ```
 

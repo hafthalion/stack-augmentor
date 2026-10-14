@@ -12,7 +12,7 @@ import java.lang.annotation.Target;
  *
  * <p>Put it on a field or a no-argument method; its value is labelled with the field's or method's name. In Kotlin, a {@code val} declared in the primary constructor
  * is also recognised. Several members may carry it: each is shown, e.g. {@code Order{tenant=acme, orderId=42}.process},
- * fields first, in declaration order, then methods by name, starting with the class itself and then its superclasses. For method parameters, use {@link StackTraceParam} and {@link StackTraceParams}.
+ * fields first, in declaration order, then methods by name, starting with the class itself and then its superclasses. For method parameters, use {@link AugmentedParam} and {@link AugmentedParams}.
  *
  * <p>It is used only in the methods whose {@code [augment.receiver]} entry is {@code "@"}, e.g.
  * {@code "com.acme.**::*" = "@"}.
@@ -20,5 +20,5 @@ import java.lang.annotation.Target;
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD, ElementType.METHOD})
-public @interface StackTraceReceiver {
+public @interface AugmentedReceiver {
 }

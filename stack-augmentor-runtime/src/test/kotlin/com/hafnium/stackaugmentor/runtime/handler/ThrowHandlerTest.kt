@@ -1,6 +1,6 @@
 package com.hafnium.stackaugmentor.runtime.handler
 
-import com.hafnium.stackaugmentor.StackTraceReceiver
+import com.hafnium.stackaugmentor.AugmentedReceiver
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig
 import com.hafnium.stackaugmentor.runtime.config.ConfigException
 import com.hafnium.stackaugmentor.runtime.config.IdSpec
@@ -20,7 +20,7 @@ import org.junit.jupiter.api.io.TempDir
 class ThrowHandlerTest {
 
     class Annotated {
-        @StackTraceReceiver
+        @AugmentedReceiver
         val objectId = "a-1"
 
         fun fail(): Nothing = throw IllegalStateException("fail")

@@ -1,36 +1,36 @@
 package com.hafnium.it.fixtures
 
-import com.hafnium.stackaugmentor.StackTraceReceiver
-import com.hafnium.stackaugmentor.StackTraceParam
+import com.hafnium.stackaugmentor.AugmentedReceiver
+import com.hafnium.stackaugmentor.AugmentedParam
 import com.thirdparty.Order
 
 class ObjectClass {
-    @StackTraceReceiver
+    @AugmentedReceiver
     val objectId = "object-1"
 
-    fun objectMethod(@StackTraceParam orderId: Int): Nothing = throw Exception("An error has occurred")
+    fun objectMethod(@AugmentedParam orderId: Int): Nothing = throw Exception("An error has occurred")
 }
 
 class KeyedByMethod {
-    @StackTraceReceiver
+    @AugmentedReceiver
     fun key(): String = "k-1"
 
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
-/** Several @StackTraceReceiver members: one id each. */
+/** Several @AugmentedReceiver members: one id each. */
 class MultiKeyed {
-    @StackTraceReceiver
+    @AugmentedReceiver
     val tenant = "acme"
 
-    @StackTraceReceiver
+    @AugmentedReceiver
     val orderId = 42
 
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
 open class Base {
-    @StackTraceReceiver
+    @AugmentedReceiver
     val baseId = "b1"
 }
 
@@ -39,16 +39,16 @@ class Derived : Base() {
 }
 
 /** Annotation on a primary constructor property, without `@field:`. */
-class Node(@StackTraceReceiver val name: String, private val next: Node?) {
-    fun walk(@StackTraceParam depth: Int) {
+class Node(@AugmentedReceiver val name: String, private val next: Node?) {
+    fun walk(@AugmentedParam depth: Int) {
         if (next == null) throw IllegalStateException("end of list")
         next.walk(depth + 1)
     }
 }
 
 /** Creates an exception and passes it to the next relay, which throws it: the next relay's frame is not in the trace. */
-class Relay(@StackTraceReceiver val name: String, private val next: Relay?) {
-    fun pass(@StackTraceParam depth: Int, error: IllegalStateException?) {
+class Relay(@AugmentedReceiver val name: String, private val next: Relay?) {
+    fun pass(@AugmentedParam depth: Int, error: IllegalStateException?) {
         if (next == null) throw error!!
         next.pass(depth + 1, IllegalStateException("created by $name"))
     }
@@ -56,33 +56,33 @@ class Relay(@StackTraceReceiver val name: String, private val next: Relay?) {
 
 /** A receiver id with parentheses, which would confuse IDEs looking for "(File.kt:12)". */
 class ParenLabels {
-    @StackTraceReceiver
+    @AugmentedReceiver
     val id = "id(7)"
 
-    fun fail(@StackTraceParam value: Int): Nothing = throw IllegalStateException("fail $value")
+    fun fail(@AugmentedParam value: Int): Nothing = throw IllegalStateException("fail $value")
 }
 
 class ManyParams {
-    @StackTraceReceiver
+    @AugmentedReceiver
     val id = "many"
 
     fun six(
-        @StackTraceParam a: Int,
-        @StackTraceParam b: Long,
-        @StackTraceParam c: String,
-        @StackTraceParam d: Double,
-        @StackTraceParam e: Boolean,
-        @StackTraceParam f: Char,
+        @AugmentedParam a: Int,
+        @AugmentedParam b: Long,
+        @AugmentedParam c: String,
+        @AugmentedParam d: Double,
+        @AugmentedParam e: Boolean,
+        @AugmentedParam f: Char,
     ): Nothing = throw IllegalStateException("six")
 
     /** Only fails when asked, to measure the cost of the normal path. */
     fun maybeFail(
-        @StackTraceParam a: Int,
-        @StackTraceParam b: Int,
-        @StackTraceParam c: Int,
-        @StackTraceParam d: Int,
-        @StackTraceParam e: Int,
-        @StackTraceParam f: Int,
+        @AugmentedParam a: Int,
+        @AugmentedParam b: Int,
+        @AugmentedParam c: Int,
+        @AugmentedParam d: Int,
+        @AugmentedParam e: Int,
+        @AugmentedParam f: Int,
         fail: Boolean,
     ): Int {
         if (fail) throw IllegalStateException("asked to fail")
@@ -91,17 +91,17 @@ class ManyParams {
 }
 
 class Shipping {
-    @StackTraceReceiver
+    @AugmentedReceiver
     val id = "ship"
 
-    fun ship(@StackTraceParam order: Order?): Nothing = throw IllegalStateException("cannot ship")
+    fun ship(@AugmentedParam order: Order?): Nothing = throw IllegalStateException("cannot ship")
 
-    fun op(@StackTraceParam x: Int): Nothing = throw IllegalStateException("op int")
+    fun op(@AugmentedParam x: Int): Nothing = throw IllegalStateException("op int")
 
-    fun op(@StackTraceParam name: String, y: Int): Nothing = throw IllegalStateException("op string $y")
+    fun op(@AugmentedParam name: String, y: Int): Nothing = throw IllegalStateException("op string $y")
 }
 
-/** Matched by an "@" entry, but without @StackTraceReceiver: not augmented. */
+/** Matched by an "@" entry, but without @AugmentedReceiver: not augmented. */
 class WithToString {
     override fun toString() = "WTS-1"
     fun fail(): Nothing = throw IllegalStateException("fail")
@@ -112,28 +112,28 @@ class Plain {
 }
 
 class BrokenId {
-    @StackTraceReceiver
+    @AugmentedReceiver
     fun id(): String = throw IllegalStateException("id is broken")
 
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
 class MultiLine {
-    @StackTraceReceiver
+    @AugmentedReceiver
     val text = "line1\nline2"
 
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
 class LongId {
-    @StackTraceReceiver
+    @AugmentedReceiver
     val text = "x".repeat(50)
 
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
 class LambdaHolder {
-    @StackTraceReceiver
+    @AugmentedReceiver
     val id = "lambda"
 
     fun viaLambda() {
@@ -149,10 +149,10 @@ class NoTrace {
 }
 
 class Layers {
-    @StackTraceReceiver
+    @AugmentedReceiver
     val layer = "layers"
 
-    fun inner(@StackTraceParam step: Int): Nothing = throw IllegalStateException("inner $step")
+    fun inner(@AugmentedParam step: Int): Nothing = throw IllegalStateException("inner $step")
 
     /** Catches the exception and hands it back, like code that logs and carries on. */
     fun catchAndReturn(): Throwable = try {
@@ -170,7 +170,7 @@ class Layers {
     /** An instrumented frame below the catch in [wrap]: the wrapper and its cause share it. */
     fun outerWrap(): Nothing = wrap()
 
-    fun plainInner(@StackTraceParam step: Int): Nothing = throw PlainCause("plain $step")
+    fun plainInner(@AugmentedParam step: Int): Nothing = throw PlainCause("plain $step")
 
     fun wrapPlain(): Nothing = try {
         plainInner(4)
@@ -192,28 +192,28 @@ class Layers {
 class PlainCause(message: String) : RuntimeException(message)
 
 class Closer : AutoCloseable {
-    @StackTraceReceiver
+    @AugmentedReceiver
     val name = "closer"
 
     override fun close(): Unit = throw IllegalArgumentException("close failed")
 }
 
-fun staticWithParam(@StackTraceParam code: Int): Nothing = throw IllegalStateException("static $code")
+fun staticWithParam(@AugmentedParam code: Int): Nothing = throw IllegalStateException("static $code")
 
 fun staticWithoutParam(): Nothing = throw IllegalStateException("static")
 
 class ArrayId {
-    @StackTraceReceiver
+    @AugmentedReceiver
     val codes = intArrayOf(1, 2)
 
-    fun fail(@StackTraceParam tags: Array<String>): Nothing = throw IllegalStateException("fail ${tags.size}")
+    fun fail(@AugmentedParam tags: Array<String>): Nothing = throw IllegalStateException("fail ${tags.size}")
 }
 
 class NullId {
-    @StackTraceReceiver
+    @AugmentedReceiver
     val id: String? = null
 
-    fun fail(@StackTraceParam note: String?): Nothing = throw IllegalStateException("fail $note")
+    fun fail(@AugmentedParam note: String?): Nothing = throw IllegalStateException("fail $note")
 }
 
 data class Point(val x: Int)
@@ -224,16 +224,16 @@ class Unprintable {
 }
 
 class Canvas {
-    @StackTraceReceiver
+    @AugmentedReceiver
     val id = "canvas"
 
-    fun draw(@StackTraceParam point: Point): Nothing = throw IllegalStateException("draw $point")
+    fun draw(@AugmentedParam point: Point): Nothing = throw IllegalStateException("draw $point")
 
-    fun print(@StackTraceParam item: Unprintable): Nothing = throw IllegalStateException("print")
+    fun print(@AugmentedParam item: Unprintable): Nothing = throw IllegalStateException("print")
 }
 
 /** Constructors are not instrumented. */
-class FailingInit(@StackTraceReceiver val id: String) {
+class FailingInit(@AugmentedReceiver val id: String) {
     init {
         check(id.isNotEmpty()) { "empty id" }
     }
@@ -241,33 +241,33 @@ class FailingInit(@StackTraceReceiver val id: String) {
 
 /** The property of an object is compiled to a static field, which is not an id source. */
 object Registry {
-    @StackTraceReceiver
+    @AugmentedReceiver
     val name = "registry"
 
-    fun fail(@StackTraceParam key: String): Nothing = throw IllegalStateException("no $key")
+    fun fail(@AugmentedParam key: String): Nothing = throw IllegalStateException("no $key")
 }
 
 /** Its getter is an instance method, so it is an id source. */
 object GetterRegistry {
-    @get:StackTraceReceiver
+    @get:AugmentedReceiver
     val name = "getter-registry"
 
-    fun fail(@StackTraceParam key: String): Nothing = throw IllegalStateException("no $key")
+    fun fail(@AugmentedParam key: String): Nothing = throw IllegalStateException("no $key")
 }
 
 class Chain {
-    @StackTraceReceiver
+    @AugmentedReceiver
     val id = "chain"
 
-    fun start(@StackTraceParam n: Int): Nothing = step(n + 1)
+    fun start(@AugmentedParam n: Int): Nothing = step(n + 1)
 
-    private fun step(@StackTraceParam n: Int): Nothing = throw IllegalStateException("step $n")
+    private fun step(@AugmentedParam n: Int): Nothing = throw IllegalStateException("step $n")
 
     /** Kotlin compiles a static withDefault$default, which fills in b and calls withDefault. */
-    fun withDefault(@StackTraceParam a: Int, @StackTraceParam b: Int = 2): Nothing = throw IllegalStateException("default $a $b")
+    fun withDefault(@AugmentedParam a: Int, @AugmentedParam b: Int = 2): Nothing = throw IllegalStateException("default $a $b")
 
     /** Catches and throws the same exception again. */
-    fun rethrow(@StackTraceParam n: Int) {
+    fun rethrow(@AugmentedParam n: Int) {
         try {
             step(n)
         } catch (e: IllegalStateException) {
@@ -278,7 +278,7 @@ class Chain {
 
 /** Throws exceptions created before the call: in the constructor, or by the first call and reused. */
 class Prepared {
-    @StackTraceReceiver
+    @AugmentedReceiver
     val id = "prepared"
 
     private val created = IllegalStateException("created in the constructor")
@@ -287,14 +287,14 @@ class Prepared {
 
     fun throwCreated(): Nothing = throw created
 
-    fun throwShared(@StackTraceParam n: Int): Nothing = throw shared ?: IllegalStateException("shared").also { shared = it }
+    fun throwShared(@AugmentedParam n: Int): Nothing = throw shared ?: IllegalStateException("shared").also { shared = it }
 
-    fun viaShared(@StackTraceParam n: Int): Nothing = throwShared(n)
+    fun viaShared(@AugmentedParam n: Int): Nothing = throwShared(n)
 }
 
 /** Recurses down to depth 0 and throws there, after parking the thread first if asked: ConcurrencyTest. */
-class Diver(@StackTraceReceiver val name: String) {
-    fun dive(@StackTraceParam depth: Int, @StackTraceParam park: Boolean) {
+class Diver(@AugmentedReceiver val name: String) {
+    fun dive(@AugmentedParam depth: Int, @AugmentedParam park: Boolean) {
         if (depth == 0) {
             if (park) {
                 // A virtual thread unmounts here and may continue on another carrier thread.

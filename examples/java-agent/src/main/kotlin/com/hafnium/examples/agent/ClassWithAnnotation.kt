@@ -1,25 +1,25 @@
 package com.hafnium.examples.agent
 
-import com.hafnium.stackaugmentor.StackTraceReceiver
-import com.hafnium.stackaugmentor.StackTraceParam
-import com.hafnium.stackaugmentor.StackTraceParams
+import com.hafnium.stackaugmentor.AugmentedReceiver
+import com.hafnium.stackaugmentor.AugmentedParam
+import com.hafnium.stackaugmentor.AugmentedParams
 
 /** An argument is shown with its toString(). */
 data class ObjectParam(private val name: String)
 
-/** Receiver member from @StackTraceReceiver, parameter values from the parameter annotations. */
+/** Receiver member from @AugmentedReceiver, parameter values from the parameter annotations. */
 data class ClassWithAnnotation(
-    @StackTraceReceiver
+    @AugmentedReceiver
     private val objectId: String
 ) {
     /** All parameters are shown. */
-    @StackTraceParams
+    @AugmentedParams
     fun transfer(from: String, to: String, amount: Long) {
         method(ObjectParam("object-param-1"), "s3cr3t-token")
     }
 
     /** The token is shown hashed. */
-    fun method(@StackTraceParam param: ObjectParam, @StackTraceParam(secret = true) token: String) {
+    fun method(@AugmentedParam param: ObjectParam, @AugmentedParam(secret = true) token: String) {
         error()
     }
 

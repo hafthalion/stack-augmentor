@@ -15,7 +15,7 @@ maxValueLength = 20
 "com.hafnium.it.fixtures.Overridden::*" = "getId()"
 # The ignored fixtures: no receiver members (parameter values are not affected)
 "com.hafnium.it.fixtures.ignored.**::*" = "-"
-# The fixtures' receiver members come from their @StackTraceReceiver
+# The fixtures' receiver members come from their @AugmentedReceiver
 "com.hafnium.it.fixtures.**::*" = "@"
 # Stand-ins for classes you cannot annotate (Customer's entry does not apply to com.hafnium.it.outside.VipCustomer)
 "com.thirdparty.Order::*" = "getOrderNumber()"
@@ -29,7 +29,7 @@ maxValueLength = 20
 # A class may have several entries: for each method the first one that applies decides
 "com.thirdparty.Parcel::ship, cancel*" = "trackingCode"
 "com.thirdparty.Parcel::weigh" = "weight"
-# "@" after '::' names the methods annotated with @StackTraceAugment
+# "@" after '::' names the methods annotated with @Augmented
 "com.hafnium.it.outside.Dispatcher::@" = "hub"
 # Matches JDK classes, which the agent never instruments
 "java.**::*" = "@"
@@ -68,7 +68,7 @@ maxValueLength = 20
 "com.hafnium.it.fixtures.Overridden::failAnnotated" = "@"
 "com.hafnium.it.fixtures.Overridden::*" = "-"
 "com.hafnium.it.fixtures.Overlap::op" = "x, y, 0"
-# ... and the other fixtures' parameter values come from their @StackTraceParam and @StackTraceParams
+# ... and the other fixtures' parameter values come from their @AugmentedParam and @AugmentedParams
 # ("*" matches constructors, <init>, too)
 "com.hafnium.it.fixtures.**::*" = "@"
 "com.thirdparty.OrderService::process" = "order, 1"
@@ -89,5 +89,5 @@ maxValueLength = 20
 # Parameter annotations outside the fixtures
 "com.hafnium.it.outside.MethodAnnotationsOutside::run" = "@"
 "com.hafnium.it.outside.ClassParamsViaMethods::*" = "@"
-# "::@" matches the methods annotated with @StackTraceAugment; several methods are separated by commas
+# "::@" matches the methods annotated with @Augmented; several methods are separated by commas
 "com.hafnium.it.outside.Dispatcher::@, track" = "order"

@@ -1,7 +1,7 @@
 package com.hafnium.examples.agent
 
-import com.hafnium.stackaugmentor.StackTraceReceiver
-import com.hafnium.stackaugmentor.StackTraceParam
+import com.hafnium.stackaugmentor.AugmentedReceiver
+import com.hafnium.stackaugmentor.AugmentedParam
 import com.thirdparty.InventoryAudit
 import com.thirdparty.InventoryService
 import com.thirdparty.Order
@@ -11,8 +11,8 @@ import com.thirdparty.OrderService
  * A simple cause chain: [submit] wraps the third-party exception in one of its own. The frames below it, [Shop.buy]
  * and main, are in both stack traces and are augmented the same way in both.
  */
-class Checkout(@StackTraceReceiver private val checkoutId: String) {
-    fun submit(@StackTraceParam order: Order) {
+class Checkout(@AugmentedReceiver private val checkoutId: String) {
+    fun submit(@AugmentedParam order: Order) {
         try {
             OrderService(InventoryService(InventoryAudit())).process(order, 1, "standard")
         } catch (e: IllegalStateException) {
@@ -24,8 +24,8 @@ class Checkout(@StackTraceReceiver private val checkoutId: String) {
 class CheckoutException(message: String, cause: Throwable) : Exception(message, cause)
 
 /** Calls the checkout: a frame that the wrapper and its cause share. */
-class Shop(@StackTraceReceiver private val shopId: String) {
-    fun buy(@StackTraceParam orderNumber: Long) {
+class Shop(@AugmentedReceiver private val shopId: String) {
+    fun buy(@AugmentedParam orderNumber: Long) {
         Checkout("checkout-7").submit(Order(orderNumber))
     }
 }

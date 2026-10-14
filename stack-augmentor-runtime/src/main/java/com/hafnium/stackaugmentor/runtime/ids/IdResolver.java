@@ -28,16 +28,16 @@ import java.util.stream.Collectors;
 public final class IdResolver {
 
     /** Name of the id annotation. Matched by name, because the application may load its own copy of the API. */
-    public static final String STACK_TRACE_RECEIVER = "com.hafnium.stackaugmentor.StackTraceReceiver";
+    public static final String AUGMENTED_RECEIVER = "com.hafnium.stackaugmentor.AugmentedReceiver";
 
     /** Name of the annotation that selects one parameter. */
-    public static final String STACK_TRACE_PARAM = "com.hafnium.stackaugmentor.StackTraceParam";
+    public static final String AUGMENTED_PARAM = "com.hafnium.stackaugmentor.AugmentedParam";
 
     /** Name of the annotation that selects all parameters of a method or constructor. */
-    public static final String STACK_TRACE_PARAMS = "com.hafnium.stackaugmentor.StackTraceParams";
+    public static final String AUGMENTED_PARAMS = "com.hafnium.stackaugmentor.AugmentedParams";
 
     /** Name of the annotation that {@code "@"} after {@code ::} selects methods by, in both tables. */
-    public static final String STACK_TRACE_AUGMENT = "com.hafnium.stackaugmentor.StackTraceAugment";
+    public static final String AUGMENTED = "com.hafnium.stackaugmentor.Augmented";
 
     /** The hex digits of a hashed parameter id. */
     private static final int HASH_LENGTH = 8;
@@ -245,7 +245,7 @@ public final class IdResolver {
 
     /**
      * The id sources that the deciding {@code [augment.receiver]} entry names ({@link AugmentorConfig#classEntry(Class,
-     * String, boolean)}): its fields and methods, or with {@code "@"} its {@code @StackTraceReceiver} members, looked up in the
+     * String, boolean)}): its fields and methods, or with {@code "@"} its {@code @AugmentedReceiver} members, looked up in the
      * class and its superclasses, or in an interface and the interfaces it extends. With {@code "-"}, none, even if the
      * class is annotated.
      */
@@ -271,7 +271,7 @@ public final class IdResolver {
     }
 
     /**
-     * Every {@code @StackTraceReceiver} on a field or a no-argument method, one id each: per class, nearest first, its fields
+     * Every {@code @AugmentedReceiver} on a field or a no-argument method, one id each: per class, nearest first, its fields
      * in declaration order, then its methods by name. A Kotlin property annotated in the primary constructor has it on
      * its field. A member that cannot be made accessible is skipped, and so is one whose label a nearer one already
      * has, e.g. a field hidden by a subclass's field of the same name.
@@ -480,7 +480,7 @@ public final class IdResolver {
     }
 
     /**
-     * Whether an {@code @StackTraceReceiver} method can give ids: an instance method without parameters that the compiler
+     * Whether an {@code @AugmentedReceiver} method can give ids: an instance method without parameters that the compiler
      * did not generate. The build-time and agent type matching use the same rule, so that a class whose only annotated
      * method takes arguments is not instrumented.
      */
@@ -490,7 +490,7 @@ public final class IdResolver {
 
     public static Annotation idAnnotation(AnnotatedElement element) {
         for (Annotation annotation : element.getDeclaredAnnotations()) {
-            if (annotation.annotationType().getName().equals(STACK_TRACE_RECEIVER)) {
+            if (annotation.annotationType().getName().equals(AUGMENTED_RECEIVER)) {
                 return annotation;
             }
         }

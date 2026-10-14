@@ -258,7 +258,7 @@ class AugmentorConfigTest {
         assertTrue(order.appliesTo("ship", false))
         assertTrue(order.appliesTo("cancelAll", false))
         assertFalse(order.appliesTo("process", false))
-        // Without "@" after ::, @StackTraceAugment does not count.
+        // Without "@" after ::, @Augmented does not count.
         assertFalse(order.appliesTo("process", true))
         val entries = config.classEntries("com.acme.Order") { it == "com.acme.Order" }
         assertEquals(listOf("com.acme.Order::ship, cancel*", "com.acme.Order::@", "com.acme.Order::*"), entries.map { it.key() })
@@ -301,7 +301,7 @@ class AugmentorConfigTest {
             "com.acme.**::*" = "1"
             """,
         )
-        // "@" matches the methods with @StackTraceAugment only; the others fall through to the later entries.
+        // "@" matches the methods with @Augmented only; the others fall through to the later entries.
         assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.Order", "ship", true))
         assertEquals(listOf(ParamRef.ByName("to")), config.paramRefs("com.acme.Order", "ship", false))
         assertEquals(listOf(ParamRef.ByIndex(0)), config.paramRefs("com.acme.Order", "<init>", true))
@@ -401,7 +401,7 @@ class AugmentorConfigTest {
         )
         assertEquals(
             "test.toml, line 2: must be a string: a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), several of them " +
-                "separated by commas (e.g. \"tenant, getOrderId()\"), \"@\" for its @StackTraceReceiver members, or \"-\" for no receiver members, was 5",
+                "separated by commas (e.g. \"tenant, getOrderId()\"), \"@\" for its @AugmentedReceiver members, or \"-\" for no receiver members, was 5",
             error("[augment.receiver]\n\"com.acme.Order::*\" = 5"),
         )
         assertTrue(error("[augment.receiver]\n\"com.acme.Order::*\" = \"@id\"").contains("invalid receiver member '@id'"))
@@ -409,7 +409,7 @@ class AugmentorConfigTest {
             "test.toml, line 2: [augment.receiver] keys must name a class and its methods separated by ::, e.g. " +
                 "\"com.acme.Order::ship, cancel*\" or \"com.acme.Order::*\"; + after the class name includes its subclasses " +
                 "(\"com.acme.Order+::*\"), a class pattern matches class names only (\"com.acme.**::*\"), @ stands for the methods " +
-                "annotated with @StackTraceAugment; " +
+                "annotated with @Augmented; " +
                 "allowed are letters, digits, _, \$ and the wildcards * (within a package or name), ** (across packages) and ?",
             error("[augment.receiver]\n\"com.acme.Ord+er::*\" = \"@\""),
         )
@@ -578,7 +578,7 @@ class AugmentorConfigTest {
             "test.toml, line 2: [augment.params] keys must name a class and its methods separated by ::, e.g. " +
                 "\"com.acme.Order::ship, cancel*\" or \"com.acme.Order::*\"; + after the class name includes its subclasses " +
                 "(\"com.acme.Order+::*\"), a class pattern matches class names only (\"com.acme.**::*\"), @ stands for the methods " +
-                "annotated with @StackTraceAugment, <init> for the constructors; " +
+                "annotated with @Augmented, <init> for the constructors; " +
                 "allowed are letters, digits, _, \$ and the wildcards * (within a package or name), ** (across packages) and ?",
             error("[augment.params]\n\"com.acme.Ord+er::process\" = \"@\""),
         )

@@ -1,7 +1,7 @@
 package com.hafnium.it.benchmark
 
-import com.hafnium.stackaugmentor.StackTraceReceiver
-import com.hafnium.stackaugmentor.StackTraceParam
+import com.hafnium.stackaugmentor.AugmentedReceiver
+import com.hafnium.stackaugmentor.AugmentedParam
 
 /** Thrown at the bottom of the stack, or wrapping the one from below: then [wraps] counts the wrappings, from 1. */
 open class BenchmarkException protected constructor(cause: BenchmarkException?, val wraps: Int) : RuntimeException(
@@ -21,8 +21,8 @@ class ExcludedException private constructor(cause: BenchmarkException?, wraps: I
 }
 
 /** A frame that shows ids: the receiver's name and the depth. */
-class Configured(@StackTraceReceiver private val name: String) {
-    fun step(@StackTraceParam depth: Int, stack: Stack): Int = stack.next(depth)
+class Configured(@AugmentedReceiver private val name: String) {
+    fun step(@AugmentedParam depth: Int, stack: Stack): Int = stack.next(depth)
 }
 
 /** A frame that shows nothing. */

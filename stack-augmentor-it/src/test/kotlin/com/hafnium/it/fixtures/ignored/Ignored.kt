@@ -1,12 +1,12 @@
 package com.hafnium.it.fixtures.ignored
 
-import com.hafnium.stackaugmentor.StackTraceReceiver
-import com.hafnium.stackaugmentor.StackTraceParam
+import com.hafnium.stackaugmentor.AugmentedReceiver
+import com.hafnium.stackaugmentor.AugmentedParam
 
 /** Under the fixtures' "@" patterns, but a "-" class entry comes first: no receiver id, yet its parameter id. */
 class Ignored {
-    @StackTraceReceiver
+    @AugmentedReceiver
     val id = "i-1"
 
-    fun fail(@StackTraceParam count: Int): Nothing = throw IllegalStateException("fail $count")
+    fun fail(@AugmentedParam count: Int): Nothing = throw IllegalStateException("fail $count")
 }

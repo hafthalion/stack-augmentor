@@ -1,41 +1,41 @@
 package com.hafnium.it.fixtures
 
-import com.hafnium.stackaugmentor.StackTraceReceiver
-import com.hafnium.stackaugmentor.StackTraceParam
-import com.hafnium.stackaugmentor.StackTraceParams
+import com.hafnium.stackaugmentor.AugmentedReceiver
+import com.hafnium.stackaugmentor.AugmentedParam
+import com.hafnium.stackaugmentor.AugmentedParams
 
-// Parameter ids selected by @StackTraceParams on methods and classes.
+// Parameter ids selected by @AugmentedParams on methods and classes.
 
 class Accounts {
-    @StackTraceParams
+    @AugmentedParams
     fun transfer(from: String, to: String, amount: Long): Nothing = throw IllegalStateException("transfer")
 
-    @StackTraceParams
-    fun move(@StackTraceParam item: String, count: Int): Nothing = throw IllegalStateException("move")
+    @AugmentedParams
+    fun move(@AugmentedParam item: String, count: Int): Nothing = throw IllegalStateException("move")
 
     fun plain(from: String): Nothing = throw IllegalStateException("plain $from")
 }
 
 open class Inventory {
-    @StackTraceParams
+    @AugmentedParams
     open fun reserve(sku: String, count: Int): Nothing = throw IllegalStateException("reserve")
 
-    @StackTraceParams
+    @AugmentedParams
     fun release(sku: String): Nothing = throw IllegalStateException("release")
 }
 
-/** The @StackTraceParams of Inventory.reserve does not apply to its override. */
+/** The @AugmentedParams of Inventory.reserve does not apply to its override. */
 class DerivedInventory : Inventory() {
     override fun reserve(sku: String, count: Int): Nothing = throw IllegalStateException("derived reserve")
 }
 
 /** Listed in [augment.params] with x by name and by index: it is shown once. */
 class Overlap {
-    fun op(@StackTraceParam x: Int, y: Int): Nothing = throw IllegalStateException("op")
+    fun op(@AugmentedParam x: Int, y: Int): Nothing = throw IllegalStateException("op")
 }
 
 class Wide {
-    @StackTraceParams
+    @AugmentedParams
     fun ten(a: Int, b: Int, c: Int, d: Int, e: Int, f: Int, g: Int, h: Int, i: Int, j: Int): Nothing =
         throw IllegalStateException("ten")
 }
@@ -46,34 +46,34 @@ class Wide {
  * failAnnotated, whose exact [augment.params] "@" entry comes before the "-".
  */
 class Overridden {
-    @StackTraceReceiver
+    @AugmentedReceiver
     val code = "c-1"
 
     fun getId() = "o-1"
 
-    fun fail(@StackTraceParam x: Int): Nothing = throw IllegalStateException("fail $x")
+    fun fail(@AugmentedParam x: Int): Nothing = throw IllegalStateException("fail $x")
 
-    fun failAnnotated(@StackTraceParam y: Int): Nothing = throw IllegalStateException("fail $y")
+    fun failAnnotated(@AugmentedParam y: Int): Nothing = throw IllegalStateException("fail $y")
 }
 
 /** Hashed parameter ids: secret = true on the annotations. */
 class Secrets {
-    fun invite(@StackTraceParam user: String, @StackTraceParam(secret = true) email: String): Nothing =
+    fun invite(@AugmentedParam user: String, @AugmentedParam(secret = true) email: String): Nothing =
         throw IllegalStateException("invite")
 
-    @StackTraceParams
-    fun register(@StackTraceParam(secret = true) email: String, nickname: String): Nothing = throw IllegalStateException("register")
+    @AugmentedParams
+    fun register(@AugmentedParam(secret = true) email: String, nickname: String): Nothing = throw IllegalStateException("register")
 }
 
 /** A hashed parameter that is null. */
 class Forgetful {
-    fun forget(@StackTraceParam(secret = true) email: String?): Nothing = throw IllegalStateException("forget")
+    fun forget(@AugmentedParam(secret = true) email: String?): Nothing = throw IllegalStateException("forget")
 }
 
 // Constructors: parameter ids from the "<init>" entry, never a receiver id.
 
 /** Validation in an init block, after the superclass constructor has run. */
-class Shipment(@StackTraceParam val orderId: Long, @StackTraceParam(secret = true) val email: String, val weight: Int) {
+class Shipment(@AugmentedParam val orderId: Long, @AugmentedParam(secret = true) val email: String, val weight: Int) {
     init {
         require(weight > 0) { "weight" }
     }
@@ -86,18 +86,18 @@ open class Parcel(code: String) {
 }
 
 /** The superclass constructor throws: inside the super(...) call, so this frame gets no ids. */
-class ExpressParcel @StackTraceParams constructor(code: String, val priority: Int) : Parcel(code)
+class ExpressParcel @AugmentedParams constructor(code: String, val priority: Int) : Parcel(code)
 
 /** Computing the argument of super(...) throws: before the call, so this frame gets its ids. */
-class Crate @StackTraceParams constructor(code: String?, val size: Int) : Parcel(requireNotNull(code) { "code" })
+class Crate @AugmentedParams constructor(code: String?, val size: Int) : Parcel(requireNotNull(code) { "code" })
 
 /** A secondary constructor delegating to the primary one: it gets ids only for exceptions from its own body. */
-class Pallet @StackTraceParams constructor(val size: Int) {
+class Pallet @AugmentedParams constructor(val size: Int) {
     init {
         check(size < 100) { "size" }
     }
 
-    @StackTraceParams
+    @AugmentedParams
     constructor(label: String, size: Long) : this(size.toInt()) {
         require(label.isNotEmpty()) { "label" }
     }

@@ -92,7 +92,7 @@ For build-time instrumentation, one file in `src/main/resources` serves both the
 
 - a name, e.g. `ship`, or a pattern with `*` and `?`, e.g. `cancel*`;
 - `*` for all methods;
-- `@` for the methods annotated with `@StackTraceAugment` (from `stack-augmentor-api`; it has no attributes);
+- `@` for the methods annotated with `@Augmented` (from `stack-augmentor-api`; it has no attributes);
 - `<init>` for the constructors, in `[augment.params]` only, since constructors show no receiver members. Patterns such as `*` match constructors too.
 
 Keys can contain letters, digits, `_`, `$` and the wildcards. Spaces around the commas don't matter.
@@ -102,7 +102,7 @@ Keys can contain letters, digits, `_`, `$` and the wildcards. Spaces around the 
 | `"com.acme.Order::ship"` | `Order.ship` |
 | `"com.acme.Order::ship, cancel*"` | `Order.ship` and `Order`'s methods starting with `cancel` |
 | `"com.acme.Order::*"` | all methods of `Order` |
-| `"com.acme.Order::@"` | `Order`'s methods annotated with `@StackTraceAugment` |
+| `"com.acme.Order::@"` | `Order`'s methods annotated with `@Augmented` |
 | `"com.acme.Order::ship, @"` | `Order.ship` and the annotated ones |
 | `"com.acme.Order+::*"` | all methods of `Order`, of its subclasses and, for an interface, of its implementing classes |
 | `"com.acme.*::*"` | all methods of the classes in `com.acme`, including nested classes such as `com.acme.Order$Line` |
@@ -117,7 +117,7 @@ Keys can contain letters, digits, `_`, `$` and the wildcards. Spaces around the 
 "com.acme.Order::export" = "-"          # no receiver members in export ...
 "com.acme.Order::*" = "getId()"         # ... getId() in Order's other methods ...
 "com.acme.generated.**::*" = "-"        # ... nothing in the generated classes ...
-"com.acme.**::*" = "@"                  # ... and @StackTraceReceiver in the rest of com.acme
+"com.acme.**::*" = "@"                  # ... and @AugmentedReceiver in the rest of com.acme
 ```
 
 A method belongs to the class that declares it: a subclass's own methods need an entry that matches the subclass, its own or the superclass's with `+`, while the methods it inherits use the superclass's entry. [Receivers and parameters](receivers-and-parameters.md) has examples, including proxies, mocks and interface default methods.
@@ -149,11 +149,11 @@ A method belongs to the class that declares it: a subclass's own methods need an
 | `"orderId"` | the field `orderId`, looked up in the class and its superclasses; without such a field, its getter (`getOrderId()`, as for Kotlin properties of interfaces) |
 | `"getOrderId()"` | the result of the no-argument method `getOrderId()`, also a default method of an implemented interface |
 | `"tenant, lineId()"` | several of them, one value each, in this order: `OrderLine{tenant=acme, lineId=3}.cancel` |
-| `"@"` | every `@StackTraceReceiver` field, no-argument method or (Kotlin) primary-constructor `val` of the class and its superclasses |
+| `"@"` | every `@AugmentedReceiver` field, no-argument method or (Kotlin) primary-constructor `val` of the class and its superclasses |
 | `"-"` | none, also for the entries after it that would match |
 
 - **Each member shows its value as text**, from `toString()`, labelled with the member's real name: `{orderId=42}`, `{getKey=…}`.
-- **`@StackTraceReceiver` counts only through an `"@"` entry.** An annotated class without one shows no receiver members.
+- **`@AugmentedReceiver` counts only through an `"@"` entry.** An annotated class without one shows no receiver members.
 - **A member the class does not have is left out**, with a warning (see [Errors and warnings](#errors-and-warnings)).
 - **The methods go in the key, not in the value**: `"com.acme.Parcel::weigh" = "weight"`.
 - **Constructors never show receiver members**, so `<init>` is not allowed in these keys.
@@ -168,7 +168,7 @@ A method belongs to the class that declares it: a subclass's own methods need an
 | `"2"` | the third parameter (0-based index, 0 to 255) |
 | `"order, 2"` | several of them, by name or index |
 | `"user, email#, 3#"` | `#` after a name or index shows the value hashed: `email=#71d4f55f` |
-| `"@"` | the parameters the annotations select: `@StackTraceParam` on a parameter, `@StackTraceParams` on the method (all its parameters); `@StackTraceParam(secret = true)` hashes |
+| `"@"` | the parameters the annotations select: `@AugmentedParam` on a parameter, `@AugmentedParams` on the method (all its parameters); `@AugmentedParam(secret = true)` hashes |
 | `"-"` | none, also for the entries after it that would match |
 
 - **There is no wildcard for parameters.** Each one is named, indexed or selected by an annotation.
