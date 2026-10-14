@@ -42,8 +42,8 @@ The configuration SHALL be a TOML file ending in `.toml`, with these keys:
 Sections, dotted keys (`augment.maxIdLength = 32`) and inline tables SHALL be equivalent. Quoted and
 unquoted class names in `[augment.exceptions]` SHALL be equivalent; keys with wildcards, and the keys of
 `[augment.receiver]` and `[augment.params]`, which contain `::`, SHALL be quoted, as TOML requires. Two entries of
-one table whose keys differ only in quoting or in spaces, such as `com.acme.Order` and `"com.acme.Order"`, or
-`"com.acme.Order::a,b"` and `"com.acme.Order::a, b"`, SHALL be rejected, naming the key and the lines of both
+one table whose keys differ only in quoting, in spaces or in the order of their methods, such as `com.acme.Order` and `"com.acme.Order"`, or
+`"com.acme.Order::a,b"`, `"com.acme.Order::a, b"` and `"com.acme.Order::b, a"`, SHALL be rejected, naming the key and the lines of both
 entries, rather than one silently replacing the other.
 
 #### Scenario: Full configuration
@@ -94,7 +94,7 @@ or `@` separated by commas, without duplicates or empty items. `<init>` SHALL be
 name, a `method()`, several of them separated by commas without duplicates or empty items, `"@"` or `"-"`, or
 when it contains `::`. An `[augment.params]` value SHALL be invalid when it is not a string with `"@"`, `"-"` or
 parameter names and indexes (0 to 255) separated by commas, each optionally followed by `#`, without empty
-items (`"*"`, `"@"` and `"-"` are not allowed among the items, and `"*"` is not allowed as the value). Spaces
+items and without the same name or index twice, hashed or not (`"*"`, `"@"` and `"-"` are not allowed among the items, and `"*"` is not allowed as the value). Spaces
 around the items SHALL NOT matter. A TOML array SHALL be
 invalid in both tables. The message SHALL name the file, the key and its line.
 

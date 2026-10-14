@@ -897,19 +897,32 @@ public final class AugmentorConfig {
 
         /**
          * The key, unless another entry of the same table already names it: {@code "com.acme.Order"} and
-         * {@code com.acme.Order} are different TOML keys for the same class, as are {@code "com.acme.Order::a,b"} and
-         * {@code "com.acme.Order::a, b"} for the same methods, and neither may silently win.
+         * {@code com.acme.Order} are different TOML keys for the same class, as are {@code "com.acme.Order::a,b"},
+         * {@code "com.acme.Order::a, b"} and {@code "com.acme.Order::b, a"} for the same methods, and neither may
+         * silently win.
          */
         private String unique(String key, List<String> path, Map<String, List<String>> seen) {
-            List<String> first = seen.putIfAbsent(key, path);
+            List<String> first = seen.putIfAbsent(sameAs(key), path);
             if (first != null) {
                 TomlPosition position = toml.inputPositionOf(first);
                 String where = position != null ? " on line " + position.line() : "";
-                String same = key.contains(METHOD_SEPARATOR) ? "keys that differ in spaces only name the same methods"
+                String same = key.contains(METHOD_SEPARATOR)
+                        ? "keys that differ in spaces or in the order of their methods name the same methods"
                         : "quoted and unquoted keys name the same class";
                 throw error(path, "'" + key + "' is configured twice; it is already configured" + where + " (" + same + ")");
             }
             return key;
+        }
+
+        /** What a key names, whatever the order of its methods: {@code "com.acme.Order::b, a"} as {@code "com.acme.Order::a, b"}. */
+        private static String sameAs(String key) {
+            int separator = key.indexOf(METHOD_SEPARATOR);
+            if (separator < 0) {
+                return key;
+            }
+            List<String> methods = new ArrayList<>(List.of(key.substring(separator + METHOD_SEPARATOR.length()).split(", ")));
+            methods.sort(null);
+            return key.substring(0, separator) + METHOD_SEPARATOR + String.join(", ", methods);
         }
 
         private static String target(List<String> path, List<String> table) {
@@ -1045,10 +1058,20 @@ public final class AugmentorConfig {
                 return List.of(new ParamRef.Excluded());
             }
             List<ParamRef> refs = new ArrayList<>();
-            for (String ref : items(path, text, "parameter")) {
-                refs.add(paramRef(path, ref));
+            for (String item : items(path, text, "parameter")) {
+                ParamRef ref = paramRef(path, item);
+                if (refs.stream().anyMatch(it -> sameParameter(it, ref))) {
+                    throw error(path, "'" + (item.endsWith("#") ? item.substring(0, item.length() - 1) : item) + "' is listed twice");
+                }
+                refs.add(ref);
             }
             return refs;
+        }
+
+        /** The same name or the same index, hashed or not: {@code "email, email#"} lists {@code email} twice. */
+        private static boolean sameParameter(ParamRef a, ParamRef b) {
+            return a instanceof ParamRef.ByName x && b instanceof ParamRef.ByName y && x.name().equals(y.name())
+                    || a instanceof ParamRef.ByIndex i && b instanceof ParamRef.ByIndex j && i.index() == j.index();
         }
 
         /** A name or an index, optionally followed by {@code #} to hash the value: {@code "email#"}, {@code "1#"}. */

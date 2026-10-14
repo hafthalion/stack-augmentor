@@ -75,6 +75,11 @@ in the live-stack mode. Without the table, or with an empty one, no throwable SH
 `[augment.receiver]` and `[augment.params]` entries; when those have entries but no `[augment.exceptions]` entry
 is `true`, startup SHALL warn.
 
+#### Scenario: Cause without ids
+- **GIVEN** `"com.acme.PlainCause" = false` before `"**" = true`, and `wrap()` catches a `PlainCause` from `inner()` and throws `RuntimeException("wrapped", cause)`
+- **WHEN** the wrapper is printed, in either mode
+- **THEN** the cause's `inner` frame is unchanged, its frames shared with the wrapper show the wrapper's ids, and they collapse into `... N more`
+
 #### Scenario: First matching entry
 - **GIVEN** `"java.io.FileNotFoundException" = false` before `"java.io.IOException+" = true`
 - **WHEN** configured methods throw `FileNotFoundException` and `IOException`

@@ -132,7 +132,7 @@ class AugmentorConfigTest {
     fun `a class or method configured twice is rejected with both lines`() {
         assertEquals(
             "test.toml, line 3: 'com.acme.Order::a, b' is configured twice; it is already configured on line 2 " +
-                "(keys that differ in spaces only name the same methods)",
+                "(keys that differ in spaces or in the order of their methods name the same methods)",
             error("[augment.receiver]\n\"com.acme.Order::a,b\" = \"a\"\n\"com.acme.Order::a, b\" = \"b\""),
         )
         assertEquals(
@@ -338,6 +338,13 @@ class AugmentorConfigTest {
         assertTrue(error("[augment.params]\n\"com.acme.Order::ship,\" = \"0\"").contains("keys must name a class and its methods separated by ::"))
         assertTrue(error("[augment.params]\n\"com.acme.Order::ship, ship\" = \"0\"").contains("'ship' is listed twice"))
         assertTrue(error("[augment.params]\n\"com.acme.Order::ship\" = \"0\"\n\"com.acme.Order::ship \" = \"1\"").contains("is configured twice"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::ship, cancel\" = \"0\"\n\"com.acme.Order::cancel,ship\" = \"1\"")
+            .contains("'com.acme.Order::cancel, ship' is configured twice; it is already configured on line 2"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::ship\" = \"order, order\"").contains("'order' is listed twice"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::ship\" = \"email, email#\"").contains("'email' is listed twice"))
+        assertTrue(error("[augment.params]\n\"com.acme.Order::ship\" = \"1, 1#\"").contains("'1' is listed twice"))
+        // A name and an index of the same parameter cannot be told apart here: shown once
+        AugmentorConfig.parse("[augment.params]\n\"com.acme.Order::ship\" = \"order, 0\"")
     }
 
     @Test

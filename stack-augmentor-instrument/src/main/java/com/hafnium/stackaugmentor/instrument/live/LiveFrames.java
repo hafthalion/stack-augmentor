@@ -10,6 +10,7 @@ import com.hafnium.stackaugmentor.runtime.ids.NamedId;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 /**
@@ -76,8 +77,80 @@ public final class LiveFrames implements LiveDispatch.Handler {
     @Override
     public void onTrace(Throwable thrown, StackTraceElement[] trace) {
         List<Captured> captured = pending.remove(thrown);
-        if (captured != null) {
-            rewrite(trace, captured);
+        if (captured == null) {
+            return;
+        }
+        boolean related = thrown.getCause() != null || thrown.getSuppressed().length > 0;
+        StackTraceElement[] original = related ? trace.clone() : null;
+        Captured[] rewritten = rewrite(trace, captured);
+        if (related) {
+            rewriteShared(thrown, trace, original, rewritten);
+        }
+    }
+
+    /**
+     * Writes the rewritten frames of {@code thrown} also into its causes and suppressed exceptions, and theirs, where
+     * they share them: the same frames at the same distance from the bottom, whatever ids those exceptions have there
+     * themselves, or whether {@code [augment.exceptions]} gives them any. Printed traces then still collapse the shared
+     * frames into {@code ... N more}, which compares frames with {@code equals}. The frame of the same call at another
+     * line, where the method caught the cause that it wraps, gets the same ids with its own line. As with instrumented
+     * classes.
+     */
+    private void rewriteShared(Throwable thrown, StackTraceElement[] trace, StackTraceElement[] original, Captured[] rewritten) {
+        List<Throwable> related = new ArrayList<>();
+        related.add(thrown);
+        addRelated(thrown, related);
+        for (int r = 1; r < related.size(); r++) {
+            Throwable other = related.get(r);
+            // Its array is created here if it was not yet, as the VM recorded it: this handler is not called again now.
+            List<Captured> otherCaptured = pending.remove(other);
+            StackTraceElement[] otherTrace = other.getStackTrace();
+            StackTraceElement[] otherOriginal = otherCaptured != null ? otherTrace.clone() : null;
+            boolean changed = false;
+            if (otherCaptured != null) {
+                rewrite(otherTrace, otherCaptured);
+                changed = true;
+            }
+            for (int i = trace.length - 1, j = otherTrace.length - 1; i >= 0 && j >= 0; i--, j--) {
+                boolean shared = otherOriginal != null ? otherOriginal[j].equals(original[i])
+                        : otherTrace[j].equals(original[i]) || otherTrace[j].equals(trace[i]);
+                if (!shared) {
+                    StackTraceElement plain = otherOriginal != null ? otherOriginal[j] : otherTrace[j];
+                    if (rewritten[i] != null && sameMethod(plain, original[i])) {
+                        otherTrace[j] = format.rewrite(plain, rewritten[i].receiverIds(), rewritten[i].paramIds());
+                        changed = true;
+                    }
+                    break;
+                }
+                if (rewritten[i] != null && !otherTrace[j].equals(trace[i])) {
+                    otherTrace[j] = trace[i];
+                    changed = true;
+                }
+            }
+            if (changed) {
+                other.setStackTrace(otherTrace);
+            }
+            addRelated(other, related);
+        }
+    }
+
+    /** Whether both frames are of the same method, at any line. */
+    private static boolean sameMethod(StackTraceElement a, StackTraceElement b) {
+        return a.getClassName().equals(b.getClassName()) && a.getMethodName().equals(b.getMethodName())
+                && Objects.equals(a.getFileName(), b.getFileName()) && Objects.equals(a.getModuleName(), b.getModuleName())
+                && Objects.equals(a.getClassLoaderName(), b.getClassLoaderName());
+    }
+
+    /** Adds the cause and the suppressed exceptions of {@code throwable} that are not in {@code related} yet. */
+    private static void addRelated(Throwable throwable, List<Throwable> related) {
+        Throwable cause = throwable.getCause();
+        if (cause != null && related.stream().noneMatch(it -> it == cause)) {
+            related.add(cause);
+        }
+        for (Throwable suppressed : throwable.getSuppressed()) {
+            if (related.stream().noneMatch(it -> it == suppressed)) {
+                related.add(suppressed);
+            }
         }
     }
 
@@ -198,8 +271,11 @@ public final class LiveFrames implements LiveDispatch.Handler {
     /**
      * Rewrites the captured frames. Each is checked against the trace by class, method and line; if the walk saw frames
      * that the trace leaves out, or the other way round, the nearest matching position is used.
+     *
+     * @return the captured frame of each rewritten position of the trace, null for the others
      */
-    private void rewrite(StackTraceElement[] trace, List<Captured> captured) {
+    private Captured[] rewrite(StackTraceElement[] trace, List<Captured> captured) {
+        Captured[] rewritten = new Captured[trace.length];
         int shift = 0;
         for (Captured frame : captured) {
             int index = find(trace, frame, frame.index() + shift);
@@ -212,7 +288,9 @@ public final class LiveFrames implements LiveDispatch.Handler {
             }
             shift = index - frame.index();
             trace[index] = format.rewrite(trace[index], frame.receiverIds(), frame.paramIds());
+            rewritten[index] = frame;
         }
+        return rewritten;
     }
 
     private static final int SEARCH = 8;

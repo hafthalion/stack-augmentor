@@ -266,6 +266,24 @@ class StackTraceIdsTest {
     }
 
     @Test
+    fun `a cause without ids of its own shows those of the frames it shares with the wrapper`() {
+        val e = report.thrown<RuntimeException, _>("Layers().outerWrapPlain()", Layers()) { it.outerWrapPlain() }
+        val cause = e.cause!!.stackTrace
+        // Its own frame stays plain: [augment.exceptions] gives PlainCause no ids.
+        assertEquals("com.hafnium.it.fixtures.Layers", cause[0].className)
+        assertEquals("plainInner", cause[0].methodName)
+        val outer = e.stackTrace.indexOfFirst { it.methodName == "outerWrapPlain" }
+        assertEquals("com.hafnium.it.fixtures.Layers{layer=layers}", e.stackTrace[outer].className)
+        assertEquals(e.stackTrace[outer], cause[cause.size - (e.stackTrace.size - outer)])
+        // The frame where wrapPlain caught the cause gets the wrapper's ids, at its own line.
+        val wrap = cause.single { it.methodName == "wrapPlain" }
+        assertEquals("com.hafnium.it.fixtures.Layers{layer=layers}", wrap.className)
+        assertTrue(wrap.lineNumber != e.stackTrace.single { it.methodName == "wrapPlain" }.lineNumber)
+        val printed = e.printed()
+        assertTrue(printed.contains("\t... ${e.stackTrace.size - outer} more"), printed)
+    }
+
+    @Test
     fun `root cause first prints the shared frames once, with their ids`() {
         val e = report.thrown<RuntimeException, _>("Layers().outerWrap()", Layers()) { it.outerWrap() }
         val lines = ExceptionFormat.rootCauseFirst(e).lines()

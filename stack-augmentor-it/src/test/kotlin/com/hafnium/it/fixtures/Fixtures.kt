@@ -170,12 +170,26 @@ class Layers {
     /** An instrumented frame below the catch in [wrap]: the wrapper and its cause share it. */
     fun outerWrap(): Nothing = wrap()
 
+    fun plainInner(@StackTraceParam step: Int): Nothing = throw PlainCause("plain $step")
+
+    fun wrapPlain(): Nothing = try {
+        plainInner(4)
+    } catch (e: PlainCause) {
+        throw RuntimeException("wrapped plain", e)
+    }
+
+    /** As [outerWrap], with a cause that gets no ids of its own. */
+    fun outerWrapPlain(): Nothing = wrapPlain()
+
     /** [Closer.close] throws too: its exception is suppressed in the one from [inner]. */
     fun closing(): Nothing = Closer().use { inner(3) }
 
     /** An instrumented frame below [closing]: the exception and its suppressed one share it. */
     fun outerClosing(): Nothing = closing()
 }
+
+/** An exception that [augment.exceptions] gives no ids. */
+class PlainCause(message: String) : RuntimeException(message)
 
 class Closer : AutoCloseable {
     @StackTraceId
