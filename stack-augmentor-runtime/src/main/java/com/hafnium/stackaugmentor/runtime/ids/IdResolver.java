@@ -138,7 +138,7 @@ public final class IdResolver {
         List<Source> found = sources.get(owner).computeIfAbsent(entryKey, key -> {
             List<Source> list = List.copyOf(findSources(owner, entry));
             if (Log.isDebug()) {
-                Log.debug(() -> "id sources of " + owner.getName() + " (\"" + key + "\"): " + (list.isEmpty() ? "none"
+                Log.debug(() -> "receiver members of " + owner.getName() + " (\"" + key + "\"): " + (list.isEmpty() ? "none"
                         : list.stream().map(Source::description).collect(Collectors.joining("; "))));
             }
             return list;
@@ -234,13 +234,13 @@ public final class IdResolver {
     }
 
     /**
-     * One line, capped at {@code maxIdLength}. Parentheses become braces: IDEs find the file and line of a frame by its
+     * One line, capped at {@code maxValueLength}. Parentheses become braces: IDEs find the file and line of a frame by its
      * {@code (File.java:12)}, which parentheses in an id, e.g. from a data class's {@code toString()}, would confuse.
      */
     private String sanitize(String text) {
         String braced = oneLineBraced(text);
-        int maxIdLength = config.maxIdLength();
-        return braced.length() > maxIdLength ? braced.substring(0, maxIdLength - 1) + "…" : braced;
+        int maxValueLength = config.maxValueLength();
+        return braced.length() > maxValueLength ? braced.substring(0, maxValueLength - 1) + "…" : braced;
     }
 
     /**

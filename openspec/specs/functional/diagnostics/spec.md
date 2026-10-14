@@ -14,9 +14,9 @@ the file, the key and the line, also when the exception carrying it is thrown on
 `ServiceLoader` do not show its message.
 
 #### Scenario: Invalid runtime configuration
-- **GIVEN** a build-time instrumented application started with `-Dstackaugmentor.config=bad.toml`, where line 2 is `maxIdLength = 1`
+- **GIVEN** a build-time instrumented application started with `-Dstackaugmentor.config=bad.toml`, where line 2 is `maxValueLength = 1`
 - **WHEN** the first exception leaves an instrumented method
-- **THEN** `[stack-augmentor] ERROR runtime: bad.toml, line 2: maxIdLength must be between 2 and 10000, was 1` is printed
+- **THEN** `[stack-augmentor] ERROR runtime: bad.toml, line 2: maxValueLength must be between 2 and 10000, was 1` is printed
 - **AND** a warning says that the stack trace handler cannot be created because the configuration is invalid, and stack traces stay unchanged
 
 #### Scenario: Same messages in both modes

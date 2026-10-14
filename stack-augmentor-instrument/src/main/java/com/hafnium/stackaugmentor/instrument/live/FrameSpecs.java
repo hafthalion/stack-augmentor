@@ -136,12 +136,12 @@ public final class FrameSpecs {
             Spec spec = new Spec(receiver ? entry.key() : null, type, List.copyOf(params));
             if (Log.isDebug()) {
                 Log.debug(() -> "live stack: frames of " + type.getName() + "." + name + " show "
-                        + (receiver ? "the receiver id" : "no receiver id")
+                        + (receiver ? "the receiver members" : "no receiver members")
                         + (params.isEmpty() ? "" : ", parameters " + params.stream().map(Param::label).collect(Collectors.joining(", "))));
             }
             return spec;
         } catch (RuntimeException | LinkageError e) {
-            Log.debug(() -> "live stack: cannot read " + type.getName() + "." + name + ", so its frames show no ids: " + e);
+            Log.debug(() -> "live stack: cannot read " + type.getName() + "." + name + ", so its frames are not augmented: " + e);
             return NONE;
         }
     }

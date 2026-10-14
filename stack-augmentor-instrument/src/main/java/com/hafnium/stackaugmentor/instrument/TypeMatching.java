@@ -94,7 +94,7 @@ public final class TypeMatching {
                         ? "@StackTraceReceiver (\"" + entry.key() + "\" = \"@\")"
                         : "[augment.receiver] \"" + entry.key() + "\"")
                 .toList();
-        String reason = receivers.isEmpty() ? "parameter ids only" : "receiver id from " + String.join(", ", receivers);
+        String reason = receivers.isEmpty() ? "parameter values only" : "receiver members from " + String.join(", ", receivers);
         ElementMatcher<MethodDescription> constructors = constructors(type);
         List<String> instrumented = new ArrayList<>();
         for (MethodDescription method : type.getDeclaredMethods()) {

@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 public final class FrameFormat {
 
     private static final List<String> FRAME_PLACEHOLDERS = List.of("class", "simpleClass", "method", "receiver", "params");
-    private static final List<String> ID_PLACEHOLDERS = List.of("name", "id");
+    private static final List<String> ID_PLACEHOLDERS = List.of("name", "value");
     private static final String REPEAT = "...";
     private static final String DEFAULT_SEPARATOR = ",";
 
@@ -162,7 +162,7 @@ public final class FrameFormat {
 
     private static void requirePlaceholder(List<Token> tokens, String template, String key) {
         if (tokens.stream().noneMatch(token -> token instanceof Token.Placeholder)) {
-            throw new ConfigException(key + " must contain $name or $id; was '" + template + "'");
+            throw new ConfigException(key + " must contain $name or $value; was '" + template + "'");
         }
     }
 

@@ -241,7 +241,7 @@ A `#` after a parameter name or index in an `[augment.params]` value (`"email#"`
 or `@StackTraceParam(secret = true)` on a parameter (also one that `@StackTraceParams` selects) SHALL show the
 value hashed: `#` followed by the
 first 8 lower-case hex digits of the SHA-256 of the value's text (its UTF-8 bytes, before line breaks and
-parentheses are replaced and before `maxIdLength` applies). `null` SHALL stay `null`, and an id source that
+parentheses are replaced and before `maxValueLength` applies). `null` SHALL stay `null`, and an id source that
 throws SHALL still show `?`. `secret` SHALL default to `false`. A parameter selected twice (by name and by
 index, or by both annotations) SHALL be hashed when either hashes it. The label SHALL stay the parameter name.
 
@@ -284,7 +284,7 @@ Other arguments SHALL be shown with `toString()`, also when their class has a re
 `[augment.receiver]` SHALL only apply to receivers. Line breaks SHALL be replaced by a single space, and `(`
 and `)` by `{` and `}`, because IDEs find a frame's file and line by the parenthesised `(File.kt:12)` that
 follows the method. Text longer than
-`[augment] maxIdLength` SHALL be cut to `maxIdLength - 1` characters followed by `…`. An id source that
+`[augment] maxValueLength` SHALL be cut to `maxValueLength - 1` characters followed by `…`. An id source that
 throws SHALL be shown as `?`.
 
 #### Scenario: Object argument with an id source
@@ -299,7 +299,7 @@ throws SHALL be shown as `?`.
 - **THEN** the frame shows `codes=[1, 2]`, as an array argument would, not `[I@…`
 
 #### Scenario: Long and multi-line ids
-- **GIVEN** `maxIdLength = 20`
+- **GIVEN** `maxValueLength = 20`
 - **WHEN** a receiver id is 50 characters long, or contains `line1\nline2`
 - **THEN** the frame shows the first 19 characters followed by `…`, or `line1 line2`
 
