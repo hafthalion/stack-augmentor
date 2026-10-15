@@ -31,7 +31,7 @@ know.
 ### Requirement: Third-party classes
 The agent SHALL instrument classes whose deciding `[augment.receiver]` entry names a field or method,
 and classes with methods selected by `[augment.params]`
-entries, in any package and without annotations: whatever either table needs, independently of the other. Both tables SHALL accept class patterns with wildcards.
+entries, in any package and without annotations or `[augment.annotations]` entries: whatever either table needs, independently of the other. Both tables SHALL accept class patterns with wildcards.
 Classes in the ignored packages SHALL stay uninstrumented, even when a wildcard entry matches them.
 
 #### Scenario: Configured library class
@@ -50,7 +50,7 @@ Classes in the ignored packages SHALL stay uninstrumented, even when a wildcard 
 - **THEN** the frame reads `com.thirdparty.SavingsAccount{number=S-1}.withdraw(…)`
 
 #### Scenario: Wildcard matching JDK classes
-- **GIVEN** `"java.**::*" = "0"` in `[augment.params]` and `"java.**::*" = "@"` in `[augment.receiver]`
+- **GIVEN** `"java.**::*" = "0"` in `[augment.params]`, `"java.**::*" = "id"` in `[augment.receiver]` and `"java.**" = true` in `[augment.annotations]`
 - **WHEN** an exception is thrown inside a JDK method
 - **THEN** the JDK frames are unchanged
 

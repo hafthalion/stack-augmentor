@@ -1,9 +1,11 @@
 package com.hafnium.it.fixtures
 
+import com.hafnium.stackaugmentor.Augmented
 import com.hafnium.stackaugmentor.AugmentedReceiver
 import com.hafnium.stackaugmentor.AugmentedParam
 import com.thirdparty.Order
 
+@Augmented
 class ObjectClass {
     @AugmentedReceiver
     val objectId = "object-1"
@@ -11,6 +13,7 @@ class ObjectClass {
     fun objectMethod(@AugmentedParam orderId: Int): Nothing = throw Exception("An error has occurred")
 }
 
+@Augmented
 class KeyedByMethod {
     @AugmentedReceiver
     fun key(): String = "k-1"
@@ -19,6 +22,7 @@ class KeyedByMethod {
 }
 
 /** Several @AugmentedReceiver members: one id each. */
+@Augmented
 class MultiKeyed {
     @AugmentedReceiver
     val tenant = "acme"
@@ -29,16 +33,19 @@ class MultiKeyed {
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
+@Augmented
 open class Base {
     @AugmentedReceiver
     val baseId = "b1"
 }
 
+@Augmented
 class Derived : Base() {
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
 /** Annotation on a primary constructor property, without `@field:`. */
+@Augmented
 class Node(@AugmentedReceiver val name: String, private val next: Node?) {
     fun walk(@AugmentedParam depth: Int) {
         if (next == null) throw IllegalStateException("end of list")
@@ -47,6 +54,7 @@ class Node(@AugmentedReceiver val name: String, private val next: Node?) {
 }
 
 /** Creates an exception and passes it to the next relay, which throws it: the next relay's frame is not in the trace. */
+@Augmented
 class Relay(@AugmentedReceiver val name: String, private val next: Relay?) {
     fun pass(@AugmentedParam depth: Int, error: IllegalStateException?) {
         if (next == null) throw error!!
@@ -55,6 +63,7 @@ class Relay(@AugmentedReceiver val name: String, private val next: Relay?) {
 }
 
 /** A receiver id with parentheses, which would confuse IDEs looking for "(File.kt:12)". */
+@Augmented
 class ParenLabels {
     @AugmentedReceiver
     val id = "id(7)"
@@ -62,6 +71,7 @@ class ParenLabels {
     fun fail(@AugmentedParam value: Int): Nothing = throw IllegalStateException("fail $value")
 }
 
+@Augmented
 class ManyParams {
     @AugmentedReceiver
     val id = "many"
@@ -90,6 +100,7 @@ class ManyParams {
     }
 }
 
+@Augmented
 class Shipping {
     @AugmentedReceiver
     val id = "ship"
@@ -101,7 +112,8 @@ class Shipping {
     fun op(@AugmentedParam name: String, y: Int): Nothing = throw IllegalStateException("op string $y")
 }
 
-/** Matched by an "@" entry, but without @AugmentedReceiver: not augmented. */
+/** Its annotations are read, but it has no @AugmentedReceiver: not augmented. */
+@Augmented
 class WithToString {
     override fun toString() = "WTS-1"
     fun fail(): Nothing = throw IllegalStateException("fail")
@@ -111,6 +123,7 @@ class Plain {
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
+@Augmented
 class BrokenId {
     @AugmentedReceiver
     fun id(): String = throw IllegalStateException("id is broken")
@@ -118,6 +131,7 @@ class BrokenId {
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
+@Augmented
 class MultiLine {
     @AugmentedReceiver
     val text = "line1\nline2"
@@ -125,6 +139,7 @@ class MultiLine {
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
+@Augmented
 class LongId {
     @AugmentedReceiver
     val text = "x".repeat(50)
@@ -132,6 +147,7 @@ class LongId {
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
+@Augmented
 class LambdaHolder {
     @AugmentedReceiver
     val id = "lambda"
@@ -148,6 +164,7 @@ class NoTrace {
     fun fail(): Nothing = throw NoTraceException()
 }
 
+@Augmented
 class Layers {
     @AugmentedReceiver
     val layer = "layers"
@@ -191,6 +208,7 @@ class Layers {
 /** An exception that [augment.exceptions] does not augment. */
 class PlainCause(message: String) : RuntimeException(message)
 
+@Augmented
 class Closer : AutoCloseable {
     @AugmentedReceiver
     val name = "closer"
@@ -198,10 +216,12 @@ class Closer : AutoCloseable {
     override fun close(): Unit = throw IllegalArgumentException("close failed")
 }
 
+@Augmented
 fun staticWithParam(@AugmentedParam code: Int): Nothing = throw IllegalStateException("static $code")
 
 fun staticWithoutParam(): Nothing = throw IllegalStateException("static")
 
+@Augmented
 class ArrayId {
     @AugmentedReceiver
     val codes = intArrayOf(1, 2)
@@ -209,6 +229,7 @@ class ArrayId {
     fun fail(@AugmentedParam tags: Array<String>): Nothing = throw IllegalStateException("fail ${tags.size}")
 }
 
+@Augmented
 class NullId {
     @AugmentedReceiver
     val id: String? = null
@@ -223,6 +244,7 @@ class Unprintable {
     override fun toString(): String = throw IllegalStateException("cannot print")
 }
 
+@Augmented
 class Canvas {
     @AugmentedReceiver
     val id = "canvas"
@@ -233,6 +255,7 @@ class Canvas {
 }
 
 /** Constructors are not instrumented. */
+@Augmented
 class FailingInit(@AugmentedReceiver val id: String) {
     init {
         check(id.isNotEmpty()) { "empty id" }
@@ -240,6 +263,7 @@ class FailingInit(@AugmentedReceiver val id: String) {
 }
 
 /** The property of an object is compiled to a static field, which is not an id source. */
+@Augmented
 object Registry {
     @AugmentedReceiver
     val name = "registry"
@@ -248,6 +272,7 @@ object Registry {
 }
 
 /** Its getter is an instance method, so it is an id source. */
+@Augmented
 object GetterRegistry {
     @get:AugmentedReceiver
     val name = "getter-registry"
@@ -255,6 +280,7 @@ object GetterRegistry {
     fun fail(@AugmentedParam key: String): Nothing = throw IllegalStateException("no $key")
 }
 
+@Augmented
 class Chain {
     @AugmentedReceiver
     val id = "chain"
@@ -277,6 +303,7 @@ class Chain {
 }
 
 /** Throws exceptions created before the call: in the constructor, or by the first call and reused. */
+@Augmented
 class Prepared {
     @AugmentedReceiver
     val id = "prepared"
@@ -293,6 +320,7 @@ class Prepared {
 }
 
 /** Recurses down to depth 0 and throws there, after parking the thread first if asked: ConcurrencyTest. */
+@Augmented
 class Diver(@AugmentedReceiver val name: String) {
     fun dive(@AugmentedParam depth: Int, @AugmentedParam park: Boolean) {
         if (depth == 0) {

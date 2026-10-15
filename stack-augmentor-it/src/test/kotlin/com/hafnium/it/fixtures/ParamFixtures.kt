@@ -1,11 +1,13 @@
 package com.hafnium.it.fixtures
 
+import com.hafnium.stackaugmentor.Augmented
 import com.hafnium.stackaugmentor.AugmentedReceiver
 import com.hafnium.stackaugmentor.AugmentedParam
 import com.hafnium.stackaugmentor.AugmentedParams
 
 // Parameter ids selected by @AugmentedParams on methods and classes.
 
+@Augmented
 class Accounts {
     @AugmentedParams
     fun transfer(from: String, to: String, amount: Long): Nothing = throw IllegalStateException("transfer")
@@ -16,6 +18,7 @@ class Accounts {
     fun plain(from: String): Nothing = throw IllegalStateException("plain $from")
 }
 
+@Augmented
 open class Inventory {
     @AugmentedParams
     open fun reserve(sku: String, count: Int): Nothing = throw IllegalStateException("reserve")
@@ -30,10 +33,12 @@ class DerivedInventory : Inventory() {
 }
 
 /** Listed in [augment.params] with x by name and by index: it is shown once. */
+@Augmented
 class Overlap {
     fun op(@AugmentedParam x: Int, y: Int): Nothing = throw IllegalStateException("op")
 }
 
+@Augmented
 class Wide {
     @AugmentedParams
     fun ten(a: Int, b: Int, c: Int, d: Int, e: Int, f: Int, g: Int, h: Int, i: Int, j: Int): Nothing =
@@ -41,10 +46,11 @@ class Wide {
 }
 
 /**
- * Matched by the "@" entries of the fixtures, but its own entries come first and decide: its receiver id comes
- * from its [augment.receiver] entry "getId()", and its parameter annotations are ignored ("-"), except those of
- * failAnnotated, whose exact [augment.params] "@" entry comes before the "-".
+ * Its annotations are read, but its own entries decide where they match: its receiver members come from its
+ * [augment.receiver] entry "getId()", and fail's parameter annotation is ignored ("-"). No [augment.params] entry
+ * matches failAnnotated, so its annotation is used.
  */
+@Augmented
 class Overridden {
     @AugmentedReceiver
     val code = "c-1"
@@ -57,6 +63,7 @@ class Overridden {
 }
 
 /** Hashed parameter ids: secret = true on the annotations. */
+@Augmented
 class Secrets {
     fun invite(@AugmentedParam user: String, @AugmentedParam(secret = true) email: String): Nothing =
         throw IllegalStateException("invite")
@@ -66,6 +73,7 @@ class Secrets {
 }
 
 /** A hashed parameter that is null. */
+@Augmented
 class Forgetful {
     fun forget(@AugmentedParam(secret = true) email: String?): Nothing = throw IllegalStateException("forget")
 }
@@ -73,6 +81,7 @@ class Forgetful {
 // Constructors: parameter ids from the "<init>" entry, never a receiver id.
 
 /** Validation in an init block, after the superclass constructor has run. */
+@Augmented
 class Shipment(@AugmentedParam val orderId: Long, @AugmentedParam(secret = true) val email: String, val weight: Int) {
     init {
         require(weight > 0) { "weight" }
@@ -86,12 +95,15 @@ open class Parcel(code: String) {
 }
 
 /** The superclass constructor throws: inside the super(...) call, so this frame gets no ids. */
+@Augmented
 class ExpressParcel @AugmentedParams constructor(code: String, val priority: Int) : Parcel(code)
 
 /** Computing the argument of super(...) throws: before the call, so this frame gets its ids. */
+@Augmented
 class Crate @AugmentedParams constructor(code: String?, val size: Int) : Parcel(requireNotNull(code) { "code" })
 
 /** A secondary constructor delegating to the primary one: it gets ids only for exceptions from its own body. */
+@Augmented
 class Pallet @AugmentedParams constructor(val size: Int) {
     init {
         check(size < 100) { "size" }

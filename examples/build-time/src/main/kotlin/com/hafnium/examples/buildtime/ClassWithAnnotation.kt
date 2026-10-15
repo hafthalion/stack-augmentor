@@ -1,5 +1,6 @@
 package com.hafnium.examples.buildtime
 
+import com.hafnium.stackaugmentor.Augmented
 import com.hafnium.stackaugmentor.AugmentedReceiver
 import com.hafnium.stackaugmentor.AugmentedParam
 import com.hafnium.stackaugmentor.AugmentedParams
@@ -8,6 +9,7 @@ import com.hafnium.stackaugmentor.AugmentedParams
 data class ObjectParam(private val name: String)
 
 /** Receiver member from @AugmentedReceiver, parameter values from the parameter annotations. */
+@Augmented
 data class ClassWithAnnotation(
     @AugmentedReceiver
     private val objectId: String
@@ -28,7 +30,7 @@ data class ClassWithAnnotation(
     }
 }
 
-/** No annotations: its parameter comes from its own [augment.params] entry, which comes before the "@" pattern. */
+/** No annotations: its parameter comes from its own [augment.params] entry. */
 data class ClassWithoutAnnotation(
     val objectId: String
 ) {

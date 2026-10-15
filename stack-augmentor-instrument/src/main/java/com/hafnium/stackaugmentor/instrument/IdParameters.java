@@ -17,10 +17,11 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
- * Finds the id parameters of a method: those the {@code [augment.params]} config table selects, by name, index,
- * or {@code "@"} for the method's {@code @AugmentedParam} and {@code @AugmentedParams} annotations, and whether their
- * values are hashed: {@code #} after a name or index, or {@code @AugmentedParam(secret = true)}. {@code [augment.receiver]}
- * plays no part.
+ * Finds the parameters whose values a method's frames show: those the first matching {@code [augment.params]} entry
+ * selects, by name or index, or, without such an entry, those the method's {@code @AugmentedParam} and
+ * {@code @AugmentedParams} annotations select, where {@code [augment.annotations]} selects the class and
+ * {@code @Augmented} the method. Also whether their values are hashed: {@code #} after a name or index, or
+ * {@code @AugmentedParam(secret = true)}. {@code [augment.receiver]} plays no part.
  */
 public final class IdParameters {
 
@@ -30,13 +31,25 @@ public final class IdParameters {
         this.config = config;
     }
 
-    /** Whether the parameter annotations of this method are used: an {@code [augment.params]} {@code "@"} entry applies. */
+    /**
+     * Whether the parameter annotations of this method are used: no {@code [augment.params]} entry matches it,
+     * {@code @Augmented} selects it and {@code [augment.annotations]} its class.
+     */
     boolean annotationsUsed(TypeDescription type, MethodDescription method) {
-        return hasAnnotationsRef(paramRefs(type, method));
+        return paramsEntry(type, method) == null && annotationsSelect(type, method);
     }
 
-    private List<ParamRef> paramRefs(TypeDescription type, MethodDescription method) {
-        return config.paramRefs(type.getName(), supertypes(type)::contains, method.getInternalName(), augmented(method));
+    /**
+     * Whether {@code @Augmented} selects the method and {@code [augment.annotations]} the type. Without
+     * {@code @Augmented}, the other annotations are not looked for.
+     */
+    boolean annotationsSelect(TypeDescription type, MethodDescription method) {
+        return AugmentedSelection.augments(type, method) && config.readsAnnotations(type.getName(), supertypes(type)::contains);
+    }
+
+    /** The values of the first matching {@code [augment.params]} entry, {@code null} if none matches. */
+    private List<ParamRef> paramsEntry(TypeDescription type, MethodDescription method) {
+        return config.paramsEntry(type.getName(), supertypes(type)::contains, method.getInternalName());
     }
 
     /** The last type's supertype names: they are asked for once per method of a type, for keys with {@code +}. */
@@ -49,20 +62,6 @@ public final class IdParameters {
             lastSupertypes = last;
         }
         return last;
-    }
-
-    /** Whether the method has {@code @Augmented}, which {@code "@"} after {@code ::} selects by. */
-    static boolean augmented(MethodDescription method) {
-        return annotation(method.getDeclaredAnnotations(), IdResolver.AUGMENTED) != null;
-    }
-
-    private static boolean hasAnnotationsRef(List<ParamRef> refs) {
-        for (ParamRef ref : refs) {
-            if (ref instanceof ParamRef.Annotations) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** Whether the method has parameter annotations: {@code @AugmentedParam}, or {@code @AugmentedParams} on it. */
@@ -82,11 +81,17 @@ public final class IdParameters {
         ParameterList<?> parameters = method.getParameters();
         // By index: whether the value is hashed. A parameter selected twice (by name and by index) is hashed if either hashes it.
         TreeMap<Integer, Boolean> selected = new TreeMap<>();
-        for (ParamRef ref : paramRefs(type, method)) {
+        List<ParamRef> refs = paramsEntry(type, method);
+        if (refs == null) {
+            if (annotationsSelect(type, method)) {
+                annotated(method, selected);
+            }
+            refs = List.of();
+        }
+        for (ParamRef ref : refs) {
             switch (ref) {
-                case ParamRef.Annotations annotations -> annotated(method, selected);
                 case ParamRef.Excluded excluded -> {
-                    // paramRefs returns no refs for "-".
+                    // "-": no parameters
                 }
                 case ParamRef.ByName byName -> {
                     ParameterDescription parameter = named(parameters, byName.name());
@@ -164,17 +169,14 @@ public final class IdParameters {
                 if (AugmentorConfig.isPattern(methodName)) {
                     continue;
                 }
-                boolean byAnnotation = methodName.equals(AugmentorConfig.ANNOTATIONS);
                 List<MethodDescription> named = new ArrayList<>();
                 for (MethodDescription method : type.getDeclaredMethods()) {
-                    if ((method.isMethod() || method.isConstructor())
-                            && (byAnnotation ? augmented(method) : method.getInternalName().equals(methodName))) {
+                    if ((method.isMethod() || method.isConstructor()) && method.getInternalName().equals(methodName)) {
                         named.add(method);
                     }
                 }
                 if (named.isEmpty()) {
-                    messages.add(entry + ": " + type.getName() + (byAnnotation ? " has no method annotated with @Augmented"
-                            : " has no method '" + methodName + "'"));
+                    messages.add(entry + ": " + type.getName() + " has no method '" + methodName + "'");
                 }
                 for (MethodDescription method : named) {
                     if (!methods.contains(method)) {
@@ -189,8 +191,6 @@ public final class IdParameters {
                         .collect(Collectors.joining(", ")) + ")";
                 for (ParamRef ref : params.getValue()) {
                     switch (ref) {
-                        case ParamRef.Annotations annotations -> {
-                        }
                         case ParamRef.Excluded excluded -> {
                         }
                         case ParamRef.ByIndex byIndex -> {

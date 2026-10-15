@@ -16,7 +16,8 @@ public final class Startup {
     public static final String RUNTIME = "runtime";
 
     public static final String NOTHING_CONFIGURED =
-            "the configuration has no [augment.receiver] or [augment.params] entries other than \"-\", so nothing will be augmented";
+            "the configuration has no [augment.receiver] or [augment.params] entries other than \"-\" and no [augment.annotations] "
+                    + "entry that is true, so nothing will be augmented";
     public static final String NO_EXCEPTIONS =
             "no [augment.exceptions] entry is true, so no exception is augmented; \"java.lang.Exception+\" = true augments "
                     + "all exceptions, \"**\" = true all throwables";
@@ -53,6 +54,7 @@ public final class Startup {
         Log.debug(() -> component + ": configuration " + location);
         Log.debug(() -> component + ": [augment.receiver] " + config.classesDescription());
         Log.debug(() -> component + ": [augment.params] " + config.methodsDescription());
+        Log.debug(() -> component + ": [augment.annotations] " + config.annotationsDescription());
         Log.debug(() -> component + ": [augment] frameFormat=" + config.frameFormat() + ", receiverFormat=" + config.receiverFormat()
                 + ", paramsFormat=" + config.paramsFormat() + ", maxValueLength=" + config.maxValueLength()
                 + ", exceptions=" + config.exceptionsDescription());

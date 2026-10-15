@@ -3,9 +3,6 @@
 "com.hafnium.it.benchmark.ExcludedException" = false
 "com.hafnium.it.benchmark.BenchmarkException+" = true
 
-# The benchmark's frames: Configured shows its name and its depth parameter, Plain shows nothing.
-[augment.receiver]
-"com.hafnium.it.benchmark.Configured::*" = "@"
-
-[augment.params]
-"com.hafnium.it.benchmark.Configured::*" = "@"
+# The benchmark's frames: Configured shows its name and its depth parameter, from its annotations; Plain shows nothing.
+[augment.annotations]
+"com.hafnium.it.benchmark.Configured" = true

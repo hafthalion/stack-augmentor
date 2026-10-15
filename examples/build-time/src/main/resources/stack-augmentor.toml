@@ -1,8 +1,8 @@
 # One file for both phases:
-# - [augment.receiver] and [augment.params] are read at build time by the ByteBuddy build plugin (see
-#   build.gradle.kts), which instruments the classes and methods they need;
-# - [augment], [augment.receiver], [augment.exceptions], debug and inPlaceModification are read at runtime, from the classpath
-#   (or from -Dstackaugmentor.config=<file>).
+# - [augment.annotations], [augment.receiver] and [augment.params] are read at build time by the ByteBuddy build
+#   plugin (see build.gradle.kts), which instruments the classes and methods they need;
+# - [augment], [augment.exceptions], [augment.annotations], [augment.receiver], debug and inPlaceModification are read
+#   at runtime, from the classpath (or from -Dstackaugmentor.config=<file>).
 
 # Print diagnostics to stderr (default: false).
 debug = false
@@ -23,28 +23,30 @@ maxValueLength = 64
 "java.lang.IllegalArgumentException+" = false            # this class and its subclasses: not augmented
 "java.lang.*" = true                                     # these classes only, e.g. Exception, IllegalStateException
 
+# Where the annotations are read: @AugmentedReceiver, @AugmentedParam, @AugmentedParams and @Augmented. Keys and
+# values as in [augment.exceptions]; a class that no entry matches does not read them. Only the methods that
+# @Augmented selects, on the class or on the method, use them: a class without @Augmented is ignored.
+[augment.annotations]
+"com.hafnium.examples.buildtime.**" = true
+
 # Only this project's classes are changed: entries for real library classes don't apply. The com.thirdparty
 # classes here are stand-ins compiled with this project, so their entries do.
 # Keys are "<class>::<methods>": a class name matches that class only, "+" after it ("com.acme.Order+::*") its
 # subclasses too, and a pattern matches class names. The methods are names or patterns separated by commas, "*" for
-# all, "@" for those annotated with @Augmented. '*' matches within a package or name, '**' across packages,
-# '?' one character.
+# all. '*' matches within a package or name, '**' across packages, '?' one character. A method that no entry matches
+# uses its class's annotations, where [augment.annotations] selects the class.
 
-# Receiver members: "@" uses the class's @AugmentedReceiver (without an "@" entry, it is not used). Classes you
-# cannot annotate name a method() or a field: an order is identified by its getOrderNumber() method, a
-# customer by its customerId field.
+# Receiver members of classes you cannot annotate: a method() or a field. An order is identified by its
+# getOrderNumber() method, a customer by its customerId field.
 [augment.receiver]
-"com.hafnium.examples.buildtime.**::*" = "@"
 "com.thirdparty.Order::*" = "getOrderNumber()"
 "com.thirdparty.Customer::*" = "customerId"
 
-# Parameter values, independently of the receivers: "@" uses the methods' @AugmentedParam and @AugmentedParams
-# annotations. Otherwise parameters are selected by name or 0-based index, separated by commas, "#" after one shows its value
-# hashed, and "-" selects none. When several entries match a method, the first one applies, so the more
-# specific entries come first.
+# Parameter values, independently of the receivers, selected by name or 0-based index, separated by commas; "#"
+# after one shows its value hashed, and "-" selects none. When several entries match a method, the first one
+# applies, so the more specific entries come first. An entry wins over the method's annotations.
 [augment.params]
-"com.hafnium.examples.buildtime.ClassWithoutAnnotation::method" = "q"   # before the "@" pattern
-"com.hafnium.examples.buildtime.**::*" = "@"
+"com.hafnium.examples.buildtime.ClassWithoutAnnotation::method" = "q"
 "com.thirdparty.OrderService::process" = "order, 1"                     # by name and by index
 "com.thirdparty.InventoryAudit::*" = "-"                                  # InventoryAudit's first: no parameter values ...
 "com.thirdparty.Inventory*::*" = "sku, count"                         # ... then all methods of the other Inventory* classes

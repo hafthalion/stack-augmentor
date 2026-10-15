@@ -82,7 +82,9 @@ class IdResolverTest {
 
     /** All classes of this test are in this package. */
     private val here = IdResolverTest::class.java.packageName + ".**"
-    private val annotations = IdSpec.Annotations()
+
+    /** [augment.annotations] entries that are true. */
+    private fun reads(vararg classes: String) = classes.associateWith { true }
 
     private val originalErr = System.err
 
@@ -90,9 +92,9 @@ class IdResolverTest {
     fun restore() = System.setErr(originalErr)
 
     /** A key without methods gets "::*", all methods. */
-    private fun resolver(vararg classes: Pair<String, IdSpec>) = IdResolver(
+    private fun resolver(vararg classes: Pair<String, IdSpec>, annotations: Map<String, Boolean> = mapOf()) = IdResolver(
         AugmentorConfig.builder().classes(classes.associate { (key, spec) -> (if ("::" in key) key else "$key::*") to spec })
-            .maxValueLength(10).exceptions(mapOf("**" to true)).build(),
+            .annotations(annotations).maxValueLength(10).exceptions(mapOf("**" to true)).build(),
     )
 
     private fun name(type: Class<*>) = type.name
@@ -103,7 +105,7 @@ class IdResolverTest {
 
     @Test
     fun `every annotated member gives an id, fields first, then methods by name, nearest class first`() {
-        val resolver = resolver(here to annotations)
+        val resolver = resolver(annotations = reads(here))
         assertEquals(
             listOf(NamedId("tenant", "acme"), NamedId("orderId", "42"), NamedId("channel", "web"), NamedId("region", "eu")),
             resolver.receiverIds(MultiAnnotated()),
@@ -131,27 +133,28 @@ class IdResolverTest {
 
     @Test
     fun `annotated field, method and constructor property`() {
-        val resolver = resolver(here to annotations)
+        val resolver = resolver(annotations = reads(here))
         assertEquals(NamedId("objectId", "a-1"), resolver.receiverId(Annotated()))
         assertEquals(NamedId("computeKey", "k-2"), resolver.receiverId(ByMethod()))
         assertEquals(NamedId("code", "X"), resolver.receiverId(ConstructorProperty("X")))
     }
 
     @Test
-    fun `annotations are only used with an '@' entry`() {
+    fun `annotations are only used where an annotations entry selects the class`() {
         assertNull(resolver().receiverId(Annotated()))
-        assertNull(resolver("com.acme.**" to annotations).receiverId(Annotated()))
-        assertEquals(NamedId("objectId", "a-1"), resolver(name(Annotated::class.java) to annotations).receiverId(Annotated()))
+        assertNull(resolver(annotations = reads("com.acme.**")).receiverId(Annotated()))
+        assertEquals(NamedId("objectId", "a-1"), resolver(annotations = reads(name(Annotated::class.java))).receiverId(Annotated()))
     }
 
     @Test
     fun `the first matching entry wins`() {
-        // An exact explicit entry before an "@" pattern.
-        val exact = resolver(name(Annotated::class.java) to IdSpec.FieldSpec("customerId"), here to annotations)
+        // An [augment.receiver] entry decides before the annotations.
+        val exact = resolver(name(Annotated::class.java) to IdSpec.FieldSpec("customerId"), annotations = reads(here))
         assertEquals(NamedId("customerId", "c-1"), exact.receiverId(Annotated()))
-        // An "@" pattern before an exact explicit entry, however specific that is.
-        val first = resolver(here to annotations, name(Annotated::class.java) to IdSpec.FieldSpec("customerId"))
-        assertEquals(NamedId("objectId", "a-1"), first.receiverId(Annotated()))
+        // The first matching [augment.annotations] entry decides, false included.
+        val first = resolver(annotations = linkedMapOf(name(Annotated::class.java) to false, here to true))
+        assertNull(first.receiverId(Annotated()))
+        assertEquals(NamedId("computeKey", "k-2"), first.receiverId(ByMethod()))
     }
 
     @Test
@@ -162,12 +165,12 @@ class IdResolverTest {
 
     @Test
     fun `a class name with plus applies to subclasses, without plus or a pattern it does not, and members are found in superclasses`() {
-        assertEquals(NamedId("baseId", "b1"), resolver(name(BaseWithId::class.java) + "+" to annotations).receiverId(ChildOfBase()))
+        assertEquals(NamedId("baseId", "b1"), resolver(annotations = reads(name(BaseWithId::class.java) + "+")).receiverId(ChildOfBase()))
         assertEquals(NamedId("baseId", "b1"), resolver(name(BaseWithId::class.java) + "+" to IdSpec.FieldSpec("baseId")).receiverId(ChildOfBase()))
-        assertNull(resolver(name(BaseWithId::class.java) to annotations).receiverId(ChildOfBase()))
-        assertNull(resolver(name(BaseWithId::class.java).dropLast(1) + "?" to annotations).receiverId(ChildOfBase()))
+        assertNull(resolver(annotations = reads(name(BaseWithId::class.java))).receiverId(ChildOfBase()))
+        assertNull(resolver(annotations = reads(name(BaseWithId::class.java).dropLast(1) + "?")).receiverId(ChildOfBase()))
         // An entry of the subclass itself finds the annotation or the field that the superclass declares.
-        assertEquals(NamedId("baseId", "b1"), resolver(name(ChildOfBase::class.java) to annotations).receiverId(ChildOfBase()))
+        assertEquals(NamedId("baseId", "b1"), resolver(annotations = reads(name(ChildOfBase::class.java))).receiverId(ChildOfBase()))
         assertEquals(NamedId("baseId", "b1"), resolver(name(ChildOfBase::class.java) to IdSpec.FieldSpec("baseId")).receiverId(ChildOfBase()))
     }
 
@@ -188,8 +191,8 @@ class IdResolverTest {
 
     @Test
     fun `no id source means no receiver id`() {
-        assertNull(resolver(here to annotations).receiverId(Unannotated("c")))
-        assertNull(resolver(here to annotations).receiverId(Any()))
+        assertNull(resolver(annotations = reads(here)).receiverId(Unannotated("c")))
+        assertNull(resolver(annotations = reads(here)).receiverId(Any()))
     }
 
     @Test
@@ -224,10 +227,10 @@ class IdResolverTest {
     }
 
     @Test
-    fun `annotations need an entry`() {
+    fun `annotations need an annotations entry`() {
         assertNull(resolver().receiverId(Annotated()))
-        // An entry that is not "@" ignores the annotations.
-        val configured = resolver(name(Annotated::class.java) to IdSpec.FieldSpec("customerId"))
+        // An [augment.receiver] entry ignores the annotations.
+        val configured = resolver(name(Annotated::class.java) to IdSpec.FieldSpec("customerId"), annotations = reads(here))
         assertEquals(NamedId("customerId", "c-1"), configured.receiverId(Annotated()))
     }
 
@@ -235,7 +238,7 @@ class IdResolverTest {
     fun `a '-' entry ignores the class, without a warning`() {
         val err = ByteArrayOutputStream()
         System.setErr(PrintStream(err, true, Charsets.UTF_8))
-        val resolver = resolver(name(Annotated::class.java) to IdSpec.Excluded(), here to annotations)
+        val resolver = resolver(name(Annotated::class.java) to IdSpec.Excluded(), annotations = reads(here))
         assertNull(resolver.receiverId(Annotated()))
         assertEquals(NamedId("computeKey", "k-2"), resolver.receiverId(ByMethod()))
         assertFalse(err.toString(Charsets.UTF_8).contains("WARN"), err.toString(Charsets.UTF_8))
@@ -258,17 +261,17 @@ class IdResolverTest {
 
     @Test
     fun `an array receiver id shows its elements, like an argument`() {
-        assertEquals(NamedId("codes", "[1, 2]"), resolver(here to annotations).receiverId(WithArrayId()))
+        assertEquals(NamedId("codes", "[1, 2]"), resolver(annotations = reads(here)).receiverId(WithArrayId()))
     }
 
     @Test
     fun `failing id source`() {
-        assertEquals(NamedId("id", "?"), resolver(here to annotations).receiverId(Throwing()))
+        assertEquals(NamedId("id", "?"), resolver(annotations = reads(here)).receiverId(Throwing()))
     }
 
     @Test
     fun `parameter values are their text`() {
-        val resolver = resolver(here to annotations, name(Unannotated::class.java) to IdSpec.FieldSpec("customerId"))
+        val resolver = resolver(name(Unannotated::class.java) to IdSpec.FieldSpec("customerId"), annotations = reads(here))
         assertEquals("null", resolver.paramId(null))
         assertEquals("42", resolver.paramId(42))
         assertEquals("RED", resolver.paramId(Color.RED))

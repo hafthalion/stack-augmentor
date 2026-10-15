@@ -39,10 +39,12 @@ public final class TypeMatching {
      */
     public static final ElementMatcher.Junction<TypeDescription> IGNORED = ignored();
 
+    private final AugmentorConfig config;
     private final IdParameters parameters;
     private final ClassEntries classEntries;
 
     public TypeMatching(AugmentorConfig config, IdParameters parameters) {
+        this.config = config;
         this.parameters = parameters;
         this.classEntries = new ClassEntries(config);
     }
@@ -89,11 +91,12 @@ public final class TypeMatching {
                 used.add(entry);
             }
         }
-        List<String> receivers = classEntries.entries(type).stream().filter(used::contains)
-                .map(entry -> entry.spec() instanceof IdSpec.Annotations
-                        ? "@AugmentedReceiver (\"" + entry.key() + "\" = \"@\")"
-                        : "[augment.receiver] \"" + entry.key() + "\"")
-                .toList();
+        List<String> receivers = new ArrayList<>(classEntries.entries(type).stream().filter(used::contains)
+                .map(entry -> "[augment.receiver] \"" + entry.key() + "\"")
+                .toList());
+        if (used.contains(AugmentorConfig.ANNOTATION_ENTRY)) {
+            receivers.add("@AugmentedReceiver");
+        }
         String reason = receivers.isEmpty() ? "parameter values only" : "receiver members from " + String.join(", ", receivers);
         ElementMatcher<MethodDescription> constructors = constructors(type);
         List<String> instrumented = new ArrayList<>();
@@ -158,21 +161,21 @@ public final class TypeMatching {
     }
 
     /**
-     * The deciding {@code [augment.receiver]} entry of the frames of this method if they show receiver ids, else
-     * {@code null}: a method, not a constructor, that is not static, whose deciding entry names a field or method, or is
-     * {@code "@"} for a class that has an {@code @AugmentedReceiver} member or whose superclasses have one. Not with
-     * {@code "-"}.
+     * The deciding receiver entry of the frames of this method if they show receiver members, else {@code null}, for a
+     * method, not a constructor, that is not static: the first {@code [augment.receiver]} entry that matches it, unless
+     * it is {@code "-"}; without one, {@link AugmentorConfig#ANNOTATION_ENTRY} if {@code [augment.annotations]} selects
+     * the type, {@code @Augmented} the method, and the type or one of its superclasses has an
+     * {@code @AugmentedReceiver} member.
      */
     public AugmentorConfig.ClassEntry receiverEntry(TypeDescription type, MethodDescription method) {
         if (!isCandidate(method) || method.isStatic()) {
             return null;
         }
         ClassEntries.Deciding deciding = classEntries.decide(type, method);
-        if (deciding == null || deciding.excluded()
-                || deciding.annotations() && !annotated(deciding.owner())) {
-            return null;
+        if (deciding != null) {
+            return deciding.excluded() ? null : deciding.entry();
         }
-        return deciding.entry();
+        return parameters.annotationsSelect(type, method) && annotated(type) ? AugmentorConfig.ANNOTATION_ENTRY : null;
     }
 
     private record Annotated(TypeDescription type, boolean annotated) {
@@ -189,23 +192,6 @@ public final class TypeMatching {
             lastAnnotated = last;
         }
         return last.annotated();
-    }
-
-    /**
-     * The entries that decide the receiver ids of at least one method the type declares, a method, not a constructor,
-     * that is not static, in the order of the file.
-     */
-    private List<AugmentorConfig.ClassEntry> decidingEntries(TypeDescription type) {
-        Set<AugmentorConfig.ClassEntry> used = new HashSet<>();
-        for (MethodDescription method : type.getDeclaredMethods()) {
-            if (isCandidate(method) && !method.isStatic()) {
-                ClassEntries.Deciding deciding = classEntries.decide(type, method);
-                if (deciding != null) {
-                    used.add(deciding.entry());
-                }
-            }
-        }
-        return classEntries.entries(type).stream().filter(used::contains).toList();
     }
 
     /** Whether a method the type declares shows the receiver ids. */
@@ -232,17 +218,19 @@ public final class TypeMatching {
         return false;
     }
 
-    /** For the debug log: the annotations of the type that are not used, and which table would enable them. */
+    /** For the debug log: the annotations of the type that are not used, and why. */
     private void logIgnoredAnnotations(TypeDescription type) {
-        List<AugmentorConfig.ClassEntry> entries = decidingEntries(type);
-        if (entries.stream().noneMatch(entry -> entry.spec() instanceof IdSpec.Annotations)
-                && firstInHierarchy(type, TypeMatching::hasAnnotatedMember) != null) {
-            String why = entries.isEmpty()
-                    ? "no [augment.receiver] entry applies"
-                    : entries.size() == 1
-                    ? "its [augment.receiver] entry \"" + entries.get(0).key() + "\" is not \"@\""
-                    : "its [augment.receiver] entries " + entries.stream().map(it -> "\"" + it.key() + "\"")
-                            .collect(Collectors.joining(", ")) + " are not \"@\"";
+        boolean readsAnnotations = config.readsAnnotations(type.getName(), new ClassEntries.SupertypeNames(type)::contains);
+        String notRead = "no [augment.annotations] entry that is true matches it";
+        boolean receiverUsed = false;
+        for (MethodDescription method : type.getDeclaredMethods()) {
+            if (receiverEntry(type, method) == AugmentorConfig.ANNOTATION_ENTRY) {
+                receiverUsed = true;
+                break;
+            }
+        }
+        if (!receiverUsed && firstInHierarchy(type, TypeMatching::hasAnnotatedMember) != null) {
+            String why = readsAnnotations ? "[augment.receiver] entries or @Augmented decide for all its methods" : notRead;
             Log.debug(() -> "ignoring @AugmentedReceiver in " + type.getName() + ": " + why);
         }
         List<String> methods = new ArrayList<>();
@@ -254,8 +242,9 @@ public final class TypeMatching {
         }
         if (!methods.isEmpty()) {
             methods.sort(null);
+            String why = readsAnnotations ? "an [augment.params] entry or @Augmented decides for them" : notRead;
             Log.debug(() -> "ignoring the parameter annotations of " + String.join(", ", methods) + " in " + type.getName()
-                    + ": no \"@\" entry in [augment.params] applies");
+                    + ": " + why);
         }
     }
 

@@ -2,13 +2,14 @@
 
 [Back to the README](../README.md)
 
-Everything Stack Augmentor does is set in one TOML file. It says which exceptions are augmented, which frames show receiver members and which show parameter values, and how the frames look. Without a file, the [built-in configuration](#the-built-in-configuration) applies: all exceptions are augmented, with the annotated receiver members and parameter values.
+Everything Stack Augmentor does is set in one TOML file. It says which exceptions are augmented, in which classes the annotations are read, which frames show which receiver members and parameter values by name, and how the frames look. Without a file, the [built-in configuration](#the-built-in-configuration) applies: all exceptions are augmented, with the annotated receiver members and parameter values of the classes with `@Augmented`.
 
 - [The file at a glance](#the-file-at-a-glance)
 - [Where the file comes from](#where-the-file-comes-from)
 - [The built-in configuration](#the-built-in-configuration)
 - [Keys: classes and methods](#keys-classes-and-methods)
 - [Exceptions](#exceptions): `[augment.exceptions]`
+- [Annotations](#annotations): `[augment.annotations]`, `@Augmented`
 - [Receiver members](#receiver-members): `[augment.receiver]`
 - [Parameter values](#parameter-values): `[augment.params]`
 - [Formats](#formats): `[augment]`
@@ -16,7 +17,7 @@ Everything Stack Augmentor does is set in one TOML file. It says which exception
 - [Errors and warnings](#errors-and-warnings)
 - [Tips](#tips)
 
-[Receivers and parameters](receivers-and-parameters.md) explains what the entries do to a frame in more detail: inherited methods, interfaces, constructors and hashed values.
+[Receivers and parameters](receivers-and-parameters.md) explains what the entries and annotations do to a frame in more detail: inherited methods, interfaces, constructors and hashed values.
 
 ## The file at a glance
 
@@ -34,15 +35,16 @@ maxValueLength = 64
 "java.io.FileNotFoundException+" = false
 "java.lang.Exception+" = true
 
-[augment.receiver]             # which frames show receiver members, and which ones
-"com.acme.generated.**::*" = "-"
-"com.acme.**::*" = "@"
+[augment.annotations]          # where @AugmentedReceiver, @AugmentedParam(s) and @Augmented are read
+"com.acme.generated.**" = false
+"com.acme.**" = true
+
+[augment.receiver]             # which frames show receiver members, and which ones, by name
 "com.thirdparty.Order+::*" = "getOrderNumber()"
 "com.thirdparty.OrderLine::*" = "tenant, lineId()"
 "com.thirdparty.Parcel::ship, cancel*" = "trackingCode"
 
-[augment.params]               # which frames show parameter values, and which parameters
-"com.acme.**::*" = "@"
+[augment.params]               # which frames show parameter values, and which parameters, by name or index
 "com.thirdparty.OrderService+::process" = "order, 2"
 "com.thirdparty.UserService::invite" = "user, email#"
 "com.thirdparty.Shipment::<init>" = "orderId"
@@ -57,10 +59,11 @@ maxValueLength = 64
 | `[augment]` `paramsFormat` | template | `"{$name=$value, ...}"` | [Formats](#formats) |
 | `[augment]` `maxValueLength` | 2 to 10000 | `64` | [Formats](#formats) |
 | `[augment.exceptions]` | `"<class>" = true` or `false` | empty: no exception is augmented | [Exceptions](#exceptions) |
+| `[augment.annotations]` | `"<class>" = true` or `false` | empty: no annotations are read | [Annotations](#annotations) |
 | `[augment.receiver]` | `"<class>::<methods>" = "<members>"` | empty | [Receiver members](#receiver-members) |
 | `[augment.params]` | `"<class>::<methods>" = "<parameters>"` | empty | [Parameter values](#parameter-values) |
 
-TOML in short: `#` starts a comment, a key with `::`, `*` or `+` in it must be quoted, an unquoted key with `.` is read as nested tables (which works for `[augment.exceptions]` class names only), and dotted keys (`augment.maxValueLength = 32`) work as well as sections. The order of the tables does not matter. The order of the entries within `[augment.exceptions]`, `[augment.receiver]` and `[augment.params]` does: the first entry that matches decides.
+TOML in short: `#` starts a comment, a key with `::`, `*` or `+` in it must be quoted, an unquoted key with `.` is read as nested tables (which works for `[augment.exceptions]` and `[augment.annotations]` class names only), and dotted keys (`augment.maxValueLength = 32`) work as well as sections. The order of the tables does not matter. The order of the entries within each of `[augment.exceptions]`, `[augment.annotations]`, `[augment.receiver]` and `[augment.params]` does: the first entry that matches decides.
 
 ## Where the file comes from
 
@@ -69,33 +72,30 @@ The file name must end in `.toml`.
 | Who reads it | Where from | What it uses |
 |---|---|---|
 | Java agent, also in the live-stack mode | `-javaagent:stack-augmentor-agent.jar=config=<file>` (or just `=<file>`), otherwise `-Dstackaugmentor.config=<file>` | everything, at JVM start |
-| Build plugin | the plugin's argument in `build.gradle.kts` (see the [README](../README.md#quick-start-build-time-instrumentation)) | `[augment.receiver]` and `[augment.params]`, to decide which classes and methods to instrument and which parameters they pass; `debug`. It validates the whole file and warns if no `[augment.exceptions]` entry is `true` |
-| Runtime of classes instrumented at build time | `-Dstackaugmentor.config=<file>`, otherwise `stack-augmentor.toml` on the classpath (in an application server also from the context class loader of the first throwing thread) | `[augment]`, `[augment.exceptions]`, `[augment.receiver]`, `debug`, `inPlaceModification`; the parameters were chosen at build time |
+| Build plugin | the plugin's argument in `build.gradle.kts` (see the [README](../README.md#quick-start-build-time-instrumentation)) | `[augment.annotations]`, `[augment.receiver]` and `[augment.params]`, to decide which classes and methods to instrument and which parameters they pass; `debug`. It validates the whole file and warns if no `[augment.exceptions]` entry is `true` |
+| Runtime of classes instrumented at build time | `-Dstackaugmentor.config=<file>`, otherwise `stack-augmentor.toml` on the classpath (in an application server also from the context class loader of the first throwing thread) | `[augment]`, `[augment.exceptions]`, `[augment.annotations]`, `[augment.receiver]`, `debug`, `inPlaceModification`; the parameters were chosen at build time |
 
-For build-time instrumentation, one file in `src/main/resources` serves both the build and the runtime. A frame's receiver members come from the runtime entry with the same key as the entry that decided its method at build time, so if you change a key, rebuild. Without a runtime file, the built-in configuration applies and a warning says so: a forgotten file would otherwise go unnoticed, since the built-in configuration does not have the keys of your build file.
+For build-time instrumentation, one file in `src/main/resources` serves both the build and the runtime. A frame's receiver members come from the runtime entry with the same key as the entry that decided its method at build time, so if you change a key, rebuild. Where the annotations decided at build time, the frame shows the `@AugmentedReceiver` members if the runtime's `[augment.annotations]` selects the class. Without a runtime file, the built-in configuration applies and a warning says so: a forgotten file would otherwise go unnoticed, since the built-in configuration does not have the keys of your build file.
 
 The defaults in the table above are those of a file that leaves a key out: an empty file augments nothing.
 
 ## The built-in configuration
 
-When no file is given, to the agent, to the build plugin or to the runtime of classes instrumented at build time, this configuration applies:
+When no file is given, to the agent, to the build plugin or to the runtime of classes instrumented at build time, this configuration applies. It is the classpath resource `com/hafnium/stackaugmentor/runtime/config/stack-augmentor-defaults.toml` of `stack-augmentor-runtime` (also in the agent jar), which lists every key with its default value; these are the entries it adds to the defaults:
 
 ```toml
 [augment.exceptions]
 "java.lang.Exception+" = true
 
-[augment.receiver]
-"**::*" = "@"
-
-[augment.params]
-"**::*" = "@"
+[augment.annotations]
+"**" = true
 ```
 
-So all exceptions (not errors) are augmented, and every class's methods show its `@AugmentedReceiver` members and their own `@AugmentedParam` and `@AugmentedParams` parameters; constructors show their annotated parameters. The agent then checks every loaded class for these annotations, apart from the JDK, Kotlin and ByteBuddy, which costs some class-loading time; a file with your own packages, such as `"com.acme.**::*" = "@"`, keeps that narrow. A file replaces the built-in configuration completely: its tables are not merged.
+So all exceptions (not errors) are augmented, and only the classes with `@Augmented` show annotated receiver members and parameter values: the methods that `@Augmented` selects show the class's `@AugmentedReceiver` members and their own `@AugmentedParam` and `@AugmentedParams` parameters; constructors show their annotated parameters. The agent checks every loaded class for `@Augmented`, apart from the JDK, Kotlin and ByteBuddy, but looks for nothing more in a class without it, so this costs little class-loading time; a file with your own packages, such as `"com.acme.**" = true`, keeps even that check narrow. A file replaces the built-in configuration completely: its tables are not merged.
 
 ## Keys: classes and methods
 
-`[augment.receiver]` and `[augment.params]` have the same keys, `"<class>::<methods>"`. They match a frame by the class that declares its method and by the method's name. `[augment.exceptions]` keys are just the `<class>` part.
+`[augment.receiver]` and `[augment.params]` have the same keys, `"<class>::<methods>"`. They match a frame by the class that declares its method and by the method's name. `[augment.exceptions]` and `[augment.annotations]` keys are just the `<class>` part.
 
 **The class** is one of:
 
@@ -112,7 +112,6 @@ So all exceptions (not errors) are augmented, and every class's methods show its
 
 - a name, e.g. `ship`, or a pattern with `*` and `?`, e.g. `cancel*`;
 - `*` for all methods;
-- `@` for the methods annotated with `@Augmented` (from `stack-augmentor-api`; it has no attributes);
 - `<init>` for the constructors, in `[augment.params]` only, since constructors show no receiver members. Patterns such as `*` match constructors too.
 
 Keys can contain letters, digits, `_`, `$` and the wildcards. Spaces around the commas don't matter.
@@ -122,22 +121,22 @@ Keys can contain letters, digits, `_`, `$` and the wildcards. Spaces around the 
 | `"com.acme.Order::ship"` | `Order.ship` |
 | `"com.acme.Order::ship, cancel*"` | `Order.ship` and `Order`'s methods starting with `cancel` |
 | `"com.acme.Order::*"` | all methods of `Order` |
-| `"com.acme.Order::@"` | `Order`'s methods annotated with `@Augmented` |
-| `"com.acme.Order::ship, @"` | `Order.ship` and the annotated ones |
 | `"com.acme.Order+::*"` | all methods of `Order`, of its subclasses and, for an interface, of its implementing classes |
 | `"com.acme.*::*"` | all methods of the classes in `com.acme`, including nested classes such as `com.acme.Order$Line` |
 | `"com.acme.**::*"` | all methods of the classes in `com.acme` and its subpackages |
 | `"com.acme.**.*Repository::find*"` | the `find…` methods of every `…Repository` class under `com.acme` |
 | `"com.acme.Shipment::<init>"` | the constructors of `Shipment` (`[augment.params]` only) |
 
-**The first match decides.** For each method, the first entry in the file whose class and methods match decides, so put the specific entries before the general ones. One class may have several entries, e.g. one per group of methods. Entries are never combined: the entry that decides gives everything this table shows for that method, and `"-"` gives nothing.
+**The first match decides.** For each method, the first entry in the file whose class and methods match decides, so put the specific entries before the general ones. One class may have several entries, e.g. one per group of methods. Entries are never combined: the entry that decides gives everything this table shows for that method, and `"-"` gives nothing. Only a method that no entry of the table matches uses the annotations, where [`[augment.annotations]`](#annotations) selects its class and `@Augmented` the method.
 
 ```toml
 [augment.receiver]
 "com.acme.Order::export" = "-"          # no receiver members in export ...
 "com.acme.Order::*" = "getId()"         # ... getId() in Order's other methods ...
-"com.acme.generated.**::*" = "-"        # ... nothing in the generated classes ...
-"com.acme.**::*" = "@"                  # ... and @AugmentedReceiver in the rest of com.acme
+"com.acme.generated.**::*" = "-"        # ... nothing in the generated classes, not even their @AugmentedReceiver ...
+
+[augment.annotations]
+"com.acme.**" = true                    # ... and @AugmentedReceiver in the rest of com.acme, where @Augmented selects the method
 ```
 
 A method belongs to the class that declares it: a subclass's own methods need an entry that matches the subclass, its own or the superclass's with `+`, while the methods it inherits use the superclass's entry. [Receivers and parameters](receivers-and-parameters.md) has examples, including proxies, mocks and interface default methods.
@@ -157,8 +156,45 @@ A method belongs to the class that declares it: a subclass's own methods need an
 - **In a file without this table, or with an empty one, no exception is augmented.** `"java.lang.Exception+" = true` augments all exceptions, `"**" = true` all throwables, errors included. To exclude only some, put their `false` entries before it.
 - **The keys are classes as above, without methods**: a class name matches that class only, `+` after it also its subclasses, and a pattern the name of the exception's class only.
 - **Unquoted class names work too**, since TOML reads `java.io.IOException = true` as nested tables, which mean the same. Keys with `+` or wildcards must be quoted.
-- **It is checked when an exception leaves an instrumented method** (in the live-stack mode: when it is created). Classes are instrumented as the other two tables say, whatever this table contains.
+- **It is checked when an exception leaves an instrumented method** (in the live-stack mode: when it is created). Classes are instrumented as the other tables say, whatever this table contains.
 - **Causes:** the frames an exception that is not augmented leaves stay as they are, also where its causes share them. An augmented exception still writes its frames into the causes that share them, whatever their class, so printed traces still collapse into `... N more`, in both modes. See [Causes](causes.md).
+
+## Annotations
+
+`[augment.annotations]` says in which classes the annotations of `stack-augmentor-api` are read: `@AugmentedReceiver`, `@AugmentedParam`, `@AugmentedParams` and `@Augmented`. Its keys and values are those of `[augment.exceptions]`, and it is matched against the class that declares the frame's method, as the other tables are.
+
+```toml
+[augment.annotations]
+"com.acme.generated.**" = false   # not these classes ...
+"com.acme.**" = true              # ... but the rest of com.acme
+"com.acme.Base+" = true           # and the classes extending Base, wherever they are
+```
+
+- **In a file without this table, or with an empty one, no annotations are read.** A class that no entry matches does not read them either; `"**" = true` reads them in every class, as the [built-in configuration](#the-built-in-configuration) does.
+- **Names come first.** For each method, the first matching `[augment.receiver]` entry decides its receiver members, `"-"` included; only if none matches, and `@Augmented` selects the method, are the class's `@AugmentedReceiver` members used (also those of its superclasses, which need no `@Augmented` of their own). The same holds for parameters: the first matching `[augment.params]` entry decides; only without one are the method's `@AugmentedParam` and `@AugmentedParams` used. Receiver members and parameter values are decided independently.
+- **`@Augmented` selects the methods and constructors that the annotations augment**, in a class this table selects:
+  - on a method or constructor, `@Augmented` turns the annotations on for it, `@Augmented(false)` off;
+  - otherwise, `@Augmented` or `@Augmented(false)` on the class decides for its methods and constructors;
+  - otherwise they are not augmented. A class without `@Augmented`, on the class or on its methods, is ignored: its `@AugmentedReceiver`, `@AugmentedParam` and `@AugmentedParams` are not even looked for, even where this table selects it.
+
+  So the annotations need both: this table selecting the class, and `@Augmented`. `@Augmented` on a class says "all its methods and constructors", on a method "only this one", and `@Augmented(false)` on a method turns that one off under an `@Augmented` on the class. `@Augmented(false)` on a class is the same as no `@Augmented`, except that it says so: the methods with an `@Augmented` of their own are still augmented. Only the annotation of the class that declares the method counts; methods that override it are not affected. A Kotlin top-level function takes `@Augmented` on the function itself, since the class of its file cannot carry it. `[augment.receiver]` and `[augment.params]` entries never read `@Augmented` and work without it.
+
+```java
+@Augmented                              // the annotations of Dispatcher are on ...
+public class Dispatcher {
+    @AugmentedReceiver
+    private final String hub = "H-1";
+
+    public void send(@AugmentedParam String order) { }    // Dispatcher{hub=H-1}.send{order=o-1}
+
+    @Augmented(false)                   // ... except in track: unchanged
+    public void track(@AugmentedParam String order) { }
+}
+```
+
+Without the `@Augmented` on the class, both frames would be unchanged; with `@Augmented` on `send` instead, only `send` would be augmented.
+
+[Receivers and parameters](receivers-and-parameters.md#annotations) describes the annotations themselves.
 
 ## Receiver members
 
@@ -169,11 +205,10 @@ A method belongs to the class that declares it: a subclass's own methods need an
 | `"orderId"` | the field `orderId`, looked up in the class and its superclasses; without such a field, its getter (`getOrderId()`, as for Kotlin properties of interfaces) |
 | `"getOrderId()"` | the result of the no-argument method `getOrderId()`, also a default method of an implemented interface |
 | `"tenant, lineId()"` | several of them, one value each, in this order: `OrderLine{tenant=acme, lineId=3}.cancel` |
-| `"@"` | every `@AugmentedReceiver` field, no-argument method or (Kotlin) primary-constructor `val` of the class and its superclasses |
-| `"-"` | none, also for the entries after it that would match |
+| `"-"` | none, also for the entries after it that would match, and not the annotations |
 
 - **Each member shows its value as text**, from `toString()`, labelled with the member's real name: `{orderId=42}`, `{getKey=…}`.
-- **`@AugmentedReceiver` counts only through an `"@"` entry.** An annotated class without one shows no receiver members.
+- **`@AugmentedReceiver` counts only through [`[augment.annotations]`](#annotations) and `@Augmented`**, and only in methods that no entry of this table matches. `"@"` is not a value of this table.
 - **A member the class does not have is left out**, with a warning (see [Errors and warnings](#errors-and-warnings)).
 - **The methods go in the key, not in the value**: `"com.acme.Parcel::weigh" = "weight"`.
 - **Constructors never show receiver members**, so `<init>` is not allowed in these keys.
@@ -188,10 +223,9 @@ A method belongs to the class that declares it: a subclass's own methods need an
 | `"2"` | the third parameter (0-based index, 0 to 255) |
 | `"order, 2"` | several of them, by name or index |
 | `"user, email#, 3#"` | `#` after a name or index shows the value hashed: `email=#71d4f55f` |
-| `"@"` | the parameters the annotations select: `@AugmentedParam` on a parameter, `@AugmentedParams` on the method (all its parameters); `@AugmentedParam(secret = true)` hashes |
-| `"-"` | none, also for the entries after it that would match |
+| `"-"` | none, also for the entries after it that would match, and not the annotations |
 
-- **There is no wildcard for parameters.** Each one is named, indexed or selected by an annotation.
+- **There is no wildcard for parameters.** Each one is named or indexed here, or selected by an annotation: `@AugmentedParam` on a parameter, `@AugmentedParams` on the method (all its parameters), `@AugmentedParam(secret = true)` hashed. The annotations count through [`[augment.annotations]`](#annotations) and `@Augmented`, for methods that no entry of this table matches.
 - **Labels are the parameter names compiled into the class**, so compile Java with `javac -parameters` (Kotlin: `javaParameters = true`); otherwise they are `arg0`, `arg1`, ….
 - **The value is the argument's `toString()`** (arrays with their elements), read when the exception leaves the method.
 - **A hash** is `#` and the first 8 hex digits of the SHA-256 of the `toString()`, the same for the same value, so it can be followed across log lines. It is not salted: leave values from a small set, such as PINs, out rather than hashing them. `null` stays `null`.
@@ -242,21 +276,23 @@ With build-time instrumentation, the runtime reads its configuration when the fi
 - invalid TOML, and values of the wrong type, e.g. an array instead of a comma-separated string;
 - unknown keys, so typos don't go unnoticed (the message lists the allowed ones);
 - invalid keys, e.g. without `::`, with `+` after a pattern, or `<init>` in `[augment.receiver]`;
+- `"@"` as a value of `[augment.receiver]` or `[augment.params]`, or `@` in their keys (`"com.acme.Order::@"`): `"@" is not allowed here: these tables name members and parameters, and [augment.annotations] says where the annotations are read, e.g. "com.acme.**" = true`;
+- `[augment.exceptions]` and `[augment.annotations]` values other than `true` or `false`;
 - invalid values, e.g. an index above 255, an empty item in `"a,,b"`, or a method, receiver member or parameter listed twice (`"email, email#"` too; a name and an index of the same parameter are allowed, and it is shown once);
 - the same key twice, also written differently: `"com.acme.Order"` and unquoted `com.acme.Order`, or `"Order::a, b"`, `"Order::a,b"` and `"Order::b, a"`;
 - templates with `(`, `)`, an unknown placeholder, or without `.$method`.
 
 **Warnings** don't stop anything:
 
-- a configuration without `[augment.receiver]` and `[augment.params]` entries: nothing is augmented;
+- a configuration without `[augment.receiver]` or `[augment.params]` entries other than `"-"` and without an `[augment.annotations]` entry that is `true`: nothing is augmented;
 - no runtime configuration for classes instrumented at build time: the built-in configuration is used;
-- receiver or parameter entries, but no `[augment.exceptions]` entry that is `true`: no exception would be augmented;
+- such entries, but no `[augment.exceptions]` entry that is `true`: no exception would be augmented;
 - a receiver member the class does not have, for a key with a class name. For a pattern it is a debug message, since a pattern may match classes that don't have it. So are parameter names that a method does not have.
 
 ## Tips
 
-- **Put specific entries first**, general ones (`"com.acme.**::*"`) last.
-- **Keep patterns narrow.** `"com.**::*"` makes the agent instrument many classes, which slows down class loading.
-- **Prefer annotations in your own code** (`"com.acme.**::*" = "@"` in both tables), and explicit members for classes you cannot change.
+- **Put specific entries first**, general ones (`"com.acme.**::*"`, `"com.acme.**"`) last.
+- **Keep patterns narrow.** `"com.**::*"` or `"com.**" = true` in `[augment.annotations]` makes the agent check or instrument many classes, which slows down class loading.
+- **Prefer annotations in your own code** (`"com.acme.**" = true` in `[augment.annotations]`, and `@Augmented` on the classes), and explicit members and parameters for classes you cannot change.
 - **Use `+` for class hierarchies and proxies**, e.g. `"com.acme.Order+::*"`, so that subclasses' own methods and overrides are augmented as well.
-- **Turn on `debug`** when a frame does not show what you expect: it says which entry decided each method.
+- **Turn on `debug`** when a frame does not show what you expect: it says which entry, or the annotations, decided each method.

@@ -3,7 +3,6 @@ package com.hafnium.stackaugmentor.runtime.handler
 import com.hafnium.stackaugmentor.AugmentedReceiver
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig
 import com.hafnium.stackaugmentor.runtime.config.ConfigException
-import com.hafnium.stackaugmentor.runtime.config.IdSpec
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 import java.nio.file.Files
@@ -55,8 +54,8 @@ class ThrowHandlerTest {
         System.setErr(PrintStream(err, true, Charsets.UTF_8))
         try {
             val handler = ThrowHandler()
-            // Built with the built-in configuration too: its key is found.
-            handler.onThrow(target, built, "**::*", Annotated::class.java.name, "fail", null, null)
+            // Built with the built-in configuration too: it reads the annotations of all classes.
+            handler.onThrow(target, built, AugmentorConfig.ANNOTATIONS, Annotated::class.java.name, "fail", null, null)
             // Built with another key: the built-in configuration does not have it.
             handler.onThrow(target, other, Annotated::class.java.name + "::*", Annotated::class.java.name, "fail", null, null)
         } finally {
@@ -90,7 +89,7 @@ class ThrowHandlerTest {
 
     @Test
     fun `the context class loader provides the configuration that the runtime jar's loader does not see`(@TempDir dir: Path) {
-        Files.writeString(dir.resolve("stack-augmentor.toml"), "[augment.exceptions]\n\"java.lang.Exception+\" = true\n[augment.receiver]\n\"${Annotated::class.java.name}::*\" = \"@\"\n")
+        Files.writeString(dir.resolve("stack-augmentor.toml"), "[augment.exceptions]\n\"java.lang.Exception+\" = true\n[augment.annotations]\n\"${Annotated::class.java.name}\" = true\n")
         val thread = Thread.currentThread()
         val originalLoader = thread.contextClassLoader
         val originalErr = System.err
@@ -101,7 +100,7 @@ class ThrowHandlerTest {
         try {
             java.net.URLClassLoader(arrayOf(dir.toUri().toURL()), null).use { application ->
                 thread.contextClassLoader = application
-                ThrowHandler().onThrow(target, thrown, Annotated::class.java.name + "::*", Annotated::class.java.name, "fail", null, null)
+                ThrowHandler().onThrow(target, thrown, AugmentorConfig.ANNOTATIONS, Annotated::class.java.name, "fail", null, null)
             }
         } finally {
             thread.contextClassLoader = originalLoader
@@ -120,12 +119,17 @@ class ThrowHandlerTest {
     }
 
     @Test
-    fun `an '@' entry uses the annotations`() {
+    fun `the annotations key uses the annotations where the annotations table selects the class`() {
         val target = Annotated()
         val thrown = thrownBy(target)
-        val config = AugmentorConfig.builder().classes(mapOf(Annotated::class.java.name + "::*" to IdSpec.Annotations())).exceptions(mapOf("**" to true)).build()
-        ThrowHandler(config).onThrow(target, thrown, Annotated::class.java.name + "::*", Annotated::class.java.name, "fail", null, null)
+        val config = AugmentorConfig.builder().annotations(mapOf(Annotated::class.java.name to true)).exceptions(mapOf("**" to true)).build()
+        ThrowHandler(config).onThrow(target, thrown, AugmentorConfig.ANNOTATIONS, Annotated::class.java.name, "fail", null, null)
         assertEquals("${Annotated::class.java.name}{objectId=a-1}", thrown.stackTrace[0].className)
+        // A build-time class whose annotations the runtime configuration does not read keeps its frame.
+        val unread = thrownBy(target)
+        ThrowHandler(AugmentorConfig.builder().exceptions(mapOf("**" to true)).build())
+            .onThrow(target, unread, AugmentorConfig.ANNOTATIONS, Annotated::class.java.name, "fail", null, null)
+        assertEquals(Annotated::class.java.name, unread.stackTrace[0].className)
     }
 
     @Test
@@ -141,16 +145,16 @@ class ThrowHandlerTest {
 
     @Test
     fun `exceptions that no entry augments keep their frames`() {
-        val classes = mapOf(Annotated::class.java.name + "::*" to IdSpec.Annotations())
+        val annotations = mapOf(Annotated::class.java.name to true)
         val target = Annotated()
         val skipped = thrownBy(target)
-        ThrowHandler(AugmentorConfig.builder().classes(classes).exceptions(mapOf("java.lang.*" to false)).build())
-            .onThrow(target, skipped, Annotated::class.java.name + "::*", Annotated::class.java.name, "fail", null, null)
+        ThrowHandler(AugmentorConfig.builder().annotations(annotations).exceptions(mapOf("java.lang.*" to false)).build())
+            .onThrow(target, skipped, AugmentorConfig.ANNOTATIONS, Annotated::class.java.name, "fail", null, null)
         assertEquals(Annotated::class.java.name, skipped.stackTrace[0].className)
 
         val augmented = thrownBy(target)
-        ThrowHandler(AugmentorConfig.builder().classes(classes).exceptions(mapOf("java.lang.IllegalStateException" to true)).build())
-            .onThrow(target, augmented, Annotated::class.java.name + "::*", Annotated::class.java.name, "fail", null, null)
+        ThrowHandler(AugmentorConfig.builder().annotations(annotations).exceptions(mapOf("java.lang.IllegalStateException" to true)).build())
+            .onThrow(target, augmented, AugmentorConfig.ANNOTATIONS, Annotated::class.java.name, "fail", null, null)
         assertEquals("${Annotated::class.java.name}{objectId=a-1}", augmented.stackTrace[0].className)
     }
 }

@@ -1,5 +1,6 @@
 package com.hafnium.it.benchmark
 
+import com.hafnium.stackaugmentor.Augmented
 import com.hafnium.stackaugmentor.AugmentedReceiver
 import com.hafnium.stackaugmentor.AugmentedParam
 
@@ -21,6 +22,7 @@ class ExcludedException private constructor(cause: BenchmarkException?, wraps: I
 }
 
 /** A frame that shows ids: the receiver's name and the depth. */
+@Augmented
 class Configured(@AugmentedReceiver private val name: String) {
     fun step(@AugmentedParam depth: Int, stack: Stack): Int = stack.next(depth)
 }

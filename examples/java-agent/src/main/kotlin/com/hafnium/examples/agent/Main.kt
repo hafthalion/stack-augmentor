@@ -9,7 +9,7 @@ import com.thirdparty.OrderService
 object Main {
     @JvmStatic
     fun main(args: Array<String>) {
-        // Your own classes: annotations, and an entry before the "@" pattern
+        // Your own classes: annotations, and an [augment.params] entry
         printStackTraceOf { ClassWithoutAnnotation("object-2").method("123") }
 
         // Third-party classes without annotations: everything from stack-augmentor.toml

@@ -6,6 +6,10 @@ import com.hafnium.it.fixtures.ignored.Ignored
 import com.hafnium.it.outside.ClassParamsViaMethods
 import com.hafnium.it.outside.Dispatcher
 import com.hafnium.it.outside.MethodAnnotationsOutside
+import com.hafnium.it.outside.Muted
+import com.hafnium.it.outside.Selective
+import com.hafnium.it.outside.Unread
+import com.hafnium.it.outside.WithoutAugmented
 import com.hafnium.it.outside.PremiumAccount
 import com.hafnium.it.outside.VipCustomer
 import com.hafnium.it.report.FrameReport
@@ -65,14 +69,44 @@ class ConfigTablesTest {
     }
 
     @Test
-    fun `'@' after double colon selects the methods annotated with @Augmented, in both tables`() {
+    fun `@Augmented on a method limits the annotations to the methods that have it`() {
         val send = frame("Dispatcher(\"H-1\").send(\"o-1\")", Dispatcher("H-1")) { it.send("o-1") }
         assertEquals("com.hafnium.it.outside.Dispatcher{hub=H-1}", send.className)
         assertEquals("send{order=o-1}", send.methodName)
         val track = frame("Dispatcher(\"H-1\").track(\"o-1\")", Dispatcher("H-1")) { it.track("o-1") }
-        // The params key also lists track, the receiver entry does not.
         assertEquals("com.hafnium.it.outside.Dispatcher", track.className)
-        assertEquals("track{order=o-1}", track.methodName)
+        assertEquals("track", track.methodName)
+    }
+
+    @Test
+    fun `@Augmented on the type decides for the methods without their own`() {
+        val quiet = frame("Muted(\"M-1\").quiet(1)", Muted("M-1")) { it.quiet(1) }
+        assertEquals("com.hafnium.it.outside.Muted", quiet.className)
+        assertEquals("quiet", quiet.methodName)
+        val loud = frame("Muted(\"M-1\").loud(2)", Muted("M-1")) { it.loud(2) }
+        assertEquals("com.hafnium.it.outside.Muted{code=M-1}", loud.className)
+        assertEquals("loud{x=2}", loud.methodName)
+
+        val run = frame("Selective(\"S-1\").run(3)", Selective("S-1")) { it.run(3) }
+        assertEquals("com.hafnium.it.outside.Selective{code=S-1}", run.className)
+        assertEquals("run{x=3}", run.methodName)
+        val skip = frame("Selective(\"S-1\").skip(4)", Selective("S-1")) { it.skip(4) }
+        assertEquals("com.hafnium.it.outside.Selective", skip.className)
+        assertEquals("skip", skip.methodName)
+    }
+
+    @Test
+    fun `a class without @Augmented is ignored`() {
+        val frame = frame("WithoutAugmented(\"W-1\").run(6)", WithoutAugmented("W-1")) { it.run(6) }
+        assertEquals("com.hafnium.it.outside.WithoutAugmented", frame.className)
+        assertEquals("run", frame.methodName)
+    }
+
+    @Test
+    fun `the first matching annotations entry decides`() {
+        val frame = frame("Unread(\"U-1\").run(5)", Unread("U-1")) { it.run(5) }
+        assertEquals("com.hafnium.it.outside.Unread", frame.className)
+        assertEquals("run", frame.methodName)
     }
 
     @Test
@@ -114,7 +148,7 @@ class ConfigTablesTest {
     }
 
     @Test
-    fun `an @ method entry enables the parameter annotations`() {
+    fun `a method without a params entry uses its annotations where the annotations table selects the class`() {
         val frame = frame("Overridden().failAnnotated(2)", Overridden()) { it.failAnnotated(2) }
         assertEquals("com.hafnium.it.fixtures.Overridden{getId=o-1}", frame.className)
         assertEquals("failAnnotated{y=2}", frame.methodName)

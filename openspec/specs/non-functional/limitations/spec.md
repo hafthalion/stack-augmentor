@@ -22,7 +22,7 @@ initialised. Their parameter values SHALL NOT be shown for exceptions thrown ins
 `super(...)` or `this(...)`: the JVM's verifier accepts no exception handler around that call.
 
 #### Scenario: Exception in a constructor without parameter values
-- **GIVEN** an annotated class whose constructor throws, and no `[augment.params]` entry for its `<init>`
+- **GIVEN** an annotated class whose constructor, without annotated parameters, throws, and no `[augment.params]` entry for its `<init>`
 - **WHEN** the stack trace is inspected
 - **THEN** the constructor frame is unchanged
 
