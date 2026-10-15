@@ -172,7 +172,7 @@ loader of the thread that creates the handler, i.e. the thread of the first exce
 server or a fat jar, the runtime jar can be loaded by a parent of the application's class loader. Without a configuration
 the build plugin SHALL apply the built-in configuration as well.
 
-The built-in configuration SHALL be the classpath resource `com/hafnium/stackaugmentor/runtime/config/built-in.toml` of
+The built-in configuration SHALL be the classpath resource `com/hafnium/stackaugmentor/runtime/config/stack-augmentor-defaults.toml` of
 `stack-augmentor-runtime`, which the agent jar contains too. It SHALL list every key with its default value, and add these
 entries:
 
