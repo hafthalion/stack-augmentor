@@ -1,5 +1,20 @@
 # The built-in configuration: it applies when no configuration file is given, to the agent, the build plugin and the
-# runtime of classes instrumented at build time. A file replaces it completely; nothing of it is merged.
+# runtime of classes instrumented at build time. A file replaces it completely; nothing of it is merged. All keys are
+# listed with the values that also apply where a file leaves them out.
+
+# Print diagnostics to stderr.
+debug = false
+# Write augmented frames into the exception's own stack trace instead of a copy; needs java.lang open (the agent
+# opens it; with build-time instrumentation, start with --add-opens java.base/java.lang=ALL-UNNAMED).
+inPlaceModification = false
+
+# How frames look.
+[augment]
+frameFormat = "$class$receiver.$method$params"
+receiverFormat = "{$name=$value, ...}"
+paramsFormat = "{$name=$value, ...}"
+# Longer values are cut off with "…".
+maxValueLength = 64
 
 # All exceptions, not errors, are augmented.
 [augment.exceptions]
@@ -9,3 +24,8 @@
 # @AugmentedParam(s) parameter values. Classes without @Augmented are ignored.
 [augment.annotations]
 "**" = true
+
+# No receiver members or parameter values by name.
+[augment.receiver]
+
+[augment.params]

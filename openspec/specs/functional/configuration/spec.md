@@ -173,7 +173,8 @@ server or a fat jar, the runtime jar can be loaded by a parent of the applicatio
 the build plugin SHALL apply the built-in configuration as well.
 
 The built-in configuration SHALL be the classpath resource `com/hafnium/stackaugmentor/runtime/config/built-in.toml` of
-`stack-augmentor-runtime`, which the agent jar contains too:
+`stack-augmentor-runtime`, which the agent jar contains too. It SHALL list every key with its default value, and add these
+entries:
 
 ```toml
 [augment.exceptions]

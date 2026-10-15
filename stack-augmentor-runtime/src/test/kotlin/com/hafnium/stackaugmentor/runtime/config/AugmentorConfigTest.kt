@@ -635,6 +635,11 @@ class AugmentorConfigTest {
     @Test
     fun `without a file the built-in configuration augments all exceptions and reads the annotations of all classes`() {
         val config = AugmentorConfig.builtIn()
+        // It lists every other key with its default value.
+        assertEquals(
+            AugmentorConfig.builder().exceptions(mapOf("java.lang.Exception+" to true)).annotations(mapOf("**" to true)).build(),
+            config,
+        )
         assertTrue(config.hasAugmentEntries())
         assertTrue(config.augments(IllegalStateException::class.java))
         assertFalse(config.augments(Error::class.java))
