@@ -357,7 +357,7 @@ public final class AugmentorConfig {
      * The classpath resource, next to this class, with the configuration that applies when none is given: all exceptions
      * are augmented, with the annotated receiver members and parameter values of the classes with {@code @Augmented}.
      */
-    public static final String BUILT_IN_RESOURCE = "built-in.toml";
+    public static final String BUILT_IN_RESOURCE = "stack-augmentor-defaults.toml";
 
     /** Where the {@link #builtIn()} configuration comes from, for the debug output. */
     public static final String BUILT_IN_LOCATION = "none, using the built-in configuration ("
