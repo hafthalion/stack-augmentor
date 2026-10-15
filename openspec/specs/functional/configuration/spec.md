@@ -76,12 +76,12 @@ entries, rather than one silently replacing the other.
 #### Scenario: Class entries
 - **GIVEN** `"com.acme.**" = true` in `[augment.annotations]`, and `"com.acme.legacy.*::*" = "getKey()"` and `"com.thirdparty.Customer::*" = "customerId"` in `[augment.receiver]`
 - **WHEN** it is loaded
-- **THEN** the classes directly in `com.acme.legacy` use `getKey()`, the other classes under `com.acme` their `@AugmentedReceiver` and their parameter annotations, and `Customer` uses its `customerId` field
+- **THEN** the classes directly in `com.acme.legacy` use `getKey()`, the other classes under `com.acme` with `@Augmented` their `@AugmentedReceiver` and their parameter annotations, and `Customer` uses its `customerId` field
 
 #### Scenario: Annotations of some classes
 - **GIVEN** `"com.acme.legacy.*" = true` in `[augment.annotations]`
 - **WHEN** it is loaded
-- **THEN** the methods of the classes directly in `com.acme.legacy` use their `@AugmentedReceiver`, `@AugmentedParam` and `@AugmentedParams` annotations, and their constructors their parameter annotations
+- **THEN** in the classes directly in `com.acme.legacy`, the methods that `@Augmented` selects use their `@AugmentedReceiver`, `@AugmentedParam` and `@AugmentedParams` annotations, and the constructors it selects their parameter annotations
 
 #### Scenario: First matching annotations entry
 - **GIVEN** `"com.acme.generated.**" = false` and then `"com.acme.**" = true` in `[augment.annotations]`
@@ -190,14 +190,14 @@ It SHALL apply only when no file is given; a file SHALL replace it completely, a
 - **THEN** the runtime handler uses that `stack-augmentor.toml`
 
 #### Scenario: Agent without configuration
-- **GIVEN** `-javaagent:stack-augmentor-agent.jar` without arguments and without the system property, and a class with an `@AugmentedReceiver` field `key = "java-1"` and a method `run(@AugmentedParam int value)` that throws an `IllegalStateException`
+- **GIVEN** `-javaagent:stack-augmentor-agent.jar` without arguments and without the system property, and a class with `@Augmented`, an `@AugmentedReceiver` field `key = "java-1"` and a method `run(@AugmentedParam int value)` that throws an `IllegalStateException`
 - **WHEN** `run(42)` throws
 - **THEN** the built-in configuration applies, the frame shows `{key=java-1}` and `{value=42}`, and no warning is printed
 
 #### Scenario: Built-in configuration
 - **GIVEN** no configuration file
 - **WHEN** the agent, the build plugin or the runtime of build-time instrumented classes starts
-- **THEN** all exceptions are augmented, `[augment.annotations]` is `"**" = true`, and `[augment.receiver]` and `[augment.params]` have no entries, so every class shows its annotated receiver members and parameter values, as `@Augmented` selects them
+- **THEN** all exceptions are augmented, `[augment.annotations]` is `"**" = true`, and `[augment.receiver]` and `[augment.params]` have no entries, so the classes with `@Augmented` show their annotated receiver members and parameter values, as `@Augmented` selects their methods, and the classes without `@Augmented` are skipped
 
 #### Scenario: File without receiver, parameter and annotations entries
 - **GIVEN** `config=stack-augmentor.toml` with only `debug = false`

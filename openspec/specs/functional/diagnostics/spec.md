@@ -93,12 +93,12 @@ SHALL be printed, and the message texts SHALL NOT be built, also for the message
 - **THEN** no message about the entry is printed for `Customer`
 
 #### Scenario: Ignored annotations
-- **GIVEN** `debug = true`, `"com.hafnium.it.fixtures.**" = true` in `[augment.annotations]`, and a class in `com.hafnium.it.outside` with `@AugmentedReceiver` and `@AugmentedParam`
+- **GIVEN** `debug = true`, `"com.hafnium.it.fixtures.**" = true` in `[augment.annotations]`, and a class in `com.hafnium.it.outside` with `@Augmented`, `@AugmentedReceiver` and `@AugmentedParam`
 - **WHEN** the class is loaded
 - **THEN** one message reports that its `@AugmentedReceiver` is ignored and one that its parameter annotations are ignored, both because no `[augment.annotations]` entry that is true matches it
 
 #### Scenario: Annotations replaced by entries
-- **GIVEN** `debug = true`, `"com.acme.**" = true` in `[augment.annotations]`, `"com.acme.Order::*" = "getId()"` in `[augment.receiver]`, and `com.acme.Order` with `@AugmentedReceiver`
+- **GIVEN** `debug = true`, `"com.acme.**" = true` in `[augment.annotations]`, `"com.acme.Order::*" = "getId()"` in `[augment.receiver]`, and `com.acme.Order` with `@Augmented` and `@AugmentedReceiver`
 - **WHEN** `Order` is loaded
 - **THEN** `ignoring @AugmentedReceiver in com.acme.Order: [augment.receiver] entries or @Augmented decide for all its methods` is printed
 

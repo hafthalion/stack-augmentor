@@ -1,5 +1,6 @@
 package com.hafnium.examples.agent
 
+import com.hafnium.stackaugmentor.Augmented
 import com.hafnium.stackaugmentor.AugmentedReceiver
 import com.hafnium.stackaugmentor.AugmentedParam
 import com.thirdparty.InventoryAudit
@@ -11,6 +12,7 @@ import com.thirdparty.OrderService
  * A simple cause chain: [submit] wraps the third-party exception in one of its own. The frames below it, [Shop.buy]
  * and main, are in both stack traces and are augmented the same way in both.
  */
+@Augmented
 class Checkout(@AugmentedReceiver private val checkoutId: String) {
     fun submit(@AugmentedParam order: Order) {
         try {
@@ -24,6 +26,7 @@ class Checkout(@AugmentedReceiver private val checkoutId: String) {
 class CheckoutException(message: String, cause: Throwable) : Exception(message, cause)
 
 /** Calls the checkout: a frame that the wrapper and its cause share. */
+@Augmented
 class Shop(@AugmentedReceiver private val shopId: String) {
     fun buy(@AugmentedParam orderNumber: Long) {
         Checkout("checkout-7").submit(Order(orderNumber))

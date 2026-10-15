@@ -111,7 +111,7 @@ depending on the API module. The annotations SHALL have no attributes other than
 the on/off `value` on `@Augmented`; an `@Augmented` of a copy of the API without `value` SHALL count as on.
 
 #### Scenario: API loaded by an application class loader
-- **GIVEN** the application loads its own copy of `stack-augmentor-api`
+- **GIVEN** the application loads its own copy of `stack-augmentor-api`, and its annotated classes have `@Augmented` of that copy
 - **WHEN** its annotated classes are instrumented
 - **THEN** the annotations are recognised
 

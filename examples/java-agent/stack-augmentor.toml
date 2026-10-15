@@ -20,7 +20,8 @@ maxValueLength = 64
 "java.lang.*" = true                                     # these classes only, e.g. Exception, IllegalStateException
 
 # Where the annotations are read: @AugmentedReceiver, @AugmentedParam, @AugmentedParams and @Augmented. Keys and
-# values as in [augment.exceptions]; a class that no entry matches does not read them.
+# values as in [augment.exceptions]; a class that no entry matches does not read them. Only the methods that
+# @Augmented selects, on the class or on the method, use them: a class without @Augmented is ignored.
 [augment.annotations]
 "com.hafnium.examples.agent.**" = true
 

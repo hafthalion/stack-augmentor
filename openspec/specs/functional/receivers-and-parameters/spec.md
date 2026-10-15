@@ -16,12 +16,12 @@ receiver member or a parameter value, and a method when it is augmented with a p
 receiver member.
 
 #### Scenario: Receiver ignored, parameters kept
-- **GIVEN** `"com.acme.**" = true` in `[augment.annotations]`, `"com.acme.generated.**::*" = "-"` in `[augment.receiver]`, no `[augment.params]` entries, and `fun map(@AugmentedParam id: Int)` in `com.acme.generated.Mapper`, which has an `@AugmentedReceiver` member
+- **GIVEN** `"com.acme.**" = true` in `[augment.annotations]`, `"com.acme.generated.**::*" = "-"` in `[augment.receiver]`, no `[augment.params]` entries, and `fun map(@AugmentedParam id: Int)` in `com.acme.generated.Mapper`, which has `@Augmented` and an `@AugmentedReceiver` member
 - **WHEN** `map(7)` throws
 - **THEN** that frame shows `id=7` and no receiver members
 
 #### Scenario: Receiver member only
-- **GIVEN** `"com.acme.**" = true` in `[augment.annotations]`, `"com.acme.**::*" = "-"` in `[augment.params]`, and a class `com.acme.Order` with `@AugmentedReceiver val code` and `fun ship(@AugmentedParam to: String)`
+- **GIVEN** `"com.acme.**" = true` in `[augment.annotations]`, `"com.acme.**::*" = "-"` in `[augment.params]`, and a class `com.acme.Order` with `@Augmented`, `@AugmentedReceiver val code` and `fun ship(@AugmentedParam to: String)`
 - **WHEN** `ship("Main St")` throws
 - **THEN** that frame shows the receiver member `code=…` and no parameter values
 
@@ -30,6 +30,7 @@ The system SHALL use every non-static field and every non-static, no-argument me
 `@AugmentedReceiver` (`com.hafnium.stackaugmentor.AugmentedReceiver`) as a receiver member in the frames of the
 methods whose receiver members come from the annotations (see "Annotations in use"), one value per member. The
 annotated members SHALL be looked up in the class that declares the frame's method and in its superclasses,
+which need no `@Augmented` of their own (the declaring class or the method needs it, see "Methods selected by @Augmented"),
 and shown in this order: per class, the class itself first, then its superclasses, nearest first; within a
 class, its fields in declaration order, then its methods by name. A member whose label a member shown
 before it already has, such as a superclass field hidden by a field of the same name, SHALL be left out.
@@ -41,32 +42,32 @@ warning, and the others SHALL still be used. The annotation SHALL be matched by 
 another class loader is also recognised.
 
 #### Scenario: Annotated method with parameters
-- **GIVEN** a class that `[augment.annotations]` selects, whose only `@AugmentedReceiver` member is `String idFor(int version)`
+- **GIVEN** a class with `@Augmented` that `[augment.annotations]` selects, whose only `@AugmentedReceiver` member is `String idFor(int version)`
 - **WHEN** the instrumentation decides whether to change the class
 - **THEN** the class is not instrumented for a receiver member
 
 #### Scenario: Annotated field
-- **GIVEN** a class `ObjectClass` with `@AugmentedReceiver val objectId = "object-1"`, selected by `[augment.annotations]`
+- **GIVEN** a class `ObjectClass` with `@Augmented` and `@AugmentedReceiver val objectId = "object-1"`, selected by `[augment.annotations]`
 - **WHEN** an exception leaves an instance method of `ObjectClass`
 - **THEN** that frame shows the receiver member `objectId=object-1`
 
 #### Scenario: Annotated method
-- **GIVEN** a class with `@AugmentedReceiver fun key() = "k-1"`, selected by `[augment.annotations]`
+- **GIVEN** a class with `@Augmented` and `@AugmentedReceiver fun key() = "k-1"`, selected by `[augment.annotations]`
 - **WHEN** an exception leaves one of its instance methods
 - **THEN** that frame shows the receiver member `key=k-1`
 
 #### Scenario: Several annotated members
-- **GIVEN** a class with `@AugmentedReceiver val tenant = "acme"` and `@AugmentedReceiver val orderId = 42`, selected by `[augment.annotations]`
+- **GIVEN** a class with `@Augmented`, `@AugmentedReceiver val tenant = "acme"` and `@AugmentedReceiver val orderId = 42`, selected by `[augment.annotations]`
 - **WHEN** an exception leaves one of its instance methods
 - **THEN** that frame shows the receiver members `{tenant=acme, orderId=42}`
 
 #### Scenario: Inherited annotation
-- **GIVEN** a class `Derived`, selected by `[augment.annotations]`, extending a class that declares `@AugmentedReceiver val baseId = "b1"`
+- **GIVEN** a class `Derived` with `@Augmented`, selected by `[augment.annotations]`, extending a class that declares `@AugmentedReceiver val baseId = "b1"`
 - **WHEN** an exception leaves a method of `Derived`
 - **THEN** that frame shows the receiver member `baseId=b1`
 
 #### Scenario: Kotlin primary-constructor property
-- **GIVEN** `class Node(@AugmentedReceiver val name: String)`, selected by `[augment.annotations]`
+- **GIVEN** `@Augmented class Node(@AugmentedReceiver val name: String)`, selected by `[augment.annotations]`
 - **WHEN** an exception leaves a method of `Node("c")`
 - **THEN** that frame shows the receiver member `name=c`
 
@@ -208,7 +209,7 @@ once, and parameter values SHALL be listed in declaration order. `@AugmentedRece
 select it: `@AugmentedReceiver` marks receiver members only.
 
 #### Scenario: Annotated parameter
-- **GIVEN** `fun objectMethod(@AugmentedParam orderId: Int)` in a class that `[augment.annotations]` selects, and no `[augment.params]` entry for it
+- **GIVEN** `fun objectMethod(@AugmentedParam orderId: Int)` in a class with `@Augmented` that `[augment.annotations]` selects, and no `[augment.params]` entry for it
 - **WHEN** `objectMethod(42)` throws
 - **THEN** that frame shows the parameter value `orderId=42`
 
@@ -218,7 +219,7 @@ select it: `@AugmentedReceiver` marks receiver members only.
 - **THEN** that frame shows `order=Order#4711, quantity=3`
 
 #### Scenario: Static method
-- **GIVEN** a top-level (static) function `staticWithParam(@AugmentedParam code: Int)` in a class that `[augment.annotations]` selects
+- **GIVEN** a top-level (static) function `@Augmented fun staticWithParam(@AugmentedParam code: Int)`, in a file whose class `[augment.annotations]` selects
 - **WHEN** `staticWithParam(5)` throws
 - **THEN** that frame shows the parameter value `code=5` and no receiver members
 
@@ -228,7 +229,7 @@ select it: `@AugmentedReceiver` marks receiver members only.
 - **THEN** that frame shows `x=1, y=2`, each parameter once
 
 #### Scenario: Annotations of one class
-- **GIVEN** `fun run(@AugmentedParam code: Int)` in `com.hafnium.it.outside.MethodAnnotationsOutside`, which has no `@AugmentedReceiver` member and which no `[augment.receiver]` or `[augment.params]` entry matches, and `"com.hafnium.it.outside.MethodAnnotationsOutside" = true` in `[augment.annotations]`
+- **GIVEN** `fun run(@AugmentedParam code: Int)` in `com.hafnium.it.outside.MethodAnnotationsOutside`, which has `@Augmented` and no `@AugmentedReceiver` member and which no `[augment.receiver]` or `[augment.params]` entry matches, and `"com.hafnium.it.outside.MethodAnnotationsOutside" = true` in `[augment.annotations]`
 - **WHEN** `run(7)` throws
 - **THEN** that frame shows `code=7` and no receiver members
 
@@ -247,7 +248,7 @@ index, or by both annotations) SHALL be hashed when either hashes it. The label 
 - **THEN** that frame shows `user=ann, email=#71d4f55f, attempt=#4e074085`
 
 #### Scenario: Secret annotations
-- **GIVEN** `fun invite(@AugmentedParam user: String, @AugmentedParam(secret = true) email: String)` and `@AugmentedParams fun register(@AugmentedParam(secret = true) email: String, nickname: String)`, in a class that `[augment.annotations]` selects
+- **GIVEN** `fun invite(@AugmentedParam user: String, @AugmentedParam(secret = true) email: String)` and `@AugmentedParams fun register(@AugmentedParam(secret = true) email: String, nickname: String)`, in a class with `@Augmented` that `[augment.annotations]` selects
 - **WHEN** `invite("ann", "ann@example.com")` throws, and separately `register("a@b.c", "annie")` throws
 - **THEN** the first frame shows `user=ann, email=#71d4f55f`, and the second `email=#d648b243, nickname=annie`
 
@@ -290,7 +291,7 @@ throws SHALL be shown as `?`.
 - **AND** `ship(null)` shows `order=null`
 
 #### Scenario: Array receiver member
-- **GIVEN** `@AugmentedReceiver val codes = intArrayOf(1, 2)` in a class that `[augment.annotations]` selects
+- **GIVEN** `@AugmentedReceiver val codes = intArrayOf(1, 2)` in a class with `@Augmented` that `[augment.annotations]` selects
 - **WHEN** an exception leaves a method of that class
 - **THEN** the frame shows `codes=[1, 2]`, as an array argument would, not `[I@…`
 
@@ -316,12 +317,12 @@ bridge, abstract and native methods SHALL NOT be instrumented, as for other para
 instrumented as described in the stack trace augmentation specification.
 
 #### Scenario: Method-level annotation
-- **GIVEN** `@AugmentedParams fun transfer(from: String, to: String, amount: Long)` in a class that `[augment.annotations]` selects
+- **GIVEN** `@AugmentedParams fun transfer(from: String, to: String, amount: Long)` in a class with `@Augmented` that `[augment.annotations]` selects
 - **WHEN** `transfer("a", "b", 10)` throws
 - **THEN** that frame shows `from=a, to=b, amount=10`
 
 #### Scenario: Override of an annotated method
-- **GIVEN** `@AugmentedParams open fun reserve(sku: String, count: Int)` in `open class Inventory`, and `class DerivedInventory : Inventory()` that overrides `reserve` without annotations
+- **GIVEN** `@AugmentedParams open fun reserve(sku: String, count: Int)` in `@Augmented open class Inventory`, and `class DerivedInventory : Inventory()` that overrides `reserve` without annotations
 - **WHEN** `DerivedInventory().reserve("x-3", 1)` throws
 - **THEN** the frame shows no parameter values for `reserve`
 
@@ -364,7 +365,7 @@ combined with it.
 - **AND** with the two entries the other way round, the pattern decides and the frame shows only the third parameter
 
 #### Scenario: Exact explicit class entry with annotated parameters
-- **GIVEN** `"com.acme.Order" = true` in `[augment.annotations]`, `"com.acme.Order::*" = "getId()"` in `[augment.receiver]`, no `[augment.params]` entries, and `fun ship(@AugmentedParam to: String)` in `Order`
+- **GIVEN** `"com.acme.Order" = true` in `[augment.annotations]`, `"com.acme.Order::*" = "getId()"` in `[augment.receiver]`, no `[augment.params]` entries, and `fun ship(@AugmentedParam to: String)` in `Order`, which has `@Augmented`
 - **WHEN** `ship("Main St")` throws
 - **THEN** that frame shows the receiver member `getId=…` and the parameter value `to=Main St`
 
@@ -377,7 +378,7 @@ select some. A configuration whose `[augment.receiver]` and `[augment.params]` e
 `[augment.annotations]` entry that is `true` SHALL count as having no entries.
 
 #### Scenario: No receiver members in a package whose annotations are read
-- **GIVEN** `"com.acme.**" = true` in `[augment.annotations]`, `"com.acme.generated.**::*" = "-"` in `[augment.receiver]`, and `com.acme.generated.Mapper` with a `@AugmentedReceiver` field
+- **GIVEN** `"com.acme.**" = true` in `[augment.annotations]`, `"com.acme.generated.**::*" = "-"` in `[augment.receiver]`, and `com.acme.generated.Mapper` with `@Augmented` and a `@AugmentedReceiver` field
 - **WHEN** a method of `Mapper` throws
 - **THEN** its frame shows no receiver members
 
@@ -396,20 +397,21 @@ and a pattern matches class names only.
 
 For each method, the first matching `[augment.receiver]` entry SHALL decide its receiver members, `"-"` included. Only
 when no `[augment.receiver]` entry matches the method SHALL its class's `@AugmentedReceiver` members (also those of its
-superclasses) be used, if `[augment.annotations]` selects the declaring class and `@Augmented` selects the method (see
+superclasses) be used, if `@Augmented` selects the method and `[augment.annotations]` the declaring class (see
 "Methods selected by @Augmented"). Likewise, the first matching `[augment.params]` entry SHALL decide the method's
 parameter values, `"-"` included, and only without one SHALL its `@AugmentedParam` and `@AugmentedParams` annotations be
 used, under the same two conditions. Receiver members and parameter values SHALL be decided independently. Classes
-without an annotation or configuration entry SHALL NOT be augmented, even when `[augment.annotations]` selects them.
+without `@Augmented` and without a configuration entry SHALL NOT be augmented, even when `[augment.annotations]` selects
+them and they have other annotations.
 The live-stack mode SHALL apply the same rules.
 
 #### Scenario: Annotated class outside the selected classes
 - **GIVEN** `"com.hafnium.it.fixtures.**" = true` as the only `[augment.annotations]` entry, and no `[augment.receiver]` or `[augment.params]` entries
-- **WHEN** an exception leaves a method of a class in `com.hafnium.it.outside` with an annotated parameter, and no annotated superclass
+- **WHEN** an exception leaves a method of a class in `com.hafnium.it.outside` with `@Augmented` and an annotated parameter, and no annotated superclass
 - **THEN** the frame is unchanged
 
 #### Scenario: Subclass of a selected class
-- **GIVEN** `"com.hafnium.it.fixtures.**" = true` in `[augment.annotations]`, and `com.hafnium.it.outside.DerivedOutside` extending `com.hafnium.it.fixtures.Base`, which declares `@AugmentedReceiver val baseId = "b1"`
+- **GIVEN** `"com.hafnium.it.fixtures.**" = true` in `[augment.annotations]`, and `com.hafnium.it.outside.DerivedOutside`, with `@Augmented`, extending `com.hafnium.it.fixtures.Base`, which declares `@AugmentedReceiver val baseId = "b1"`
 - **WHEN** an exception leaves a method of `DerivedOutside`
 - **THEN** that frame shows no receiver members: `DerivedOutside` declares `fail()`, and the pattern matches the names of the classes in `com.hafnium.it.fixtures` only, not their subclasses elsewhere
 - **AND** with `"com.hafnium.it.fixtures.Base+" = true`, the frame shows `baseId=b1`
@@ -420,28 +422,28 @@ The live-stack mode SHALL apply the same rules.
 - **THEN** the frame is unchanged
 
 #### Scenario: Method-level parameter annotation outside the selected classes
-- **GIVEN** `"com.hafnium.it.fixtures.**" = true` in `[augment.annotations]` and a method of a class in `com.hafnium.it.outside` annotated with `@AugmentedParams`
+- **GIVEN** `"com.hafnium.it.fixtures.**" = true` in `[augment.annotations]` and a method of a class with `@Augmented` in `com.hafnium.it.outside` annotated with `@AugmentedParams`
 - **WHEN** that method throws
 - **THEN** the frame shows no parameter values
 
 #### Scenario: Method-level parameter annotation of one selected class
-- **GIVEN** `@AugmentedParams fun run(a: Int, b: String)` in `com.hafnium.it.outside.ClassParamsViaMethods`, and `"com.hafnium.it.outside.ClassParamsViaMethods" = true` in `[augment.annotations]`
+- **GIVEN** `@AugmentedParams fun run(a: Int, b: String)` in `com.hafnium.it.outside.ClassParamsViaMethods`, which has `@Augmented`, and `"com.hafnium.it.outside.ClassParamsViaMethods" = true` in `[augment.annotations]`
 - **WHEN** `run(1, "x")` throws
 - **THEN** that frame shows all its parameter values
 
 #### Scenario: No annotations entry
 - **GIVEN** a configuration with only `"com.thirdparty.Order::*" = "getOrderNumber()"` in `[augment.receiver]`
-- **WHEN** an exception leaves a method of an annotated class in any other package
+- **WHEN** an exception leaves a method of a class with `@Augmented` and other annotations in any other package
 - **THEN** the frame is unchanged
 
 #### Scenario: First matching annotations entry
-- **GIVEN** `"com.acme.generated.**" = false` and then `"com.acme.**" = true` in `[augment.annotations]`, and the classes `com.acme.generated.Mapper` and `com.acme.Order`, each with an `@AugmentedReceiver` field and an `@AugmentedParam` parameter
+- **GIVEN** `"com.acme.generated.**" = false` and then `"com.acme.**" = true` in `[augment.annotations]`, and the classes `com.acme.generated.Mapper` and `com.acme.Order`, each with `@Augmented`, an `@AugmentedReceiver` field and an `@AugmentedParam` parameter
 - **WHEN** a method of each throws
 - **THEN** the frame of `Mapper` is unchanged, and the frame of `Order` shows its receiver member and parameter value
 - **AND** with the two entries the other way round, `"com.acme.**" = true` decides for `Mapper` too, and its frame shows them as well
 
 #### Scenario: Name entry before the annotations
-- **GIVEN** `"com.acme.**" = true` in `[augment.annotations]`, `"com.acme.Order::ship" = "getId()"` in `[augment.receiver]`, `"com.acme.Order::cancel" = "-"` in `[augment.params]`, and `com.acme.Order` with `@AugmentedReceiver val code`, `fun getId()`, `fun ship(@AugmentedParam to: String)` and `fun cancel(@AugmentedParam reason: String)`
+- **GIVEN** `"com.acme.**" = true` in `[augment.annotations]`, `"com.acme.Order::ship" = "getId()"` in `[augment.receiver]`, `"com.acme.Order::cancel" = "-"` in `[augment.params]`, and `com.acme.Order` with `@Augmented`, `@AugmentedReceiver val code`, `fun getId()`, `fun ship(@AugmentedParam to: String)` and `fun cancel(@AugmentedParam reason: String)`
 - **WHEN** `ship("Main St")` throws, and separately `cancel("late")` throws
 - **THEN** the first frame shows `Order{getId=…}.ship{to=Main St}`: the receiver entry decides the receiver members, and the parameter annotation is used, since no `[augment.params]` entry matches `ship`
 - **AND** the second frame shows `Order{code=…}.cancel` without parameter values: no receiver entry matches `cancel`, and the `"-"` entry decides its parameters
@@ -452,15 +454,18 @@ defaulting to `true`) SHALL decide which methods and constructors of a class tha
 annotations augment:
 - the method's or constructor's own `@Augmented` SHALL decide for it: `@Augmented` on, `@Augmented(false)` off;
 - otherwise the `@Augmented` of the declaring type SHALL decide;
-- otherwise all methods and constructors SHALL be augmented, unless another method or constructor of the same class has
-  `@Augmented` that is on: then only those SHALL be.
+- otherwise the method or constructor SHALL NOT be augmented by the annotations.
 
-Only the annotation of the class that declares the method SHALL count; methods that override it SHALL NOT be affected.
-`[augment.receiver]` and `[augment.params]` entries SHALL NOT read `@Augmented`, and it SHALL have no effect where
-`[augment.annotations]` does not select the class.
+A class without `@Augmented`, on the type or on any of its methods and constructors, SHALL therefore be ignored: its
+`@AugmentedReceiver`, `@AugmentedParam` and `@AugmentedParams` SHALL NOT be looked for, even when `[augment.annotations]`
+selects it. `@Augmented(false)` on a type SHALL have the effect of no `@Augmented` on it. Only the annotation of the class
+that declares the method SHALL count; methods that override it SHALL NOT be affected. A Kotlin top-level function SHALL
+take `@Augmented` on the function, since the class of its file cannot carry it. `[augment.receiver]` and
+`[augment.params]` entries SHALL NOT read `@Augmented` and SHALL apply without it, and `@Augmented` SHALL have no effect
+where `[augment.annotations]` does not select the class.
 
 #### Scenario: @Augmented on a method
-- **GIVEN** `"com.acme.**" = true` in `[augment.annotations]`, and `com.acme.Dispatcher` with `@AugmentedReceiver val hub = "H-1"`, `@Augmented fun send(@AugmentedParam order: String)` and `fun track(@AugmentedParam order: String)`
+- **GIVEN** `"com.acme.**" = true` in `[augment.annotations]`, and `com.acme.Dispatcher`, without `@Augmented` on the class, with `@AugmentedReceiver val hub = "H-1"`, `@Augmented fun send(@AugmentedParam order: String)` and `fun track(@AugmentedParam order: String)`
 - **WHEN** `send("o-1")` throws, and separately `track("o-1")` throws
 - **THEN** the first frame shows `Dispatcher{hub=H-1}.send{order=o-1}`, and the second frame is unchanged
 
@@ -470,16 +475,21 @@ Only the annotation of the class that declares the method SHALL count; methods t
 - **THEN** the frames show `Dispatcher{hub=H-1}.send{order=o-1}` and `Dispatcher{hub=H-1}.track{order=o-1}`
 
 #### Scenario: @Augmented(false) on a method
-- **GIVEN** the `Dispatcher` above, with `@Augmented(false)` on `track` and no `@Augmented` on `send` or on the class
+- **GIVEN** the `Dispatcher` above, with `@Augmented` on the class instead of on `send`, and `@Augmented(false)` on `track`
 - **WHEN** `send("o-1")` throws, and separately `track("o-1")` throws
-- **THEN** the first frame shows `Dispatcher{hub=H-1}.send{order=o-1}`, and the second frame is unchanged
-- **AND** with `@Augmented` on the class as well, the result is the same: the method's own annotation decides
+- **THEN** the first frame shows `Dispatcher{hub=H-1}.send{order=o-1}`, and the second frame is unchanged: the method's own annotation decides
 
 #### Scenario: @Augmented(false) on the type
 - **GIVEN** the `Dispatcher` above, with `@Augmented(false)` on the class and `@Augmented` on `send`
 - **WHEN** `send("o-1")` throws, and separately `track("o-1")` throws
 - **THEN** the first frame shows `Dispatcher{hub=H-1}.send{order=o-1}`, and the second frame is unchanged
 - **AND** without `@Augmented` on `send`, both frames are unchanged
+
+#### Scenario: Class without @Augmented
+- **GIVEN** `"com.acme.**" = true` in `[augment.annotations]`, and `com.acme.Plain` with `@AugmentedReceiver val code = "c-1"` and `fun run(@AugmentedParam x: Int)`, but no `@Augmented` on the class or on any of its methods and constructors
+- **WHEN** `run(1)` throws
+- **THEN** its frame is unchanged: the annotations of `Plain` are not looked for
+- **AND** with `@Augmented` on the class, the frame shows `Plain{code=c-1}.run{x=1}`
 
 #### Scenario: Entries do not read @Augmented
 - **GIVEN** the `Dispatcher` with `@Augmented` on `send` only, and `"com.acme.Dispatcher::track" = "order"` in `[augment.params]`
