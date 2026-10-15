@@ -71,13 +71,13 @@ class ByteBuddyPluginTest {
 
         String output = err.toString(StandardCharsets.UTF_8);
         assertTrue(output.contains("WARN build plugin: the configuration has no [augment.receiver] or [augment.params] entries other "
-                + "than \"-\", so nothing will be augmented"), output);
+                + "than \"-\" and no [augment.annotations] entry that is true, so nothing will be augmented"), output);
     }
 
     @Test
     void invalidTemplatesFailTheBuild(@TempDir Path dir) throws IOException {
         Path config = dir.resolve("stack-augmentor.toml");
-        Files.writeString(config, "[augment]\nparamsFormat = \"($name: $value; ...)\"\n\n[augment.receiver]\n\"com.hafnium.**::*\" = \"@\"\n");
+        Files.writeString(config, "[augment]\nparamsFormat = \"($name: $value; ...)\"\n\n[augment.annotations]\n\"com.hafnium.**\" = true\n");
         ByteArrayOutputStream err = captureErr();
         ConfigException error = assertThrows(ConfigException.class, () -> new ByteBuddyPlugin(config.toString()));
         assertTrue(error.getMessage().startsWith("stack-augmentor.toml, line 2: paramsFormat must not contain '('"), error.getMessage());
@@ -86,23 +86,23 @@ class ByteBuddyPluginTest {
     }
 
     @Test
-    void anAtEntryEnablesTheAnnotations(@TempDir Path dir) throws IOException {
+    void anAnnotationsEntryEnablesTheAnnotations(@TempDir Path dir) throws IOException {
         Path config = dir.resolve("stack-augmentor.toml");
-        Files.writeString(config, "[augment.receiver]\n\"com.hafnium.**::*\" = \"@\"\n");
+        Files.writeString(config, "[augment.annotations]\n\"com.hafnium.**\" = true\n");
         assertTrue(new ByteBuddyPlugin(config.toString()).matches(tracked()));
     }
 
     @Test
     void theAgentsIgnoredTypesAreLeftAlone(@TempDir Path dir) throws IOException {
         Path config = dir.resolve("stack-augmentor.toml");
-        Files.writeString(config, "[augment.receiver]\n\"com.hafnium.**::*\" = \"@\"\n");
+        Files.writeString(config, "[augment.annotations]\n\"com.hafnium.**\" = true\n");
         assertFalse(new ByteBuddyPlugin(config.toString()).matches(TypeDescription.ForLoadedType.of(Annotated.class)));
     }
 
     @Test
     void debugDescribesTheConfigurationAsTheAgentDoes(@TempDir Path dir) throws IOException {
         Path config = dir.resolve("stack-augmentor.toml");
-        Files.writeString(config, "debug = true\n[augment]\nmaxValueLength = 32\n[augment.receiver]\n\"com.hafnium.**::*\" = \"@\"\n");
+        Files.writeString(config, "debug = true\n[augment]\nmaxValueLength = 32\n[augment.annotations]\n\"com.hafnium.**\" = true\n");
         ByteArrayOutputStream err = captureErr();
         try {
             new ByteBuddyPlugin(config.toString());
@@ -111,7 +111,8 @@ class ByteBuddyPluginTest {
         }
         String output = err.toString(StandardCharsets.UTF_8);
         assertTrue(output.contains("DEBUG build plugin: configuration " + config), output);
-        assertTrue(output.contains("DEBUG build plugin: [augment.receiver] com.hafnium.**::*=@"), output);
+        assertTrue(output.contains("DEBUG build plugin: [augment.receiver] none"), output);
+        assertTrue(output.contains("DEBUG build plugin: [augment.annotations] com.hafnium.**=true"), output);
         assertTrue(output.contains("DEBUG build plugin: [augment.params] none"), output);
         assertTrue(output.contains("DEBUG build plugin: [augment] frameFormat="), output);
         assertTrue(output.contains("maxValueLength=32"), output);

@@ -12,7 +12,7 @@ Stack Augmentor augments the frames of stack traces with receiver members and pa
 
 - **Receiver members**: members of the object a frame's method runs on, from `@AugmentedReceiver` fields and methods, or from fields and getters named in the configuration.
 - **Parameter values**: selected arguments, from `@AugmentedParam` and `@AugmentedParams`, or by name or index; sensitive values can be shown as a hash.
-- **Classes you cannot change**: one TOML file selects classes by name, with their subclasses (`+`) or by pattern, and methods by name, pattern or `@Augmented`; it also selects which exceptions are augmented and how frames look. See [Configuration](docs/configuration.md).
+- **Classes you cannot change**: one TOML file names their members and parameters, selecting classes by name, with their subclasses (`+`) or by pattern, and methods by name or pattern; it also says in which classes the annotations are read, which exceptions are augmented and how frames look. `@Augmented` limits the annotations to some methods. See [Configuration](docs/configuration.md).
 - **Three ways to run**: a Java agent, the agent reading every frame from the live stack (experimental), or build-time instrumentation without an agent.
 - **Cause chains**: the frames a cause shares with its wrapper are augmented the same way, so `... N more` still works; `ExceptionFormat.rootCauseFirst` prints the root cause first.
 - **Java and Kotlin**, constructors included; the library is Java and does not need the Kotlin runtime.
@@ -37,17 +37,19 @@ An application with classes instrumented at build time can also run with the age
 |---|---|---|---|
 | Configuration file | `-javaagent:...=config=<file>`, `-Dstackaugmentor.config=<file>`, or (build-time) `stack-augmentor.toml` on the classpath | none: the [built-in configuration](docs/configuration.md#the-built-in-configuration) augments all exceptions with the annotated members and parameters | the TOML file with everything below ([where it comes from](docs/configuration.md#where-the-file-comes-from)) |
 | `[augment.exceptions]` | configuration | empty: no exception is augmented | which exceptions are augmented, e.g. `"java.lang.Exception+" = true` ([Exceptions](docs/configuration.md#exceptions)) |
-| `[augment.receiver]` | configuration | empty | which frames show receiver members, and which ones, e.g. `"com.acme.**::*" = "@"` ([Receiver members](docs/configuration.md#receiver-members)) |
-| `[augment.params]` | configuration | empty | which frames show parameter values, and which parameters, e.g. `"com.acme.Order::ship, cancel*" = "orderId"` ([Parameter values](docs/configuration.md#parameter-values)) |
+| `[augment.annotations]` | configuration | empty: no annotations are read | in which classes `@AugmentedReceiver`, `@AugmentedParam`, `@AugmentedParams` and `@Augmented` are read, e.g. `"com.acme.**" = true` ([Annotations](docs/configuration.md#annotations)) |
+| `[augment.receiver]` | configuration | empty | which frames show receiver members by name, and which ones, e.g. `"com.thirdparty.Order+::*" = "getOrderNumber()"` ([Receiver members](docs/configuration.md#receiver-members)) |
+| `[augment.params]` | configuration | empty | which frames show parameter values by name or index, and which parameters, e.g. `"com.acme.Order::ship, cancel*" = "orderId"` ([Parameter values](docs/configuration.md#parameter-values)) |
 | `[augment]` | configuration | see [Formats](docs/configuration.md#formats) | how frames look: `frameFormat`, `receiverFormat`, `paramsFormat`, `maxValueLength` |
 | `debug` | configuration | `false` | prints what gets instrumented and where each value comes from |
 | `inPlaceModification` | configuration, or `-Dstackaugmentor.inPlaceModification=true` | `false` | writes each frame into the exception's own stack trace instead of copying the trace; faster for deep stacks, needs `java.lang` open (see [Limitations](docs/limitations.md)) |
 | Live stack | `-agentpath:<native library>` | off | the agent reads the values from the live stack instead of instrumenting classes (see [Live stack](docs/live-stack.md)) |
 
-In all three tables the first matching entry decides, and classes are written the same way: a class name matches that class only, `+` after it also its subclasses, and a pattern (`*`, `**`, `?`) matches class names. The tables differ in their keys and values:
+In all four tables the first matching entry decides, and classes are written the same way: a class name matches that class only, `+` after it also its subclasses, and a pattern (`*`, `**`, `?`) matches class names. The tables differ in their keys and values:
 
-- `[augment.receiver]` and `[augment.params]` keys name a class and its methods, `"<class>::<methods>"`, and their values say what to show: `"com.acme.Order::ship, cancel*" = "orderId"`.
-- `[augment.exceptions]` keys name only a class, matched against the class of the thrown exception, and their values are `true` or `false`: `"java.io.IOException+" = true`.
+- `[augment.receiver]` and `[augment.params]` keys name a class and its methods, `"<class>::<methods>"`, and their values name what to show: `"com.acme.Order::ship, cancel*" = "orderId"`.
+- `[augment.exceptions]` and `[augment.annotations]` keys name only a class, and their values are `true` or `false`: `"java.io.IOException+" = true` augments that exception and its subclasses, `"com.acme.**" = true` reads the annotations of the classes under `com.acme`.
+- For each method, an `[augment.receiver]` or `[augment.params]` entry that matches it decides; only without one are the annotations used, where `[augment.annotations]` selects the class.
 
 [Configuration](docs/configuration.md) describes the file in full: the syntax, every table and option, and the errors and warnings.
 
@@ -91,18 +93,17 @@ Use it in your own application:
    }
    ```
 
-2. Say which exceptions are augmented and which classes use their annotations, in `stack-augmentor.toml`. Receiver members and parameter values are configured separately:
+2. Say which exceptions are augmented and in which classes the annotations are read, in `stack-augmentor.toml`:
 
    ```toml
    [augment.exceptions]    # without an entry that is true, no exception is augmented
    "java.lang.Exception+" = true
 
-   [augment.receiver]      # receiver members: @AugmentedReceiver
-   "com.acme.**::*" = "@"
-
-   [augment.params]      # parameter values: @AugmentedParam and @AugmentedParams
-   "com.acme.**::*" = "@"
+   [augment.annotations]   # where @AugmentedReceiver, @AugmentedParam(s) and @Augmented are read
+   "com.acme.**" = true
    ```
+
+   Classes you cannot annotate get `[augment.receiver]` and `[augment.params]` entries that name their members and parameters (see [Configuration](docs/configuration.md)).
 
 3. Start the JVM with the agent (`./gradlew :stack-augmentor-agent:shadowJar` builds it):
 
@@ -110,7 +111,7 @@ Use it in your own application:
    java -javaagent:stack-augmentor-agent-<version>.jar=config=stack-augmentor.toml -jar app.jar
    ```
 
-   Without a configuration, the [built-in one](docs/configuration.md#the-built-in-configuration) applies, the same as this example for all classes. With empty `[augment.receiver]` and `[augment.params]`, nothing is augmented and the agent prints a warning.
+   Without a configuration, the [built-in one](docs/configuration.md#the-built-in-configuration) applies, the same as this example for all classes. Without `[augment.annotations]` entries that are `true` and without `[augment.receiver]` and `[augment.params]` entries, nothing is augmented and the agent prints a warning.
 
 ## Quick start: build-time instrumentation
 
@@ -149,11 +150,11 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 }
 ```
 
-- **At build time**, the plugin instruments the classes and methods that `[augment.receiver]` and `[augment.params]` need. Without the configuration argument, the built-in configuration applies: the methods of classes with annotated members or parameters are instrumented.
-- **At runtime**, the application needs only `stack-augmentor-api` and `stack-augmentor-runtime` (no agent, no ByteBuddy, no Kotlin). The runtime reads `stack-augmentor.toml` from the classpath, or the file in `-Dstackaugmentor.config`, for `[augment]`, `[augment.exceptions]`, `[augment.receiver]` (receiver members), `debug` and `inPlaceModification`. In an application server it also asks the context class loader of the first throwing thread.
+- **At build time**, the plugin instruments the classes and methods that `[augment.annotations]`, `[augment.receiver]` and `[augment.params]` need. Without the configuration argument, the built-in configuration applies: the methods of classes with annotated members or parameters are instrumented.
+- **At runtime**, the application needs only `stack-augmentor-api` and `stack-augmentor-runtime` (no agent, no ByteBuddy, no Kotlin). The runtime reads `stack-augmentor.toml` from the classpath, or the file in `-Dstackaugmentor.config`, for `[augment]`, `[augment.exceptions]`, `[augment.annotations]`, `[augment.receiver]` (receiver members), `debug` and `inPlaceModification`. In an application server it also asks the context class loader of the first throwing thread.
 - **One file serves both** when it is in `src/main/resources`.
-- A frame's receiver members come from the runtime `[augment.receiver]` entry with the same key as the entry that decided its method at build time; without that key they are left out.
-- Without a runtime configuration, a warning says so and the built-in configuration applies; it finds only the receiver members of methods built with it. An invalid one is printed as an error, and stack traces stay unchanged.
+- A frame's receiver members come from the runtime `[augment.receiver]` entry with the same key as the entry that decided its method at build time; without that key they are left out. `@AugmentedReceiver` members are shown if the runtime's `[augment.annotations]` selects the class.
+- Without a runtime configuration, a warning says so and the built-in configuration applies; it shows the `@AugmentedReceiver` members, but not the receiver members of `[augment.receiver]` entries. An invalid one is printed as an error, and stack traces stay unchanged.
 
 ## Limitations in short
 

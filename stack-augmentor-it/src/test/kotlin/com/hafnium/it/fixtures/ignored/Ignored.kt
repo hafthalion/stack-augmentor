@@ -3,7 +3,7 @@ package com.hafnium.it.fixtures.ignored
 import com.hafnium.stackaugmentor.AugmentedReceiver
 import com.hafnium.stackaugmentor.AugmentedParam
 
-/** Under the fixtures' "@" patterns, but a "-" class entry comes first: no receiver id, yet its parameter id. */
+/** Its annotations are read, but a "-" receiver entry matches it: no receiver members, yet its parameter value. */
 class Ignored {
     @AugmentedReceiver
     val id = "i-1"

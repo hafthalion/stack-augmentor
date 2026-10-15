@@ -19,28 +19,30 @@ maxValueLength = 64
 "java.lang.IllegalArgumentException+" = false            # this class and its subclasses: not augmented
 "java.lang.*" = true                                     # these classes only, e.g. Exception, IllegalStateException
 
-# The two tables below are independent: [augment.receiver] decides which receivers are augmented,
-# [augment.params] which parameters. The agent instruments whatever classes and methods they need.
+# Where the annotations are read: @AugmentedReceiver, @AugmentedParam, @AugmentedParams and @Augmented. Keys and
+# values as in [augment.exceptions]; a class that no entry matches does not read them.
+[augment.annotations]
+"com.hafnium.examples.agent.**" = true
+
+# The two tables below name members and parameters, independently: [augment.receiver] decides which receivers
+# are augmented, [augment.params] which parameters. The agent instruments whatever classes and methods they and the
+# annotations need.
 # Keys are "<class>::<methods>": a class name matches that class only, "+" after it ("com.acme.Order+::*") its
 # subclasses too, and a pattern matches class names. The methods are names or patterns separated by commas, "*" for
-# all, "@" for those annotated with @Augmented. '*' matches within a package or name, '**' across packages,
-# '?' one character.
+# all. '*' matches within a package or name, '**' across packages, '?' one character. A method that no entry matches
+# uses its class's annotations, where [augment.annotations] selects the class.
 
-# Receiver members: "@" uses the class's @AugmentedReceiver (without an "@" entry, it is not used). Classes you
-# cannot annotate name a method() or a field: an order is identified by its getOrderNumber() method, a
-# customer by its customerId field.
+# Receiver members of classes you cannot annotate: a method() or a field. An order is identified by its
+# getOrderNumber() method, a customer by its customerId field.
 [augment.receiver]
-"com.hafnium.examples.agent.**::*" = "@"
 "com.thirdparty.Order::*" = "getOrderNumber()"
 "com.thirdparty.Customer::*" = "customerId"
 
-# Parameter values: "@" uses the methods' @AugmentedParam and @AugmentedParams annotations. Otherwise
-# parameters are selected by name or 0-based index, separated by commas, "#" after one shows its value hashed, and "-" selects
-# none. When several entries match a method, the first one applies, so the more specific
-# entries come first.
+# Parameter values, selected by name or 0-based index, separated by commas; "#" after one shows its value hashed,
+# and "-" selects none. When several entries match a method, the first one applies, so the more specific entries
+# come first. An entry wins over the method's annotations.
 [augment.params]
-"com.hafnium.examples.agent.ClassWithoutAnnotation::method" = "q"   # before the "@" pattern
-"com.hafnium.examples.agent.**::*" = "@"
+"com.hafnium.examples.agent.ClassWithoutAnnotation::method" = "q"
 "com.thirdparty.OrderService::process" = "order, 1"                 # by name and by index
 "com.thirdparty.InventoryAudit::*" = "-"                              # InventoryAudit's first: no parameter values ...
 "com.thirdparty.Inventory*::*" = "sku, count"                     # ... then all methods of the other Inventory* classes

@@ -96,19 +96,20 @@ public final class FrameSpecs {
         if (TypeMatching.isIgnoredName(name)) {
             return false;
         }
-        return config.classEntries(type).stream().anyMatch(entry -> !(entry.spec() instanceof IdSpec.Excluded))
+        return config.readsAnnotations(type)
+                || config.classEntries(type).stream().anyMatch(entry -> !(entry.spec() instanceof IdSpec.Excluded))
                 || config.hasParamEntries(name, supertype -> AugmentorConfig.isA(type, supertype));
     }
 
     /**
-     * Whether an entry of either table names the method's class, so that its frames may show ids. By name only, so
-     * whether the method has {@code @Augmented} is left open: {@link #spec} decides for the method itself.
+     * Whether the annotations or an entry of either table may apply to the method, so that its frames may show
+     * values. By name only, so the annotations are left open: {@link #spec} decides for the method itself.
      */
     private boolean named(Class<?> type, String methodName) {
-        return !methodName.equals(AugmentorConfig.CONSTRUCTOR) && config.classEntries(type).stream()
-                        .anyMatch(entry -> !(entry.spec() instanceof IdSpec.Excluded) && entry.appliesTo(methodName, true))
-                || !config.paramRefs(type.getName(), supertype -> AugmentorConfig.isA(type, supertype), methodName, false).isEmpty()
-                || !config.paramRefs(type.getName(), supertype -> AugmentorConfig.isA(type, supertype), methodName, true).isEmpty();
+        return config.readsAnnotations(type)
+                || !methodName.equals(AugmentorConfig.CONSTRUCTOR) && config.classEntries(type).stream()
+                        .anyMatch(entry -> !(entry.spec() instanceof IdSpec.Excluded) && entry.appliesTo(methodName))
+                || !config.paramRefs(type.getName(), supertype -> AugmentorConfig.isA(type, supertype), methodName).isEmpty();
     }
 
     private Spec spec(Class<?> type, String name, MethodType methodType) {

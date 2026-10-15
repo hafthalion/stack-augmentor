@@ -101,7 +101,7 @@ class Shipping {
     fun op(@AugmentedParam name: String, y: Int): Nothing = throw IllegalStateException("op string $y")
 }
 
-/** Matched by an "@" entry, but without @AugmentedReceiver: not augmented. */
+/** Its annotations are read, but it has no @AugmentedReceiver: not augmented. */
 class WithToString {
     override fun toString() = "WTS-1"
     fun fail(): Nothing = throw IllegalStateException("fail")

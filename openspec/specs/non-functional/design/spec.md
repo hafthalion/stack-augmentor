@@ -17,7 +17,7 @@ call `Dispatch.onThrow`. Exceptions inside the advice SHALL be suppressed.
 - **THEN** the only added work is the null check of the thrown value
 
 ### Requirement: Lazily built advice arguments
-The receiver, the key of the deciding `[augment.receiver]` entry, the parameter values and their labels SHALL be
+The receiver, the key of the deciding `[augment.receiver]` entry (or `@` where the `@AugmentedReceiver` members decide), the parameter values and their labels SHALL be
 bound through custom ByteBuddy offset mappings (`@IdReceiver` for `this`, or `null` where no receiver members apply,
 `@IdReceiverKey` for the entry key as a constant, `@IdArgs` for an `Object[]` of the selected parameters, boxing primitives, and `@IdArgNames` for a
 `String[]` of labels), so that the arrays are built only where the advice reads them: inside the
@@ -107,7 +107,8 @@ The agent, build plugin and runtime SHALL recognise `@AugmentedReceiver`, `@Augm
 `@AugmentedParams` and `@Augmented` by their class names (`com.hafnium.stackaugmentor.AugmentedReceiver`,
 `com.hafnium.stackaugmentor.AugmentedParam`, `com.hafnium.stackaugmentor.AugmentedParams`,
 `com.hafnium.stackaugmentor.Augmented`), without
-depending on the API module. The annotations SHALL have no attributes other than `secret` on `@AugmentedParam`.
+depending on the API module. The annotations SHALL have no attributes other than `secret` on `@AugmentedParam` and
+the on/off `value` on `@Augmented`; an `@Augmented` of a copy of the API without `value` SHALL count as on.
 
 #### Scenario: API loaded by an application class loader
 - **GIVEN** the application loads its own copy of `stack-augmentor-api`

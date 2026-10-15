@@ -28,7 +28,7 @@ data class ClassWithAnnotation(
     }
 }
 
-/** No annotations: its parameter comes from its own [augment.params] entry, which comes before the "@" pattern. */
+/** No annotations: its parameter comes from its own [augment.params] entry. */
 data class ClassWithoutAnnotation(
     val objectId: String
 ) {
