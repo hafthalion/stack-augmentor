@@ -7,13 +7,26 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks a method or constructor that the configuration selects with {@code "@"} after {@code ::} in a key: in
- * {@code [augment.receiver]}, a {@code "com.acme.Order::@"} key shows the receiver members in the frames of the annotated
- * methods of {@code Order} only, and in {@code [augment.params]}, it matches the annotated methods and constructors of
- * {@code Order}. Methods that override it are not affected.
+ * Selects which methods and constructors of a class the annotations augment, where {@code [augment.annotations]}
+ * selects the class: their frames show the class's {@link AugmentedReceiver} members and their own
+ * {@link AugmentedParam} and {@link AugmentedParams} parameters.
+ *
+ * <ul>
+ *   <li>On a method or constructor, it decides for that one: {@code @Augmented} on, {@code @Augmented(false)} off.</li>
+ *   <li>On a type, it decides for the methods and constructors without one of their own: {@code @Augmented(false)}
+ *       turns the annotations of the class off.</li>
+ *   <li>Without either, all of them are augmented, unless another method or constructor of the class has
+ *       {@code @Augmented}: then only those are.</li>
+ * </ul>
+ *
+ * <p>The annotation of the class that declares the method counts; methods that override it are not affected.
+ * {@code [augment.receiver]} and {@code [augment.params]} entries, which name members and parameters, do not read it.
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.METHOD, ElementType.CONSTRUCTOR})
+@Target({ElementType.TYPE, ElementType.METHOD, ElementType.CONSTRUCTOR})
 public @interface Augmented {
+
+    /** Whether the annotations augment the method, or the methods of the type. */
+    boolean value() default true;
 }

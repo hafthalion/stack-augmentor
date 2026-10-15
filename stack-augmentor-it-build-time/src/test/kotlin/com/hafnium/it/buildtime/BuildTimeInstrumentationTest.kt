@@ -22,7 +22,7 @@ class BuildTimeInstrumentationTest {
                 "com.hafnium.it.buildtime.ClassWithAnnotation{objectId=object-1}.error",
                 "com.hafnium.it.buildtime.ClassWithAnnotation{objectId=object-1}.method{param=ObjectParam{name=object-param-1}, token=#fb07916a}",
                 "com.hafnium.it.buildtime.ClassWithAnnotation{objectId=object-1}.transfer{from=a, to=b, amount=10}",
-                // Its own entry comes before the "@" pattern.
+                // Its own [augment.params] entry; it has no annotations.
                 "com.hafnium.it.buildtime.ClassWithoutAnnotation.method{q=123}",
             ),
             frames(e, 4),

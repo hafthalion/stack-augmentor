@@ -9,8 +9,9 @@ stack trace are rewritten to show them.
 ### Requirement: Instrumented methods
 The system SHALL add exit advice to methods that are not abstract, native, bridge or synthetic, in these
 cases:
-- instance methods of a class that has a receiver member (a field or method named by its deciding
-  `[augment.receiver]` entry, or an annotated member when that entry is `"@"`);
+- instance methods that have a receiver member (a field or method named by their deciding
+  `[augment.receiver]` entry, or, without one, an annotated member where `[augment.annotations]` and `@Augmented`
+  select the method);
 - instance or static methods that have at least one parameter value.
 
 Constructors that are not synthetic SHALL be instrumented when they have at least one parameter value, for
@@ -21,7 +22,7 @@ exception unchanged. Exceptions thrown inside the called constructor SHALL leave
 
 #### Scenario: Constructor with parameter values
 - **GIVEN** `class Shipment(@AugmentedParam val orderId: Long, val weight: Int)` whose `init` block calls
-  `require(weight > 0)`, and an entry `"com.acme.**::<init>" = "@"`
+  `require(weight > 0)`, and `"com.acme.**" = true` in `[augment.annotations]`
 - **WHEN** `Shipment(42, 0)` throws
 - **THEN** its frame shows `Shipment.<init>{orderId=42}`
 
@@ -64,7 +65,7 @@ exception that left them.
 ### Requirement: Only some exceptions
 With `[augment.exceptions]`, the system SHALL capture and rewrite frames only of throwables for which the first
 matching entry, in the order of the file, has the value `true`. The keys SHALL have the class part of the
-`[augment.receiver]` and `[augment.params]` keys, matched the same way, without methods: a class name SHALL match
+`[augment.receiver]` and `[augment.params]` keys, as `[augment.annotations]` does, matched the same way, without methods: a class name SHALL match
 throwables of that class only; with `+` after it (`"java.io.IOException+"`) the throwables that are instances of
 that class, as `instanceof` does, subclasses included; a key with the class pattern wildcards SHALL match the name
 of the throwable's runtime class only, and not its superclasses. A throwable that no entry matches SHALL NOT be augmented. The frames that other throwables leave SHALL be
@@ -72,8 +73,8 @@ left unchanged, in their own traces and in those of their causes and suppressed 
 augmented throwable leaves SHALL still be written into the traces it shares, whatever their class, so that
 printed traces still collapse. What gets instrumented SHALL NOT depend on it. This SHALL hold in both modes and
 in the live-stack mode. Without the table, or with an empty one, no throwable SHALL be augmented, as without
-`[augment.receiver]` and `[augment.params]` entries; when those have entries but no `[augment.exceptions]` entry
-is `true`, startup SHALL warn.
+`[augment.receiver]`, `[augment.params]` and `[augment.annotations]` entries; when those have entries (other than
+`"-"`, or an `[augment.annotations]` entry that is `true`) but no `[augment.exceptions]` entry is `true`, startup SHALL warn.
 
 #### Scenario: Cause that is not augmented
 - **GIVEN** `"com.acme.PlainCause" = false` before `"**" = true`, and `wrap()` catches a `PlainCause` from `inner()` and throws `RuntimeException("wrapped", cause)`

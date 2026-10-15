@@ -36,7 +36,10 @@ public final class IdResolver {
     /** Name of the annotation that selects all parameters of a method or constructor. */
     public static final String AUGMENTED_PARAMS = "com.hafnium.stackaugmentor.AugmentedParams";
 
-    /** Name of the annotation that {@code "@"} after {@code ::} selects methods by, in both tables. */
+    /**
+     * Name of the annotation that selects, on a type or a method, which methods the annotations augment, with
+     * {@code true} (the default) or {@code false}.
+     */
     public static final String AUGMENTED = "com.hafnium.stackaugmentor.Augmented";
 
     /** The hex digits of a hashed parameter id. */
@@ -111,11 +114,12 @@ public final class IdResolver {
 
     /**
      * {@link #receiverIds(Object, String, String)} with the first {@code [augment.receiver]} entry that matches the
-     * declaring class, whatever methods it names.
+     * declaring class, whatever methods it names, or without one the annotations, if {@code [augment.annotations]}
+     * selects the class.
      */
     public List<NamedId> receiverIds(Object target, String declaringClass) {
         List<AugmentorConfig.ClassEntry> entries = config.classEntries(declaringClass(target.getClass(), declaringClass));
-        return entries.isEmpty() ? List.of() : receiverIds(target, declaringClass, entries.get(0).key());
+        return receiverIds(target, declaringClass, entries.isEmpty() ? AugmentorConfig.ANNOTATIONS : entries.get(0).key());
     }
 
     /**
@@ -127,14 +131,15 @@ public final class IdResolver {
      *
      * @param declaringClass the name of the class that declares the method
      * @param entryKey       the key of the frame's deciding {@code [augment.receiver]} entry, which the instrumentation
-     *                       found; no ids if the configuration has no entry with this key
+     *                       found, or {@link AugmentorConfig#ANNOTATIONS} for the annotations; no ids if the configuration
+     *                       has no entry with this key, or does not read the annotations of the class
      */
     public List<NamedId> receiverIds(Object target, String declaringClass, String entryKey) {
-        AugmentorConfig.ClassEntry entry = config.classEntry(entryKey);
+        Class<?> owner = declaringClass(target.getClass(), declaringClass);
+        AugmentorConfig.ClassEntry entry = config.receiverEntry(entryKey, owner);
         if (entry == null) {
             return List.of();
         }
-        Class<?> owner = declaringClass(target.getClass(), declaringClass);
         List<Source> found = sources.get(owner).computeIfAbsent(entryKey, key -> {
             List<Source> list = List.copyOf(findSources(owner, entry));
             if (Log.isDebug()) {
@@ -245,9 +250,9 @@ public final class IdResolver {
 
     /**
      * The id sources that the deciding {@code [augment.receiver]} entry names ({@link AugmentorConfig#classEntry(Class,
-     * String, boolean)}): its fields and methods, or with {@code "@"} its {@code @AugmentedReceiver} members, looked up in the
-     * class and its superclasses, or in an interface and the interfaces it extends. With {@code "-"}, none, even if the
-     * class is annotated.
+     * String)}): its fields and methods, or for {@link AugmentorConfig#ANNOTATION_ENTRY} the {@code @AugmentedReceiver}
+     * members, looked up in the class and its superclasses, or in an interface and the interfaces it extends. With
+     * {@code "-"}, none, even if the class is annotated.
      */
     private List<Source> findSources(Class<?> type, AugmentorConfig.ClassEntry entry) {
         return switch (entry.spec()) {

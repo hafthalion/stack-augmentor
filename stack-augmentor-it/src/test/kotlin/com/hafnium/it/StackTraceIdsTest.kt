@@ -86,7 +86,7 @@ class StackTraceIdsTest {
 
     @Test
     fun `annotations outside the @ entries are ignored, also of subclasses of matched classes`() {
-        // No entry matches DerivedOutside; the "@" entry of its superclass Base does not apply to it.
+        // No [augment.annotations] entry matches DerivedOutside; the entry of its superclass Base does not apply to it.
         val derived = report.thrown<IllegalStateException, _>("DerivedOutside().fail()", DerivedOutside()) { it.fail() }
         assertEquals("com.hafnium.it.outside.DerivedOutside", derived.stackTrace[0].className)
 

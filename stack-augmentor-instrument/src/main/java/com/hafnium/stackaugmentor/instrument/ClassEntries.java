@@ -18,19 +18,14 @@ import java.util.function.Predicate;
  * Finds the deciding {@code [augment.receiver]} entry of a method: the first entry that matches its type, a pattern by
  * the type's own name, a class name by the type's own name or, with {@code +}, also as a superclass or an implemented
  * interface, and applies to the method
- * ({@link AugmentorConfig#classEntry(Class, String, boolean)}).
+ * ({@link AugmentorConfig#classEntry(Class, String)}).
  */
 final class ClassEntries {
 
     /** The deciding entry, and the class it matched. */
     record Deciding(TypeDescription owner, AugmentorConfig.ClassEntry entry) {
 
-        /** {@code "@"}: the class's {@code @AugmentedReceiver} is used. */
-        boolean annotations() {
-            return entry.spec() instanceof IdSpec.Annotations;
-        }
-
-        /** {@code "-"}: no receiver id. */
+        /** {@code "-"}: no receiver members. */
         boolean excluded() {
             return entry.spec() instanceof IdSpec.Excluded;
         }
@@ -61,8 +56,7 @@ final class ClassEntries {
 
     /** The deciding entry of the method's frames, or {@code null} if no entry matches the type and the method. */
     Deciding decide(TypeDescription type, MethodDescription method) {
-        AugmentorConfig.ClassEntry entry = AugmentorConfig.firstApplying(entries(type), method.getInternalName(),
-                IdParameters.augmented(method));
+        AugmentorConfig.ClassEntry entry = AugmentorConfig.firstApplying(entries(type), method.getInternalName());
         return entry != null ? new Deciding(type, entry) : null;
     }
 

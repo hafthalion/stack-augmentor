@@ -63,7 +63,7 @@ class WithoutKotlinTest {
 
     @Test
     fun `agent augments a Java application without the Kotlin runtime`(@TempDir dir: Path) {
-        val result = run(config(dir, "debug = true\n[augment.exceptions]\n\"**\" = true\n[augment.receiver]\n\"com.hafnium.it.fixtures.**::*\" = \"@\"\n[augment.params]\n\"com.hafnium.it.fixtures.**::*\" = \"@\"\n"))
+        val result = run(config(dir, "debug = true\n[augment.exceptions]\n\"**\" = true\n[augment.annotations]\n\"com.hafnium.it.fixtures.**\" = true\n"))
         assertEquals(0, result.exitCode, result.output)
         record("JavaMain, with the agent and a configuration", result.output)
         assertTrue(result.output.contains("at com.hafnium.it.fixtures.JavaFixture{key=java-1}.run{arg0=42}(JavaFixture.java:"), result.output)
@@ -97,7 +97,7 @@ class WithoutKotlinTest {
         assertTrue(
             result.output.contains(
                 "[stack-augmentor] WARN agent: the configuration has no [augment.receiver] or [augment.params] entries other than " +
-                    "\"-\", so nothing will be augmented",
+                    "\"-\" and no [augment.annotations] entry that is true, so nothing will be augmented",
             ),
             result.output,
         )

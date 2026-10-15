@@ -1,8 +1,8 @@
 # One file for both phases:
-# - [augment.receiver] and [augment.params] are read at build time by the ByteBuddy build plugin (see
-#   build.gradle.kts), which instruments the classes and methods they need;
-# - [augment], [augment.exceptions], [augment.receiver], debug and inPlaceModification are read at runtime, from the classpath
-#   (or from -Dstackaugmentor.config=<file>).
+# - [augment.annotations], [augment.receiver] and [augment.params] are read at build time by the ByteBuddy build
+#   plugin (see build.gradle.kts), which instruments the classes and methods they need;
+# - [augment], [augment.exceptions], [augment.annotations], [augment.receiver], debug and inPlaceModification are read
+#   at runtime, from the classpath (or from -Dstackaugmentor.config=<file>).
 
 # Print diagnostics to stderr (default: false).
 debug = false
@@ -19,31 +19,31 @@ maxValueLength = 64
 [augment.exceptions]
 "**" = true
 
-# Only this project's classes are changed. The classes in com.hafnium.it.buildtime.configured have no
+# Where the annotations are read: the project's classes. The classes in com.hafnium.it.buildtime.configured have no
 # annotations: the entries below augment them.
+[augment.annotations]
+"com.hafnium.it.buildtime.**" = true
+
+# Only this project's classes are changed.
 # Keys are "<class>::<methods>": a class name matches that class only, "+" after it ("com.acme.Order+::*") its
 # subclasses too, and a pattern matches class names. The methods are names or patterns separated by commas, "*" for
-# all, "@" for those annotated with @Augmented. '*' matches within a package or name, '**' across packages,
-# '?' one character.
+# all. '*' matches within a package or name, '**' across packages, '?' one character. A method that no entry matches
+# uses its class's annotations, where [augment.annotations] selects the class.
 
-# Receiver members: "@" uses the class's @AugmentedReceiver (without an "@" entry, it is not used). Classes you
-# cannot annotate name a method() or a field: an order is identified by its getOrderNumber() method, a
-# customer by its customerId field. The first matching entry wins, so they come before the "@" pattern.
+# Receiver members of classes you cannot annotate: a method() or a field. An order is identified by its
+# getOrderNumber() method, a customer by its customerId field.
 [augment.receiver]
 "com.hafnium.it.buildtime.configured.Order::*" = "getOrderNumber()"
 "com.hafnium.it.buildtime.configured.Customer::*" = "customerId"
-"com.hafnium.it.buildtime.**::*" = "@"
 
-# Parameter values, independently of the receivers: "@" uses the methods' @AugmentedParam and @AugmentedParams
-# annotations. Otherwise parameters are selected by name or 0-based index, separated by commas, "#" after one shows its value
-# hashed, and "-" selects none. When several entries match a method, the first one applies, so the more
-# specific entries come first.
+# Parameter values, independently of the receivers, selected by name or 0-based index, separated by commas; "#"
+# after one shows its value hashed, and "-" selects none. When several entries match a method, the first one
+# applies, so the more specific entries come first. An entry wins over the method's annotations.
 [augment.params]
-"com.hafnium.it.buildtime.ClassWithoutAnnotation::method" = "q"                # before the "@" pattern
+"com.hafnium.it.buildtime.ClassWithoutAnnotation::method" = "q"
 "com.hafnium.it.buildtime.configured.OrderService::process" = "order, 1"       # by name and by index
 "com.hafnium.it.buildtime.configured.InventoryAudit::*" = "-"                    # InventoryAudit's first: no parameter values ...
 "com.hafnium.it.buildtime.configured.Inventory*::*" = "sku, count"           # ... then all methods of the other Inventory* classes
 "com.hafnium.it.buildtime.configured.Customer::notify" = "email#"              # hashed
 "com.hafnium.it.buildtime.configured.Shipment::<init>" = "orderId, weight"   # constructors: "<init>"
 "com.hafnium.it.buildtime.configured.Crate::<init>" = "orderId, weight"
-"com.hafnium.it.buildtime.**::*" = "@"                                            # the rest: their annotations

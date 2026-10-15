@@ -22,7 +22,7 @@ the file, the key and the line, also when the exception carrying it is thrown on
 #### Scenario: Same messages in both modes
 - **GIVEN** `debug = true` in the configuration of the agent, of the build plugin and of the runtime handler
 - **WHEN** each of them starts
-- **THEN** each prints the same debug messages about its configuration, prefixed with its name, e.g. `[stack-augmentor] DEBUG build plugin: [augment.receiver] com.hafnium.**::*=@`
+- **THEN** each prints the same debug messages about its configuration, prefixed with its name, e.g. `[stack-augmentor] DEBUG build plugin: [augment.annotations] com.hafnium.**=true`
 
 ### Requirement: Warnings
 The system SHALL always print a warning to standard error, prefixed `[stack-augmentor] WARN`:
@@ -34,9 +34,9 @@ The system SHALL always print a warning to standard error, prefixed `[stack-augm
 - when the runtime handler cannot be created, with the reason;
 - when the build-time runtime handler finds no configuration, so the built-in configuration is used;
 - when the agent or the build plugin starts with a configuration that has no `[augment.receiver]` and no
-  `[augment.params]` entries other than `"-"`, so nothing will be augmented;
-- when the agent, the build plugin or the runtime starts with `[augment.receiver]` or `[augment.params]` entries but
-  no `[augment.exceptions]` entry that is `true`: `no [augment.exceptions] entry is true, so no exception is augmented;
+  `[augment.params]` entries other than `"-"` and no `[augment.annotations]` entry that is `true`, so nothing will be augmented;
+- when the agent, the build plugin or the runtime starts with `[augment.receiver]` or `[augment.params]` entries other
+  than `"-"` or an `[augment.annotations]` entry that is `true`, but no `[augment.exceptions]` entry that is `true`: `no [augment.exceptions] entry is true, so no exception is augmented;
   "java.lang.Exception+" = true augments all exceptions, "**" = true all throwables`.
 
 A member missing for an entry with wildcards SHALL only be reported as a debug message.
@@ -54,14 +54,19 @@ A member missing for an entry with wildcards SHALL only be reported as a debug m
 #### Scenario: Nothing configured
 - **GIVEN** the agent started with a configuration that has only `debug = false`
 - **WHEN** it starts
-- **THEN** `[stack-augmentor] WARN agent: the configuration has no [augment.receiver] or [augment.params] entries other than "-", so nothing will be augmented` is printed
+- **THEN** `[stack-augmentor] WARN agent: the configuration has no [augment.receiver] or [augment.params] entries other than "-" and no [augment.annotations] entry that is true, so nothing will be augmented` is printed
+
+#### Scenario: Annotations without exceptions
+- **GIVEN** the agent started with a configuration that has only `"com.acme.**" = true` in `[augment.annotations]`
+- **WHEN** it starts
+- **THEN** the warning that no `[augment.exceptions]` entry is `true` is printed
 
 ### Requirement: Debug messages
 With `debug = true`, the system SHALL print messages to standard error, prefixed
 `[stack-augmentor] DEBUG`, for:
-- the configuration, from the agent, the build plugin and the runtime handler alike: its location, the `[augment.receiver]` entries (with `@` for annotations and `-` for none) and the `[augment.params]` entries (with `#` for hashed parameters, `@` for annotations and `-` for none), and the formats;
-- each instrumented class: why it is instrumented (configured receiver members, annotated receiver members, or parameter values only), and its instrumented methods with their parameter values;
-- `@AugmentedReceiver` annotations ignored because the class's deciding `[augment.receiver]` entry is not `"@"` or no entry matches the class, and `@AugmentedParam` and `@AugmentedParams` annotations ignored because no `[augment.params]` entry with `"@"` applies to the method, each naming the table that would enable them;
+- the configuration, from the agent, the build plugin and the runtime handler alike: its location, the `[augment.receiver]` entries (with `-` for none), the `[augment.params]` entries (with `#` for hashed parameters and `-` for none), then the `[augment.annotations]` entries (e.g. `[augment.annotations] com.acme.**=true`, or `none`), and the formats;
+- each instrumented class: why it is instrumented (the `[augment.receiver]` entries that give receiver members, `@AugmentedReceiver`, or parameter values only, e.g. `instrumenting com.acme.Order (receiver members from @AugmentedReceiver): …`), and its instrumented methods with their parameter values;
+- `@AugmentedReceiver` annotations ignored, `ignoring @AugmentedReceiver in <class>: no [augment.annotations] entry that is true matches it` or `…: [augment.receiver] entries or @Augmented decide for all its methods`, and `@AugmentedParam` and `@AugmentedParams` annotations ignored, `ignoring the parameter annotations of <methods> in <class>: no [augment.annotations] entry that is true matches it` or `…: an [augment.params] entry or @Augmented decides for them`;
 - `[augment.params]` entries without wildcards or `+` that name a missing method, a missing parameter or an index out of range, suggesting `-parameters` or an index when the class has no parameter names;
 - members missing for `[augment.receiver]` entries with wildcards;
 - the receiver members found for each class when they are first needed;
@@ -88,9 +93,14 @@ SHALL be printed, and the message texts SHALL NOT be built, also for the message
 - **THEN** no message about the entry is printed for `Customer`
 
 #### Scenario: Ignored annotations
-- **GIVEN** `debug = true`, `"com.hafnium.it.fixtures.**::*" = "@"` in `[augment.receiver]`, and a class in `com.hafnium.it.outside` with `@AugmentedReceiver` and `@AugmentedParam`
+- **GIVEN** `debug = true`, `"com.hafnium.it.fixtures.**" = true` in `[augment.annotations]`, and a class in `com.hafnium.it.outside` with `@AugmentedReceiver` and `@AugmentedParam`
 - **WHEN** the class is loaded
-- **THEN** one message reports that its `@AugmentedReceiver` is ignored because no `[augment.receiver]` entry applies, and one that its parameter annotations are ignored because no `"@"` entry in `[augment.params]` applies
+- **THEN** one message reports that its `@AugmentedReceiver` is ignored and one that its parameter annotations are ignored, both because no `[augment.annotations]` entry that is true matches it
+
+#### Scenario: Annotations replaced by entries
+- **GIVEN** `debug = true`, `"com.acme.**" = true` in `[augment.annotations]`, `"com.acme.Order::*" = "getId()"` in `[augment.receiver]`, and `com.acme.Order` with `@AugmentedReceiver`
+- **WHEN** `Order` is loaded
+- **THEN** `ignoring @AugmentedReceiver in com.acme.Order: [augment.receiver] entries or @Augmented decide for all its methods` is printed
 
 #### Scenario: Debug off
 - **GIVEN** `debug = false`
