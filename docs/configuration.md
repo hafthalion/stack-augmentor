@@ -81,7 +81,7 @@ The defaults in the table above are those of a file that leaves a key out: an em
 
 ## The built-in configuration
 
-When no file is given, to the agent, to the build plugin or to the runtime of classes instrumented at build time, this configuration applies:
+When no file is given, to the agent, to the build plugin or to the runtime of classes instrumented at build time, this configuration applies. It is the classpath resource `com/hafnium/stackaugmentor/runtime/config/built-in.toml` of `stack-augmentor-runtime` (also in the agent jar):
 
 ```toml
 [augment.exceptions]
