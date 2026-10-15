@@ -1,9 +1,11 @@
 package com.hafnium.examples.live
 
+import com.hafnium.stackaugmentor.Augmented
 import com.hafnium.stackaugmentor.AugmentedReceiver
 import com.hafnium.stackaugmentor.AugmentedParams
 
 /** Answers each request with a status, and logs the exceptions that end one. */
+@Augmented
 class Shop(
     @AugmentedReceiver private val name: String,
     private val payments: PaymentClient,
@@ -23,6 +25,7 @@ class Shop(
     }
 }
 
+@Augmented
 class Session(
     @AugmentedReceiver private val user: String,
     private val payments: PaymentClient,

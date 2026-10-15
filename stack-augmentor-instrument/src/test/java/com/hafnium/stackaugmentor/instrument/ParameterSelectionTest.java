@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ParameterSelectionTest {
 
+    @Augmented
     static class MethodLevel {
         @AugmentedParams
         void move(@AugmentedParam String item, int count) {
@@ -38,6 +39,7 @@ class ParameterSelectionTest {
         }
     }
 
+    @Augmented
     static class Reservations {
         @AugmentedParams
         void reserve(String sku, int count) {
@@ -93,7 +95,7 @@ class ParameterSelectionTest {
         }
     }
 
-    /** {@code @Augmented} on the type: all methods but skip are augmented, although run has no @Augmented. */
+    /** {@code @Augmented} on the type: all methods but skip are augmented. */
     @Augmented
     static class Selective {
         @AugmentedReceiver
@@ -111,12 +113,23 @@ class ParameterSelectionTest {
         }
     }
 
+    /** Without {@code @Augmented}, its annotations are ignored. */
+    static class WithoutAugmented {
+        @AugmentedReceiver
+        String code = "w";
+
+        @AugmentedParams
+        void run(String x) {
+        }
+    }
+
     static class Login {
         void login(String userName, String email, int attempt) {
         }
     }
 
     /** An explicit class entry gives its receiver id, a params entry decides for fail. */
+    @Augmented
     static class Explicit {
         @AugmentedReceiver
         String code = "c";
@@ -133,6 +146,7 @@ class ParameterSelectionTest {
     }
 
     /** Its only @AugmentedReceiver method takes an argument, so it can never give an id. */
+    @Augmented
     static class UnusableId {
         @AugmentedReceiver
         String idFor(int version) {
@@ -143,6 +157,7 @@ class ParameterSelectionTest {
         }
     }
 
+    @Augmented
     static class UsableId {
         @AugmentedReceiver
         String id() {
@@ -153,6 +168,7 @@ class ParameterSelectionTest {
         }
     }
 
+    @Augmented
     static class Built {
         @AugmentedParams
         Built(String code, long size) {
@@ -414,12 +430,23 @@ class ParameterSelectionTest {
         assertTrue(matching.receiverIds(type(Muted.class), method(Muted.class, "loud")));
         assertEquals(List.of("x"), labels(parameters, Muted.class, "loud"));
 
-        // @Augmented on the type keeps run augmented, although another method has @Augmented.
+        // @Augmented on the type augments run, which has none of its own.
         assertTrue(matching.receiverIds(type(Selective.class), method(Selective.class, "run")));
         assertEquals(List.of("x"), labels(parameters, Selective.class, "run"));
         assertTrue(matching.receiverIds(type(Selective.class), method(Selective.class, "also")));
         assertFalse(matching.receiverIds(type(Selective.class), method(Selective.class, "skip")));
         assertEquals(List.of(), labels(parameters, Selective.class, "skip"));
+    }
+
+    @Test
+    void aClassWithoutAugmentedIsIgnored() {
+        AugmentorConfig config = annotations(HERE);
+        IdParameters parameters = new IdParameters(config);
+        TypeMatching matching = new TypeMatching(config, parameters);
+
+        assertFalse(matching.receiverIds(type(WithoutAugmented.class), method(WithoutAugmented.class, "run")));
+        assertEquals(List.of(), labels(parameters, WithoutAugmented.class, "run"));
+        assertFalse(matching.instrument(type(WithoutAugmented.class)));
     }
 
     @Test
@@ -463,6 +490,7 @@ class ParameterSelectionTest {
         assertTrue(matching.instrument(type(UsableId.class)));
     }
 
+    @Augmented
     static class Secrets {
         void login(@AugmentedParam String userName, @AugmentedParam(secret = true) String email, int attempt) {
         }

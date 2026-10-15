@@ -17,6 +17,8 @@ maxValueLength = 20
 "com.hafnium.it.outside.Dispatcher" = true
 "com.hafnium.it.outside.Muted" = true
 "com.hafnium.it.outside.Selective" = true
+# Read, but without @Augmented: ignored
+"com.hafnium.it.outside.WithoutAugmented" = true
 # Not read: a false entry before the pattern that would match
 "com.hafnium.it.outside.Unread" = false
 "com.hafnium.it.outside.Un*" = true

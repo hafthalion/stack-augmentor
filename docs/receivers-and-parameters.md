@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-Receiver members and parameter values are configured independently: `[augment.receiver]` decides the receiver members, `[augment.params]` the parameter values, by name (or index). Neither table affects the other. A method that no entry of a table matches uses the annotations instead, where `[augment.annotations]` selects its class (see [Annotations](#annotations) below). Which classes and methods get instrumented is not configured directly: whatever the tables and annotations need is instrumented behind the scenes.
+Receiver members and parameter values are configured independently: `[augment.receiver]` decides the receiver members, `[augment.params]` the parameter values, by name (or index). Neither table affects the other. A method that no entry of a table matches uses the annotations instead, where `[augment.annotations]` selects its class and `@Augmented` the method (see [Annotations](#annotations) below). Which classes and methods get instrumented is not configured directly: whatever the tables and annotations need is instrumented behind the scenes.
 
 **Keys.** Both tables have the same keys, `"<class>::<methods>"`, which match a frame by the class that declares its method and by the method's name:
 
@@ -39,7 +39,7 @@ The label is the real field or method name (`{objectId=…}`, `{getKey=…}`); i
 - by name or by 0-based index (0 to 255), separated by commas, e.g. `"order, 2"`;
 - `"-"`: none, not even from annotations.
 
-A method that no entry matches uses its annotations instead, where `[augment.annotations]` selects its class: `@AugmentedParam` on a parameter, or `@AugmentedParams` on the method (all its parameters; not of methods that override it). There is no wildcard for the parameters themselves: each one is named, or selected by an annotation.
+A method that no entry matches uses its annotations instead, where `[augment.annotations]` selects its class and `@Augmented` the method: `@AugmentedParam` on a parameter, or `@AugmentedParams` on the method (all its parameters; not of methods that override it). There is no wildcard for the parameters themselves: each one is named, or selected by an annotation.
 
 **Constructors** are named `<init>`, as in stack traces: `"com.acme.Shipment::<init>" = "orderId"`. Where `[augment.annotations]` selects the class, constructors show their annotated parameters like methods (`@AugmentedParams` works on constructors too), and `@Augmented` selects them like methods; an entry such as `"com.acme.Shipment::<init>" = "-"` takes them out. Wildcards in the method name match constructors like any method, so `"com.acme.Shipment::*" = "-"` takes them out as well. A constructor frame shows parameter values only, never receiver members, e.g. `com.acme.Shipment.<init>{orderId=42}`, for exceptions thrown in its body (including Kotlin `init` blocks) and while computing the arguments of its `super(...)` or `this(...)` call, e.g. `super(requireNonNull(code))`. An exception thrown inside the called constructor itself leaves the frame unchanged.
 
@@ -65,27 +65,27 @@ Because the tables are independent, a class can take its receiver members from a
 "com.acme.generated.**::*" = "-"      # no receiver members
 ```
 
-Without `[augment.params]` entries for them, the methods of `Order` and of the generated classes still show their annotated parameters.
+Without `[augment.params]` entries for them, the methods of `Order` and of the generated classes still show their annotated parameters, where `@Augmented` selects them.
 
 ## Annotations
 
-The annotations of `stack-augmentor-api` are read only in the classes that [`[augment.annotations]`](configuration.md#annotations) selects, by the class that declares the frame's method, and only for methods that no entry of the table in question matches:
+The annotations of `stack-augmentor-api` are read only in the classes that [`[augment.annotations]`](configuration.md#annotations) selects, by the class that declares the frame's method; apart from `@Augmented` itself, only for the methods and constructors that `@Augmented` selects and that no entry of the table in question matches:
 
-- **`@AugmentedReceiver`** on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`: a receiver member, one value each; fields first, in declaration order, then methods by name, starting with the class itself and then its superclasses. Static members and methods with parameters are not used.
+- **`@AugmentedReceiver`** on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`: a receiver member, one value each; fields first, in declaration order, then methods by name, starting with the class itself and then its superclasses, which need no `@Augmented` of their own. Static members and methods with parameters are not used.
 - **`@AugmentedParam`** on a parameter: its value; `@AugmentedParam(secret = true)` shows it hashed.
 - **`@AugmentedParams`** on a method or constructor: all its parameters; not of methods that override it.
-- **`@Augmented`** selects which methods and constructors of the class the annotations augment. On a method or constructor, `@Augmented` turns them on for it and `@Augmented(false)` off. Otherwise `@Augmented` or `@Augmented(false)` on the class decides. Otherwise all of them are augmented, unless another method or constructor of the class has `@Augmented`: then only those are. Only the class that declares the method counts; methods that override it are not affected.
+- **`@Augmented`** selects the methods and constructors of the class that the annotations augment. On a method or constructor, `@Augmented` turns them on for it and `@Augmented(false)` off. Otherwise `@Augmented` or `@Augmented(false)` on the class decides. Otherwise they are not augmented: a class without `@Augmented`, on the class or on its methods, is ignored, and its other annotations are not even looked for. Usually it goes on the class, for all its methods and constructors. Only the class that declares the method counts; methods that override it are not affected. A Kotlin top-level function takes it on the function itself, since the class of its file cannot carry it.
 
 ```kotlin
 class Dispatcher(@AugmentedReceiver val hub: String) {
-    @Augmented                                   // only send uses the annotations: Dispatcher{hub=H-1}.send{order=o-1}
+    @Augmented                                   // only send is augmented: Dispatcher{hub=H-1}.send{order=o-1}
     fun send(@AugmentedParam order: String) { }
 
-    fun track(@AugmentedParam order: String) { } // unchanged
+    fun track(@AugmentedParam order: String) { } // unchanged: neither it nor the class has @Augmented
 }
 ```
 
-`@Augmented` on the class would augment `track` too; `@Augmented(false)` on the class turns its annotations off except in `send`. `[augment.receiver]` and `[augment.params]` entries never read `@Augmented`, so an entry for `track` still applies.
+`@Augmented` on the class would augment `track` too, unless `track` had `@Augmented(false)`. Without the `@Augmented` on `send`, the class would be ignored and both frames unchanged; `@Augmented(false)` on the class is the same as none, except that it says so. `[augment.receiver]` and `[augment.params]` entries never read `@Augmented`, so an entry for `track` still applies.
 
 ## Labels and values
 

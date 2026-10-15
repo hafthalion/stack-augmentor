@@ -9,6 +9,7 @@ import com.hafnium.it.outside.MethodAnnotationsOutside
 import com.hafnium.it.outside.Muted
 import com.hafnium.it.outside.Selective
 import com.hafnium.it.outside.Unread
+import com.hafnium.it.outside.WithoutAugmented
 import com.hafnium.it.outside.PremiumAccount
 import com.hafnium.it.outside.VipCustomer
 import com.hafnium.it.report.FrameReport
@@ -92,6 +93,13 @@ class ConfigTablesTest {
         val skip = frame("Selective(\"S-1\").skip(4)", Selective("S-1")) { it.skip(4) }
         assertEquals("com.hafnium.it.outside.Selective", skip.className)
         assertEquals("skip", skip.methodName)
+    }
+
+    @Test
+    fun `a class without @Augmented is ignored`() {
+        val frame = frame("WithoutAugmented(\"W-1\").run(6)", WithoutAugmented("W-1")) { it.run(6) }
+        assertEquals("com.hafnium.it.outside.WithoutAugmented", frame.className)
+        assertEquals("run", frame.methodName)
     }
 
     @Test

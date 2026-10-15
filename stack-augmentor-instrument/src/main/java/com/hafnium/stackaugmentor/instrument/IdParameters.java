@@ -26,7 +26,6 @@ import java.util.stream.Collectors;
 public final class IdParameters {
 
     private final AugmentorConfig config;
-    private final AugmentedSelection selection = new AugmentedSelection();
 
     public IdParameters(AugmentorConfig config) {
         this.config = config;
@@ -34,15 +33,18 @@ public final class IdParameters {
 
     /**
      * Whether the parameter annotations of this method are used: no {@code [augment.params]} entry matches it,
-     * {@code [augment.annotations]} selects its class, and {@code @Augmented} does not turn it off.
+     * {@code @Augmented} selects it and {@code [augment.annotations]} its class.
      */
     boolean annotationsUsed(TypeDescription type, MethodDescription method) {
         return paramsEntry(type, method) == null && annotationsSelect(type, method);
     }
 
-    /** Whether {@code [augment.annotations]} selects the type and {@code @Augmented} the method. */
+    /**
+     * Whether {@code @Augmented} selects the method and {@code [augment.annotations]} the type. Without
+     * {@code @Augmented}, the other annotations are not looked for.
+     */
     boolean annotationsSelect(TypeDescription type, MethodDescription method) {
-        return config.readsAnnotations(type.getName(), supertypes(type)::contains) && selection.augments(type, method);
+        return AugmentedSelection.augments(type, method) && config.readsAnnotations(type.getName(), supertypes(type)::contains);
     }
 
     /** The values of the first matching {@code [augment.params]} entry, {@code null} if none matches. */

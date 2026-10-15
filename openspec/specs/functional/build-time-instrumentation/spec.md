@@ -16,7 +16,8 @@ configuration. An invalid configuration, including an invalid `[augment]` templa
 renders, SHALL fail the build, and the reason SHALL be printed as an error, because the ByteBuddy Gradle
 plugin does not show the cause of a failing plugin constructor. It SHALL be discoverable through
 `META-INF/net.bytebuddy/build.plugins`. Without a configuration, it SHALL apply the built-in configuration (see the
-configuration spec), instrumenting the classes with annotated receiver members or parameters.
+configuration spec), instrumenting the methods that `@Augmented` selects in the classes with annotated receiver members or
+parameters.
 
 #### Scenario: Invalid template
 - **GIVEN** `paramsFormat = "($name=$value, ...)"` on line 14 of the build plugin's configuration
@@ -35,14 +36,14 @@ configuration spec), instrumenting the classes with annotated receiver members o
 - **THEN** its classes are not instrumented, and with `debug = true` the build lists the ignored annotations
 
 #### Scenario: Method-level parameter annotation
-- **GIVEN** a project class whose only annotation is `@AugmentedParams` on a method, which `[augment.annotations]` selects and no `[augment.params]` entry matches
+- **GIVEN** a project class with `@Augmented`, whose only other annotation is `@AugmentedParams` on a method, which `[augment.annotations]` selects and no `[augment.params]` entry matches
 - **WHEN** the project is built
 - **THEN** that method is instrumented and shows its parameter values
 
 #### Scenario: No configuration
 - **GIVEN** the build plugin discovered through `META-INF/net.bytebuddy/build.plugins`, without an argument
 - **WHEN** the project is built
-- **THEN** the classes with an `@AugmentedReceiver` member or an annotated parameter are instrumented, the others are not changed, and no warning is printed
+- **THEN** the classes with `@Augmented` and an `@AugmentedReceiver` member or an annotated parameter are instrumented, where `@Augmented` selects their methods, the others are not changed, and no warning is printed
 
 ### Requirement: Only the project's own classes
 Build-time instrumentation SHALL change only the classes of the project being built. Libraries SHALL
@@ -81,12 +82,12 @@ with the file, the key and the line (see the diagnostics specification).
 - **AND** a warning says that there is no runtime configuration, so the built-in configuration is used
 
 #### Scenario: Built-in configuration at build time and at runtime
-- **GIVEN** a class with `@AugmentedReceiver`, instrumented by the build plugin without a configuration, and no runtime configuration
+- **GIVEN** a class with `@Augmented` and `@AugmentedReceiver`, instrumented by the build plugin without a configuration, and no runtime configuration
 - **WHEN** one of its methods throws an exception
 - **THEN** the frame shows the annotated receiver members: the advice passes the key `@`, and both select the class with `"**" = true` in `[augment.annotations]`
 
 #### Scenario: Annotations not selected at runtime
-- **GIVEN** a class with `@AugmentedReceiver`, built with `"com.acme.**" = true` in `[augment.annotations]`, and a runtime configuration without that entry
+- **GIVEN** a class with `@Augmented` and `@AugmentedReceiver`, built with `"com.acme.**" = true` in `[augment.annotations]`, and a runtime configuration without that entry
 - **WHEN** one of its methods throws
 - **THEN** the frame shows no receiver members
 

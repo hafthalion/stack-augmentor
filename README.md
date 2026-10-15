@@ -12,7 +12,7 @@ Stack Augmentor augments the frames of stack traces with receiver members and pa
 
 - **Receiver members**: members of the object a frame's method runs on, from `@AugmentedReceiver` fields and methods, or from fields and getters named in the configuration.
 - **Parameter values**: selected arguments, from `@AugmentedParam` and `@AugmentedParams`, or by name or index; sensitive values can be shown as a hash.
-- **Classes you cannot change**: one TOML file names their members and parameters, selecting classes by name, with their subclasses (`+`) or by pattern, and methods by name or pattern; it also says in which classes the annotations are read, which exceptions are augmented and how frames look. `@Augmented` limits the annotations to some methods. See [Configuration](docs/configuration.md).
+- **Classes you cannot change**: one TOML file names their members and parameters, selecting classes by name, with their subclasses (`+`) or by pattern, and methods by name or pattern; it also says in which classes the annotations are read, which exceptions are augmented and how frames look. The annotations augment only the classes and methods with `@Augmented`. See [Configuration](docs/configuration.md).
 - **Three ways to run**: a Java agent, the agent reading every frame from the live stack (experimental), or build-time instrumentation without an agent.
 - **Cause chains**: the frames a cause shares with its wrapper are augmented the same way, so `... N more` still works; `ExceptionFormat.rootCauseFirst` prints the root cause first.
 - **Java and Kotlin**, constructors included; the library is Java and does not need the Kotlin runtime.
@@ -35,7 +35,7 @@ An application with classes instrumented at build time can also run with the age
 
 | Option | Where | Default | What it does |
 |---|---|---|---|
-| Configuration file | `-javaagent:...=config=<file>`, `-Dstackaugmentor.config=<file>`, or (build-time) `stack-augmentor.toml` on the classpath | none: the [built-in configuration](docs/configuration.md#the-built-in-configuration) augments all exceptions with the annotated members and parameters | the TOML file with everything below ([where it comes from](docs/configuration.md#where-the-file-comes-from)) |
+| Configuration file | `-javaagent:...=config=<file>`, `-Dstackaugmentor.config=<file>`, or (build-time) `stack-augmentor.toml` on the classpath | none: the [built-in configuration](docs/configuration.md#the-built-in-configuration) augments all exceptions with the annotated members and parameters of the classes with `@Augmented` | the TOML file with everything below ([where it comes from](docs/configuration.md#where-the-file-comes-from)) |
 | `[augment.exceptions]` | configuration | empty: no exception is augmented | which exceptions are augmented, e.g. `"java.lang.Exception+" = true` ([Exceptions](docs/configuration.md#exceptions)) |
 | `[augment.annotations]` | configuration | empty: no annotations are read | in which classes `@AugmentedReceiver`, `@AugmentedParam`, `@AugmentedParams` and `@Augmented` are read, e.g. `"com.acme.**" = true` ([Annotations](docs/configuration.md#annotations)) |
 | `[augment.receiver]` | configuration | empty | which frames show receiver members by name, and which ones, e.g. `"com.thirdparty.Order+::*" = "getOrderNumber()"` ([Receiver members](docs/configuration.md#receiver-members)) |
@@ -61,9 +61,10 @@ In all four tables the first matching entry decides, and classes are written the
 
 Use it in your own application:
 
-1. Add `stack-augmentor-api` to your dependencies and annotate:
+1. Add `stack-augmentor-api` to your dependencies, and annotate the class with `@Augmented` and its members and parameters:
 
    ```java
+   @Augmented   // all its methods and constructors use the annotations
    public class ObjectClass {
        @AugmentedReceiver
        private final String objectId = "object-1";
@@ -80,6 +81,7 @@ Use it in your own application:
    or in Kotlin:
 
    ```kotlin
+   @Augmented   // all its methods and constructors use the annotations
    class ObjectClass {
        @AugmentedReceiver
        val objectId = "object-1"
@@ -111,7 +113,7 @@ Use it in your own application:
    java -javaagent:stack-augmentor-agent-<version>.jar=config=stack-augmentor.toml -jar app.jar
    ```
 
-   Without a configuration, the [built-in one](docs/configuration.md#the-built-in-configuration) applies, the same as this example for all classes. Without `[augment.annotations]` entries that are `true` and without `[augment.receiver]` and `[augment.params]` entries, nothing is augmented and the agent prints a warning.
+   Without a configuration, the [built-in one](docs/configuration.md#the-built-in-configuration) applies, the same as this example for all classes with `@Augmented`. Without `[augment.annotations]` entries that are `true` and without `[augment.receiver]` and `[augment.params]` entries, nothing is augmented and the agent prints a warning.
 
 ## Quick start: build-time instrumentation
 
@@ -150,7 +152,7 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 }
 ```
 
-- **At build time**, the plugin instruments the classes and methods that `[augment.annotations]`, `[augment.receiver]` and `[augment.params]` need. Without the configuration argument, the built-in configuration applies: the methods of classes with annotated members or parameters are instrumented.
+- **At build time**, the plugin instruments the classes and methods that `[augment.annotations]`, `[augment.receiver]` and `[augment.params]` need. Without the configuration argument, the built-in configuration applies: the methods that `@Augmented` selects are instrumented, where their class has annotated members or they have annotated parameters.
 - **At runtime**, the application needs only `stack-augmentor-api` and `stack-augmentor-runtime` (no agent, no ByteBuddy, no Kotlin). The runtime reads `stack-augmentor.toml` from the classpath, or the file in `-Dstackaugmentor.config`, for `[augment]`, `[augment.exceptions]`, `[augment.annotations]`, `[augment.receiver]` (receiver members), `debug` and `inPlaceModification`. In an application server it also asks the context class loader of the first throwing thread.
 - **One file serves both** when it is in `src/main/resources`.
 - A frame's receiver members come from the runtime `[augment.receiver]` entry with the same key as the entry that decided its method at build time; without that key they are left out. `@AugmentedReceiver` members are shown if the runtime's `[augment.annotations]` selects the class.

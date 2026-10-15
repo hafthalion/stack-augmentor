@@ -1,7 +1,9 @@
 package com.hafnium.examples.live
 
+import com.hafnium.stackaugmentor.Augmented
 import com.hafnium.stackaugmentor.AugmentedParams
 
+@Augmented
 abstract class Document @AugmentedParams constructor(val title: String, total: Double) {
     init {
         require(total >= 0) { "A document cannot have a negative total: $total" }
@@ -9,6 +11,7 @@ abstract class Document @AugmentedParams constructor(val title: String, total: D
 }
 
 /** Calls the Document constructor with super(...), which throws for a negative total. */
+@Augmented
 class Receipt @AugmentedParams constructor(order: Order) : Document("Receipt for $order", order.total) {
     val text = "$title: ${order.total}"
 }

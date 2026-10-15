@@ -1,9 +1,11 @@
 package com.hafnium.examples.live
 
+import com.hafnium.stackaugmentor.Augmented
 import com.hafnium.stackaugmentor.AugmentedReceiver
 import com.hafnium.stackaugmentor.AugmentedParam
 import com.hafnium.stackaugmentor.AugmentedParams
 
+@Augmented
 class Checkout(
     @AugmentedReceiver private val order: Order,
     private val payments: PaymentClient,
@@ -18,6 +20,7 @@ class Checkout(
     }
 }
 
+@Augmented
 class PaymentClient(@AugmentedReceiver private val endpoint: String) {
     /** The card number is shown hashed. */
     @AugmentedParams
