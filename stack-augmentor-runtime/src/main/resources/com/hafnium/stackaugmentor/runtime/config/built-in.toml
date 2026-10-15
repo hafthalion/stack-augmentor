@@ -1,0 +1,11 @@
+# The built-in configuration: it applies when no configuration file is given, to the agent, the build plugin and the
+# runtime of classes instrumented at build time. A file replaces it completely; nothing of it is merged.
+
+# All exceptions, not errors, are augmented.
+[augment.exceptions]
+"java.lang.Exception+" = true
+
+# The annotations are read in all classes: those with @Augmented show their @AugmentedReceiver members and
+# @AugmentedParam(s) parameter values. Classes without @Augmented are ignored.
+[augment.annotations]
+"**" = true

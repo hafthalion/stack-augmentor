@@ -7,7 +7,9 @@ import org.tomlj.TomlPosition;
 import org.tomlj.TomlTable;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -352,19 +354,14 @@ public final class AugmentorConfig {
     private final List<ParamsEntry> paramsEntries;
 
     /**
-     * The configuration that applies when none is given: all exceptions are augmented, with the annotated receiver
-     * members and parameter values of all classes.
+     * The classpath resource, next to this class, with the configuration that applies when none is given: all exceptions
+     * are augmented, with the annotated receiver members and parameter values of the classes with {@code @Augmented}.
      */
-    public static final String BUILT_IN = """
-            [augment.exceptions]
-            "java.lang.Exception+" = true
+    public static final String BUILT_IN_RESOURCE = "built-in.toml";
 
-            [augment.annotations]
-            "**" = true
-            """;
-
-    /** Where the {@link #BUILT_IN} configuration comes from, for the debug output. */
-    public static final String BUILT_IN_LOCATION = "none, using the built-in configuration";
+    /** Where the {@link #builtIn()} configuration comes from, for the debug output. */
+    public static final String BUILT_IN_LOCATION = "none, using the built-in configuration ("
+            + AugmentorConfig.class.getPackageName().replace('.', '/') + "/" + BUILT_IN_RESOURCE + ")";
 
     /** The default values: no class, method, annotation or exception entries, so nothing is augmented. See {@link #builtIn()}. */
     public AugmentorConfig() {
@@ -682,9 +679,16 @@ public final class AugmentorConfig {
         return location != null ? load(Path.of(location)) : builtIn();
     }
 
-    /** The {@link #BUILT_IN} configuration, for when none is given. */
+    /** The configuration of the {@link #BUILT_IN_RESOURCE}, for when none is given. */
     public static AugmentorConfig builtIn() {
-        return parse(BUILT_IN, "built-in configuration");
+        try (InputStream in = AugmentorConfig.class.getResourceAsStream(BUILT_IN_RESOURCE)) {
+            if (in == null) {
+                throw new ConfigException("The built-in configuration " + BUILT_IN_RESOURCE + " is missing from the classpath");
+            }
+            return parse(new String(in.readAllBytes(), StandardCharsets.UTF_8), BUILT_IN_RESOURCE);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /** Loads a TOML configuration file. */
