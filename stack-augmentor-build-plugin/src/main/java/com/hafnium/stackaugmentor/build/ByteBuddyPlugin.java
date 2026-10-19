@@ -22,11 +22,11 @@ import java.nio.file.Path;
  * Only the project's classes are changed; libraries are left alone.
  * At runtime, the application needs {@code stack-augmentor-runtime} on its classpath.
  *
- * <p>Argument 0 is the path of a TOML configuration: its {@code [augment.receiver]} and {@code [augment.params]}
- * entries decide which receiver members and parameter values are shown, and the classes and methods that need the
- * advice for that are instrumented, as with the agent; {@code debug} logs what gets instrumented. Without it (e.g. when
- * discovered through {@code META-INF/net.bytebuddy/build.plugins}), the built-in configuration applies
- * ({@link AugmentorConfig#BUILT_IN}): the methods of classes with annotated receiver members or parameters are instrumented.
+ * <p>Argument 0 is the path of a TOML configuration: its {@code [augment.annotations]}, {@code [augment.receiver]} and
+ * {@code [augment.params]} entries decide which receiver members and parameter values are shown, and the classes and
+ * methods that need the advice for that are instrumented, as with the agent; {@code debug} logs what gets instrumented.
+ * Without it (e.g. when discovered through {@code META-INF/net.bytebuddy/build.plugins}), the built-in configuration
+ * applies ({@link AugmentorConfig#BUILT_IN_RESOURCE}): the methods that {@code @Augmented} selects are instrumented.
  */
 public final class ByteBuddyPlugin implements Plugin {
 

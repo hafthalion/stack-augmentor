@@ -135,6 +135,9 @@ public final class IdResolver {
      *                       has no entry with this key, or does not read the annotations of the class
      */
     public List<NamedId> receiverIds(Object target, String declaringClass, String entryKey) {
+        if (!AugmentorConfig.ANNOTATIONS.equals(entryKey) && config.classEntry(entryKey) == null) {
+            return List.of();
+        }
         Class<?> owner = declaringClass(target.getClass(), declaringClass);
         AugmentorConfig.ClassEntry entry = config.receiverEntry(entryKey, owner);
         if (entry == null) {

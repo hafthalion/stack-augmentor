@@ -68,7 +68,8 @@ final class ClassEntries {
     static final class SupertypeNames {
 
         private final TypeDescription type;
-        private Set<String> names;
+        /** Published only once complete: the agent and the live-stack mode ask from several threads. */
+        private volatile Set<String> names;
 
         SupertypeNames(TypeDescription type) {
             this.type = type;
@@ -79,14 +80,16 @@ final class ClassEntries {
         }
 
         boolean contains(String name) {
-            if (names == null) {
-                names = new HashSet<>();
-                collect(type);
+            Set<String> known = names;
+            if (known == null) {
+                known = new HashSet<>();
+                collect(type, known);
+                names = known;
             }
-            return names.contains(name);
+            return known.contains(name);
         }
 
-        private void collect(TypeDefinition current) {
+        private static void collect(TypeDefinition current, Set<String> names) {
             List<TypeDefinition> supertypes = new ArrayList<>();
             try {
                 TypeDescription erasure = current.asErasure();
@@ -101,7 +104,7 @@ final class ClassEntries {
                 // a type that cannot be resolved: its supertypes are left out
             }
             for (TypeDefinition supertype : supertypes) {
-                collect(supertype);
+                collect(supertype, names);
             }
         }
     }
