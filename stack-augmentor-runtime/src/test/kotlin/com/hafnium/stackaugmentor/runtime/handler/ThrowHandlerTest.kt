@@ -119,17 +119,18 @@ class ThrowHandlerTest {
     }
 
     @Test
-    fun `the annotations key uses the annotations where the annotations table selects the class`() {
+    fun `the annotations key uses the annotations, whatever the runtime annotations table says`() {
         val target = Annotated()
         val thrown = thrownBy(target)
         val config = AugmentorConfig.builder().annotations(mapOf(Annotated::class.java.name to true)).exceptions(mapOf("**" to true)).build()
         ThrowHandler(config).onThrow(target, thrown, AugmentorConfig.ANNOTATIONS, Annotated::class.java.name, "fail", null, null)
         assertEquals("${Annotated::class.java.name}{objectId=a-1}", thrown.stackTrace[0].className)
-        // A build-time class whose annotations the runtime configuration does not read keeps its frame.
+        // A build-time class: its build decided to read the annotations, as for its parameters, so the runtime
+        // configuration without [augment.annotations] augments it too.
         val unread = thrownBy(target)
         ThrowHandler(AugmentorConfig.builder().exceptions(mapOf("**" to true)).build())
             .onThrow(target, unread, AugmentorConfig.ANNOTATIONS, Annotated::class.java.name, "fail", null, null)
-        assertEquals(Annotated::class.java.name, unread.stackTrace[0].className)
+        assertEquals("${Annotated::class.java.name}{objectId=a-1}", unread.stackTrace[0].className)
     }
 
     @Test

@@ -215,12 +215,13 @@ It SHALL apply only when no file is given; a file SHALL replace it completely, a
 What gets instrumented SHALL NOT be configured directly: the agent, when classes are loaded, and the build
 plugin, at build time, SHALL instrument the classes and methods that `[augment.annotations]`, `[augment.receiver]` and
 `[augment.params]` need. The formats in `[augment]`, `[augment.exceptions]`, `debug` and `inPlaceModification` SHALL be read at runtime
-in both modes, and so SHALL `[augment.receiver]` and `[augment.annotations]`, to find the receiver members of instrumented classes (with
+in both modes, and so SHALL `[augment.receiver]`, to find the receiver members of instrumented classes (with
 build-time instrumentation by the key of the entry that decided the method at build time, or for the key `@` the
-`@AugmentedReceiver` members, if the runtime's `[augment.annotations]` selects the declaring class). One
+`@AugmentedReceiver` members, as the build decided). The agent SHALL also read `[augment.annotations]`; the runtime
+of classes instrumented at build time SHALL NOT check it again. One
 file SHALL be usable for both phases of build-time instrumentation.
 
 #### Scenario: One file for build-time instrumentation
 - **GIVEN** `src/main/resources/stack-augmentor.toml` is passed to the build plugin and packaged as a resource
 - **WHEN** the project is built and run
-- **THEN** the build plugin applies its `[augment.annotations]`, `[augment.receiver]` and `[augment.params]` tables and the runtime applies its `[augment]` section with `[augment.exceptions]`, `[augment.annotations]` and `[augment.receiver]`
+- **THEN** the build plugin applies its `[augment.annotations]`, `[augment.receiver]` and `[augment.params]` tables and the runtime applies its `[augment]` section with `[augment.exceptions]` and `[augment.receiver]`

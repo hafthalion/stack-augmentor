@@ -107,21 +107,6 @@ public final class IdResolver {
         return config.augments(thrown.getClass());
     }
 
-    /** {@link #receiverIds(Object, String)} for a method that the object's own class declares. */
-    public List<NamedId> receiverIds(Object target) {
-        return receiverIds(target, target.getClass().getName());
-    }
-
-    /**
-     * {@link #receiverIds(Object, String, String)} with the first {@code [augment.receiver]} entry that matches the
-     * declaring class, whatever methods it names, or without one the annotations, if {@code [augment.annotations]}
-     * selects the class.
-     */
-    public List<NamedId> receiverIds(Object target, String declaringClass) {
-        List<AugmentorConfig.ClassEntry> entries = config.classEntries(declaringClass(target.getClass(), declaringClass));
-        return receiverIds(target, declaringClass, entries.isEmpty() ? AugmentorConfig.ANNOTATIONS : entries.get(0).key());
-    }
-
     /**
      * The ids of the object a frame runs on, one per id source, in the configured order; empty if there is no id
      * source. The id sources are those of the
@@ -132,17 +117,14 @@ public final class IdResolver {
      * @param declaringClass the name of the class that declares the method
      * @param entryKey       the key of the frame's deciding {@code [augment.receiver]} entry, which the instrumentation
      *                       found, or {@link AugmentorConfig#ANNOTATIONS} for the annotations; no ids if the configuration
-     *                       has no entry with this key, or does not read the annotations of the class
+     *                       has no entry with this key
      */
     public List<NamedId> receiverIds(Object target, String declaringClass, String entryKey) {
-        if (!AugmentorConfig.ANNOTATIONS.equals(entryKey) && config.classEntry(entryKey) == null) {
-            return List.of();
-        }
-        Class<?> owner = declaringClass(target.getClass(), declaringClass);
-        AugmentorConfig.ClassEntry entry = config.receiverEntry(entryKey, owner);
+        AugmentorConfig.ClassEntry entry = config.receiverEntry(entryKey);
         if (entry == null) {
             return List.of();
         }
+        Class<?> owner = declaringClass(target.getClass(), declaringClass);
         List<Source> found = sources.get(owner).computeIfAbsent(entryKey, key -> {
             List<Source> list = List.copyOf(findSources(owner, entry));
             if (Log.isDebug()) {
@@ -165,7 +147,7 @@ public final class IdResolver {
      * The class or interface named {@code name} among the type, its superclasses and the interfaces they implement,
      * directly or not; the type itself if there is none.
      */
-    private static Class<?> declaringClass(Class<?> type, String name) {
+    static Class<?> declaringClass(Class<?> type, String name) {
         for (Class<?> candidate = type; candidate != null; candidate = candidate.getSuperclass()) {
             if (candidate.getName().equals(name)) {
                 return candidate;

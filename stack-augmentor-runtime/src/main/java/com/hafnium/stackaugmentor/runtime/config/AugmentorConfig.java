@@ -104,7 +104,8 @@ public final class AugmentorConfig {
 
     /**
      * The key that the instrumentation passes for a method whose receiver members come from the annotations, as no
-     * {@code [augment.receiver]} entry matches it: see {@link #receiverEntry(String, Class)}.
+     * {@code [augment.receiver]} entry matches it: see {@link #receiverEntry(String)}. The instrumentation decides
+     * this from its own {@code [augment.annotations]} and {@code @Augmented}; the runtime does not check them again.
      */
     public static final String ANNOTATIONS = "@";
 
@@ -595,15 +596,13 @@ public final class AugmentorConfig {
     }
 
     /**
-     * The receiver entry that the instrumentation found for a method of {@code owner}, by its key: the
-     * {@code [augment.receiver]} entry with this key, or for {@link #ANNOTATIONS} the {@link #ANNOTATION_ENTRY} if
-     * {@code [augment.annotations]} selects the class; {@code null} otherwise.
+     * The receiver entry that the instrumentation found for a method, by its key: the {@code [augment.receiver]} entry
+     * with this key, or for {@link #ANNOTATIONS} the {@link #ANNOTATION_ENTRY}, whatever this configuration's
+     * {@code [augment.annotations]} says (the instrumentation decided that, as it did for the parameters); {@code null}
+     * otherwise.
      */
-    public ClassEntry receiverEntry(String key, Class<?> owner) {
-        if (ANNOTATIONS.equals(key)) {
-            return readsAnnotations(owner) ? ANNOTATION_ENTRY : null;
-        }
-        return classEntry(key);
+    public ClassEntry receiverEntry(String key) {
+        return ANNOTATIONS.equals(key) ? ANNOTATION_ENTRY : classEntry(key);
     }
 
     /**
