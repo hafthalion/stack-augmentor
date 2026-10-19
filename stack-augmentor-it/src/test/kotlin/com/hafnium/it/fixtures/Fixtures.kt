@@ -124,7 +124,7 @@ class Plain {
 }
 
 @Augmented
-class BrokenId {
+class BrokenReceiver {
     @AugmentedReceiver
     fun id(): String = throw IllegalStateException("id is broken")
 
@@ -140,7 +140,7 @@ class MultiLine {
 }
 
 @Augmented
-class LongId {
+class LongReceiver {
     @AugmentedReceiver
     val text = "x".repeat(50)
 
@@ -222,7 +222,7 @@ fun staticWithParam(@AugmentedParam code: Int): Nothing = throw IllegalStateExce
 fun staticWithoutParam(): Nothing = throw IllegalStateException("static")
 
 @Augmented
-class ArrayId {
+class ArrayReceiver {
     @AugmentedReceiver
     val codes = intArrayOf(1, 2)
 
@@ -230,7 +230,7 @@ class ArrayId {
 }
 
 @Augmented
-class NullId {
+class NullReceiver {
     @AugmentedReceiver
     val id: String? = null
 
