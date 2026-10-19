@@ -39,10 +39,10 @@ The packages under `com.hafnium.stackaugmentor` show which way of working uses w
 | Package | Contents | Used by |
 |---|---|---|
 | `runtime.config` | The configuration, and how each component starts | All |
-| `runtime.ids` | Receiver members and parameter values, and how frames show them | All |
+| `runtime.values` | Receiver members and parameter values, and how frames show them | All |
 | `runtime` | `Log`, `WeakIdentityMap` | All |
 | `runtime.handler` | `ThrowHandler`, called by the code added to methods, and how it writes stack traces | Agent instrumenting classes, build-time instrumentation |
-| `instrument` | Which classes, methods and parameters are augmented (`TypeMatching`, `IdParameters`) | Agent in both modes, build plugin |
+| `instrument` | Which classes, methods and parameters are augmented (`TypeMatching`, `ParamSelection`) | Agent in both modes, build plugin |
 | `instrument.advice` | The code added to methods and constructors | Agent instrumenting classes, build plugin |
 | `instrument.live` | The code the live-stack mode adds to `Throwable`, and how it reads the values from the live stack | Agent with the native library |
 | `instrument.bridge` | `Dispatch`, the entry point of the code added to methods; `LiveDispatch`, of the code the live-stack mode adds to `Throwable` | `Dispatch`: all; `LiveDispatch`: agent with the native library |

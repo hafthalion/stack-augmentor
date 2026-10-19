@@ -1,6 +1,6 @@
 package com.hafnium.stackaugmentor.agent.live;
 
-import com.hafnium.stackaugmentor.instrument.IdParameters;
+import com.hafnium.stackaugmentor.instrument.ParamSelection;
 import com.hafnium.stackaugmentor.instrument.TypeMatching;
 import com.hafnium.stackaugmentor.instrument.bridge.Dispatch;
 import com.hafnium.stackaugmentor.instrument.bridge.LiveDispatch;
@@ -10,8 +10,8 @@ import com.hafnium.stackaugmentor.instrument.live.LiveStackFrames;
 import com.hafnium.stackaugmentor.instrument.live.ThrowableHooks;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
-import com.hafnium.stackaugmentor.runtime.ids.FrameFormat;
-import com.hafnium.stackaugmentor.runtime.ids.IdResolver;
+import com.hafnium.stackaugmentor.runtime.values.FrameFormat;
+import com.hafnium.stackaugmentor.runtime.values.ValueResolver;
 import com.sun.management.HotSpotDiagnosticMXBean;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.agent.builder.ResettableClassFileTransformer;
@@ -69,8 +69,8 @@ public final class LiveStack {
         }
         int maxDepth = vmOption("MaxJavaStackTraceDepth", DEFAULT_MAX_DEPTH);
         boolean eliminatedAllocations = vmOption("EliminateAllocations", 1) != 0;
-        TypeMatching matching = new TypeMatching(config, new IdParameters(config));
-        LiveFrames handler = new LiveFrames(live, new FrameSpecs(config, matching), new IdResolver(config), format,
+        TypeMatching matching = new TypeMatching(config, new ParamSelection(config));
+        LiveFrames handler = new LiveFrames(live, new FrameSpecs(config, matching), new ValueResolver(config), format,
                 maxDepth <= 0 ? Integer.MAX_VALUE : maxDepth, eliminatedAllocations);
 
         AtomicBoolean probed = new AtomicBoolean();
@@ -94,7 +94,7 @@ public final class LiveStack {
         }
         LiveDispatch.install(handler);
         // Classes instrumented at build time still call the handler: the live stack already covers their frames.
-        Dispatch.install((self, thrown, receiverKey, owner, method, paramValues, paramNames) -> {
+        Dispatch.install((self, thrown, receiverKey, owner, method, args, paramNames) -> {
         });
         Log.debug(() -> "agent: reading frames from the live stack (native library version " + version + "), stack trace depth " + maxDepth + (eliminatedAllocations
                 ? ", an object argument the JIT optimized away shows as '" + LiveFrames.UNKNOWN + "' (-XX:-EliminateAllocations avoids that)"

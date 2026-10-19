@@ -8,7 +8,7 @@ import com.hafnium.stackaugmentor.AugmentedParams
 /** An argument is shown with its toString(). */
 data class ObjectParam(private val name: String)
 
-/** Receiver id from @AugmentedReceiver, parameter ids from the parameter annotations. */
+/** Receiver member from @AugmentedReceiver, parameter values from the parameter annotations. */
 @Augmented
 data class ClassWithAnnotation(
     @AugmentedReceiver

@@ -51,8 +51,8 @@ import org.springframework.cglib.proxy.NoOp
 /**
  * An [augment.receiver] entry with "+" after a class name applies to its class and the subclasses, a pattern to the
  * classes whose name it matches only, and the first matching entry wins: see the inheritance entries in
- * src/test/resources/stack-augmentor.toml. A frame's receiver id comes from the entry that matches the class declaring
- * its method, read from the object: a subclass, e.g. a proxy or a mock, shows the id of Order in the frames of Order's
+ * src/test/resources/stack-augmentor.toml. A frame's receiver member comes from the entry that matches the class declaring
+ * its method, read from the object: a subclass, e.g. a proxy or a mock, shows the receiver member of Order in the frames of Order's
  * methods, and its own methods show it too unless an earlier entry matches the subclass. Runs with the agent.
  *
  * Each test makes one call. Its frames, as the test observed them, the receiver's types and the declarations of the
@@ -101,12 +101,12 @@ class InheritanceTest {
     inner class MatchedClass {
 
         @Test
-        fun `a method of the class with the entry shows its id`() {
+        fun `a method of the class with the entry shows its receiver member`() {
             assertEquals("$order{id=o-1}", frame("Order(\"o-1\").ship()", Order("o-1"), "ship") { it.ship() }.className)
         }
 
         @Test
-        fun `a method of an enum with the entry shows the constant's id`() {
+        fun `a method of an enum with the entry shows the constant's receiver member`() {
             assertEquals("com.hafnium.it.inheritance.Priority{code=l}", frame("Priority.LOW.describe()", Priority.LOW, "describe") { it.describe() }.className)
         }
     }
@@ -116,30 +116,30 @@ class InheritanceTest {
     inner class SubclassWithoutEntry {
 
         @Test
-        fun `a subclass's own method shows the id of the superclass's entry`() {
+        fun `a subclass's own method shows the receiver member of the superclass's entry`() {
             assertEquals("com.hafnium.it.inheritance.RushOrder{id=r-1}", frame("RushOrder(\"r-1\").expedite()", RushOrder("r-1"), "expedite") { it.expedite() }.className)
         }
 
         @Test
-        fun `a method inherited from the superclass shows the superclass's id`() {
+        fun `a method inherited from the superclass shows the superclass's receiver member`() {
             assertEquals("$order{id=r-1}", frame("RushOrder(\"r-1\").ship()", RushOrder("r-1"), "ship") { it.ship() }.className)
         }
 
         @Test
-        fun `a method inherited by an anonymous subclass shows the superclass's id`() {
+        fun `a method inherited by an anonymous subclass shows the superclass's receiver member`() {
             val anonymous = object : Order("a-1") {}
             assertTrue(anonymous.javaClass.name.startsWith("com.hafnium.it.InheritanceTest"), anonymous.javaClass.name)
             assertEquals("$order{id=a-1}", frame("object : Order(\"a-1\") {}.ship()", anonymous, "ship") { it.ship() }.className)
         }
 
         @Test
-        fun `a method inherited by an enum constant with a body shows the enum's id`() {
+        fun `a method inherited by an enum constant with a body shows the enum's receiver member`() {
             // HIGH is an instance of the subclass Priority$HIGH.
             assertEquals("com.hafnium.it.inheritance.Priority{code=h}", frame("Priority.HIGH.describe()", Priority.HIGH, "describe") { it.describe() }.className)
         }
 
         @Test
-        fun `an enum constant's own override shows the enum's id`() {
+        fun `an enum constant's own override shows the enum's receiver member`() {
             assertEquals("com.hafnium.it.inheritance.Priority\$HIGH{code=h}", frame("Priority.HIGH.escalate()", Priority.HIGH, "escalate") { it.escalate() }.className)
         }
 
@@ -154,17 +154,17 @@ class InheritanceTest {
     inner class SubclassOfSubclass {
 
         @Test
-        fun `the own method of a subclass without an entry shows the middle class's id`() {
+        fun `the own method of a subclass without an entry shows the middle class's receiver member`() {
             assertEquals("com.hafnium.it.inheritance.SameDayOrder{id=d-1}", frame("SameDayOrder(\"d-1\").hurry()", SameDayOrder("d-1"), "hurry") { it.hurry() }.className)
         }
 
         @Test
-        fun `a method inherited from the middle class shows the middle class's id`() {
+        fun `a method inherited from the middle class shows the middle class's receiver member`() {
             assertEquals("com.hafnium.it.inheritance.ExpressOrder{id=d-1}", frame("SameDayOrder(\"d-1\").express()", SameDayOrder("d-1"), "express") { it.express() }.className)
         }
 
         @Test
-        fun `a method inherited from the top class shows the top class's id`() {
+        fun `a method inherited from the top class shows the top class's receiver member`() {
             assertEquals("$order{id=d-1}", frame("SameDayOrder(\"d-1\").ship()", SameDayOrder("d-1"), "ship") { it.ship() }.className)
         }
     }
@@ -174,12 +174,12 @@ class InheritanceTest {
     inner class SubclassWithEntry {
 
         @Test
-        fun `an own method shows the subclass's id, read from a field the superclass declares`() {
+        fun `an own method shows the subclass's receiver member, read from a field the superclass declares`() {
             assertEquals("com.hafnium.it.inheritance.ExpressOrder{id=e-1}", frame("ExpressOrder(\"e-1\").express()", ExpressOrder("e-1"), "express") { it.express() }.className)
         }
 
         @Test
-        fun `an inherited method shows the superclass's id, not the subclass's`() {
+        fun `an inherited method shows the superclass's receiver member, not the subclass's`() {
             assertEquals("$order{id=e-1}", frame("ExpressOrder(\"e-1\").ship()", ExpressOrder("e-1"), "ship") { it.ship() }.className)
         }
 
@@ -214,7 +214,7 @@ class InheritanceTest {
     inner class SuperclassWithoutEntry {
 
         @Test
-        fun `an own method of a subclass with an entry shows its id`() {
+        fun `an own method of a subclass with an entry shows its receiver member`() {
             assertEquals("com.hafnium.it.inheritance.Invoice{number=i-1}", frame("Invoice(\"i-1\").pay()", Invoice("i-1"), "pay") { it.pay() }.className)
         }
 
@@ -230,12 +230,12 @@ class InheritanceTest {
     inner class AbstractSuperclass {
 
         @Test
-        fun `a concrete method of an abstract class with an entry shows its id`() {
+        fun `a concrete method of an abstract class with an entry shows its receiver member`() {
             assertEquals("com.hafnium.it.inheritance.Shipment{id=s-9}", frame("SeaShipment(\"s-9\").load()", SeaShipment("s-9"), "load") { it.load() }.className)
         }
 
         @Test
-        fun `the implementation of an abstract method in a subclass without an entry shows the abstract class's id`() {
+        fun `the implementation of an abstract method in a subclass without an entry shows the abstract class's receiver member`() {
             assertEquals("com.hafnium.it.inheritance.SeaShipment{id=s-9}", frame("SeaShipment(\"s-9\").route()", SeaShipment("s-9"), "route") { it.route() }.className)
         }
     }
@@ -245,21 +245,21 @@ class InheritanceTest {
     inner class Overrides {
 
         @Test
-        fun `an override with an entry shows its own id, and the overridden method the superclass's`() {
+        fun `an override with an entry shows its own receiver member, and the overridden method the superclass's`() {
             val trace = trace("GiftOrder(\"g-1\", \"wrapped\").ship()", GiftOrder("g-1", "wrapped"), "ship") { it.ship() }
             assertEquals("$order{id=g-1}", trace[0].className)
             assertEquals("com.hafnium.it.inheritance.GiftOrder{note=wrapped}", trace[1].className)
         }
 
         @Test
-        fun `an override without an entry and the overridden method both show the superclass entry's id`() {
+        fun `an override without an entry and the overridden method both show the superclass entry's receiver member`() {
             val trace = trace("ReturnOrder(\"x-1\").ship()", ReturnOrder("x-1"), "ship") { it.ship() }
             assertEquals("$order{id=x-1}", trace[0].className)
             assertEquals("com.hafnium.it.inheritance.ReturnOrder{id=x-1}", trace[1].className)
         }
 
         @Test
-        fun `a generic override without an entry shows the superclass entry's id, and its bridge method is unchanged`() {
+        fun `a generic override without an entry shows the superclass entry's receiver member, and its bridge method is unchanged`() {
             val repository: Repository<Order> = OrderRepository()
             val trace = trace("(OrderRepository() as Repository<Order>).save(Order(\"o-9\"))", repository, "save") { it.save(Order("o-9")) }
             val repositoryFrames = trace.takeWhile { !it.className.startsWith(InheritanceTest::class.java.name) }.map { it.className }
@@ -275,7 +275,7 @@ class InheritanceTest {
         }
 
         @Test
-        fun `a generic override with an entry shows its id, and its bridge method is unchanged`() {
+        fun `a generic override with an entry shows its receiver member, and its bridge method is unchanged`() {
             val repository: Repository<Parcel> = ParcelRepository()
             val trace = trace("(ParcelRepository() as Repository<Parcel>).save(Parcel(\"p3\"))", repository, "save") { it.save(Parcel("p3")) }
             val repositoryFrames = trace.takeWhile { !it.className.startsWith(InheritanceTest::class.java.name) }.map { it.className }
@@ -298,7 +298,7 @@ class InheritanceTest {
         private val labeled = "com.hafnium.it.inheritance.Labeled"
 
         @Test
-        fun `a default method shows the interface's id, not the implementing class's`() {
+        fun `a default method shows the interface's receiver member, not the implementing class's`() {
             val trace = trace("Parcel(\"p1\").relabel()", Parcel("p1"), "relabel") { it.relabel() }
             assertEquals("$labeled{label=parcel-p1}", trace[0].className)
             // Kotlin compiles a bridge method into Parcel that calls the default method: it is not instrumented.
@@ -306,7 +306,7 @@ class InheritanceTest {
         }
 
         @Test
-        fun `a default method shows the interface's id when the implementing class has no entry`() {
+        fun `a default method shows the interface's receiver member when the implementing class has no entry`() {
             val trace = trace("Crate(\"c1\").relabel()", Crate("c1"), "relabel") { it.relabel() }
             assertEquals("$labeled{label=crate-c1}", trace[0].className)
             assertEquals("com.hafnium.it.inheritance.Crate", trace[1].className)
@@ -323,7 +323,7 @@ class InheritanceTest {
         }
 
         @Test
-        fun `a default method of an extending interface shows its id, from a member of the extended interface`() {
+        fun `a default method of an extending interface shows its receiver member, from a member of the extended interface`() {
             val trace = trace("Pallet(\"x1\").track()", Pallet("x1"), "track") { it.track() }
             assertEquals("com.hafnium.it.inheritance.Tracked{label=pallet-x1}", trace[0].className)
             assertEquals("com.hafnium.it.inheritance.Pallet", trace[1].className)
@@ -336,14 +336,14 @@ class InheritanceTest {
         }
 
         @Test
-        fun `a default method inherited through an extending interface shows the declaring interface's id`() {
+        fun `a default method inherited through an extending interface shows the declaring interface's receiver member`() {
             val trace = trace("Pallet(\"x2\").relabel()", Pallet("x2"), "relabel") { it.relabel() }
             assertEquals("$labeled{label=pallet-x2}", trace[0].className)
             assertEquals("com.hafnium.it.inheritance.Pallet", trace[1].className)
         }
 
         @Test
-        fun `a default method compiled by javac shows the interface's id`() {
+        fun `a default method compiled by javac shows the interface's receiver member`() {
             val trace = trace("JavaParcel(\"j1\").relabel()", JavaParcel("j1"), "relabel") { it.relabel() }
             assertEquals("com.hafnium.it.inheritance.JavaLabeled{label=java-parcel-j1}", trace[0].className)
             // javac adds no method to JavaParcel: the next frame is the caller's.
@@ -356,12 +356,12 @@ class InheritanceTest {
     inner class Patterns {
 
         @Test
-        fun `a subclass in the pattern's package inherits a method that shows the superclass's id`() {
+        fun `a subclass in the pattern's package inherits a method that shows the superclass's receiver member`() {
             assertEquals("$customer{code=v-1}", frame("VipCustomer(\"v-1\").rename()", VipCustomer("v-1"), "rename") { it.rename() }.className)
         }
 
         @Test
-        fun `a subclass in the pattern's package gets its own id`() {
+        fun `a subclass in the pattern's package shows its own receiver member`() {
             assertEquals(
                 "com.hafnium.it.inheritance.patterned.VipCustomer{code=v-1}",
                 frame("VipCustomer(\"v-1\").upgrade()", VipCustomer("v-1"), "upgrade") { it.upgrade() }.className,
@@ -369,7 +369,7 @@ class InheritanceTest {
         }
 
         @Test
-        fun `a subclass outside the pattern's package inherits a method that shows the superclass's id`() {
+        fun `a subclass outside the pattern's package inherits a method that shows the superclass's receiver member`() {
             assertEquals("$customer{code=l-1}", frame("LocalCustomer(\"l-1\").rename()", LocalCustomer("l-1"), "rename") { it.rename() }.className)
         }
 
@@ -389,7 +389,7 @@ class InheritanceTest {
         private val ranked = "com.hafnium.it.inheritance.ranked"
 
         @Test
-        fun `a class matched first by a broad pattern shows its id, a later entry for the class does not apply`() {
+        fun `a class matched first by a broad pattern shows its receiver member, a later entry for the class does not apply`() {
             assertEquals("$ranked.Account{code=a-1}", frame("Account(\"a-1\").close()", Account("a-1"), "close") { it.close() }.className)
         }
 
@@ -399,7 +399,7 @@ class InheritanceTest {
         }
 
         @Test
-        fun `a method inherited by a class excluded by a '-' pattern shows the superclass's id`() {
+        fun `a method inherited by a class excluded by a '-' pattern shows the superclass's receiver member`() {
             assertEquals("$ranked.Account{code=x-1}", frame("Dropped(\"x-1\").close()", Dropped("x-1"), "close") { it.close() }.className)
         }
 
@@ -414,7 +414,7 @@ class InheritanceTest {
         }
 
         @Test
-        fun `a method inherited from a class matched by the broader pattern shows that pattern's id`() {
+        fun `a method inherited from a class matched by the broader pattern shows that pattern's receiver member`() {
             assertEquals("$ranked.Account{code=t-1}", frame("Tagged(\"t-1\", \"vip\").close()", Tagged("t-1", "vip"), "close") { it.close() }.className)
         }
     }
@@ -424,7 +424,7 @@ class InheritanceTest {
     inner class Proxies {
 
         @Test
-        fun `a ByteBuddy proxy shows the superclass's id, in its own override too`() {
+        fun `a ByteBuddy proxy shows the superclass's receiver member, in its own override too`() {
             val proxy = generatedSubclass(Order::class.java, "$order\$HibernateProxy\$h1", "h-1")
             val trace = trace("Order\$HibernateProxy\$h1(\"h-1\").ship()", proxy, "ship") { it.ship() }
             assertEquals("$order{id=h-1}", trace[0].className)
@@ -432,7 +432,7 @@ class InheritanceTest {
         }
 
         @Test
-        fun `a ByteBuddy proxy matched by a pattern shows the id in its own override too`() {
+        fun `a ByteBuddy proxy matched by a pattern shows the receiver member in its own override too`() {
             val proxy = generatedSubclass(Customer::class.java, "$customer\$HibernateProxy\$h2", "c-1")
             val trace = trace("Customer\$HibernateProxy\$h2(\"c-1\").rename()", proxy, "rename") { it.rename() }
             assertEquals("$customer{code=c-1}", trace[0].className)
@@ -440,31 +440,31 @@ class InheritanceTest {
         }
 
         @Test
-        fun `a Spring CGLIB proxy shows the superclass's id`() {
+        fun `a Spring CGLIB proxy shows the superclass's receiver member`() {
             val proxy = cglibProxy(Order::class.java, "s-1")
             assertTrue(proxy.javaClass.name.startsWith("$order\$\$SpringCGLIB\$\$"), proxy.javaClass.name)
             assertEquals("$order{id=s-1}", frame("Order\$\$SpringCGLIB\$\$0(\"s-1\").ship()", proxy, "ship") { it.ship() }.className)
         }
 
         @Test
-        fun `a Spring CGLIB proxy of a class matched by a pattern shows its id`() {
+        fun `a Spring CGLIB proxy of a class matched by a pattern shows its receiver member`() {
             val proxy = cglibProxy(Customer::class.java, "c-2")
             assertEquals("$customer{code=c-2}", frame("Customer\$\$SpringCGLIB\$\$0(\"c-2\").rename()", proxy, "rename") { it.rename() }.className)
         }
 
         @Test
-        fun `a Mockito spy from the subclass mock maker shows the spied class's id`() {
+        fun `a Mockito spy from the subclass mock maker shows the spied class's receiver member`() {
             val spy = Mockito.mock(
                 Order::class.java,
                 Mockito.withSettings().mockMaker(MockMakers.SUBCLASS).spiedInstance(Order("m-1")).defaultAnswer(Answers.CALLS_REAL_METHODS),
             )
             assertTrue(spy.javaClass.name.startsWith("$order\$MockitoMock\$"), spy.javaClass.name)
-            // Mockito copies the spied instance's fields into the spy, so the id is there.
+            // Mockito copies the spied instance's fields into the spy, so the receiver member is there.
             assertEquals("$order{id=m-1}", frame("Mockito subclass spy of Order(\"m-1\").ship()", spy, "ship") { it.ship() }.className)
         }
 
         @Test
-        fun `a Mockito spy from the inline mock maker shows the spied class's id`() {
+        fun `a Mockito spy from the inline mock maker shows the spied class's receiver member`() {
             // The inline mock maker changes Order itself instead of subclassing it: the spy's class is Order.
             val spy = Mockito.spy(Order("m-2"))
             assertEquals(Order::class.java, spy.javaClass)
@@ -487,7 +487,7 @@ class InheritanceTest {
         }
 
         @Test
-        fun `an argument of a subclass with an entry shows its toString(), not its id`() {
+        fun `an argument of a subclass with an entry shows its toString(), not its receiver member`() {
             assertEquals("process{order=Order#e-3}", frame("OrderService().process(ExpressOrder(\"e-3\"))", OrderService(), "process") { it.process(ExpressOrder("e-3")) }.methodName)
         }
     }
@@ -496,7 +496,7 @@ class InheritanceTest {
         @JvmField
         @RegisterExtension
         val report = FrameReport(
-            "Receiver ids by inheritance",
+            "Receiver members by inheritance",
             basePackage = "com.hafnium.it.inheritance",
             ownPackage = "com.hafnium.it",
             entries = ReceiverEntries.load(Path.of("src/test/resources/stack-augmentor.toml")),

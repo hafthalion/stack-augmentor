@@ -99,34 +99,34 @@ class StackTraceParamsTest {
     }
 
     @Test
-    fun `constructors show their parameter ids, never a receiver id`() {
+    fun `constructors show their parameter values, never a receiver member`() {
         val shipment = report.thrown<IllegalArgumentException>("Shipment(42, \"ann@example.com\", 0)") { Shipment(42, "ann@example.com", 0) }
         assertEquals("com.hafnium.it.fixtures.Shipment", shipment.stackTrace[0].className)
         assertEquals("<init>{orderId=42, email=#71d4f55f}", shipment.method())
     }
 
     @Test
-    fun `an exception from the constructor called with this gets ids in the delegating constructor only from the live stack`() {
+    fun `an exception from the constructor called with this augments the delegating constructor only from the live stack`() {
         val pallet = report.thrown<IllegalStateException>("Pallet(\"big\", 200L)") { Pallet("big", 200L) }
         assertEquals("<init>{size=200}", pallet.method(0))
         assertEquals(if (AgentMode.liveStack) "<init>{label=big, size=200}" else "<init>", pallet.method(1))
     }
 
     @Test
-    fun `a delegating constructor shows its ids for exceptions from its own body`() {
+    fun `a delegating constructor shows its parameter values for exceptions from its own body`() {
         val pallet = report.thrown<IllegalArgumentException>("Pallet(\"\", 1L)") { Pallet("", 1L) }
         assertEquals("<init>{label=, size=1}", pallet.method(0))
     }
 
     @Test
-    fun `an exception while computing the arguments of super gets the ids`() {
+    fun `an exception while computing the arguments of super is augmented`() {
         val crate = report.thrown<IllegalArgumentException>("Crate(null, 3)") { Crate(null, 3) }
         assertEquals("com.hafnium.it.fixtures.Crate", crate.stackTrace[0].className)
         assertEquals("<init>{code=null, size=3}", crate.method())
     }
 
     @Test
-    fun `an exception from the superclass constructor gets ids in the subclass constructor only from the live stack`() {
+    fun `an exception from the superclass constructor augments the subclass constructor only from the live stack`() {
         val parcel = report.thrown<IllegalArgumentException>("ExpressParcel(\"\", 1)") { ExpressParcel("", 1) }
         assertEquals("com.hafnium.it.fixtures.Parcel", parcel.stackTrace[0].className)
         assertEquals("<init>", parcel.method(0))
@@ -145,6 +145,6 @@ class StackTraceParamsTest {
     companion object {
         @JvmField
         @RegisterExtension
-        val report = FrameReport("Parameter ids", basePackage = "com.hafnium.it.fixtures", ownPackage = "com.hafnium.it")
+        val report = FrameReport("Parameter values", basePackage = "com.hafnium.it.fixtures", ownPackage = "com.hafnium.it")
     }
 }

@@ -1,6 +1,6 @@
 package com.hafnium.it.inheritance
 
-// Receiver ids by inheritance, see InheritanceTest. Only the classes whose comment names an entry have one in
+// Receiver members by inheritance, see InheritanceTest. Only the classes whose comment names an entry have one in
 // src/test/resources/stack-augmentor.toml; such an entry also matches the subclasses and implementing classes. The
 // classes are open, so that proxies and mocks can subclass them.
 
@@ -46,7 +46,7 @@ class ReturnOrder(id: String) : Order(id) {
     override fun ship(): Nothing = super.ship()
 }
 
-/** Entry "-": no receiver id for its own methods. */
+/** Entry "-": no receiver member for its own methods. */
 class DiscontinuedOrder(id: String) : Order(id) {
     fun discontinue(): Nothing = throw IllegalStateException("cannot discontinue")
 }

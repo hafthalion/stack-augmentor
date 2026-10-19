@@ -1,7 +1,7 @@
 package com.hafnium.it.report
 
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig
-import com.hafnium.stackaugmentor.runtime.config.IdSpec
+import com.hafnium.stackaugmentor.runtime.config.ReceiverSpec
 import java.nio.file.Path
 
 /**
@@ -20,7 +20,7 @@ class ReceiverEntries(private val config: AugmentorConfig) {
         return matching.map { Entry(it.key(), text(it.spec())) }
     }
 
-    private fun text(spec: IdSpec) = AugmentorConfig.specText(spec)
+    private fun text(spec: ReceiverSpec) = AugmentorConfig.specText(spec)
 
     companion object {
         fun load(file: Path) = ReceiverEntries(AugmentorConfig.load(file))

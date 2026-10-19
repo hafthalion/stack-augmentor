@@ -21,7 +21,7 @@ class KeyedByMethod {
     fun fail(): Nothing = throw IllegalStateException("fail")
 }
 
-/** Several @AugmentedReceiver members: one id each. */
+/** Several @AugmentedReceiver members: one value each. */
 @Augmented
 class MultiKeyed {
     @AugmentedReceiver
@@ -62,7 +62,7 @@ class Relay(@AugmentedReceiver val name: String, private val next: Relay?) {
     }
 }
 
-/** A receiver id with parentheses, which would confuse IDEs looking for "(File.kt:12)". */
+/** A receiver member with parentheses, which would confuse IDEs looking for "(File.kt:12)". */
 @Augmented
 class ParenLabels {
     @AugmentedReceiver
@@ -262,7 +262,7 @@ class FailingInit(@AugmentedReceiver val id: String) {
     }
 }
 
-/** The property of an object is compiled to a static field, which is not an id source. */
+/** The property of an object is compiled to a static field, which is not a receiver member. */
 @Augmented
 object Registry {
     @AugmentedReceiver
@@ -271,7 +271,7 @@ object Registry {
     fun fail(@AugmentedParam key: String): Nothing = throw IllegalStateException("no $key")
 }
 
-/** Its getter is an instance method, so it is an id source. */
+/** Its getter is an instance method, so it is a receiver member. */
 @Augmented
 object GetterRegistry {
     @get:AugmentedReceiver

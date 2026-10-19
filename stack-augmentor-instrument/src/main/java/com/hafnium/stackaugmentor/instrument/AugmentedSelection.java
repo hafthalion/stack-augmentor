@@ -1,12 +1,12 @@
 package com.hafnium.stackaugmentor.instrument;
 
-import com.hafnium.stackaugmentor.runtime.ids.IdResolver;
+import com.hafnium.stackaugmentor.runtime.values.ValueResolver;
 import net.bytebuddy.description.annotation.AnnotationDescription;
 import net.bytebuddy.description.annotation.AnnotationList;
 import net.bytebuddy.description.method.MethodDescription;
 import net.bytebuddy.description.type.TypeDescription;
 
-import static com.hafnium.stackaugmentor.instrument.IdParameters.annotation;
+import static com.hafnium.stackaugmentor.instrument.ParamSelection.annotation;
 
 /**
  * Which methods and constructors of a class the annotations augment, by {@code @Augmented}: the method's own, else the
@@ -32,7 +32,7 @@ final class AugmentedSelection {
      * may load its own, older copy of the API, whose annotation has no value, which counts as on.
      */
     static Boolean flag(AnnotationList annotations) {
-        AnnotationDescription augmented = annotation(annotations, IdResolver.AUGMENTED);
+        AnnotationDescription augmented = annotation(annotations, ValueResolver.AUGMENTED);
         if (augmented == null) {
             return null;
         }

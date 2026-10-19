@@ -18,8 +18,8 @@ call `Dispatch.onThrow`. Exceptions inside the advice SHALL be suppressed.
 
 ### Requirement: Lazily built advice arguments
 The receiver, the key of the deciding `[augment.receiver]` entry (or `@` where the `@AugmentedReceiver` members decide), the parameter values and their labels SHALL be
-bound through custom ByteBuddy offset mappings (`@IdReceiver` for `this`, or `null` where no receiver members apply,
-`@IdReceiverKey` for the entry key as a constant, `@IdArgs` for an `Object[]` of the selected parameters, boxing primitives, and `@IdArgNames` for a
+bound through custom ByteBuddy offset mappings (`@Receiver` for `this`, or `null` where no receiver members apply,
+`@ReceiverKey` for the entry key as a constant, `@ParamArgs` for an `Object[]` of the selected parameters, boxing primitives, and `@ParamNames` for a
 `String[]` of labels), so that the arrays are built only where the advice reads them: inside the
 exception branch. Methods without selected parameters SHALL get `null` for both.
 
@@ -138,7 +138,7 @@ file name and line number. It SHALL be installed with `Throwable.setStackTrace`.
 The configuration SHALL be parsed with tomlj and mapped directly onto an immutable `AugmentorConfig`
 Java class, with typed access and value-based equality. Every key SHALL be validated. The receiver
 members, parameter references and labelled values SHALL be Java records, grouped under sealed interfaces
-where there are alternatives (`IdSpec`, `ParamRef`). The frame templates SHALL be parsed and validated
+where there are alternatives (`ReceiverSpec`, `ParamRef`). The frame templates SHALL be parsed and validated
 whenever the configuration is loaded, also by the build plugin, which does not render frames.
 
 #### Scenario: Template error at startup

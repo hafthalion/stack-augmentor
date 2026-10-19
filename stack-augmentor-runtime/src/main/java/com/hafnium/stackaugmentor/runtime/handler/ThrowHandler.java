@@ -5,9 +5,9 @@ import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.WeakIdentityMap;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
 import com.hafnium.stackaugmentor.runtime.config.Startup;
-import com.hafnium.stackaugmentor.runtime.ids.FrameFormat;
-import com.hafnium.stackaugmentor.runtime.ids.IdResolver;
-import com.hafnium.stackaugmentor.runtime.ids.NamedId;
+import com.hafnium.stackaugmentor.runtime.values.FrameFormat;
+import com.hafnium.stackaugmentor.runtime.values.ValueResolver;
+import com.hafnium.stackaugmentor.runtime.values.NamedValue;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,7 +23,7 @@ import java.util.Objects;
 
 /**
  * Called when an exception leaves an instrumented method: finds that method's frame in the
- * exception's stack trace and attaches the ids to it.
+ * exception's stack trace and augments it.
  *
  * <p>The Java agent creates it with the agent's configuration and installs it. With build-time
  * instrumentation no agent does that: {@link Dispatch} creates it through {@code ServiceLoader} with the
@@ -31,7 +31,7 @@ import java.util.Objects;
  * {@code stack-augmentor.toml} on the classpath. What gets instrumented was decided at build time; at runtime,
  * {@code [augment]}, {@code [augment.exceptions]}, {@code debug}, {@code inPlaceModification} and the
  * {@code [augment.receiver]} entries apply, the latter by the key of the entry that decided the method at build time:
- * a method without such an entry gets no receiver id, even if its class is annotated.
+ * a method without such an entry shows no receiver members, even if its class is annotated.
  */
 public final class ThrowHandler implements Dispatch.Handler {
 
@@ -45,7 +45,7 @@ public final class ThrowHandler implements Dispatch.Handler {
 
     private static final String DISPATCH = Dispatch.class.getName();
 
-    private final IdResolver resolver;
+    private final ValueResolver resolver;
     private final FrameFormat format;
     private final StackTraces stackTraces;
 
@@ -61,18 +61,18 @@ public final class ThrowHandler implements Dispatch.Handler {
      */
     private final WeakIdentityMap<Throwable, WeakReference<Throwable>> shared = new WeakIdentityMap<>();
 
-    public ThrowHandler(IdResolver resolver, FrameFormat format, StackTraces stackTraces) {
+    public ThrowHandler(ValueResolver resolver, FrameFormat format, StackTraces stackTraces) {
         this.resolver = resolver;
         this.format = format;
         this.stackTraces = stackTraces;
     }
 
-    public ThrowHandler(IdResolver resolver, FrameFormat format) {
+    public ThrowHandler(ValueResolver resolver, FrameFormat format) {
         this(resolver, format, StackTraces.copying());
     }
 
     public ThrowHandler(AugmentorConfig config) {
-        this(new IdResolver(config), FrameFormat.create(config));
+        this(new ValueResolver(config), FrameFormat.create(config));
     }
 
     /** For {@code ServiceLoader}: build-time instrumentation. */
@@ -81,11 +81,11 @@ public final class ThrowHandler implements Dispatch.Handler {
     }
 
     private ThrowHandler(AugmentorConfig config, String component) {
-        this(new IdResolver(config), FrameFormat.create(config), Startup.load(component, () -> runtimeStackTraces(config)));
+        this(new ValueResolver(config), FrameFormat.create(config), Startup.load(component, () -> runtimeStackTraces(config)));
     }
 
     @Override
-    public void onThrow(Object self, Throwable thrown, String receiverKey, String owner, String method, Object[] paramValues,
+    public void onThrow(Object self, Throwable thrown, String receiverKey, String owner, String method, Object[] args,
                         String[] paramNames) {
         if (!resolver.augments(thrown)) {
             return;
@@ -118,26 +118,26 @@ public final class ThrowHandler implements Dispatch.Handler {
         }
         cursors.set(thrown, index + 1);
 
-        List<NamedId> receiverIds = self != null && receiverKey != null ? resolver.receiverIds(self, owner, receiverKey) : List.of();
-        List<NamedId> paramIds = new ArrayList<>();
-        if (paramValues != null && paramNames != null) {
+        List<NamedValue> receiverValues = self != null && receiverKey != null ? resolver.receiverValues(self, owner, receiverKey) : List.of();
+        List<NamedValue> paramValues = new ArrayList<>();
+        if (args != null && paramNames != null) {
             for (int i = 0; i < paramNames.length; i++) {
                 // The instrumentation marks the labels of hashed values with a trailing '#'.
                 String name = paramNames[i];
                 boolean hashed = name.endsWith("#");
-                paramIds.add(hashed
-                        ? new NamedId(name.substring(0, name.length() - 1), resolver.hashedParamId(paramValues[i]))
-                        : new NamedId(name, resolver.paramId(paramValues[i])));
+                paramValues.add(hashed
+                        ? new NamedValue(name.substring(0, name.length() - 1), resolver.hashedParamValue(args[i]))
+                        : new NamedValue(name, resolver.paramValue(args[i])));
             }
         }
-        if (receiverIds.isEmpty() && paramIds.isEmpty()) {
+        if (receiverValues.isEmpty() && paramValues.isEmpty()) {
             return;
         }
 
         StackTraceElement original = trace[index];
-        stackTraces.write(thrown, trace, index, format.rewrite(original, receiverIds, paramIds));
+        stackTraces.write(thrown, trace, index, format.rewrite(original, receiverValues, paramValues));
         if (thrown.getCause() != null || thrown.getSuppressed().length > 0) {
-            rewriteShared(thrown, trace, index, original, receiverIds, paramIds);
+            rewriteShared(thrown, trace, index, original, receiverValues, paramValues);
         }
     }
 
@@ -146,10 +146,10 @@ public final class ThrowHandler implements Dispatch.Handler {
      * exceptions, and theirs, that share the frame: the same frame at the same distance from the bottom, with the same
      * frames below it. Printed traces then still collapse the shared frames into {@code ... N more}, which compares
      * frames with {@code equals}. A frame of the same call at another line, e.g. where the method caught the cause that
-     * it wraps, gets the same ids with its own line.
+     * it wraps, gets the same values with its own line.
      */
     private void rewriteShared(Throwable thrown, StackTraceElement[] trace, int index, StackTraceElement original,
-            List<NamedId> receiverIds, List<NamedId> paramIds) {
+            List<NamedValue> receiverValues, List<NamedValue> paramValues) {
         int below = trace.length - index - 1;
         List<Throwable> related = new ArrayList<>();
         related.add(thrown);
@@ -162,7 +162,7 @@ public final class ThrowHandler implements Dispatch.Handler {
                     && sharesBelow(thrown, trace, index, other, otherTrace, otherIndex)) {
                 StackTraceElement frame = otherTrace[otherIndex];
                 stackTraces.write(other, otherTrace, otherIndex,
-                        frame.equals(original) ? trace[index] : format.rewrite(frame, receiverIds, paramIds));
+                        frame.equals(original) ? trace[index] : format.rewrite(frame, receiverValues, paramValues));
             }
             addRelated(other, related);
         }

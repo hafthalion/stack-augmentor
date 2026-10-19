@@ -3,9 +3,9 @@ package com.hafnium.stackaugmentor.instrument.live;
 import com.hafnium.stackaugmentor.instrument.bridge.LiveDispatch;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.WeakIdentityMap;
-import com.hafnium.stackaugmentor.runtime.ids.FrameFormat;
-import com.hafnium.stackaugmentor.runtime.ids.IdResolver;
-import com.hafnium.stackaugmentor.runtime.ids.NamedId;
+import com.hafnium.stackaugmentor.runtime.values.FrameFormat;
+import com.hafnium.stackaugmentor.runtime.values.ValueResolver;
+import com.hafnium.stackaugmentor.runtime.values.NamedValue;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -16,7 +16,7 @@ import java.util.stream.Stream;
 /**
  * The live-stack mode's handler. When the VM records the stack trace of a throwable, the frames it recorded are still
  * on the stack: for those of the configured methods, it reads the receiver and the arguments from the live stack and
- * turns them into ids right away. When the stack trace array is created from the recorded frames, which happens once,
+ * turns them into values right away. When the stack trace array is created from the recorded frames, which happens once,
  * when the trace is first read or printed, it rewrites those frames in that array.
  *
  * <p>So it sees every frame of the trace, also those of constructors while they call {@code super(...)}, and of the
@@ -28,14 +28,14 @@ public final class LiveFrames implements LiveDispatch.Handler {
     /** Shown for an argument that the JIT optimized away (scalar replacement): it reads as {@code null}. */
     public static final String UNKNOWN = "?";
 
-    /** The ids of one frame, at its position in the trace. */
-    record Captured(int index, String className, String methodName, int lineNumber, List<NamedId> receiverIds, List<NamedId> paramIds) {
+    /** The values of one frame, at its position in the trace. */
+    record Captured(int index, String className, String methodName, int lineNumber, List<NamedValue> receiverValues, List<NamedValue> paramValues) {
     }
 
     private final StackWalker plain;
     private final LiveStackFrames live;
     private final FrameSpecs specs;
-    private final IdResolver resolver;
+    private final ValueResolver resolver;
     private final FrameFormat format;
     /** Frames beyond this depth are not in the trace: {@code -XX:MaxJavaStackTraceDepth}. */
     private final int maxDepth;
@@ -45,7 +45,7 @@ public final class LiveFrames implements LiveDispatch.Handler {
     /** The captured frames of the throwables whose stack trace array was not created yet. */
     private final WeakIdentityMap<Throwable, List<Captured>> pending = new WeakIdentityMap<>();
 
-    public LiveFrames(LiveStackFrames live, FrameSpecs specs, IdResolver resolver, FrameFormat format, int maxDepth,
+    public LiveFrames(LiveStackFrames live, FrameSpecs specs, ValueResolver resolver, FrameFormat format, int maxDepth,
                       boolean eliminatedAllocations) {
         this.plain = live.plainWalker();
         this.live = live;
@@ -63,8 +63,8 @@ public final class LiveFrames implements LiveDispatch.Handler {
             pending.remove(thrown);
             return;
         }
-        // Reading local variables is far slower than walking the stack: only when a frame shows ids, and only down to it.
-        int last = plain.walk(frames -> lastWithIds(frames, thrown));
+        // Reading local variables is far slower than walking the stack: only when a frame is augmented, and only down to it.
+        int last = plain.walk(frames -> lastAugmented(frames, thrown));
         List<Captured> captured = last < 0 ? List.of() : live.walker().walk(frames -> capture(frames, thrown, last));
         if (captured.isEmpty()) {
             // Also when the application fills in the trace again.
@@ -90,10 +90,10 @@ public final class LiveFrames implements LiveDispatch.Handler {
 
     /**
      * Writes the rewritten frames of {@code thrown} also into its causes and suppressed exceptions, and theirs, where
-     * they share them: the same frames at the same distance from the bottom, whatever ids those exceptions have there
+     * they share them: the same frames at the same distance from the bottom, whatever values those exceptions show there
      * themselves, or whether {@code [augment.exceptions]} augments them. Printed traces then still collapse the shared
      * frames into {@code ... N more}, which compares frames with {@code equals}. The frame of the same call at another
-     * line, where the method caught the cause that it wraps, gets the same ids with its own line. As with instrumented
+     * line, where the method caught the cause that it wraps, gets the same values with its own line. As with instrumented
      * classes.
      */
     private void rewriteShared(Throwable thrown, StackTraceElement[] trace, StackTraceElement[] original, Captured[] rewritten) {
@@ -117,7 +117,7 @@ public final class LiveFrames implements LiveDispatch.Handler {
                 if (!shared) {
                     StackTraceElement plain = otherOriginal != null ? otherOriginal[j] : otherTrace[j];
                     if (rewritten[i] != null && sameMethod(plain, original[i])) {
-                        otherTrace[j] = format.rewrite(plain, rewritten[i].receiverIds(), rewritten[i].paramIds());
+                        otherTrace[j] = format.rewrite(plain, rewritten[i].receiverValues(), rewritten[i].paramValues());
                         changed = true;
                     }
                     break;
@@ -160,10 +160,10 @@ public final class LiveFrames implements LiveDispatch.Handler {
     }
 
     /**
-     * The trace index of the last frame that shows ids, or -1. Also -1 while a class is being loaded, e.g. for the
+     * The trace index of the last augmented frame, or -1. Also -1 while a class is being loaded, e.g. for the
      * {@code ClassNotFoundException}s of class loaders: looking at classes then could load the class being loaded again.
      */
-    private int lastWithIds(Stream<StackWalker.StackFrame> frames, Throwable thrown) {
+    private int lastAugmented(Stream<StackWalker.StackFrame> frames, Throwable thrown) {
         Iterator<StackWalker.StackFrame> iterator = frames.iterator();
         StackWalker.StackFrame frame = firstTraceFrame(iterator, thrown);
         int last = -1;
@@ -186,9 +186,9 @@ public final class LiveFrames implements LiveDispatch.Handler {
         for (int index = 0; frame != null && index <= last; index++) {
             FrameSpecs.Spec spec = specs.of(frame);
             if (spec != FrameSpecs.NONE) {
-                Captured ids = ids(frame, spec, index);
-                if (ids != null) {
-                    captured.add(ids);
+                Captured values = capture(frame, spec, index);
+                if (values != null) {
+                    captured.add(values);
                 }
             }
             frame = iterator.hasNext() ? iterator.next() : null;
@@ -196,28 +196,28 @@ public final class LiveFrames implements LiveDispatch.Handler {
         return captured;
     }
 
-    private Captured ids(StackWalker.StackFrame frame, FrameSpecs.Spec spec, int index) {
+    private Captured capture(StackWalker.StackFrame frame, FrameSpecs.Spec spec, int index) {
         Object[] locals = live.locals(frame);
         boolean compiled = live.compiled(frame);
-        List<NamedId> receiverIds = List.of();
+        List<NamedValue> receiverValues = List.of();
         if (spec.receiver()) {
             Object self = locals.length > 0 ? locals[0] : null;
-            // Not an instance of the declaring class: the JIT optimized the object away, so there is no id to show.
+            // Not an instance of the declaring class: the JIT optimized the object away, so there is nothing to show.
             if (spec.owner().isInstance(self)) {
-                receiverIds = resolver.receiverIds(self, spec.owner().getName(), spec.receiverKey());
+                receiverValues = resolver.receiverValues(self, spec.owner().getName(), spec.receiverKey());
             }
         }
-        List<NamedId> paramIds = new ArrayList<>(spec.params().size());
+        List<NamedValue> paramValues = new ArrayList<>(spec.params().size());
         for (FrameSpecs.Param param : spec.params()) {
-            paramIds.add(new NamedId(param.label(), paramId(locals, param, compiled)));
+            paramValues.add(new NamedValue(param.label(), paramValue(locals, param, compiled)));
         }
-        if (receiverIds.isEmpty() && paramIds.isEmpty()) {
+        if (receiverValues.isEmpty() && paramValues.isEmpty()) {
             return null;
         }
-        return new Captured(index, frame.getClassName(), frame.getMethodName(), frame.getLineNumber(), receiverIds, List.copyOf(paramIds));
+        return new Captured(index, frame.getClassName(), frame.getMethodName(), frame.getLineNumber(), receiverValues, List.copyOf(paramValues));
     }
 
-    private String paramId(Object[] locals, FrameSpecs.Param param, boolean compiled) {
+    private String paramValue(Object[] locals, FrameSpecs.Param param, boolean compiled) {
         Class<?> type = param.type();
         boolean wide = type == long.class || type == double.class;
         int slot = wide ? param.slot() + 1 : param.slot();
@@ -237,7 +237,7 @@ public final class LiveFrames implements LiveDispatch.Handler {
             }
             value = LiveStackFrames.primitive(type, live.bits(local));
         }
-        return param.hashed() ? resolver.hashedParamId(value) : resolver.paramId(value);
+        return param.hashed() ? resolver.hashedParamValue(value) : resolver.paramValue(value);
     }
 
     /**
@@ -287,7 +287,7 @@ public final class LiveFrames implements LiveDispatch.Handler {
                 continue;
             }
             shift = index - frame.index();
-            trace[index] = format.rewrite(trace[index], frame.receiverIds(), frame.paramIds());
+            trace[index] = format.rewrite(trace[index], frame.receiverValues(), frame.paramValues());
             rewritten[index] = frame;
         }
         return rewritten;

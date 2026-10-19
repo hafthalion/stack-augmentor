@@ -1,6 +1,6 @@
 package com.hafnium.stackaugmentor.runtime.config;
 
-import com.hafnium.stackaugmentor.runtime.ids.FrameFormat;
+import com.hafnium.stackaugmentor.runtime.values.FrameFormat;
 import org.tomlj.Toml;
 import org.tomlj.TomlParseResult;
 import org.tomlj.TomlPosition;
@@ -115,7 +115,7 @@ public final class AugmentorConfig {
     private static final Pattern IDENTIFIER = Pattern.compile("[\\p{L}_$][\\p{L}\\p{N}_$]*");
     private static final Pattern INDEX = Pattern.compile("[0-9]{1,3}");
 
-    private final Map<String, IdSpec> classes;
+    private final Map<String, ReceiverSpec> classes;
     private final Map<String, List<ParamRef>> methods;
     private final String frameFormat;
     private final String receiverFormat;
@@ -269,56 +269,60 @@ public final class AugmentorConfig {
     }
 
     /**
-     * An {@code [augment.receiver]} entry: its key and the receiver members it names; or {@link #ANNOTATION_ENTRY}, which
-     * stands for the {@code @AugmentedReceiver} members where {@code [augment.annotations]} applies.
+     * Where the receiver members of a method's frames come from: an {@code [augment.receiver]} entry, or without one the
+     * {@code @AugmentedReceiver} members ({@link #ANNOTATION_ENTRY}).
      */
-    public static final class ClassEntry {
+    public sealed interface ReceiverEntry permits ClassEntry, AnnotationEntry {
+
+        /** The key that the instrumentation passes to the runtime: the entry's key, or {@link #ANNOTATIONS}. */
+        String key();
+    }
+
+    /** An {@code [augment.receiver]} entry: its key and the receiver members it names. */
+    public static final class ClassEntry implements ReceiverEntry {
 
         private final String text;
         private final EntryKey key;
-        private final IdSpec spec;
+        private final ReceiverSpec spec;
 
-        public ClassEntry(String key, IdSpec spec) {
-            this(key, new EntryKey(key), spec);
-        }
-
-        private ClassEntry(String text, EntryKey key, IdSpec spec) {
-            this.text = text;
-            this.key = key;
+        public ClassEntry(String key, ReceiverSpec spec) {
+            this.text = key;
+            this.key = new EntryKey(key);
             this.spec = Objects.requireNonNull(spec, "spec");
         }
 
+        @Override
         public String key() {
             return text;
         }
 
-        /** The class name or pattern of the key, without {@code +}; empty for {@link #ANNOTATION_ENTRY}. */
+        /** The class name or pattern of the key, without {@code +}. */
         public String className() {
-            return key != null ? key.className() : "";
+            return key.className();
         }
 
-        public IdSpec spec() {
+        public ReceiverSpec spec() {
             return spec;
         }
 
         /** The method names and patterns after {@code ::}, in the order of the file. */
         public List<String> methods() {
-            return key != null ? key.methods() : List.of();
+            return key.methods();
         }
 
         /** Whether the class part of the key has wildcards. */
         public boolean isPattern() {
-            return key != null && key.isPattern();
+            return key.isPattern();
         }
 
         /** See {@link EntryKey#matchesClass}. */
         public boolean matchesClass(String name, Predicate<String> isA) {
-            return key != null && key.matchesClass(name, isA);
+            return key.matchesClass(name, isA);
         }
 
         /** See {@link EntryKey#appliesTo}. */
         public boolean appliesTo(String methodName) {
-            return key != null && key.appliesTo(methodName);
+            return key.appliesTo(methodName);
         }
 
         @Override
@@ -329,9 +333,23 @@ public final class AugmentorConfig {
 
     /**
      * The receiver members of a method that no {@code [augment.receiver]} entry matches, where {@code [augment.annotations]}
-     * selects the class: its {@code @AugmentedReceiver} members. Its key is {@link #ANNOTATIONS}.
+     * selects the class and {@code @Augmented} the method: its {@code @AugmentedReceiver} members.
      */
-    public static final ClassEntry ANNOTATION_ENTRY = new ClassEntry(ANNOTATIONS, null, new IdSpec.Annotations());
+    public record AnnotationEntry() implements ReceiverEntry {
+
+        @Override
+        public String key() {
+            return ANNOTATIONS;
+        }
+
+        @Override
+        public String toString() {
+            return ANNOTATIONS + "=@AugmentedReceiver";
+        }
+    }
+
+    /** The only {@link AnnotationEntry}. */
+    public static final AnnotationEntry ANNOTATION_ENTRY = new AnnotationEntry();
 
     /** The {@code [augment.receiver]} entries, in the order of the file. */
     private final List<ClassEntry> classEntryList;
@@ -371,9 +389,9 @@ public final class AugmentorConfig {
     }
 
     /**
-     * @param classes   receiver id sources by {@code "<class>::<methods>"} key ({@link EntryKey}): the
+     * @param classes   receiver members by {@code "<class>::<methods>"} key ({@link EntryKey}): the
      *                  {@code [augment.receiver]} table
-     * @param methods   parameter ids by {@code "<class>::<methods>"} key ({@link EntryKey}): the {@code [augment.params]}
+     * @param methods   selected parameters by {@code "<class>::<methods>"} key ({@link EntryKey}): the {@code [augment.params]}
      *                  table
      * @param exceptions whether throwables are augmented, by class name (with {@code +} also the subclasses) or class pattern
      *                  (of the runtime class), in the order the first matching entry is looked for: the {@code [augment.exceptions]}
@@ -382,7 +400,7 @@ public final class AugmentorConfig {
      *                  class pattern, in the order the first matching entry is looked for: the {@code [augment.annotations]}
      *                  table; empty for none, {@code "**" = true} for all
      */
-    public AugmentorConfig(Map<String, IdSpec> classes, Map<String, List<ParamRef>> methods,
+    public AugmentorConfig(Map<String, ReceiverSpec> classes, Map<String, List<ParamRef>> methods,
                            String frameFormat, String receiverFormat, String paramsFormat, int maxValueLength,
                            boolean debug, boolean inPlaceModification, Map<String, Boolean> exceptions,
                            Map<String, Boolean> annotations) {
@@ -413,12 +431,12 @@ public final class AugmentorConfig {
         return new Builder();
     }
 
-    /** Receiver id sources by {@code "<class>::<methods>"} key: the {@code [augment.receiver]} table. */
-    public Map<String, IdSpec> classes() {
+    /** Receiver members by {@code "<class>::<methods>"} key: the {@code [augment.receiver]} table. */
+    public Map<String, ReceiverSpec> classes() {
         return classes;
     }
 
-    /** Parameter ids by {@code "<class>::<methods>"} key: the {@code [augment.params]} table. */
+    /** Selected parameters by {@code "<class>::<methods>"} key: the {@code [augment.params]} table. */
     public Map<String, List<ParamRef>> methods() {
         return methods;
     }
@@ -512,14 +530,13 @@ public final class AugmentorConfig {
     }
 
     /** An {@code [augment.receiver]} value for the debug log, e.g. {@code getId()}, or {@code [tenant, id()]} for several. */
-    public static String specText(IdSpec spec) {
+    public static String specText(ReceiverSpec spec) {
         return switch (spec) {
-            case IdSpec.Annotations annotations -> "@AugmentedReceiver";
-            case IdSpec.MethodSpec method -> method.memberName() + "()";
-            case IdSpec.FieldSpec field -> field.memberName();
-            case IdSpec.MemberList list -> list.members().stream().map(AugmentorConfig::specText)
+            case ReceiverSpec.MethodSpec method -> method.memberName() + "()";
+            case ReceiverSpec.FieldSpec field -> field.memberName();
+            case ReceiverSpec.MemberList list -> list.members().stream().map(AugmentorConfig::specText)
                     .collect(Collectors.joining(", ", "[", "]"));
-            case IdSpec.Excluded excluded -> EXCLUDED;
+            case ReceiverSpec.Excluded excluded -> EXCLUDED;
         };
     }
 
@@ -542,7 +559,7 @@ public final class AugmentorConfig {
      * {@code [augment.annotations]} entry that is {@code true}, nothing is.
      */
     public boolean hasAugmentEntries() {
-        return classes.values().stream().anyMatch(spec -> !(spec instanceof IdSpec.Excluded))
+        return classes.values().stream().anyMatch(spec -> !(spec instanceof ReceiverSpec.Excluded))
                 || methods.values().stream().anyMatch(refs -> !refs.contains(new ParamRef.Excluded()))
                 || annotations.containsValue(true);
     }
@@ -601,7 +618,7 @@ public final class AugmentorConfig {
      * {@code [augment.annotations]} says (the instrumentation decided that, as it did for the parameters); {@code null}
      * otherwise.
      */
-    public ClassEntry receiverEntry(String key) {
+    public ReceiverEntry receiverEntry(String key) {
         return ANNOTATIONS.equals(key) ? ANNOTATION_ENTRY : classEntry(key);
     }
 
@@ -783,7 +800,7 @@ public final class AugmentorConfig {
     /** Starts from the defaults; every setter replaces one value. */
     public static final class Builder {
 
-        private Map<String, IdSpec> classes = Map.of();
+        private Map<String, ReceiverSpec> classes = Map.of();
         private Map<String, List<ParamRef>> methods = Map.of();
         private String frameFormat = DEFAULT_FRAME_FORMAT;
         private String receiverFormat = DEFAULT_RECEIVER_FORMAT;
@@ -797,7 +814,7 @@ public final class AugmentorConfig {
         private Builder() {
         }
 
-        public Builder classes(Map<String, IdSpec> classes) {
+        public Builder classes(Map<String, ReceiverSpec> classes) {
             this.classes = classes;
             return this;
         }
@@ -900,7 +917,7 @@ public final class AugmentorConfig {
             }
 
             Builder config = builder();
-            Map<String, IdSpec> classes = new LinkedHashMap<>();
+            Map<String, ReceiverSpec> classes = new LinkedHashMap<>();
             Map<String, List<String>> classPaths = new HashMap<>();
             for (Entry entry : entries(CLASSES)) {
                 String key = unique(entryKey(entry.path(), CLASSES), entry.path(), classPaths);
@@ -1090,7 +1107,7 @@ public final class AugmentorConfig {
          * An {@code [augment.receiver]} or {@code [augment.params]} key: a class name or pattern, {@code +} after a class
          * name for its subclasses, {@code ::} and the methods, kept with ", " between them, e.g.
          * {@code "com.acme.Order+::ship, cancel"} for {@code "com.acme.Order+::ship,cancel"}. Constructors
-         * ({@code <init>}) only in {@code [augment.params]}, as they show no receiver id.
+         * ({@code <init>}) only in {@code [augment.params]}, as they show no receiver members.
          */
         private String entryKey(List<String> path, List<String> table) {
             boolean constructors = table.equals(METHODS);
@@ -1125,7 +1142,7 @@ public final class AugmentorConfig {
                     + (table.equals(METHODS) ? ", <init> stands for the constructors" : "") + "; " + ALLOWED_CHARACTERS);
         }
 
-        private IdSpec classSpec(List<String> path, Object value) {
+        private ReceiverSpec classSpec(List<String> path, Object value) {
             if (!(value instanceof String text)) {
                 throw error(path, "must be a string: a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), "
                         + "several of them separated by commas (e.g. \"tenant, getOrderId()\"), or \"-\" for no receiver "
@@ -1138,11 +1155,11 @@ public final class AugmentorConfig {
                 throw error(path, ANNOTATIONS_ELSEWHERE);
             }
             if (EXCLUDED.equals(text.trim())) {
-                return new IdSpec.Excluded();
+                return new ReceiverSpec.Excluded();
             }
-            List<IdSpec.MemberSpec> members = new ArrayList<>();
+            List<ReceiverSpec.MemberSpec> members = new ArrayList<>();
             for (String member : items(path, text, "field or method")) {
-                IdSpec.MemberSpec spec = memberSpec(member);
+                ReceiverSpec.MemberSpec spec = memberSpec(member);
                 if (spec == null) {
                     throw error(path, "invalid receiver member '" + member + "': use a field name (e.g. \"orderId\") or a "
                             + "method (e.g. \"getOrderId()\"), several separated by commas");
@@ -1152,7 +1169,7 @@ public final class AugmentorConfig {
                 }
                 members.add(spec);
             }
-            return members.size() == 1 ? members.get(0) : new IdSpec.MemberList(members);
+            return members.size() == 1 ? members.get(0) : new ReceiverSpec.MemberList(members);
         }
 
         /** The items of a comma-separated value, trimmed; an empty item is an error. */
@@ -1170,12 +1187,12 @@ public final class AugmentorConfig {
         }
 
         /** A field name or a method, e.g. {@code "orderId"} or {@code "getOrderId()"}; {@code null} for anything else. */
-        private static IdSpec.MemberSpec memberSpec(Object value) {
+        private static ReceiverSpec.MemberSpec memberSpec(Object value) {
             if (!(value instanceof String text) || !IDENTIFIER.matcher(removeCallSuffix(text)).matches()) {
                 return null;
             }
             String name = removeCallSuffix(text);
-            return text.endsWith("()") ? new IdSpec.MethodSpec(name) : new IdSpec.FieldSpec(name);
+            return text.endsWith("()") ? new ReceiverSpec.MethodSpec(name) : new ReceiverSpec.FieldSpec(name);
         }
 
         private static String removeCallSuffix(String text) {

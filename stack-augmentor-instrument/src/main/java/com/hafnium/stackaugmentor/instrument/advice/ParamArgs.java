@@ -6,10 +6,10 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks the advice parameter bound to {@code this} where the method's frames show receiver ids, and to {@code null}
- * elsewhere. See {@link IdReceiverMapping}.
+ * Binds the values of all selected parameters of the instrumented method, in declaration order,
+ * boxing primitives. {@code null} if the method has none.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.PARAMETER)
-public @interface IdReceiver {
+public @interface ParamArgs {
 }

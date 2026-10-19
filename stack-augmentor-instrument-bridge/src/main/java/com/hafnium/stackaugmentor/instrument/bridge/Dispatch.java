@@ -17,11 +17,11 @@ public final class Dispatch {
     /** Implemented by the agent, or by the runtime module for build-time instrumentation. */
     public interface Handler {
         /**
-         * @param self        the receiver where the frame shows receiver ids, else {@code null}
+         * @param self        the receiver where the frame shows receiver members, else {@code null}
          * @param receiverKey the key of the frame's deciding {@code [augment.receiver]} entry, or {@code null} without
-         *                    receiver ids
+         *                    receiver members
          */
-        void onThrow(Object self, Throwable thrown, String receiverKey, String owner, String method, Object[] paramValues,
+        void onThrow(Object self, Throwable thrown, String receiverKey, String owner, String method, Object[] args,
                      String[] paramNames);
     }
 
@@ -31,7 +31,7 @@ public final class Dispatch {
     private static volatile Handler handler;
     private static volatile boolean lookedUp;
 
-    /** Set while a handler runs, so exceptions thrown by id sources are not recorded recursively. */
+    /** Set while a handler runs, so exceptions thrown while values are read are not recorded recursively. */
     private static final ThreadLocal<Boolean> ACTIVE = new ThreadLocal<>();
 
     private Dispatch() {
@@ -41,7 +41,7 @@ public final class Dispatch {
         handler = newHandler;
     }
 
-    public static void onThrow(Object self, Throwable thrown, String receiverKey, String owner, String method, Object[] paramValues,
+    public static void onThrow(Object self, Throwable thrown, String receiverKey, String owner, String method, Object[] args,
                                String[] paramNames) {
         if (ACTIVE.get() != null) {
             return;
@@ -50,7 +50,7 @@ public final class Dispatch {
         try {
             Handler current = handler();
             if (current != null) {
-                current.onThrow(self, thrown, receiverKey, owner, method, paramValues, paramNames);
+                current.onThrow(self, thrown, receiverKey, owner, method, args, paramNames);
             }
         } catch (Throwable ignored) {
             // Never let the augmentation change the exception the application sees.

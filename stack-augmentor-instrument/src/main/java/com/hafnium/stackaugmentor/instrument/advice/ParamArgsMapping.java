@@ -1,7 +1,7 @@
 package com.hafnium.stackaugmentor.instrument.advice;
 
-import com.hafnium.stackaugmentor.instrument.IdParameter;
-import com.hafnium.stackaugmentor.instrument.IdParameters;
+import com.hafnium.stackaugmentor.instrument.SelectedParam;
+import com.hafnium.stackaugmentor.instrument.ParamSelection;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.description.annotation.AnnotationDescription;
 import net.bytebuddy.description.method.ParameterDescription;
@@ -15,38 +15,38 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Binds {@code @IdArgs Object[]} to the id parameter values of each instrumented method. The array is built
+ * Binds {@code @ParamArgs Object[]} to the selected parameter values of each instrumented method. The array is built
  * where the advice reads it, so only on the exception path.
  */
-public final class IdArgsMapping implements Advice.OffsetMapping.Factory<IdArgs> {
+public final class ParamArgsMapping implements Advice.OffsetMapping.Factory<ParamArgs> {
 
     private static final TypeDescription.Generic OBJECT = TypeDescription.Generic.OfNonGenericType.ForLoadedType.of(Object.class);
 
-    private final IdParameters parameters;
+    private final ParamSelection parameters;
 
-    public IdArgsMapping(IdParameters parameters) {
+    public ParamArgsMapping(ParamSelection parameters) {
         this.parameters = parameters;
     }
 
     @Override
-    public Class<IdArgs> getAnnotationType() {
-        return IdArgs.class;
+    public Class<ParamArgs> getAnnotationType() {
+        return ParamArgs.class;
     }
 
     @Override
     public Advice.OffsetMapping make(ParameterDescription.InDefinedShape target,
-                                     AnnotationDescription.Loadable<IdArgs> annotation,
+                                     AnnotationDescription.Loadable<ParamArgs> annotation,
                                      AdviceType adviceType) {
         return (instrumentedType, instrumentedMethod, assigner, argumentHandler, sort) -> {
-            List<IdParameter> selected = parameters.select(instrumentedType, instrumentedMethod);
+            List<SelectedParam> selected = parameters.select(instrumentedType, instrumentedMethod);
             if (selected.isEmpty()) {
                 return new Advice.OffsetMapping.Target.ForStackManipulation(NullConstant.INSTANCE);
             }
             List<StackManipulation> values = new ArrayList<>(selected.size());
-            for (IdParameter idParameter : selected) {
-                TypeDescription.Generic type = idParameter.parameter().getType();
+            for (SelectedParam selectedParam : selected) {
+                TypeDescription.Generic type = selectedParam.parameter().getType();
                 values.add(new StackManipulation.Compound(
-                        MethodVariableAccess.of(type).loadFrom(argumentHandler.argument(idParameter.parameter().getOffset())),
+                        MethodVariableAccess.of(type).loadFrom(argumentHandler.argument(selectedParam.parameter().getOffset())),
                         assigner.assign(type, OBJECT, Assigner.Typing.DYNAMIC)));
             }
             return new Advice.OffsetMapping.Target.ForArray.ReadOnly(OBJECT, values);

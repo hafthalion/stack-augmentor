@@ -1,11 +1,11 @@
 package com.hafnium.stackaugmentor.instrument.live;
 
-import com.hafnium.stackaugmentor.instrument.IdParameter;
+import com.hafnium.stackaugmentor.instrument.SelectedParam;
 import com.hafnium.stackaugmentor.instrument.TypeMatching;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
-import com.hafnium.stackaugmentor.runtime.config.IdSpec;
-import com.hafnium.stackaugmentor.runtime.ids.IdResolver;
+import com.hafnium.stackaugmentor.runtime.config.ReceiverSpec;
+import com.hafnium.stackaugmentor.runtime.values.ValueResolver;
 import net.bytebuddy.description.method.MethodDescription;
 import net.bytebuddy.description.method.ParameterDescription;
 import net.bytebuddy.description.type.TypeDescription;
@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
- * For the live-stack mode: which ids the frames of a method show, decided by the same rules that decide what the agent
+ * For the live-stack mode: which values the frames of a method show, decided by the same rules that decide what the agent
  * instruments ({@link TypeMatching}), applied to the loaded classes. Looked up once per class and method.
  *
  * <p>It runs while a throwable is created, so it only looks at a class with reflection once a configuration entry
@@ -36,7 +36,7 @@ public final class FrameSpecs {
     }
 
     /**
-     * The ids of a method's frames: the receiver's (from the {@code [augment.receiver]} entry with key
+     * What a method's frames show: the receiver members (from the {@code [augment.receiver]} entry with key
      * {@code receiverKey} for {@code owner}, the declaring class; {@code null} for none) and parameters.
      */
     record Spec(String receiverKey, Class<?> owner, List<Param> params) {
@@ -46,10 +46,10 @@ public final class FrameSpecs {
         }
     }
 
-    /** Frames that show no ids. */
+    /** Frames that are not augmented. */
     static final Spec NONE = new Spec(null, Object.class, List.of());
 
-    /** For the classes none of whose frames show ids. */
+    /** For the classes none of whose frames are augmented. */
     private static final Map<MethodKey, Spec> IRRELEVANT = Map.of();
 
     private record MethodKey(String name, MethodType type) {
@@ -96,7 +96,7 @@ public final class FrameSpecs {
     /** By name: the application may load its own copy of the API. */
     private static boolean hasAugmented(Annotation[] annotations) {
         for (Annotation annotation : annotations) {
-            if (annotation.annotationType().getName().equals(IdResolver.AUGMENTED)) {
+            if (annotation.annotationType().getName().equals(ValueResolver.AUGMENTED)) {
                 return true;
             }
         }
@@ -113,7 +113,7 @@ public final class FrameSpecs {
         this.matching = matching;
     }
 
-    /** The ids that this frame shows; needs {@link StackWalker.Option#RETAIN_CLASS_REFERENCE}. */
+    /** What this frame shows; needs {@link StackWalker.Option#RETAIN_CLASS_REFERENCE}. */
     Spec of(StackWalker.StackFrame frame) {
         Class<?> type = frame.getDeclaringClass();
         Map<MethodKey, Spec> methods = byClass.get(type);
@@ -141,7 +141,7 @@ public final class FrameSpecs {
         if (TypeMatching.isIgnoredName(name)) {
             return false;
         }
-        return config.classEntries(type).stream().anyMatch(entry -> !(entry.spec() instanceof IdSpec.Excluded))
+        return config.classEntries(type).stream().anyMatch(entry -> !(entry.spec() instanceof ReceiverSpec.Excluded))
                 || config.hasParamEntries(name, supertype -> AugmentorConfig.isA(type, supertype))
                 || readsAnnotations(type);
     }
@@ -152,7 +152,7 @@ public final class FrameSpecs {
      */
     private boolean named(Class<?> type, String methodName) {
         return !methodName.equals(AugmentorConfig.CONSTRUCTOR) && config.classEntries(type).stream()
-                        .anyMatch(entry -> !(entry.spec() instanceof IdSpec.Excluded) && entry.appliesTo(methodName))
+                        .anyMatch(entry -> !(entry.spec() instanceof ReceiverSpec.Excluded) && entry.appliesTo(methodName))
                 || !config.paramRefs(type.getName(), supertype -> AugmentorConfig.isA(type, supertype), methodName).isEmpty()
                 || readsAnnotations(type);
     }
@@ -167,17 +167,17 @@ public final class FrameSpecs {
             MethodDescription method = executable instanceof Method m
                     ? new MethodDescription.ForLoadedMethod(m)
                     : new MethodDescription.ForLoadedConstructor((Constructor<?>) executable);
-            AugmentorConfig.ClassEntry entry = matching.receiverEntry(typeDescription, method);
+            AugmentorConfig.ReceiverEntry entry = matching.receiverEntry(typeDescription, method);
             boolean receiver = entry != null;
-            List<IdParameter> selected = matching.idParameters(typeDescription, method);
+            List<SelectedParam> selected = matching.selectedParams(typeDescription, method);
             if (!receiver && selected.isEmpty()) {
                 return NONE;
             }
             Class<?>[] parameterTypes = executable.getParameterTypes();
             List<Param> params = new ArrayList<>(selected.size());
-            for (IdParameter id : selected) {
-                ParameterDescription parameter = id.parameter();
-                params.add(new Param(id.label(), id.hashed(), parameter.getOffset(), parameterTypes[parameter.getIndex()]));
+            for (SelectedParam selectedParam : selected) {
+                ParameterDescription parameter = selectedParam.parameter();
+                params.add(new Param(selectedParam.label(), selectedParam.hashed(), parameter.getOffset(), parameterTypes[parameter.getIndex()]));
             }
             Spec spec = new Spec(receiver ? entry.key() : null, type, List.copyOf(params));
             if (Log.isDebug()) {

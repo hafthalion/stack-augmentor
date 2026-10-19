@@ -1,4 +1,4 @@
-package com.hafnium.stackaugmentor.runtime.ids;
+package com.hafnium.stackaugmentor.runtime.values;
 
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
 import com.hafnium.stackaugmentor.runtime.config.ConfigException;
@@ -14,25 +14,25 @@ import java.util.stream.Collectors;
 public final class FrameFormat {
 
     private static final List<String> FRAME_PLACEHOLDERS = List.of("class", "simpleClass", "method", "receiver", "params");
-    private static final List<String> ID_PLACEHOLDERS = List.of("name", "value");
+    private static final List<String> VALUE_PLACEHOLDERS = List.of("name", "value");
     private static final String REPEAT = "...";
     private static final String DEFAULT_SEPARATOR = ",";
 
     private final List<Token> declaringClassPart;
     private final List<Token> methodPart;
-    private final IdsTemplate receiver;
-    private final IdsTemplate params;
+    private final ValuesTemplate receiver;
+    private final ValuesTemplate params;
 
-    private FrameFormat(List<Token> declaringClassPart, List<Token> methodPart, IdsTemplate receiver, IdsTemplate params) {
+    private FrameFormat(List<Token> declaringClassPart, List<Token> methodPart, ValuesTemplate receiver, ValuesTemplate params) {
         this.declaringClassPart = declaringClassPart;
         this.methodPart = methodPart;
         this.receiver = receiver;
         this.params = params;
     }
 
-    /** A replacement element whose {@code toString()} shows the ids. */
-    public StackTraceElement rewrite(StackTraceElement element, List<NamedId> receiverIds, List<NamedId> paramIds) {
-        UnaryOperator<String> values = values(element, receiverIds, paramIds);
+    /** A replacement element whose {@code toString()} shows the values. */
+    public StackTraceElement rewrite(StackTraceElement element, List<NamedValue> receiverValues, List<NamedValue> paramValues) {
+        UnaryOperator<String> values = values(element, receiverValues, paramValues);
         String declaringClass = render(declaringClassPart, values);
         String method = render(methodPart, values);
         String prefix = prefixOf(element);
@@ -46,13 +46,13 @@ public final class FrameFormat {
         return new StackTraceElement(loader, module, version, declaringClass, method, element.getFileName(), element.getLineNumber());
     }
 
-    private UnaryOperator<String> values(StackTraceElement element, List<NamedId> receiverIds, List<NamedId> paramIds) {
+    private UnaryOperator<String> values(StackTraceElement element, List<NamedValue> receiverValues, List<NamedValue> paramValues) {
         return name -> switch (name) {
             case "class" -> element.getClassName();
             case "simpleClass" -> element.getClassName().substring(element.getClassName().lastIndexOf('.') + 1);
             case "method" -> element.getMethodName();
-            case "receiver" -> receiver.render(receiverIds);
-            case "params" -> params.render(paramIds);
+            case "receiver" -> receiver.render(receiverValues);
+            case "params" -> params.render(paramValues);
             default -> throw new IllegalStateException("unexpected placeholder " + name);
         };
     }
@@ -67,18 +67,18 @@ public final class FrameFormat {
     }
 
     /**
-     * A {@code receiverFormat} or {@code paramsFormat}: a prefix, the item repeated for each id with a separator in
-     * between, and a suffix. Empty without ids.
+     * A {@code receiverFormat} or {@code paramsFormat}: a prefix, the item repeated for each value with a separator in
+     * between, and a suffix. Empty without values.
      */
-    private record IdsTemplate(String prefix, List<Token> item, String separator, String suffix) {
+    private record ValuesTemplate(String prefix, List<Token> item, String separator, String suffix) {
 
-        String render(List<NamedId> ids) {
-            if (ids.isEmpty()) {
+        String render(List<NamedValue> values) {
+            if (values.isEmpty()) {
                 return "";
             }
-            List<String> items = new ArrayList<>(ids.size());
-            for (NamedId id : ids) {
-                items.add(FrameFormat.render(item, values(id)));
+            List<String> items = new ArrayList<>(values.size());
+            for (NamedValue value : values) {
+                items.add(FrameFormat.render(item, values(value)));
             }
             return prefix + String.join(separator, items) + suffix;
         }
@@ -114,8 +114,8 @@ public final class FrameFormat {
             declaringClassPart.add(new Token.Literal(beforeDot));
         }
         List<Token> methodPart = List.copyOf(frame.subList(method, frame.size()));
-        return new FrameFormat(List.copyOf(declaringClassPart), methodPart, parseIds(receiverFormat, "receiverFormat"),
-                parseIds(paramsFormat, "paramsFormat"));
+        return new FrameFormat(List.copyOf(declaringClassPart), methodPart, parseValues(receiverFormat, "receiverFormat"),
+                parseValues(paramsFormat, "paramsFormat"));
     }
 
     /** IDEs find a frame's file and line by the parenthesised {@code (File.java:12)} that the JDK appends. */
@@ -130,15 +130,15 @@ public final class FrameFormat {
         }
     }
 
-    private static IdsTemplate parseIds(String template, String key) {
+    private static ValuesTemplate parseValues(String template, String key) {
         int repeat = template.lastIndexOf(REPEAT);
         if (repeat < 0) {
-            List<Token> item = parse(template, ID_PLACEHOLDERS, key);
+            List<Token> item = parse(template, VALUE_PLACEHOLDERS, key);
             requirePlaceholder(item, template, key);
-            return new IdsTemplate("", item, DEFAULT_SEPARATOR, "");
+            return new ValuesTemplate("", item, DEFAULT_SEPARATOR, "");
         }
-        List<Token> head = parse(template.substring(0, repeat), ID_PLACEHOLDERS, key);
-        List<Token> tail = parse(template.substring(repeat + REPEAT.length()), ID_PLACEHOLDERS, key);
+        List<Token> head = parse(template.substring(0, repeat), VALUE_PLACEHOLDERS, key);
+        List<Token> tail = parse(template.substring(repeat + REPEAT.length()), VALUE_PLACEHOLDERS, key);
         requirePlaceholder(head, template, key);
         if (tail.stream().anyMatch(token -> token instanceof Token.Placeholder)) {
             throw new ConfigException(key + " must not have placeholders after '" + REPEAT + "'; was '" + template + "'");
@@ -153,7 +153,7 @@ public final class FrameFormat {
                 last = i;
             }
         }
-        return new IdsTemplate(
+        return new ValuesTemplate(
                 literalText(head.subList(0, first)),
                 List.copyOf(head.subList(first, last + 1)),
                 literalText(head.subList(last + 1, head.size())),
@@ -243,8 +243,8 @@ public final class FrameFormat {
         return text.toString();
     }
 
-    private static UnaryOperator<String> values(NamedId id) {
-        return name -> name.equals("name") ? id.name() : id.id();
+    private static UnaryOperator<String> values(NamedValue value) {
+        return name -> name.equals("name") ? value.name() : value.value();
     }
 
     /** The class loader / module part the JDK prints before the class name, e.g. {@code app//} or {@code java.base/}. */

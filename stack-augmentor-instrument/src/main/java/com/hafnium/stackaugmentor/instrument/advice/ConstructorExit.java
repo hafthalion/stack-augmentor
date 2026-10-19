@@ -1,7 +1,7 @@
 package com.hafnium.stackaugmentor.instrument.advice;
 
-import com.hafnium.stackaugmentor.instrument.IdParameter;
-import com.hafnium.stackaugmentor.instrument.IdParameters;
+import com.hafnium.stackaugmentor.instrument.SelectedParam;
+import com.hafnium.stackaugmentor.instrument.ParamSelection;
 import com.hafnium.stackaugmentor.instrument.bridge.Dispatch;
 import net.bytebuddy.ClassFileVersion;
 import net.bytebuddy.asm.AsmVisitorWrapper;
@@ -27,7 +27,7 @@ import java.util.List;
 
 /**
  * The counterpart of the exit advice for constructors, which ByteBuddy's {@code Advice} cannot catch exceptions in:
- * handlers that pass the id parameters to {@link Dispatch#onThrow} without a receiver, as {@code <init>}, and rethrow
+ * handlers that pass the selected parameters to {@link Dispatch#onThrow} without a receiver, as {@code <init>}, and rethrow
  * the exception. As Java, with the handler written twice:
  * <pre>{@code
  * Order(long orderId) {
@@ -39,7 +39,7 @@ import java.util.List;
  *
  * <p>The {@code super(...)} or {@code this(...)} call itself is not covered: the verifier accepts no handler around it,
  * because no stack map frame can describe the state where {@code this} is in the middle of being initialized. So
- * exceptions thrown by the called constructor get no ids in this frame. Two handlers are needed because {@code this} has
+ * exceptions thrown by the called constructor are not augmented in this frame. Two handlers are needed because {@code this} has
  * different types before and after that call. A normal return runs no added code.
  */
 public final class ConstructorExit {
@@ -51,8 +51,8 @@ public final class ConstructorExit {
     private ConstructorExit() {
     }
 
-    /** The handler for the constructors that {@code constructors} matches, with the id parameters that {@code parameters} selects. */
-    public static AsmVisitorWrapper on(IdParameters parameters, ElementMatcher<? super MethodDescription> constructors) {
+    /** The handler for the constructors that {@code constructors} matches, with the parameters that {@code parameters} selects. */
+    public static AsmVisitorWrapper on(ParamSelection parameters, ElementMatcher<? super MethodDescription> constructors) {
         return new AsmVisitorWrapper.ForDeclaredMethods()
                 .invokable(constructors, (type, constructor, methodVisitor, context, typePool, writerFlags, readerFlags) ->
                         new Visitor(methodVisitor, type, constructor, parameters.select(type, constructor), context))
@@ -64,7 +64,7 @@ public final class ConstructorExit {
 
         private final TypeDescription type;
         private final MethodDescription constructor;
-        private final List<IdParameter> selected;
+        private final List<SelectedParam> selected;
         private final Implementation.Context context;
         private final Label begin = new Label();
         private final Label beforeInit = new Label();
@@ -74,7 +74,7 @@ public final class ConstructorExit {
         private int pendingNew;
         private boolean started;
 
-        Visitor(MethodVisitor methodVisitor, TypeDescription type, MethodDescription constructor, List<IdParameter> selected,
+        Visitor(MethodVisitor methodVisitor, TypeDescription type, MethodDescription constructor, List<SelectedParam> selected,
                 Implementation.Context context) {
             super(Opcodes.ASM9, methodVisitor);
             this.type = type;
@@ -155,16 +155,16 @@ public final class ConstructorExit {
             return 4 + size.getMaximalSize();
         }
 
-        /** Pushes the owner, the method name, the id values and their labels, and calls {@link Dispatch#onThrow}. */
+        /** Pushes the owner, the method name, the parameter values and their labels, and calls {@link Dispatch#onThrow}. */
         private StackManipulation arguments() {
             List<StackManipulation> values = new ArrayList<>(selected.size());
             List<StackManipulation> labels = new ArrayList<>(selected.size());
-            for (IdParameter idParameter : selected) {
-                TypeDescription.Generic parameterType = idParameter.parameter().getType();
+            for (SelectedParam selectedParam : selected) {
+                TypeDescription.Generic parameterType = selectedParam.parameter().getType();
                 values.add(new StackManipulation.Compound(
-                        MethodVariableAccess.of(parameterType).loadFrom(idParameter.parameter().getOffset()),
+                        MethodVariableAccess.of(parameterType).loadFrom(selectedParam.parameter().getOffset()),
                         Assigner.DEFAULT.assign(parameterType, OBJECT, Assigner.Typing.DYNAMIC)));
-                labels.add(new TextConstant(idParameter.encodedLabel()));
+                labels.add(new TextConstant(selectedParam.encodedLabel()));
             }
             return new StackManipulation.Compound(
                     new TextConstant(type.getName()),

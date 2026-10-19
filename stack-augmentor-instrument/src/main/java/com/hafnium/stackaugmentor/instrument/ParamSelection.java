@@ -2,7 +2,7 @@ package com.hafnium.stackaugmentor.instrument;
 
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
 import com.hafnium.stackaugmentor.runtime.config.ParamRef;
-import com.hafnium.stackaugmentor.runtime.ids.IdResolver;
+import com.hafnium.stackaugmentor.runtime.values.ValueResolver;
 import net.bytebuddy.description.annotation.AnnotationDescription;
 import net.bytebuddy.description.annotation.AnnotationList;
 import net.bytebuddy.description.method.MethodDescription;
@@ -23,11 +23,11 @@ import java.util.stream.Collectors;
  * {@code @Augmented} the method. Also whether their values are hashed: {@code #} after a name or index, or
  * {@code @AugmentedParam(secret = true)}. {@code [augment.receiver]} plays no part.
  */
-public final class IdParameters {
+public final class ParamSelection {
 
     private final AugmentorConfig config;
 
-    public IdParameters(AugmentorConfig config) {
+    public ParamSelection(AugmentorConfig config) {
         this.config = config;
     }
 
@@ -66,18 +66,18 @@ public final class IdParameters {
 
     /** Whether the method has parameter annotations: {@code @AugmentedParam}, or {@code @AugmentedParams} on it. */
     static boolean hasParameterAnnotations(MethodDescription method) {
-        if (annotation(method.getDeclaredAnnotations(), IdResolver.AUGMENTED_PARAMS) != null) {
+        if (annotation(method.getDeclaredAnnotations(), ValueResolver.AUGMENTED_PARAMS) != null) {
             return true;
         }
         for (ParameterDescription parameter : method.getParameters()) {
-            if (annotation(parameter.getDeclaredAnnotations(), IdResolver.AUGMENTED_PARAM) != null) {
+            if (annotation(parameter.getDeclaredAnnotations(), ValueResolver.AUGMENTED_PARAM) != null) {
                 return true;
             }
         }
         return false;
     }
 
-    public List<IdParameter> select(TypeDescription type, MethodDescription method) {
+    public List<SelectedParam> select(TypeDescription type, MethodDescription method) {
         ParameterList<?> parameters = method.getParameters();
         // By index: whether the value is hashed. A parameter selected twice (by name and by index) is hashed if either hashes it.
         TreeMap<Integer, Boolean> selected = new TreeMap<>();
@@ -108,10 +108,10 @@ public final class IdParameters {
         }
         // The label is the compiled parameter name; without the MethodParameters attribute (javac without -parameters),
         // ByteBuddy names parameters arg0, arg1, ...
-        List<IdParameter> result = new ArrayList<>(selected.size());
+        List<SelectedParam> result = new ArrayList<>(selected.size());
         for (Map.Entry<Integer, Boolean> entry : selected.entrySet()) {
             ParameterDescription parameter = parameters.get(entry.getKey());
-            result.add(new IdParameter(parameter, parameter.getName(), entry.getValue()));
+            result.add(new SelectedParam(parameter, parameter.getName(), entry.getValue()));
         }
         return result;
     }
@@ -123,13 +123,13 @@ public final class IdParameters {
      */
     private static void annotated(MethodDescription method, TreeMap<Integer, Boolean> selected) {
         ParameterList<?> parameters = method.getParameters();
-        if (annotation(method.getDeclaredAnnotations(), IdResolver.AUGMENTED_PARAMS) != null) {
+        if (annotation(method.getDeclaredAnnotations(), ValueResolver.AUGMENTED_PARAMS) != null) {
             for (ParameterDescription parameter : parameters) {
                 selected.merge(parameter.getIndex(), false, Boolean::logicalOr);
             }
         }
         for (ParameterDescription parameter : parameters) {
-            AnnotationDescription one = annotation(parameter.getDeclaredAnnotations(), IdResolver.AUGMENTED_PARAM);
+            AnnotationDescription one = annotation(parameter.getDeclaredAnnotations(), ValueResolver.AUGMENTED_PARAM);
             if (one != null) {
                 selected.merge(parameter.getIndex(), secret(one), Boolean::logicalOr);
             }

@@ -5,8 +5,11 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/** Binds the labels of the values bound by {@link IdArgs}, as constants. {@code null} if the method has none. */
+/**
+ * Marks the advice parameter bound to the key of the method's deciding {@code [augment.receiver]} entry where its frames
+ * show receiver members, and to {@code null} elsewhere. See {@link ReceiverMapping}.
+ */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.PARAMETER)
-public @interface IdArgNames {
+public @interface ReceiverKey {
 }

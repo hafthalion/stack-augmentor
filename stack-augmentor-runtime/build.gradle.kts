@@ -4,7 +4,7 @@ plugins {
     `java-library`
 }
 
-// What runs when an instrumented method throws: configuration, id lookup, frame formatting.
+// What runs when an instrumented method throws: configuration, value lookup, frame formatting.
 // Shared by the Java agent and by build-time instrumentation. Written in Java, so applications need no
 // Kotlin runtime (see kotlin.stdlib.default.dependency in gradle.properties).
 

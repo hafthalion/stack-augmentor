@@ -1,4 +1,4 @@
-package com.hafnium.stackaugmentor.runtime.ids
+package com.hafnium.stackaugmentor.runtime.values
 
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig
 import com.hafnium.stackaugmentor.runtime.config.ConfigException
@@ -10,9 +10,9 @@ import org.junit.jupiter.api.assertThrows
 class FrameFormatTest {
 
     private val element = StackTraceElement("com.hafnium.ObjectClass", "process", "ObjectClass.java", 13)
-    private val receiver = NamedId("objectId", "123")
-    private val orderId = NamedId("orderId", "42")
-    private val customer = NamedId("customer", "7")
+    private val receiver = NamedValue("objectId", "123")
+    private val orderId = NamedValue("orderId", "42")
+    private val customer = NamedValue("customer", "7")
 
     private fun rewrite(
         frameFormat: String = AugmentorConfig.DEFAULT_FRAME_FORMAT,
@@ -31,13 +31,13 @@ class FrameFormatTest {
     }
 
     @Test
-    fun `groups without ids render empty`() {
+    fun `groups without values render empty`() {
         assertEquals("com.hafnium.ObjectClass.process(ObjectClass.java:13)", rewrite().rewrite(element, emptyList(), emptyList()).toString())
         assertEquals("com.hafnium.ObjectClass.process{orderId=42}(ObjectClass.java:13)", rewrite().rewrite(element, emptyList(), listOf(orderId)).toString())
     }
 
     @Test
-    fun `ids after the method`() {
+    fun `receiver members after the method`() {
         val result = rewrite(frameFormat = "\$class.\$method\$receiver\$params").rewrite(element, listOf(receiver), listOf(orderId))
         assertEquals("com.hafnium.ObjectClass.process{objectId=123}{orderId=42}(ObjectClass.java:13)", result.toString())
     }
@@ -98,9 +98,9 @@ class FrameFormatTest {
     }
 
     @Test
-    fun `all parameter ids are shown`() {
-        val ids = (1..6).map { NamedId("p$it", "$it") }
-        assertEquals("process{p1=1, p2=2, p3=3, p4=4, p5=5, p6=6}", rewrite().rewrite(element, emptyList(), ids).methodName)
+    fun `all parameter values are shown`() {
+        val values = (1..6).map { NamedValue("p$it", "$it") }
+        assertEquals("process{p1=1, p2=2, p3=3, p4=4, p5=5, p6=6}", rewrite().rewrite(element, emptyList(), values).methodName)
     }
 
     @Test
@@ -163,8 +163,8 @@ class FrameFormatTest {
     }
 
     @Test
-    fun `several receiver ids repeat like parameters`() {
-        val tenant = NamedId("tenant", "acme")
+    fun `several receiver members repeat like parameters`() {
+        val tenant = NamedValue("tenant", "acme")
         assertEquals("com.hafnium.ObjectClass{tenant=acme, objectId=123}", rewrite().rewrite(element, listOf(tenant, receiver), emptyList()).className)
         assertEquals("com.hafnium.ObjectClass[acme|123]",
             rewrite(receiverFormat = "[\$value|...]").rewrite(element, listOf(tenant, receiver), emptyList()).className)
