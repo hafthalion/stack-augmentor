@@ -91,17 +91,47 @@ class IdResolverTest {
     @AfterEach
     fun restore() = System.setErr(originalErr)
 
-    /** A key without methods gets "::*", all methods. */
-    private fun resolver(vararg classes: Pair<String, IdSpec>, annotations: Map<String, Boolean> = mapOf()) = IdResolver(
+    /**
+     * An [IdResolver] that picks the receiver entry as the instrumentation would: the first [augment.receiver] entry
+     * matching the declaring class, whatever methods it names, or without one the annotations, where
+     * [augment.annotations] selects the class.
+     */
+    private class Resolver(private val config: AugmentorConfig) {
+        private val resolver = IdResolver(config)
+
+        fun receiverIds(target: Any, declaringClass: String = target.javaClass.name): List<NamedId> {
+            val owner = IdResolver.declaringClass(target.javaClass, declaringClass)
+            val key = config.classEntries(owner).firstOrNull()?.key()
+                ?: AugmentorConfig.ANNOTATIONS.takeIf { config.readsAnnotations(owner) }
+                ?: return listOf()
+            return resolver.receiverIds(target, declaringClass, key)
+        }
+
+        /** The only receiver id, or null. */
+        fun receiverId(target: Any, declaringClass: String = target.javaClass.name): NamedId? =
+            receiverIds(target, declaringClass).also { assertTrue(it.size <= 1, "$it") }.singleOrNull()
+
+        fun paramId(value: Any?) = resolver.paramId(value)
+    }
+
+    private fun config(vararg classes: Pair<String, IdSpec>, annotations: Map<String, Boolean> = mapOf()) =
         AugmentorConfig.builder().classes(classes.associate { (key, spec) -> (if ("::" in key) key else "$key::*") to spec })
-            .annotations(annotations).maxValueLength(10).exceptions(mapOf("**" to true)).build(),
-    )
+            .annotations(annotations).maxValueLength(10).exceptions(mapOf("**" to true)).build()
+
+    /** A key without methods gets "::*", all methods. */
+    private fun resolver(vararg classes: Pair<String, IdSpec>, annotations: Map<String, Boolean> = mapOf()) =
+        Resolver(config(*classes, annotations = annotations))
 
     private fun name(type: Class<*>) = type.name
 
-    /** The only receiver id, or null. */
-    private fun IdResolver.receiverId(target: Any, declaringClass: String = target.javaClass.name): NamedId? =
-        receiverIds(target, declaringClass).also { assertTrue(it.size <= 1, "$it") }.singleOrNull()
+    @Test
+    fun `the annotations key reads the annotations, whatever the annotations table says`() {
+        // The instrumentation decided it, e.g. at build time with another configuration.
+        val annotated = Annotated()
+        assertEquals(listOf(NamedId("objectId", "a-1")), IdResolver(config()).receiverIds(annotated, name(Annotated::class.java), AugmentorConfig.ANNOTATIONS))
+        // A key that the configuration does not have gives nothing.
+        assertEquals(listOf<NamedId>(), IdResolver(config()).receiverIds(annotated, name(Annotated::class.java), name(Annotated::class.java) + "::*"))
+    }
 
     @Test
     fun `every annotated member gives an id, fields first, then methods by name, nearest class first`() {

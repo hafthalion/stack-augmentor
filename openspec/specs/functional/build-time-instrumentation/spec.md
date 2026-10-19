@@ -64,8 +64,8 @@ on the first exception that leaves an instrumented method. `stack-augmentor-runt
 configuration. The runtime SHALL NOT match classes against `[augment.receiver]` again: the advice passes the key
 of the entry that decided the method at build time, and the runtime entry with that key SHALL give the receiver
 members. For a method whose receiver members came from the annotations at build time, the advice passes the key `@`,
-and the runtime SHALL use the `@AugmentedReceiver` members only if its own `[augment.annotations]` selects the
-declaring class. A method without receiver members at build time, or whose key the runtime configuration does not have (e.g.
+and the runtime SHALL use the `@AugmentedReceiver` members without checking its own `[augment.annotations]`: the build
+decided where the annotations are read, for the receiver as for the parameters. A method without receiver members at build time, or whose key the runtime configuration does not have (e.g.
 a key changed without rebuilding), SHALL show no receiver members, even if its class is annotated. If creating the handler fails, a warning with the reason SHALL be printed and
 exceptions SHALL keep their original stack traces; an invalid runtime configuration SHALL be printed as an error
 with the file, the key and the line (see the diagnostics specification).
@@ -86,10 +86,10 @@ with the file, the key and the line (see the diagnostics specification).
 - **WHEN** one of its methods throws an exception
 - **THEN** the frame shows the annotated receiver members: the advice passes the key `@`, and both select the class with `"**" = true` in `[augment.annotations]`
 
-#### Scenario: Annotations not selected at runtime
-- **GIVEN** a class with `@Augmented` and `@AugmentedReceiver`, built with `"com.acme.**" = true` in `[augment.annotations]`, and a runtime configuration without that entry
+#### Scenario: The build decides where the annotations are read
+- **GIVEN** a class with `@Augmented`, `@AugmentedReceiver` and `@AugmentedParam`, built with `"com.acme.**" = true` in `[augment.annotations]`, and a runtime configuration without that entry
 - **WHEN** one of its methods throws
-- **THEN** the frame shows no receiver members
+- **THEN** the frame shows the annotated receiver members and parameter values, as the build decided
 
 #### Scenario: Receiver key changed without a rebuild
 - **GIVEN** a class built with `"com.acme.Svc::*" = "id"`, and a runtime configuration with `"com.acme.Svc+::*" = "id"` instead
