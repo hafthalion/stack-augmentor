@@ -27,7 +27,7 @@ class ExceptionCostBenchmark {
         }
         if (logged) {
             val configured = stack.lastLog.lines().any { it.contains("Configured{") }
-            assertEquals(scenario.showsIds && mode != Mode.PLAIN, configured, stack.lastLog.lines().take(3).joinToString("\n"))
+            assertEquals(scenario.showsValues && mode != Mode.PLAIN, configured, stack.lastLog.lines().take(3).joinToString("\n"))
         }
         assertTrue(measurement.median > 0)
         results?.let { write(it, scenario, logged, measurement, stack) }

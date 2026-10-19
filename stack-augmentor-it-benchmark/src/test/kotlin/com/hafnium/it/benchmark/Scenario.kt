@@ -1,7 +1,7 @@
 package com.hafnium.it.benchmark
 
 /**
- * Where in a stack of [frames] frames the exception is caught, and which frames show ids. Depths count from 1 at the
+ * Where in a stack of [frames] frames the exception is caught, and which frames are augmented. Depths count from 1 at the
  * top of the stack to [bottom]. The exception is always created at the bottom, in the deepest frame. With [causes], it is wrapped on its way up: every [wrapEvery] frames, a
  * frame catches it and throws a new exception with it as the cause, so the caught one has a chain of [causes] causes.
  * The stack is then shallower, so that the stack traces of the whole chain hold [FRAMES] frames together, as the single
@@ -50,8 +50,8 @@ enum class Scenario(val configuredEvery: Int, val caughtNearTop: Boolean, val ca
     /** The share of the frames that are configured, e.g. 25%. */
     val configuredPercent: Int get() = if (configuredEvery == 0) 0 else 100 / configuredEvery
 
-    /** Whether frames show ids at all: configured ones, and the exception's class not turned off. */
-    val showsIds: Boolean get() = configuredEvery > 0 && !excluded
+    /** Whether frames are augmented at all: configured ones, and the exception's class not turned off. */
+    val showsValues: Boolean get() = configuredEvery > 0 && !excluded
 
     /** The report's use case: where the exception is caught, and whether its class is turned off. */
     val useCase: String get() = caught + if (excluded) ", exception off" else ""
@@ -79,7 +79,7 @@ enum class Mode(val title: String, val description: String) {
     ),
     LIVE(
         "Agent, live-stack mode",
-        "PR #23's experimental mode: no method is instrumented; when an exception is created, the ids of the configured " +
+        "PR #23's experimental mode: no method is instrumented; when an exception is created, the values of the configured " +
             "frames are read from the live stack with the native library.",
     );
 

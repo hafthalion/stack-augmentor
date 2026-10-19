@@ -1,7 +1,7 @@
 package com.hafnium.stackaugmentor.instrument;
 
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
-import com.hafnium.stackaugmentor.runtime.config.IdSpec;
+import com.hafnium.stackaugmentor.runtime.config.ReceiverSpec;
 import net.bytebuddy.description.method.MethodDescription;
 import net.bytebuddy.description.type.TypeDefinition;
 import net.bytebuddy.description.type.TypeDescription;
@@ -27,7 +27,7 @@ final class ClassEntries {
 
         /** {@code "-"}: no receiver members. */
         boolean excluded() {
-            return entry.spec() instanceof IdSpec.Excluded;
+            return entry.spec() instanceof ReceiverSpec.Excluded;
         }
     }
 

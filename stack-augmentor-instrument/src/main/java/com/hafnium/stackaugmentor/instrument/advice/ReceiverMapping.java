@@ -10,50 +10,50 @@ import net.bytebuddy.implementation.bytecode.constant.TextConstant;
 import net.bytebuddy.implementation.bytecode.member.MethodVariableAccess;
 
 /**
- * Binds {@code @IdReceiver Object} to {@code this} and {@code @IdReceiverKey String} to the key of the deciding
- * {@code [augment.receiver]} entry in the methods whose frames show receiver ids ({@link TypeMatching#receiverEntry}),
+ * Binds {@code @Receiver Object} to {@code this} and {@code @ReceiverKey String} to the key of the deciding
+ * {@code [augment.receiver]} entry in the methods whose frames show receiver members ({@link TypeMatching#receiverEntry}),
  * and both to {@code null} in the others, e.g. the methods that no entry's {@code ::} names, which are instrumented for
- * their parameter ids only.
+ * their parameter values only.
  */
-public final class IdReceiverMapping {
+public final class ReceiverMapping {
 
-    private IdReceiverMapping() {
+    private ReceiverMapping() {
     }
 
-    /** The binding of {@code @IdReceiver}. */
-    public static Advice.OffsetMapping.Factory<IdReceiver> receiver(TypeMatching matching) {
+    /** The binding of {@code @Receiver}. */
+    public static Advice.OffsetMapping.Factory<Receiver> receiver(TypeMatching matching) {
         return new Advice.OffsetMapping.Factory<>() {
             @Override
-            public Class<IdReceiver> getAnnotationType() {
-                return IdReceiver.class;
+            public Class<Receiver> getAnnotationType() {
+                return Receiver.class;
             }
 
             @Override
             public Advice.OffsetMapping make(ParameterDescription.InDefinedShape target,
-                                             AnnotationDescription.Loadable<IdReceiver> annotation,
+                                             AnnotationDescription.Loadable<Receiver> annotation,
                                              AdviceType adviceType) {
                 return (instrumentedType, instrumentedMethod, assigner, argumentHandler, sort) ->
-                        new Advice.OffsetMapping.Target.ForStackManipulation(matching.receiverIds(instrumentedType, instrumentedMethod)
+                        new Advice.OffsetMapping.Target.ForStackManipulation(matching.showsReceiver(instrumentedType, instrumentedMethod)
                                 ? MethodVariableAccess.loadThis()
                                 : NullConstant.INSTANCE);
             }
         };
     }
 
-    /** The binding of {@code @IdReceiverKey}. */
-    public static Advice.OffsetMapping.Factory<IdReceiverKey> key(TypeMatching matching) {
+    /** The binding of {@code @ReceiverKey}. */
+    public static Advice.OffsetMapping.Factory<ReceiverKey> key(TypeMatching matching) {
         return new Advice.OffsetMapping.Factory<>() {
             @Override
-            public Class<IdReceiverKey> getAnnotationType() {
-                return IdReceiverKey.class;
+            public Class<ReceiverKey> getAnnotationType() {
+                return ReceiverKey.class;
             }
 
             @Override
             public Advice.OffsetMapping make(ParameterDescription.InDefinedShape target,
-                                             AnnotationDescription.Loadable<IdReceiverKey> annotation,
+                                             AnnotationDescription.Loadable<ReceiverKey> annotation,
                                              AdviceType adviceType) {
                 return (instrumentedType, instrumentedMethod, assigner, argumentHandler, sort) -> {
-                    AugmentorConfig.ClassEntry entry = matching.receiverEntry(instrumentedType, instrumentedMethod);
+                    AugmentorConfig.ReceiverEntry entry = matching.receiverEntry(instrumentedType, instrumentedMethod);
                     return new Advice.OffsetMapping.Target.ForStackManipulation(entry != null
                             ? new TextConstant(entry.key())
                             : NullConstant.INSTANCE);

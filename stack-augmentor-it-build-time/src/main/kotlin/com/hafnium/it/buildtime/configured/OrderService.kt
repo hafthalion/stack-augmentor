@@ -1,6 +1,6 @@
 package com.hafnium.it.buildtime.configured
 
-// Classes without annotations, as if they could not be annotated: their ids come from stack-augmentor.toml.
+// Classes without annotations, as if they could not be annotated: their receiver members and parameters come from stack-augmentor.toml.
 
 class Order(private val orderNumber: Long) {
     fun getOrderNumber(): Long = orderNumber
@@ -29,14 +29,14 @@ class InventoryService(private val audit: InventoryAudit) {
     }
 }
 
-/** Matched by the Inventory* entry, but its own "-" entry comes first: no parameter ids. */
+/** Matched by the Inventory* entry, but its own "-" entry comes first: no parameter values. */
 class InventoryAudit {
     fun record(sku: String, count: Int, order: Order) {
         order.ship(Customer("c-9"))
     }
 }
 
-/** Constructors are selected by "<init>": parameter ids, never a receiver id. */
+/** Constructors are selected by "<init>": parameter values, never receiver members. */
 class Shipment(orderId: Long, weight: Double, note: String) {
     init {
         require(weight > 0) { "weight" }

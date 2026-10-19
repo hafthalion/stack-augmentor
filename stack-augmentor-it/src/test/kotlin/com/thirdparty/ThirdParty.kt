@@ -1,6 +1,6 @@
 package com.thirdparty
 
-// Stand-ins for library classes: no annotations, ids come from the agent configuration.
+// Stand-ins for library classes: no annotations, receiver members and parameters come from the agent configuration.
 
 class Order(private val orderNumber: Long) {
     fun getOrderNumber(): Long = orderNumber
@@ -11,7 +11,7 @@ open class Customer(private val customerId: String) {
     fun rename(): Nothing = throw IllegalStateException("cannot rename")
 }
 
-/** A list of receiver ids: "tenant, lineId()". */
+/** A list of receiver members: "tenant, lineId()". */
 class OrderLine(private val tenant: String, private val lineId: Int) {
     fun lineId(): Int = lineId
 
@@ -36,7 +36,7 @@ open class SavingsAccount(private val number: String) {
     fun withdraw(): Nothing = throw IllegalStateException("cannot withdraw")
 }
 
-/** Hashed parameter ids: "#" after a name or an index. */
+/** Hashed parameter values: "#" after a name or an index. */
 class UserService {
     fun invite(user: String, email: String, attempt: Int): Nothing = throw IllegalStateException("invite")
 }

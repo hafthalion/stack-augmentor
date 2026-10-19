@@ -1,6 +1,6 @@
 package com.hafnium.stackaugmentor.agent.instrument;
 
-import com.hafnium.stackaugmentor.instrument.IdParameters;
+import com.hafnium.stackaugmentor.instrument.ParamSelection;
 import com.hafnium.stackaugmentor.instrument.TypeMatching;
 import com.hafnium.stackaugmentor.instrument.advice.ConstructorExit;
 import com.hafnium.stackaugmentor.instrument.advice.ExitAdviceFactory;
@@ -10,8 +10,8 @@ import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
 import com.hafnium.stackaugmentor.runtime.config.Startup;
 import com.hafnium.stackaugmentor.runtime.handler.StackTraces;
 import com.hafnium.stackaugmentor.runtime.handler.ThrowHandler;
-import com.hafnium.stackaugmentor.runtime.ids.FrameFormat;
-import com.hafnium.stackaugmentor.runtime.ids.IdResolver;
+import com.hafnium.stackaugmentor.runtime.values.FrameFormat;
+import com.hafnium.stackaugmentor.runtime.values.ValueResolver;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.description.method.MethodDescription;
@@ -35,9 +35,9 @@ public final class ClassInstrumentation {
     public static void install(Instrumentation instrumentation, AugmentorConfig config, FrameFormat format, boolean javaLangOpen) {
         StackTraces stackTraces = Startup.load(Startup.AGENT, () -> StackTraces.configured(config,
                 javaLangOpen ? "but it is not" : "but the agent cannot open it"));
-        Dispatch.install(new ThrowHandler(new IdResolver(config), format, stackTraces));
+        Dispatch.install(new ThrowHandler(new ValueResolver(config), format, stackTraces));
 
-        IdParameters parameters = new IdParameters(config);
+        ParamSelection parameters = new ParamSelection(config);
         TypeMatching matching = new TypeMatching(config, parameters);
         Advice advice = ExitAdviceFactory.create(matching, parameters);
 

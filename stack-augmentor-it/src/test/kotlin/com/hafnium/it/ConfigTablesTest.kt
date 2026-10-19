@@ -44,13 +44,13 @@ class ConfigTablesTest {
     }
 
     @Test
-    fun `a list of members gives several receiver ids`() {
+    fun `a list of members shows each of them`() {
         val frame = frame("OrderLine(\"acme\", 3).cancel()", OrderLine("acme", 3)) { it.cancel() }
         assertEquals("com.thirdparty.OrderLine{tenant=acme, lineId=3}", frame.className)
     }
 
     @Test
-    fun `several @AugmentedReceiver members give several receiver ids`() {
+    fun `several @AugmentedReceiver members are all shown`() {
         assertEquals("com.hafnium.it.fixtures.MultiKeyed{tenant=acme, orderId=42}", frame("MultiKeyed().fail()", MultiKeyed()) { it.fail() }.className)
     }
 
@@ -117,7 +117,7 @@ class ConfigTablesTest {
 
     @Test
     fun `a class name without plus does not apply to subclasses, with plus it does`() {
-        // "com.thirdparty.Customer::*" has no "+": the methods VipCustomer declares show no receiver id, those it
+        // "com.thirdparty.Customer::*" has no "+": the methods VipCustomer declares show no receiver member, those it
         // inherits from Customer do.
         assertEquals("com.hafnium.it.outside.VipCustomer", frame("VipCustomer(\"C-9\").upgrade()", VipCustomer("C-9")) { it.upgrade() }.className)
         assertEquals("com.thirdparty.Customer{customerId=C-9}", frame("VipCustomer(\"C-9\").rename()", VipCustomer("C-9")) { it.rename() }.className)
@@ -133,7 +133,7 @@ class ConfigTablesTest {
     }
 
     @Test
-    fun `a '-' class entry drops the receiver id only`() {
+    fun `a '-' class entry drops the receiver members only`() {
         val frame = frame("Ignored().fail(3)", Ignored()) { it.fail(3) }
         assertEquals("com.hafnium.it.fixtures.ignored.Ignored", frame.className)
         // The parameter annotations are enabled by [augment.params], independently.

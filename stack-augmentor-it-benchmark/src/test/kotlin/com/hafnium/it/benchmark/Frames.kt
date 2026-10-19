@@ -21,7 +21,7 @@ class ExcludedException private constructor(cause: BenchmarkException?, wraps: I
     constructor(cause: BenchmarkException) : this(cause, cause.wraps + 1)
 }
 
-/** A frame that shows ids: the receiver's name and the depth. */
+/** An augmented frame: the receiver's name and the depth. */
 @Augmented
 class Configured(@AugmentedReceiver private val name: String) {
     fun step(@AugmentedParam depth: Int, stack: Stack): Int = stack.next(depth)

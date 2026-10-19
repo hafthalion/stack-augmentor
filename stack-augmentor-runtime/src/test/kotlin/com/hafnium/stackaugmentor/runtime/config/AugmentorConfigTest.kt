@@ -71,8 +71,8 @@ class AugmentorConfigTest {
                 .annotations(mapOf("com.hafnium.generated.**" to false, "com.hafnium.**" to true))
                 .classes(
                     mapOf(
-                        "com.thirdparty.Order+::*" to IdSpec.MethodSpec("getOrderNumber"),
-                        "com.thirdparty.Customer::*" to IdSpec.FieldSpec("customerId"),
+                        "com.thirdparty.Order+::*" to ReceiverSpec.MethodSpec("getOrderNumber"),
+                        "com.thirdparty.Customer::*" to ReceiverSpec.FieldSpec("customerId"),
                     ),
                 )
                 .methods(
@@ -168,20 +168,20 @@ class AugmentorConfigTest {
             "com.acme.legacy.Thing::*" = "never"
             """,
         )
-        val code = IdSpec.FieldSpec("code")
+        val code = ReceiverSpec.FieldSpec("code")
         fun spec(className: String) = config.entryOf(className)?.spec()
 
-        assertEquals(IdSpec.FieldSpec("id"), spec("com.hafnium.ObjectClass"))
-        assertEquals(IdSpec.FieldSpec("id"), spec("com.hafnium.deep.pkg.ObjectClass\$Inner"))
+        assertEquals(ReceiverSpec.FieldSpec("id"), spec("com.hafnium.ObjectClass"))
+        assertEquals(ReceiverSpec.FieldSpec("id"), spec("com.hafnium.deep.pkg.ObjectClass\$Inner"))
         assertNull(spec("com.hafniumx.Other"))
         assertNull(spec("comXhafnium.Other"))
         // '*' stays within one package segment.
-        assertEquals(IdSpec.MethodSpec("getKey"), spec("com.acme.legacy.Other"))
+        assertEquals(ReceiverSpec.MethodSpec("getKey"), spec("com.acme.legacy.Other"))
         assertEquals(code, spec("com.acme.legacy.sub.Thing"))
         // The first entry wins, however specific the later ones are.
-        assertEquals(IdSpec.FieldSpec("orderId"), spec("com.acme.Order"))
+        assertEquals(ReceiverSpec.FieldSpec("orderId"), spec("com.acme.Order"))
         assertEquals(code, spec("com.acme.Orders"))
-        assertEquals(IdSpec.MethodSpec("getKey"), spec("com.acme.legacy.Thing"))
+        assertEquals(ReceiverSpec.MethodSpec("getKey"), spec("com.acme.legacy.Thing"))
         assertEquals("com.acme.legacy.*::*", config.entryOf("com.acme.legacy.Thing")!!.key())
         assertTrue(config.entryOf("com.acme.legacy.Thing")!!.isPattern())
         assertFalse(config.entryOf("com.acme.Order")!!.isPattern())
@@ -208,20 +208,20 @@ class AugmentorConfigTest {
             """,
         )
         // The pattern matches Entity only; the class name with + matches Entity's subclasses too.
-        assertEquals(IdSpec.Excluded(), config.entryOf(Entity::class.java)!!.spec())
-        assertEquals(IdSpec.FieldSpec("id"), config.entryOf(Customer::class.java)!!.spec())
+        assertEquals(ReceiverSpec.Excluded(), config.entryOf(Entity::class.java)!!.spec())
+        assertEquals(ReceiverSpec.FieldSpec("id"), config.entryOf(Customer::class.java)!!.spec())
         assertEquals("$entity+::*", config.entryOf(Customer::class.java)!!.key())
         // An interface's name with + matches the interface and the classes implementing it.
-        assertEquals(IdSpec.MethodSpec("key"), config.entryOf(Identified::class.java)!!.spec())
-        assertEquals(IdSpec.MethodSpec("key"), parse("[augment.receiver]\n\"$identified+::*\" = \"key()\"").entryOf(Customer::class.java)!!.spec())
+        assertEquals(ReceiverSpec.MethodSpec("key"), config.entryOf(Identified::class.java)!!.spec())
+        assertEquals(ReceiverSpec.MethodSpec("key"), parse("[augment.receiver]\n\"$identified+::*\" = \"key()\"").entryOf(Customer::class.java)!!.spec())
         assertNull(config.entryOf(String::class.java))
         // Without + the class only.
         val exact = parse("[augment.receiver]\n\"$entity::*\" = \"id\"\n\"$identified::*\" = \"key()\"")
-        assertEquals(IdSpec.FieldSpec("id"), exact.entryOf(Entity::class.java)!!.spec())
+        assertEquals(ReceiverSpec.FieldSpec("id"), exact.entryOf(Entity::class.java)!!.spec())
         assertNull(exact.entryOf(Customer::class.java))
-        assertEquals(IdSpec.MethodSpec("key"), exact.entryOf(Identified::class.java)!!.spec())
+        assertEquals(ReceiverSpec.MethodSpec("key"), exact.entryOf(Identified::class.java)!!.spec())
         // By name: the predicate says which supertypes the class has.
-        assertEquals(IdSpec.FieldSpec("id"), config.classEntries("com.acme.Other") { it == "com.acme.Other" || it == entity }.first().spec())
+        assertEquals(ReceiverSpec.FieldSpec("id"), config.classEntries("com.acme.Other") { it == "com.acme.Other" || it == entity }.first().spec())
         // + needs a class name: a pattern matches class names only.
         assertTrue(error("[augment.receiver]\n\"com.acme.*+::*\" = \"id\"").contains("+ after the class includes its subclasses, so it needs a class name without wildcards"))
         assertTrue(AugmentorConfig.isA(Customer::class.java, identified))
@@ -232,7 +232,7 @@ class AugmentorConfigTest {
     fun `a receiver entry may list several fields and methods`() {
         val config = parse("[augment.receiver]\n\"com.acme.OrderLine::*\" = \"tenant, lineId()\"")
         assertEquals(
-            IdSpec.MemberList(listOf(IdSpec.FieldSpec("tenant"), IdSpec.MethodSpec("lineId"))),
+            ReceiverSpec.MemberList(listOf(ReceiverSpec.FieldSpec("tenant"), ReceiverSpec.MethodSpec("lineId"))),
             config.entryOf("com.acme.OrderLine")?.spec(),
         )
         assertEquals("com.acme.OrderLine::*=[tenant, lineId()]", config.classesDescription())
@@ -241,7 +241,7 @@ class AugmentorConfigTest {
         assertTrue(error("[augment.receiver]\n\"com.acme.A::*\" = [\"id\"]").contains("must be a string"))
         // Spaces around the items do not matter.
         assertEquals(
-            IdSpec.MemberList(listOf(IdSpec.FieldSpec("tenant"), IdSpec.MethodSpec("lineId"))),
+            ReceiverSpec.MemberList(listOf(ReceiverSpec.FieldSpec("tenant"), ReceiverSpec.MethodSpec("lineId"))),
             parse("[augment.receiver]\n\"com.acme.OrderLine::*\" = \"tenant,lineId() \"").entryOf("com.acme.OrderLine")?.spec(),
         )
         assertTrue(error("[augment.receiver]\n\"com.acme.A::*\" = \"id, @\"").contains("invalid receiver member '@'"))
@@ -265,7 +265,7 @@ class AugmentorConfigTest {
             config.classes().keys.toList(),
         )
         val order = config.classEntry("com.acme.Order::ship, cancel*")!!
-        assertEquals(IdSpec.MemberList(listOf(IdSpec.FieldSpec("id"), IdSpec.MethodSpec("code"))), order.spec())
+        assertEquals(ReceiverSpec.MemberList(listOf(ReceiverSpec.FieldSpec("id"), ReceiverSpec.MethodSpec("code"))), order.spec())
         assertEquals("com.acme.Order", order.className())
         assertEquals(listOf("ship", "cancel*"), order.methods())
         assertTrue(order.appliesTo("ship"))
@@ -292,7 +292,7 @@ class AugmentorConfigTest {
         assertTrue(error("[augment.receiver]\n\"com.acme.A::a,,b\" = \"id\"").contains("keys must name a class and its methods"))
         assertTrue(error("[augment.receiver]\n\"com.acme.A::ship()\" = \"id\"").contains("keys must name a class and its methods"))
         assertTrue(error("[augment.receiver]\n\"com.acme.A::a::b\" = \"id\"").contains("keys must name a class and its methods"))
-        // Constructors show no receiver id.
+        // Constructors show no receiver members.
         val constructor = error("[augment.receiver]\n\"com.acme.A::<init>\" = \"id\"")
         assertTrue(constructor.contains("keys must name a class and its methods") && !constructor.contains("<init>"), constructor)
         assertTrue(error("[augment.receiver]\n\"::a\" = \"id\"").contains("keys must name a class and its methods"))
@@ -553,9 +553,9 @@ class AugmentorConfigTest {
             """,
         )
         // [augment.receiver]: the first matching entry decides, "-" included.
-        assertEquals(IdSpec.FieldSpec("code"), config.entryOf("com.acme.Order")!!.spec())
-        assertEquals(IdSpec.Excluded(), config.entryOf("com.acme.generated.Gen")!!.spec())
-        assertEquals(IdSpec.FieldSpec("id"), config.entryOf("com.acme.generated.Keep")!!.spec())
+        assertEquals(ReceiverSpec.FieldSpec("code"), config.entryOf("com.acme.Order")!!.spec())
+        assertEquals(ReceiverSpec.Excluded(), config.entryOf("com.acme.generated.Gen")!!.spec())
+        assertEquals(ReceiverSpec.FieldSpec("id"), config.entryOf("com.acme.generated.Keep")!!.spec())
 
         // [augment.params]: the first matching entry decides, "-" included; entries are not combined.
         // The exact entry for charge comes after a matching pattern, so it never applies.

@@ -3,8 +3,8 @@ package com.hafnium.stackaugmentor.instrument;
 import com.hafnium.stackaugmentor.instrument.advice.ConstructorExit;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
-import com.hafnium.stackaugmentor.runtime.config.IdSpec;
-import com.hafnium.stackaugmentor.runtime.ids.IdResolver;
+import com.hafnium.stackaugmentor.runtime.config.ReceiverSpec;
+import com.hafnium.stackaugmentor.runtime.values.ValueResolver;
 import net.bytebuddy.description.field.FieldDescription;
 import net.bytebuddy.description.method.MethodDescription;
 import net.bytebuddy.description.type.TypeDescription;
@@ -19,7 +19,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.hafnium.stackaugmentor.instrument.ClassEntries.firstInHierarchy;
-import static com.hafnium.stackaugmentor.instrument.IdParameters.annotation;
+import static com.hafnium.stackaugmentor.instrument.ParamSelection.annotation;
 import static net.bytebuddy.matcher.ElementMatchers.isSynthetic;
 import static net.bytebuddy.matcher.ElementMatchers.nameStartsWith;
 
@@ -40,10 +40,10 @@ public final class TypeMatching {
     public static final ElementMatcher.Junction<TypeDescription> IGNORED = ignored();
 
     private final AugmentorConfig config;
-    private final IdParameters parameters;
+    private final ParamSelection parameters;
     private final ClassEntries classEntries;
 
-    public TypeMatching(AugmentorConfig config, IdParameters parameters) {
+    public TypeMatching(AugmentorConfig config, ParamSelection parameters) {
         this.config = config;
         this.parameters = parameters;
         this.classEntries = new ClassEntries(config);
@@ -53,8 +53,8 @@ public final class TypeMatching {
         if (type.isAnnotation()) {
             return false;
         }
-        // The receiver ids and the parameter ids are configured independently; either one needs the advice.
-        boolean instrument = hasReceiverMethods(type) || hasIdParameters(type);
+        // The receiver members and the parameter values are configured independently; either one needs the advice.
+        boolean instrument = hasReceiverMethods(type) || hasSelectedParams(type);
         if (Log.isDebug()) {
             for (String message : parameters.unmatchedEntries(type)) {
                 Log.debug(() -> message);
@@ -82,11 +82,11 @@ public final class TypeMatching {
         return ignored;
     }
 
-    /** One line for the debug log: why the type is instrumented, and which methods get which parameter ids. */
+    /** One line for the debug log: why the type is instrumented, and which methods show which parameters. */
     public String describe(TypeDescription type, ElementMatcher<MethodDescription> methods) {
-        Set<AugmentorConfig.ClassEntry> used = new HashSet<>();
+        Set<AugmentorConfig.ReceiverEntry> used = new HashSet<>();
         for (MethodDescription method : type.getDeclaredMethods()) {
-            AugmentorConfig.ClassEntry entry = receiverEntry(type, method);
+            AugmentorConfig.ReceiverEntry entry = receiverEntry(type, method);
             if (entry != null && methods.matches(method)) {
                 used.add(entry);
             }
@@ -104,16 +104,16 @@ public final class TypeMatching {
             if (!methods.matches(method) && !constructors.matches(method)) {
                 continue;
             }
-            List<IdParameter> params = parameters.select(type, method);
+            List<SelectedParam> params = parameters.select(type, method);
             instrumented.add(params.isEmpty()
                     ? method.getInternalName()
-                    : method.getInternalName() + "{" + params.stream().map(IdParameter::label).collect(Collectors.joining(", ")) + "}");
+                    : method.getInternalName() + "{" + params.stream().map(SelectedParam::label).collect(Collectors.joining(", ")) + "}");
         }
         return "instrumenting " + type.getName() + " (" + reason + "): " + String.join(", ", instrumented);
     }
 
     /**
-     * Instance methods get a receiver id; other methods are only instrumented for their id parameters.
+     * Instance methods show receiver members; other methods are only instrumented for their selected parameters.
      *
      * <p>Only the methods that the type declares, checked by their name and descriptor: ByteBuddy may offer a
      * method of the type's class file as the method it resolves to. Kotlin compiles a class that inherits an
@@ -129,13 +129,13 @@ public final class TypeMatching {
         }
         return offered -> {
             MethodDescription method = declared.get(signature(offered));
-            return method != null && (receiverIds(type, method) || !parameters.select(type, method).isEmpty());
+            return method != null && (showsReceiver(type, method) || !parameters.select(type, method).isEmpty());
         };
     }
 
     /**
-     * Constructors are only instrumented for their id parameters, never for a receiver id: {@code this} is not usable
-     * where they throw. See {@link ConstructorExit}.
+     * Constructors are only instrumented for their selected parameters, never for receiver members: {@code this} is not
+     * usable where they throw. See {@link ConstructorExit}.
      */
     public ElementMatcher<MethodDescription> constructors(TypeDescription type) {
         Map<String, MethodDescription> declared = new HashMap<>();
@@ -152,11 +152,11 @@ public final class TypeMatching {
     }
 
     /**
-     * Whether frames of this method show a receiver id: a method, not a constructor, that is not static, of a type whose
-     * deciding {@code [augment.receiver]} entry gives ids for this method. For the agent's live-stack mode, which reads
-     * the frames of methods that it does not instrument.
+     * Whether frames of this method show receiver members: a method, not a constructor, that is not static, of a type
+     * whose deciding {@code [augment.receiver]} entry names receiver members for this method. For the agent's live-stack
+     * mode, which reads the frames of methods that it does not instrument.
      */
-    public boolean receiverIds(TypeDescription type, MethodDescription method) {
+    public boolean showsReceiver(TypeDescription type, MethodDescription method) {
         return receiverEntry(type, method) != null;
     }
 
@@ -167,7 +167,7 @@ public final class TypeMatching {
      * the type, {@code @Augmented} the method, and the type or one of its superclasses has an
      * {@code @AugmentedReceiver} member.
      */
-    public AugmentorConfig.ClassEntry receiverEntry(TypeDescription type, MethodDescription method) {
+    public AugmentorConfig.ReceiverEntry receiverEntry(TypeDescription type, MethodDescription method) {
         if (!isCandidate(method) || method.isStatic()) {
             return null;
         }
@@ -194,22 +194,22 @@ public final class TypeMatching {
         return last.annotated();
     }
 
-    /** Whether a method the type declares shows the receiver ids. */
+    /** Whether a method the type declares shows receiver members. */
     private boolean hasReceiverMethods(TypeDescription type) {
         for (MethodDescription method : type.getDeclaredMethods()) {
-            if (receiverIds(type, method)) {
+            if (showsReceiver(type, method)) {
                 return true;
             }
         }
         return false;
     }
 
-    /** The id parameters that frames of this method or constructor show. For the agent's live-stack mode. */
-    public List<IdParameter> idParameters(TypeDescription type, MethodDescription method) {
+    /** The selected parameters that frames of this method or constructor show. For the agent's live-stack mode. */
+    public List<SelectedParam> selectedParams(TypeDescription type, MethodDescription method) {
         return isCandidate(method) || isConstructorCandidate(method) ? parameters.select(type, method) : List.of();
     }
 
-    private boolean hasIdParameters(TypeDescription type) {
+    private boolean hasSelectedParams(TypeDescription type) {
         for (MethodDescription method : type.getDeclaredMethods()) {
             if ((isCandidate(method) || isConstructorCandidate(method)) && !parameters.select(type, method).isEmpty()) {
                 return true;
@@ -235,7 +235,7 @@ public final class TypeMatching {
         }
         List<String> methods = new ArrayList<>();
         for (MethodDescription method : type.getDeclaredMethods()) {
-            if ((isCandidate(method) || isConstructorCandidate(method)) && IdParameters.hasParameterAnnotations(method)
+            if ((isCandidate(method) || isConstructorCandidate(method)) && ParamSelection.hasParameterAnnotations(method)
                     && !parameters.annotationsUsed(type, method)) {
                 methods.add(method.getInternalName());
             }
@@ -257,18 +257,18 @@ public final class TypeMatching {
     }
 
     /**
-     * Has a receiver id source: a field or a usable method ({@link IdResolver#isUsableIdMethod}) with
+     * Has a receiver member: a field or a usable method ({@link ValueResolver#isUsableReceiverMethod}) with
      * {@code @AugmentedReceiver}, as Kotlin properties have on their field.
      */
     private static boolean hasAnnotatedMember(TypeDescription type) {
         for (FieldDescription field : type.getDeclaredFields()) {
-            if (!field.isStatic() && annotation(field.getDeclaredAnnotations(), IdResolver.AUGMENTED_RECEIVER) != null) {
+            if (!field.isStatic() && annotation(field.getDeclaredAnnotations(), ValueResolver.AUGMENTED_RECEIVER) != null) {
                 return true;
             }
         }
         for (MethodDescription method : type.getDeclaredMethods()) {
-            if (method.isMethod() && IdResolver.isUsableIdMethod(method.isStatic(), method.getParameters().size(), method.isSynthetic())
-                    && annotation(method.getDeclaredAnnotations(), IdResolver.AUGMENTED_RECEIVER) != null) {
+            if (method.isMethod() && ValueResolver.isUsableReceiverMethod(method.isStatic(), method.getParameters().size(), method.isSynthetic())
+                    && annotation(method.getDeclaredAnnotations(), ValueResolver.AUGMENTED_RECEIVER) != null) {
                 return true;
             }
         }

@@ -1,8 +1,8 @@
-package com.hafnium.stackaugmentor.runtime.ids;
+package com.hafnium.stackaugmentor.runtime.values;
 
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
-import com.hafnium.stackaugmentor.runtime.config.IdSpec;
+import com.hafnium.stackaugmentor.runtime.config.ReceiverSpec;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
@@ -22,12 +22,13 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * Turns objects into ids: receivers through the id source of a class, looked up once and cached, and arguments
- * through their text. Every id is converted to a String right away, so no references to live objects are kept.
+ * Turns objects into values: receivers through the receiver members of a class, looked up once and cached, and
+ * arguments through their text. Every value is converted to a String right away, so no references to live objects
+ * are kept.
  */
-public final class IdResolver {
+public final class ValueResolver {
 
-    /** Name of the id annotation. Matched by name, because the application may load its own copy of the API. */
+    /** Name of the annotation that marks a receiver member. Matched by name, because the application may load its own copy of the API. */
     public static final String AUGMENTED_RECEIVER = "com.hafnium.stackaugmentor.AugmentedReceiver";
 
     /** Name of the annotation that selects one parameter. */
@@ -42,7 +43,7 @@ public final class IdResolver {
      */
     public static final String AUGMENTED = "com.hafnium.stackaugmentor.Augmented";
 
-    /** The hex digits of a hashed parameter id. */
+    /** The hex digits of a hashed parameter value. */
     private static final int HASH_LENGTH = 8;
 
     private static final Pattern LINE_BREAKS = Pattern.compile("[\\r\\n]+");
@@ -90,7 +91,7 @@ public final class IdResolver {
 
     private final AugmentorConfig config;
 
-    /** Per class, its id sources by {@code [augment.receiver]} key. */
+    /** Per class, its receiver members by {@code [augment.receiver]} key. */
     private final ClassValue<Map<String, List<Source>>> sources = new ClassValue<>() {
         @Override
         protected Map<String, List<Source>> computeValue(Class<?> type) {
@@ -98,7 +99,7 @@ public final class IdResolver {
         }
     };
 
-    public IdResolver(AugmentorConfig config) {
+    public ValueResolver(AugmentorConfig config) {
         this.config = config;
     }
 
@@ -108,19 +109,18 @@ public final class IdResolver {
     }
 
     /**
-     * The ids of the object a frame runs on, one per id source, in the configured order; empty if there is no id
-     * source. The id sources are those of the
-     * class declaring the frame's method, not of the object's runtime class: a subclass, e.g. a proxy or a mock, shows
-     * the ids of the class whose method it runs, and a default method shows the ids of its interface's entry. Their
-     * members are read from the object.
+     * The receiver members of the object a frame runs on, in the configured order; empty if there are none. They are
+     * those of the class declaring the frame's method, not of the object's runtime class: a subclass, e.g. a proxy or a
+     * mock, shows the members of the class whose method it runs, and a default method shows those of its interface's
+     * entry. Their values are read from the object.
      *
      * @param declaringClass the name of the class that declares the method
      * @param entryKey       the key of the frame's deciding {@code [augment.receiver]} entry, which the instrumentation
-     *                       found, or {@link AugmentorConfig#ANNOTATIONS} for the annotations; no ids if the configuration
+     *                       found, or {@link AugmentorConfig#ANNOTATIONS} for the annotations; none if the configuration
      *                       has no entry with this key
      */
-    public List<NamedId> receiverIds(Object target, String declaringClass, String entryKey) {
-        AugmentorConfig.ClassEntry entry = config.receiverEntry(entryKey);
+    public List<NamedValue> receiverValues(Object target, String declaringClass, String entryKey) {
+        AugmentorConfig.ReceiverEntry entry = config.receiverEntry(entryKey);
         if (entry == null) {
             return List.of();
         }
@@ -136,11 +136,11 @@ public final class IdResolver {
         if (found.isEmpty()) {
             return List.of();
         }
-        List<NamedId> ids = new ArrayList<>(found.size());
+        List<NamedValue> values = new ArrayList<>(found.size());
         for (Source source : found) {
-            ids.add(new NamedId(source.name(), read(source, target)));
+            values.add(new NamedValue(source.name(), read(source, target)));
         }
-        return ids;
+        return values;
     }
 
     /**
@@ -166,19 +166,19 @@ public final class IdResolver {
     }
 
     /**
-     * The id of an argument: its text, from {@code toString()} (arrays with their elements). The receiver id sources
+     * The value of an argument: its text, from {@code toString()} (arrays with their elements). The receiver members
      * of its class are not used.
      */
-    public String paramId(Object value) {
+    public String paramValue(Object value) {
         return guarded(() -> text(value));
     }
 
     /**
-     * The id of an argument selected with {@code #}: {@code #} and the first 8 hex digits of the SHA-256 of its text,
+     * The value of an argument selected with {@code #}: {@code #} and the first 8 hex digits of the SHA-256 of its text,
      * e.g. {@code #5d41402a}. The same value gives the same hash, so it can be followed across log lines and
      * incidents without being shown. {@code null} stays {@code null}.
      */
-    public String hashedParamId(Object value) {
+    public String hashedParamValue(Object value) {
         return guarded(() -> value == null ? "null" : hash(text(value)));
     }
 
@@ -197,7 +197,7 @@ public final class IdResolver {
         return hex.toString();
     }
 
-    /** A receiver id is shown like an argument, e.g. an array with its elements. */
+    /** A receiver member is shown like an argument, e.g. an array with its elements. */
     private String read(Source source, Object target) {
         return guarded(() -> text(source.read(target)));
     }
@@ -225,7 +225,7 @@ public final class IdResolver {
 
     /**
      * One line, capped at {@code maxValueLength}. Parentheses become braces: IDEs find the file and line of a frame by its
-     * {@code (File.java:12)}, which parentheses in an id, e.g. from a data class's {@code toString()}, would confuse.
+     * {@code (File.java:12)}, which parentheses in a value, e.g. from a data class's {@code toString()}, would confuse.
      */
     private String sanitize(String text) {
         String braced = oneLineBraced(text);
@@ -234,24 +234,26 @@ public final class IdResolver {
     }
 
     /**
-     * The id sources that the deciding {@code [augment.receiver]} entry names ({@link AugmentorConfig#classEntry(Class,
+     * The receiver members that the deciding {@code [augment.receiver]} entry names ({@link AugmentorConfig#classEntry(Class,
      * String)}): its fields and methods, or for {@link AugmentorConfig#ANNOTATION_ENTRY} the {@code @AugmentedReceiver}
      * members, looked up in the class and its superclasses, or in an interface and the interfaces it extends. With
      * {@code "-"}, none, even if the class is annotated.
      */
-    private List<Source> findSources(Class<?> type, AugmentorConfig.ClassEntry entry) {
-        return switch (entry.spec()) {
-            case IdSpec.Annotations annotations -> annotatedSources(type);
-            case IdSpec.Excluded excluded -> List.of();
-            case IdSpec.MemberSpec spec -> sources(type, entry, List.of(spec));
-            case IdSpec.MemberList list -> sources(type, entry, list.members());
+    private List<Source> findSources(Class<?> type, AugmentorConfig.ReceiverEntry entry) {
+        return switch (entry) {
+            case AugmentorConfig.AnnotationEntry annotations -> annotatedSources(type);
+            case AugmentorConfig.ClassEntry configured -> switch (configured.spec()) {
+                case ReceiverSpec.Excluded excluded -> List.of();
+                case ReceiverSpec.MemberSpec spec -> sources(type, configured, List.of(spec));
+                case ReceiverSpec.MemberList list -> sources(type, configured, list.members());
+            };
         };
     }
 
     /** The configured members that are found; a missing one is reported and left out. */
-    private List<Source> sources(Class<?> owner, AugmentorConfig.ClassEntry entry, List<IdSpec.MemberSpec> members) {
+    private List<Source> sources(Class<?> owner, AugmentorConfig.ClassEntry entry, List<ReceiverSpec.MemberSpec> members) {
         List<Source> found = new ArrayList<>(members.size());
-        for (IdSpec.MemberSpec member : members) {
+        for (ReceiverSpec.MemberSpec member : members) {
             Source source = sourceFor(owner, entry, member);
             if (source != null) {
                 found.add(source);
@@ -261,7 +263,7 @@ public final class IdResolver {
     }
 
     /**
-     * Every {@code @AugmentedReceiver} on a field or a no-argument method, one id each: per class, nearest first, its fields
+     * Every {@code @AugmentedReceiver} on a field or a no-argument method, one value each: per class, nearest first, its fields
      * in declaration order, then its methods by name. A Kotlin property annotated in the primary constructor has it on
      * its field. A member that cannot be made accessible is skipped, and so is one whose label a nearer one already
      * has, e.g. a field hidden by a subclass's field of the same name.
@@ -270,15 +272,15 @@ public final class IdResolver {
         List<Source> found = new ArrayList<>();
         for (Class<?> owner : lookupOrder(type)) {
             for (Field field : owner.getDeclaredFields()) {
-                if (!Modifier.isStatic(field.getModifiers()) && idAnnotation(field) != null) {
+                if (!Modifier.isStatic(field.getModifiers()) && receiverAnnotation(field) != null) {
                     addUnlabelled(found, fieldSource(field, field.getName()));
                 }
             }
             Method[] methods = owner.getDeclaredMethods();
             Arrays.sort(methods, Comparator.comparing(Method::getName));
             for (Method method : methods) {
-                if (idAnnotation(method) != null
-                        && isUsableIdMethod(Modifier.isStatic(method.getModifiers()), method.getParameterCount(), method.isSynthetic())) {
+                if (receiverAnnotation(method) != null
+                        && isUsableReceiverMethod(Modifier.isStatic(method.getModifiers()), method.getParameterCount(), method.isSynthetic())) {
                     addUnlabelled(found, methodSource(method, method.getName()));
                 }
             }
@@ -292,11 +294,11 @@ public final class IdResolver {
         }
     }
 
-    private Source sourceFor(Class<?> owner, AugmentorConfig.ClassEntry entry, IdSpec.MemberSpec memberSpec) {
+    private Source sourceFor(Class<?> owner, AugmentorConfig.ClassEntry entry, ReceiverSpec.MemberSpec memberSpec) {
         String member;
         Lookup lookup = new Lookup();
         switch (memberSpec) {
-            case IdSpec.MethodSpec spec -> {
+            case ReceiverSpec.MethodSpec spec -> {
                 member = "method " + spec.memberName() + "()";
                 for (Class<?> type : methodLookupOrder(owner)) {
                     if (lookup.method(noArgumentMethod(type, spec.memberName()), spec.memberName())) {
@@ -304,7 +306,7 @@ public final class IdResolver {
                     }
                 }
             }
-            case IdSpec.FieldSpec spec -> {
+            case ReceiverSpec.FieldSpec spec -> {
                 member = "field or property " + spec.memberName();
                 for (Class<?> type : lookupOrder(owner)) {
                     if (lookup.field(instanceField(type, spec.memberName()), spec.memberName())) {
@@ -424,7 +426,7 @@ public final class IdResolver {
     }
 
     /**
-     * Where the members of an id source are looked up: the class and its superclasses, stopping at {@code Object}; for
+     * Where receiver members are looked up: the class and its superclasses, stopping at {@code Object}; for
      * an interface, the interface and the interfaces it extends, directly or not, nearest first.
      */
     private static List<Class<?>> lookupOrder(Class<?> type) {
@@ -470,15 +472,15 @@ public final class IdResolver {
     }
 
     /**
-     * Whether an {@code @AugmentedReceiver} method can give ids: an instance method without parameters that the compiler
+     * Whether an {@code @AugmentedReceiver} method can be a receiver member: an instance method without parameters that the compiler
      * did not generate. The build-time and agent type matching use the same rule, so that a class whose only annotated
      * method takes arguments is not instrumented.
      */
-    public static boolean isUsableIdMethod(boolean isStatic, int parameterCount, boolean isSynthetic) {
+    public static boolean isUsableReceiverMethod(boolean isStatic, int parameterCount, boolean isSynthetic) {
         return !isStatic && parameterCount == 0 && !isSynthetic;
     }
 
-    public static Annotation idAnnotation(AnnotatedElement element) {
+    public static Annotation receiverAnnotation(AnnotatedElement element) {
         for (Annotation annotation : element.getDeclaredAnnotations()) {
             if (annotation.annotationType().getName().equals(AUGMENTED_RECEIVER)) {
                 return annotation;
@@ -487,7 +489,7 @@ public final class IdResolver {
         return null;
     }
 
-    /** Text on one line and with braces instead of parentheses, as ids are shown. */
+    /** Text on one line and with braces instead of parentheses, as values are shown. */
     private static String oneLineBraced(String text) {
         String singleLine = text.indexOf('\n') >= 0 || text.indexOf('\r') >= 0 ? LINE_BREAKS.matcher(text).replaceAll(" ") : text;
         return singleLine.replace('(', '{').replace(')', '}');

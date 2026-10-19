@@ -15,7 +15,7 @@ import org.junit.jupiter.api.assertThrows
 class BuildTimeInstrumentationTest {
 
     @Test
-    fun `annotated classes show their receiver and parameter ids`() {
+    fun `annotated classes show their receiver members and parameter values`() {
         val e = assertThrows<Exception> { ClassWithoutAnnotation("object-2").method("123") }
         assertEquals(
             listOf(
@@ -30,7 +30,7 @@ class BuildTimeInstrumentationTest {
     }
 
     @Test
-    fun `classes without annotations take their ids from the configuration`() {
+    fun `classes without annotations take their receiver members and parameters from the configuration`() {
         val e = assertThrows<IllegalStateException> { OrderService(InventoryService(InventoryAudit())).process(Order(4711), 3, "rush") }
         assertEquals(
             listOf(
@@ -46,7 +46,7 @@ class BuildTimeInstrumentationTest {
     }
 
     @Test
-    fun `a cause shows the ids of the frames it shares with the wrapper`() {
+    fun `a cause shows the values of the frames it shares with the wrapper`() {
         val e = assertThrows<RuntimeException> { Wrapping("w-1").outer() }
         val outer = e.stackTrace.indexOfFirst { it.methodName == "outer" }
         assertEquals("com.hafnium.it.buildtime.Wrapping{name=w-1}", e.stackTrace[outer].className)
@@ -61,7 +61,7 @@ class BuildTimeInstrumentationTest {
     }
 
     @Test
-    fun `constructors show their parameter ids`() {
+    fun `constructors show their parameter values`() {
         val e = assertThrows<IllegalArgumentException> { Shipment(4711, 0.0, "fragile") }
         assertEquals(listOf("com.hafnium.it.buildtime.configured.Shipment.<init>{orderId=4711, weight=0.0}"), frames(e, 1))
 
@@ -70,7 +70,7 @@ class BuildTimeInstrumentationTest {
     }
 
     @Test
-    fun `default method shows its interface's receiver id`() {
+    fun `default method shows its interface's receiver member`() {
         val e = assertThrows<IllegalStateException> { Parcel("p-1").track() }
         assertEquals("com.hafnium.it.buildtime.Tracked{trackingNumber=T-p-1}", e.stackTrace[0].className)
         assertEquals("track", e.stackTrace[0].methodName)

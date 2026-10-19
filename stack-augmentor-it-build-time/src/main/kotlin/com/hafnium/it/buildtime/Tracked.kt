@@ -3,7 +3,7 @@ package com.hafnium.it.buildtime
 import com.hafnium.stackaugmentor.Augmented
 import com.hafnium.stackaugmentor.AugmentedReceiver
 
-/** A default method shows the id of its interface's @AugmentedReceiver member, read from the implementing object. */
+/** A default method shows the value of its interface's @AugmentedReceiver member, read from the implementing object. */
 @Augmented
 interface Tracked {
     @AugmentedReceiver

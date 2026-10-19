@@ -11,20 +11,20 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
 
 /**
- * Many threads throw at once, each through receivers and parameters of its own, so ids must not leak between threads.
+ * Many threads throw at once, each through receivers and parameters of its own, so values must not leak between threads.
  * Half the calls park before throwing: a virtual thread then continues on another carrier thread. Enough calls run for
  * the JIT to compile [Diver.dive].
  */
 class ConcurrencyTest {
 
     @Test
-    fun `ids stay with their thread on virtual threads`() {
+    fun `augmentation stays with its thread on virtual threads`() {
         val first = Executors.newVirtualThreadPerTaskExecutor().use { divers(it) }
         report.record("Diver(\"diver-0\").dive(20, park = true) on a virtual thread", first)
     }
 
     @Test
-    fun `ids stay with their thread on platform threads`() {
+    fun `augmentation stays with its thread on platform threads`() {
         val first = Executors.newFixedThreadPool(8).use { divers(it) }
         report.record("Diver(\"diver-0\").dive(20, park = true) on a platform thread", first)
     }

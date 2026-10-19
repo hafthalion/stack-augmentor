@@ -19,7 +19,7 @@ import org.junit.jupiter.api.extension.TestWatcher
  * companion object {
  *     @JvmField
  *     @RegisterExtension
- *     val report = FrameReport("Receiver ids by inheritance", basePackage = "com.acme", ownPackage = "com.acme")
+ *     val report = FrameReport("Receiver members by inheritance", basePackage = "com.acme", ownPackage = "com.acme")
  * }
  * ```
  *
@@ -232,7 +232,7 @@ class FrameReport(
         }
         val augmented = '{' in frame
         val text = escape(frame.removePrefix("$basePackage.")).replace(Regex("\\{[^}]*}")) { "<mark>${it.value}</mark>" }
-        return "<li class=\"${if (augmented) "aug" else "plain"}\"><code>$text</code><span class=\"tag\">${if (augmented) "id added" else "unchanged"}</span></li>"
+        return "<li class=\"${if (augmented) "aug" else "plain"}\"><code>$text</code><span class=\"tag\">${if (augmented) "augmented" else "unchanged"}</span></li>"
     }
 
     private fun escape(text: String) = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")

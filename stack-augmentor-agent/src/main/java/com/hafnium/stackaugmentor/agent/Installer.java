@@ -6,7 +6,7 @@ import com.hafnium.stackaugmentor.instrument.bridge.LiveDispatch;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
 import com.hafnium.stackaugmentor.runtime.handler.StackTraces;
-import com.hafnium.stackaugmentor.runtime.ids.FrameFormat;
+import com.hafnium.stackaugmentor.runtime.values.FrameFormat;
 import net.bytebuddy.dynamic.Nexus;
 import net.bytebuddy.dynamic.loading.ClassInjector;
 

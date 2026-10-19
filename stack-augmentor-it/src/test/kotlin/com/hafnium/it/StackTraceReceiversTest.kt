@@ -54,16 +54,16 @@ import org.junit.jupiter.api.extension.RegisterExtension
 
 /**
  * Runs with the agent and `src/test/resources/stack-augmentor.toml` attached; see build.gradle.kts. [FrameReport] writes
- * the frames each test caught to build/reports/frames/StackTraceIdsTest.html.
+ * the frames each test caught to build/reports/frames/StackTraceReceiversTest.html.
  */
-class StackTraceIdsTest {
+class StackTraceReceiversTest {
 
     private fun Throwable.frame(index: Int = 0): String = stackTrace[index].toString()
 
     private fun Throwable.printed(): String = StringWriter().also { printStackTrace(PrintWriter(it)) }.toString()
 
     @Test
-    fun `receiver field and parameter id`() {
+    fun `receiver field and parameter value`() {
         val e = report.thrown<Exception, _>("ObjectClass().objectMethod(42)", ObjectClass()) { it.objectMethod(42) }
         assertTrue(
             e.frame().startsWith("com.hafnium.it.fixtures.ObjectClass{objectId=object-1}.objectMethod{orderId=42}(Fixtures.kt:"),
@@ -73,13 +73,13 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `receiver members from an annotated method uses the method name`() {
+    fun `a receiver member from an annotated method uses the method name`() {
         val e = report.thrown<IllegalStateException, _>("KeyedByMethod().fail()", KeyedByMethod()) { it.fail() }
         assertEquals("com.hafnium.it.fixtures.KeyedByMethod{key=k-1}", e.stackTrace[0].className)
     }
 
     @Test
-    fun `inherited id`() {
+    fun `inherited receiver member`() {
         val e = report.thrown<IllegalStateException, _>("Derived().fail()", Derived()) { it.fail() }
         assertEquals("com.hafnium.it.fixtures.Derived{baseId=b1}", e.stackTrace[0].className)
     }
@@ -102,7 +102,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `object parameter is shown with toString(), not with the id source of its class`() {
+    fun `object parameter is shown with toString(), not with the receiver member of its class`() {
         val e = report.thrown<IllegalStateException, _>("Shipping().ship(Order(4711))", Shipping()) { it.ship(Order(4711)) }
         assertEquals("com.hafnium.it.fixtures.Shipping{id=ship}", e.stackTrace[0].className)
         // Order has the entry "getOrderNumber()", but no toString(): Object.toString(), cut at maxValueLength = 20.
@@ -124,14 +124,14 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `static method with an id parameter shows parameters only`() {
+    fun `static method with a selected parameter shows parameters only`() {
         val e = report.thrown<IllegalStateException>("staticWithParam(5)") { staticWithParam(5) }
         assertEquals("com.hafnium.it.fixtures.FixturesKt", e.stackTrace[0].className)
         assertEquals("staticWithParam{code=5}", e.stackTrace[0].methodName)
     }
 
     @Test
-    fun `static method without id parameters is unchanged`() {
+    fun `static method without selected parameters is unchanged`() {
         val e = report.thrown<IllegalStateException>("staticWithoutParam()") { staticWithoutParam() }
         assertEquals("com.hafnium.it.fixtures.FixturesKt", e.stackTrace[0].className)
         assertEquals("staticWithoutParam", e.stackTrace[0].methodName)
@@ -156,7 +156,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `classes without an id source are not augmented, even with a toString`() {
+    fun `classes without a receiver member are not augmented, even with a toString`() {
         val withToString = report.thrown<IllegalStateException, _>("WithToString().fail()", WithToString()) { it.fail() }
         assertEquals("com.hafnium.it.fixtures.WithToString", withToString.stackTrace[0].className)
 
@@ -165,14 +165,14 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `an id source that throws is shown as a question mark`() {
+    fun `a receiver member that throws is shown as a question mark`() {
         val e = report.thrown<IllegalStateException, _>("BrokenId().fail()", BrokenId()) { it.fail() }
         assertEquals("fail", e.message)
         assertEquals("com.hafnium.it.fixtures.BrokenId{id=?}", e.stackTrace[0].className)
     }
 
     @Test
-    fun `ids are kept on one line and capped`() {
+    fun `values are kept on one line and capped`() {
         val multiLine = report.thrown<IllegalStateException, _>("MultiLine().fail()", MultiLine()) { it.fail() }
         assertEquals("com.hafnium.it.fixtures.MultiLine{text=line1 line2}", multiLine.stackTrace[0].className)
 
@@ -182,7 +182,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `recursion puts the right ids on each frame`() {
+    fun `recursion puts the right values on each frame`() {
         val list = Node("a", Node("b", Node("c", null)))
         val e = report.thrown<IllegalStateException, _>("list.walk(0)", list) { it.walk(0) }
         assertEquals("com.hafnium.it.fixtures.Node{name=c}", e.stackTrace[0].className)
@@ -194,7 +194,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `an exception created by the caller does not give the callee's ids to the caller's frame`() {
+    fun `an exception created by the caller does not give the callee's values to the caller's frame`() {
         val e = report.thrown<IllegalStateException, _>("Relay(\"a\", Relay(\"b\", null)).pass(0, null)", Relay("a", Relay("b", null))) { it.pass(0, null) }
         assertEquals("created by a", e.message)
         // The only pass frame is a's, where the exception was created; b threw it, but its frame is not in the trace.
@@ -204,7 +204,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `ids are kept free of parentheses`() {
+    fun `values are kept free of parentheses`() {
         val e = report.thrown<IllegalStateException, _>("ParenLabels().fail(5)", ParenLabels()) { it.fail(5) }
         assertEquals("com.hafnium.it.fixtures.ParenLabels{id=id{7}}", e.stackTrace[0].className)
         assertEquals("fail{value=5}", e.stackTrace[0].methodName)
@@ -220,7 +220,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `frames below a catch get ids only from the live stack`() {
+    fun `frames below a catch are augmented only from the live stack`() {
         val layers = Layers()
         val e = layers.catchAndReturn()
         report.record("Layers().catchAndReturn()", e, layers)
@@ -249,7 +249,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `a cause shows the ids of the frames it shares with the wrapper`() {
+    fun `a cause shows the values of the frames it shares with the wrapper`() {
         val e = report.thrown<RuntimeException, _>("Layers().outerWrap()", Layers()) { it.outerWrap() }
         val outer = e.stackTrace.indexOfFirst { it.methodName == "outerWrap" }
         assertEquals("com.hafnium.it.fixtures.Layers{layer=layers}", e.stackTrace[outer].className)
@@ -266,7 +266,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `a cause that is not augmented itself shows the ids of the frames it shares with the wrapper`() {
+    fun `a cause that is not augmented itself shows the values of the frames it shares with the wrapper`() {
         val e = report.thrown<RuntimeException, _>("Layers().outerWrapPlain()", Layers()) { it.outerWrapPlain() }
         val cause = e.cause!!.stackTrace
         // Its own frame stays plain: [augment.exceptions] does not augment PlainCause.
@@ -275,7 +275,7 @@ class StackTraceIdsTest {
         val outer = e.stackTrace.indexOfFirst { it.methodName == "outerWrapPlain" }
         assertEquals("com.hafnium.it.fixtures.Layers{layer=layers}", e.stackTrace[outer].className)
         assertEquals(e.stackTrace[outer], cause[cause.size - (e.stackTrace.size - outer)])
-        // The frame where wrapPlain caught the cause gets the wrapper's ids, at its own line.
+        // The frame where wrapPlain caught the cause shows the wrapper's values, at its own line.
         val wrap = cause.single { it.methodName == "wrapPlain" }
         assertEquals("com.hafnium.it.fixtures.Layers{layer=layers}", wrap.className)
         assertTrue(wrap.lineNumber != e.stackTrace.single { it.methodName == "wrapPlain" }.lineNumber)
@@ -284,7 +284,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `root cause first prints the shared frames once, with their ids`() {
+    fun `root cause first prints the shared frames once, with their values`() {
         val e = report.thrown<RuntimeException, _>("Layers().outerWrap()", Layers()) { it.outerWrap() }
         val lines = ExceptionFormat.rootCauseFirst(e).lines()
         assertEquals("java.lang.IllegalStateException: inner 2", lines[0])
@@ -299,7 +299,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `a suppressed exception shows the ids of the frames it shares`() {
+    fun `a suppressed exception shows the values of the frames it shares`() {
         val e = report.thrown<IllegalStateException, _>("Layers().outerClosing()", Layers()) { it.outerClosing() }
         val outer = e.stackTrace.indexOfFirst { it.methodName == "outerClosing" }
         assertEquals("com.hafnium.it.fixtures.Layers{layer=layers}", e.stackTrace[outer].className)
@@ -337,14 +337,14 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `array ids are shown by their elements`() {
+    fun `array values are shown by their elements`() {
         val e = report.thrown<IllegalStateException, _>("ArrayId().fail(arrayOf(\"a\", \"b\"))", ArrayId()) { it.fail(arrayOf("a", "b")) }
         assertEquals("com.hafnium.it.fixtures.ArrayId{codes=[1, 2]}", e.stackTrace[0].className)
         assertEquals("fail{tags=[a, b]}", e.stackTrace[0].methodName)
     }
 
     @Test
-    fun `null ids are shown as null`() {
+    fun `null values are shown as null`() {
         val e = report.thrown<IllegalStateException, _>("NullId().fail(null)", NullId()) { it.fail(null) }
         assertEquals("com.hafnium.it.fixtures.NullId{id=null}", e.stackTrace[0].className)
         assertEquals("fail{note=null}", e.stackTrace[0].methodName)
@@ -385,7 +385,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `private methods get ids like public ones`() {
+    fun `private methods are augmented like public ones`() {
         val e = report.thrown<IllegalStateException, _>("Chain().start(1)", Chain()) { it.start(1) }
         assertEquals("com.hafnium.it.fixtures.Chain{id=chain}", e.stackTrace[0].className)
         assertEquals("step{n=2}", e.stackTrace[0].methodName)
@@ -403,7 +403,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `a rethrown exception gets the ids of the frames it leaves`() {
+    fun `a rethrown exception shows the values of the frames it leaves`() {
         val e = report.thrown<IllegalStateException, _>("Chain().rethrow(4)", Chain()) { it.rethrow(4) }
         assertEquals("step{n=4}", e.stackTrace[0].methodName)
         assertEquals("com.hafnium.it.fixtures.Chain{id=chain}", e.stackTrace[1].className)
@@ -418,7 +418,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `a reused exception instance keeps the ids of its first throw`() {
+    fun `a reused exception instance keeps the values of its first throw`() {
         val prepared = Prepared()
         val first = report.thrown<IllegalStateException, _>("Prepared().viaShared(1)", prepared) { it.viaShared(1) }
         assertEquals(listOf("throwShared{n=1}", "viaShared{n=1}"), first.stackTrace.take(2).map { it.methodName })
@@ -429,7 +429,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `ids are added on other threads too`() {
+    fun `exceptions are augmented on other threads too`() {
         val executor = Executors.newSingleThreadExecutor()
         try {
             val e = report.thrown<ExecutionException>("executor.submit { Chain().start(7) }.get()") {
@@ -444,7 +444,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `ids stay right once the JIT compiled the method`() {
+    fun `values stay right once the JIT compiled the method`() {
         val target = ObjectClass()
         repeat(20_000) { n ->
             try {
@@ -459,7 +459,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `a stack trace that the application replaced gets no ids from the live stack`() {
+    fun `a stack trace that the application replaced is not augmented from the live stack`() {
         assumeTrue(AgentMode.liveStack)
         val layers = Layers()
         val e = layers.catchAndReturn()
@@ -470,7 +470,7 @@ class StackTraceIdsTest {
     }
 
     @Test
-    fun `reading the stack trace again keeps the ids once`() {
+    fun `reading the stack trace again keeps the values once`() {
         val e = report.thrown<IllegalStateException, _>("Layers().inner(3)", Layers()) { it.inner(3) }
         assertEquals("inner{step=3}", e.stackTrace[0].methodName)
         assertEquals("inner{step=3}", e.stackTrace[0].methodName)
@@ -487,7 +487,7 @@ class StackTraceIdsTest {
         @JvmField
         @RegisterExtension
         val report = FrameReport(
-            "Receiver and parameter ids",
+            "Receiver members and parameter values",
             basePackage = "com.hafnium.it.fixtures",
             ownPackage = "com.hafnium.it",
             entries = ReceiverEntries.load(Path.of("src/test/resources/stack-augmentor.toml")),

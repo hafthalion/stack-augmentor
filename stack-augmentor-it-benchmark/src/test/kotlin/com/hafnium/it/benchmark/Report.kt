@@ -73,7 +73,7 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
         <p>The stack has ${Scenario.FRAMES} frames, or fewer with a cause chain, so that its exceptions' stack traces hold
         ${Scenario.FRAMES} frames together. The exception is always created at the bottom, in the deepest frame. Near the bottom: caught 3 frames above it.
         Near the top: caught 3 frames below the outermost frame of the stack, so it leaves almost all of them. Configured
-        frames show their receiver id and the depth parameter, which counts from 1 at the top of the stack. Click a column header to sort; click &#x2630; to see
+        frames show their receiver member and the depth parameter, which counts from 1 at the top of the stack. Click a column header to sort; click &#x2630; to see
         the first and last 10 frames of the logged stack trace, or the whole trace as printStackTrace prints it. The excerpt is
         formatted with the API's ExceptionFormat.rootCauseFirst: with a cause chain, it starts with the deepest exception, and each exception
         that wrapped it follows as "Wrapped by:" with the first 10 of the frames it adds, the last one also with its last 10.</p>
@@ -128,7 +128,7 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
     append(SORT_SCRIPT)
     append("<h2>Columns</h2>\n<dl>\n")
     column("Use case", "Where the exception is caught. \"Exception off\": the frames are configured, but the exceptions " +
-        "are of a class that [augment.exceptions] turns off, so no frame shows ids. The " +
+        "are of a class that [augment.exceptions] turns off, so no frame is augmented. The " +
         "exception is always created at the bottom, in the deepest frame of the " +
         "stack. Near the bottom: 3 frames above that, so it leaves only 3 frames. Near the top: 3 frames below the outermost " +
         "frame, so it leaves almost all of them. With a cause chain, the stack has ${Scenario.CAUSES_PLAIN.frames} frames, " +
@@ -137,7 +137,7 @@ private fun html(measured: Map<Mode, Map<Row, Measurement>>, results: File): Str
         "hold ${Scenario.FRAMES} frames together, as a single exception's does. Each exception leaves its " +
         "${Scenario.CAUSES_PLAIN.wrapEvery} frames, and the causes share the frames below with the exceptions that wrap them, " +
         "which printing collapses into \"... N more\".")
-    column("Configured frames", "The share of the frames whose method is configured to show ids (receiver id and " +
+    column("Configured frames", "The share of the frames whose method is configured to be augmented (receiver member and " +
         "depth parameter): every 4th frame, or none. The others are methods of an unconfigured class.")
     column("Logged", "Yes: after it is caught, the exception is turned into text with stackTraceToString(), which reads the " +
         "whole stack trace, as logging does. No: it is only created, thrown and caught.")

@@ -33,7 +33,7 @@ subprojects {
         extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension> {
             jvmToolchain(25)
             compilerOptions {
-                // Keep real parameter names in the class files, so parameter ids get their labels.
+                // Keep real parameter names in the class files, so parameter values get their labels.
                 javaParameters = true
             }
         }

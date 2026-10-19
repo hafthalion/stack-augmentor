@@ -5,7 +5,7 @@ import com.hafnium.stackaugmentor.AugmentedReceiver
 import com.hafnium.stackaugmentor.AugmentedParam
 import com.hafnium.stackaugmentor.AugmentedParams
 
-// Parameter ids selected by @AugmentedParams on methods and classes.
+// Parameter values selected by @AugmentedParams on methods and classes.
 
 @Augmented
 class Accounts {
@@ -62,7 +62,7 @@ class Overridden {
     fun failAnnotated(@AugmentedParam y: Int): Nothing = throw IllegalStateException("fail $y")
 }
 
-/** Hashed parameter ids: secret = true on the annotations. */
+/** Hashed parameter values: secret = true on the annotations. */
 @Augmented
 class Secrets {
     fun invite(@AugmentedParam user: String, @AugmentedParam(secret = true) email: String): Nothing =
@@ -78,7 +78,7 @@ class Forgetful {
     fun forget(@AugmentedParam(secret = true) email: String?): Nothing = throw IllegalStateException("forget")
 }
 
-// Constructors: parameter ids from the "<init>" entry, never a receiver id.
+// Constructors: parameter values from the "<init>" entry, never a receiver member.
 
 /** Validation in an init block, after the superclass constructor has run. */
 @Augmented
@@ -94,15 +94,15 @@ open class Parcel(code: String) {
     }
 }
 
-/** The superclass constructor throws: inside the super(...) call, so this frame gets no ids. */
+/** The superclass constructor throws: inside the super(...) call, so this frame is not augmented. */
 @Augmented
 class ExpressParcel @AugmentedParams constructor(code: String, val priority: Int) : Parcel(code)
 
-/** Computing the argument of super(...) throws: before the call, so this frame gets its ids. */
+/** Computing the argument of super(...) throws: before the call, so this frame is augmented. */
 @Augmented
 class Crate @AugmentedParams constructor(code: String?, val size: Int) : Parcel(requireNotNull(code) { "code" })
 
-/** A secondary constructor delegating to the primary one: it gets ids only for exceptions from its own body. */
+/** A secondary constructor delegating to the primary one: it is augmented only for exceptions from its own body. */
 @Augmented
 class Pallet @AugmentedParams constructor(val size: Int) {
     init {
