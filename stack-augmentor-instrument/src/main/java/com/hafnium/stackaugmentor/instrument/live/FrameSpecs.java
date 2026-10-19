@@ -5,10 +5,12 @@ import com.hafnium.stackaugmentor.instrument.TypeMatching;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
 import com.hafnium.stackaugmentor.runtime.config.IdSpec;
+import com.hafnium.stackaugmentor.runtime.ids.IdResolver;
 import net.bytebuddy.description.method.MethodDescription;
 import net.bytebuddy.description.method.ParameterDescription;
 import net.bytebuddy.description.type.TypeDescription;
 
+import java.lang.annotation.Annotation;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
@@ -63,6 +65,49 @@ public final class FrameSpecs {
         }
     };
 
+    /**
+     * Whether the class or one of its methods or constructors has {@code @Augmented}: without it, the class's
+     * annotations are ignored, so a class that only {@code [augment.annotations]} selects needs no look at its methods.
+     */
+    private final ClassValue<Boolean> augmented = new ClassValue<>() {
+        @Override
+        protected Boolean computeValue(Class<?> type) {
+            try {
+                if (hasAugmented(type.getDeclaredAnnotations())) {
+                    return true;
+                }
+                for (Method method : type.getDeclaredMethods()) {
+                    if (hasAugmented(method.getDeclaredAnnotations())) {
+                        return true;
+                    }
+                }
+                for (Constructor<?> constructor : type.getDeclaredConstructors()) {
+                    if (hasAugmented(constructor.getDeclaredAnnotations())) {
+                        return true;
+                    }
+                }
+                return false;
+            } catch (LinkageError | RuntimeException e) {
+                return true; // left to spec(), which reports it
+            }
+        }
+    };
+
+    /** By name: the application may load its own copy of the API. */
+    private static boolean hasAugmented(Annotation[] annotations) {
+        for (Annotation annotation : annotations) {
+            if (annotation.annotationType().getName().equals(IdResolver.AUGMENTED)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether the annotations may apply to the class: {@code [augment.annotations]} selects it and it has {@code @Augmented}. */
+    private boolean readsAnnotations(Class<?> type) {
+        return config.readsAnnotations(type) && augmented.get(type);
+    }
+
     public FrameSpecs(AugmentorConfig config, TypeMatching matching) {
         this.config = config;
         this.matching = matching;
@@ -96,9 +141,9 @@ public final class FrameSpecs {
         if (TypeMatching.isIgnoredName(name)) {
             return false;
         }
-        return config.readsAnnotations(type)
-                || config.classEntries(type).stream().anyMatch(entry -> !(entry.spec() instanceof IdSpec.Excluded))
-                || config.hasParamEntries(name, supertype -> AugmentorConfig.isA(type, supertype));
+        return config.classEntries(type).stream().anyMatch(entry -> !(entry.spec() instanceof IdSpec.Excluded))
+                || config.hasParamEntries(name, supertype -> AugmentorConfig.isA(type, supertype))
+                || readsAnnotations(type);
     }
 
     /**
@@ -106,10 +151,10 @@ public final class FrameSpecs {
      * values. By name only, so the annotations are left open: {@link #spec} decides for the method itself.
      */
     private boolean named(Class<?> type, String methodName) {
-        return config.readsAnnotations(type)
-                || !methodName.equals(AugmentorConfig.CONSTRUCTOR) && config.classEntries(type).stream()
+        return !methodName.equals(AugmentorConfig.CONSTRUCTOR) && config.classEntries(type).stream()
                         .anyMatch(entry -> !(entry.spec() instanceof IdSpec.Excluded) && entry.appliesTo(methodName))
-                || !config.paramRefs(type.getName(), supertype -> AugmentorConfig.isA(type, supertype), methodName).isEmpty();
+                || !config.paramRefs(type.getName(), supertype -> AugmentorConfig.isA(type, supertype), methodName).isEmpty()
+                || readsAnnotations(type);
     }
 
     private Spec spec(Class<?> type, String name, MethodType methodType) {
