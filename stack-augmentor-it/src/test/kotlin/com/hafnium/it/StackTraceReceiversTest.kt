@@ -1,7 +1,7 @@
 package com.hafnium.it
 
-import com.hafnium.it.fixtures.ArrayId
-import com.hafnium.it.fixtures.BrokenId
+import com.hafnium.it.fixtures.ArrayReceiver
+import com.hafnium.it.fixtures.BrokenReceiver
 import com.hafnium.it.fixtures.Canvas
 import com.hafnium.it.fixtures.Chain
 import com.hafnium.it.fixtures.Derived
@@ -11,13 +11,13 @@ import com.hafnium.it.fixtures.JavaFixture
 import com.hafnium.it.fixtures.KeyedByMethod
 import com.hafnium.it.fixtures.LambdaHolder
 import com.hafnium.it.fixtures.Layers
-import com.hafnium.it.fixtures.LongId
+import com.hafnium.it.fixtures.LongReceiver
 import com.hafnium.it.fixtures.ManyParams
 import com.hafnium.it.fixtures.MultiLine
 import com.hafnium.it.fixtures.NoTrace
 import com.hafnium.it.fixtures.NoTraceException
 import com.hafnium.it.fixtures.Node
-import com.hafnium.it.fixtures.NullId
+import com.hafnium.it.fixtures.NullReceiver
 import com.hafnium.it.fixtures.ObjectClass
 import com.hafnium.it.fixtures.ParenLabels
 import com.hafnium.it.fixtures.Plain
@@ -166,9 +166,9 @@ class StackTraceReceiversTest {
 
     @Test
     fun `a receiver member that throws is shown as a question mark`() {
-        val e = report.thrown<IllegalStateException, _>("BrokenId().fail()", BrokenId()) { it.fail() }
+        val e = report.thrown<IllegalStateException, _>("BrokenReceiver().fail()", BrokenReceiver()) { it.fail() }
         assertEquals("fail", e.message)
-        assertEquals("com.hafnium.it.fixtures.BrokenId{id=?}", e.stackTrace[0].className)
+        assertEquals("com.hafnium.it.fixtures.BrokenReceiver{id=?}", e.stackTrace[0].className)
     }
 
     @Test
@@ -177,8 +177,8 @@ class StackTraceReceiversTest {
         assertEquals("com.hafnium.it.fixtures.MultiLine{text=line1 line2}", multiLine.stackTrace[0].className)
 
         // maxValueLength = 20 in stack-augmentor.toml
-        val long = report.thrown<IllegalStateException, _>("LongId().fail()", LongId()) { it.fail() }
-        assertEquals("com.hafnium.it.fixtures.LongId{text=${"x".repeat(19)}…}", long.stackTrace[0].className)
+        val long = report.thrown<IllegalStateException, _>("LongReceiver().fail()", LongReceiver()) { it.fail() }
+        assertEquals("com.hafnium.it.fixtures.LongReceiver{text=${"x".repeat(19)}…}", long.stackTrace[0].className)
     }
 
     @Test
@@ -338,15 +338,15 @@ class StackTraceReceiversTest {
 
     @Test
     fun `array values are shown by their elements`() {
-        val e = report.thrown<IllegalStateException, _>("ArrayId().fail(arrayOf(\"a\", \"b\"))", ArrayId()) { it.fail(arrayOf("a", "b")) }
-        assertEquals("com.hafnium.it.fixtures.ArrayId{codes=[1, 2]}", e.stackTrace[0].className)
+        val e = report.thrown<IllegalStateException, _>("ArrayReceiver().fail(arrayOf(\"a\", \"b\"))", ArrayReceiver()) { it.fail(arrayOf("a", "b")) }
+        assertEquals("com.hafnium.it.fixtures.ArrayReceiver{codes=[1, 2]}", e.stackTrace[0].className)
         assertEquals("fail{tags=[a, b]}", e.stackTrace[0].methodName)
     }
 
     @Test
     fun `null values are shown as null`() {
-        val e = report.thrown<IllegalStateException, _>("NullId().fail(null)", NullId()) { it.fail(null) }
-        assertEquals("com.hafnium.it.fixtures.NullId{id=null}", e.stackTrace[0].className)
+        val e = report.thrown<IllegalStateException, _>("NullReceiver().fail(null)", NullReceiver()) { it.fail(null) }
+        assertEquals("com.hafnium.it.fixtures.NullReceiver{id=null}", e.stackTrace[0].className)
         assertEquals("fail{note=null}", e.stackTrace[0].methodName)
     }
 

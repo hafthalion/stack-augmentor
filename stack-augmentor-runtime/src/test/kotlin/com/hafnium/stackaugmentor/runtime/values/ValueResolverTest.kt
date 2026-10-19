@@ -39,12 +39,12 @@ class ValueResolverTest {
         fun id(): String = throw IllegalStateException("no id")
     }
 
-    open class BaseWithId {
+    open class BaseWithReceiver {
         @AugmentedReceiver
         val baseId = "b1"
     }
 
-    class ChildOfBase : BaseWithId()
+    class ChildOfBase : BaseWithReceiver()
 
     open class MultiAnnotated {
         @AugmentedReceiver
@@ -75,7 +75,7 @@ class ValueResolverTest {
         val isActive get() = true
     }
 
-    class WithArrayId {
+    class WithArrayReceiver {
         @AugmentedReceiver
         val codes = intArrayOf(1, 2)
     }
@@ -195,10 +195,10 @@ class ValueResolverTest {
 
     @Test
     fun `a class name with plus applies to subclasses, without plus or a pattern it does not, and members are found in superclasses`() {
-        assertEquals(NamedValue("baseId", "b1"), resolver(annotations = reads(name(BaseWithId::class.java) + "+")).receiverValue(ChildOfBase()))
-        assertEquals(NamedValue("baseId", "b1"), resolver(name(BaseWithId::class.java) + "+" to ReceiverSpec.FieldSpec("baseId")).receiverValue(ChildOfBase()))
-        assertNull(resolver(annotations = reads(name(BaseWithId::class.java))).receiverValue(ChildOfBase()))
-        assertNull(resolver(annotations = reads(name(BaseWithId::class.java).dropLast(1) + "?")).receiverValue(ChildOfBase()))
+        assertEquals(NamedValue("baseId", "b1"), resolver(annotations = reads(name(BaseWithReceiver::class.java) + "+")).receiverValue(ChildOfBase()))
+        assertEquals(NamedValue("baseId", "b1"), resolver(name(BaseWithReceiver::class.java) + "+" to ReceiverSpec.FieldSpec("baseId")).receiverValue(ChildOfBase()))
+        assertNull(resolver(annotations = reads(name(BaseWithReceiver::class.java))).receiverValue(ChildOfBase()))
+        assertNull(resolver(annotations = reads(name(BaseWithReceiver::class.java).dropLast(1) + "?")).receiverValue(ChildOfBase()))
         // An entry of the subclass itself finds the annotation or the field that the superclass declares.
         assertEquals(NamedValue("baseId", "b1"), resolver(annotations = reads(name(ChildOfBase::class.java))).receiverValue(ChildOfBase()))
         assertEquals(NamedValue("baseId", "b1"), resolver(name(ChildOfBase::class.java) to ReceiverSpec.FieldSpec("baseId")).receiverValue(ChildOfBase()))
@@ -206,16 +206,16 @@ class ValueResolverTest {
 
     @Test
     fun `the class declaring the method decides, read from the object`() {
-        val resolver = resolver(name(BaseWithId::class.java) + "+" to ReceiverSpec.FieldSpec("baseId"))
-        // A method that BaseWithId declares, running on a ChildOfBase: the entry of BaseWithId applies.
-        assertEquals(NamedValue("baseId", "b1"), resolver.receiverValue(ChildOfBase(), name(BaseWithId::class.java)))
-        // A method that ChildOfBase declares: the entry of BaseWithId with + matches it too.
+        val resolver = resolver(name(BaseWithReceiver::class.java) + "+" to ReceiverSpec.FieldSpec("baseId"))
+        // A method that BaseWithReceiver declares, running on a ChildOfBase: the entry of BaseWithReceiver applies.
+        assertEquals(NamedValue("baseId", "b1"), resolver.receiverValue(ChildOfBase(), name(BaseWithReceiver::class.java)))
+        // A method that ChildOfBase declares: the entry of BaseWithReceiver with + matches it too.
         assertEquals(NamedValue("baseId", "b1"), resolver.receiverValue(ChildOfBase(), name(ChildOfBase::class.java)))
-        val own = resolver(name(ChildOfBase::class.java) to ReceiverSpec.Excluded(), name(BaseWithId::class.java) + "+" to ReceiverSpec.FieldSpec("baseId"))
+        val own = resolver(name(ChildOfBase::class.java) to ReceiverSpec.Excluded(), name(BaseWithReceiver::class.java) + "+" to ReceiverSpec.FieldSpec("baseId"))
         assertNull(own.receiverValue(ChildOfBase(), name(ChildOfBase::class.java)))
-        assertEquals(NamedValue("baseId", "b1"), own.receiverValue(ChildOfBase(), name(BaseWithId::class.java)))
+        assertEquals(NamedValue("baseId", "b1"), own.receiverValue(ChildOfBase(), name(BaseWithReceiver::class.java)))
         // A declaring class outside the superclass chain, e.g. an interface with a default method: the runtime class,
-        // which BaseWithId's entry with + matches.
+        // which BaseWithReceiver's entry with + matches.
         assertEquals(NamedValue("baseId", "b1"), resolver.receiverValue(ChildOfBase(), "com.acme.SomeInterface"))
     }
 
@@ -291,7 +291,7 @@ class ValueResolverTest {
 
     @Test
     fun `an array receiver value shows its elements, like an argument`() {
-        assertEquals(NamedValue("codes", "[1, 2]"), resolver(annotations = reads(here)).receiverValue(WithArrayId()))
+        assertEquals(NamedValue("codes", "[1, 2]"), resolver(annotations = reads(here)).receiverValue(WithArrayReceiver()))
     }
 
     @Test
