@@ -6,7 +6,9 @@
 
 # Print diagnostics to stderr (default: false).
 debug = false
-inPlaceModification = false
+# Write augmented frames into the exception's own stack trace (default: true): only where the application is started
+# with --add-opens java.base/java.lang=ALL-UNNAMED, otherwise frames are copied.
+# inPlaceModification = true
 
 # How frames look, at runtime (these are the defaults, see the README).
 [augment]

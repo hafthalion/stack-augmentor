@@ -10,8 +10,9 @@ other specifications refer to them.
 ### Requirement: File and keys
 The configuration SHALL be one TOML file whose name ends in `.toml`, with these keys and defaults:
 - `debug` (boolean, default `false`): diagnostics, see the diagnostics specification;
-- `inPlaceModification` (boolean, default `false`): a faster way of writing augmented frames that needs extra JVM
-  permissions, see the performance specification; a system property `stackaugmentor.inPlaceModification` SHALL override it;
+- `inPlaceModification` (boolean, default `true`): a faster way of writing augmented frames that needs extra JVM
+  permissions, used where the JVM allows it, see the performance specification; a system property
+  `stackaugmentor.inPlaceModification` SHALL override it;
 - `[augment]`: `frameFormat`, `receiverFormat`, `paramsFormat` (see the frame format specification) and `maxValueLength`
   (integer from 2 to 10000, default 64, see the receivers and parameters specification);
 - `[augment.exceptions]` (class key → `true` or `false`): which throwables are augmented;
@@ -154,25 +155,44 @@ rejected with a pointer to `[augment.annotations]`.
 - **THEN** it is rejected with a message naming the key and its line
 
 ### Requirement: Locating the configuration
-The configuration file SHALL be taken from:
+The base configuration file SHALL be taken from:
 - with the Java agent, in both of its modes: the agent argument (`config=<path>` or `<path>`), otherwise the system
   property `stackaugmentor.config`;
 - with the build plugin: its argument;
 - at runtime with build-time instrumentation: the system property `stackaugmentor.config`, otherwise
-  `stack-augmentor.toml` on the application's classpath, also when the runtime library is loaded by a parent class loader
-  of the application, as in an application server or a fat jar.
+  `stack-augmentor.toml` visible to the runtime library.
 
 Without a file, the built-in configuration SHALL apply. A named file that does not exist SHALL be an error.
-
-#### Scenario: Configuration of an application in a server
-- **GIVEN** a build-time instrumented application whose `stack-augmentor.toml` is visible to the application's class loader, but not to the class loader of the runtime library
-- **WHEN** the first exception leaves an instrumented method
-- **THEN** that `stack-augmentor.toml` is used
 
 #### Scenario: Missing file
 - **GIVEN** `config=missing.toml` and no such file
 - **WHEN** the agent starts
 - **THEN** it fails with a message that `missing.toml` was not found
+
+### Requirement: Configurations of applications
+At runtime, with the agent in both of its modes and with build-time instrumentation, an application that has a class
+loader of its own, as in an application server, in Spring Boot or in Quarkus, MAY bring its own `stack-augmentor.toml`.
+Each class SHALL use the `stack-augmentor.toml` of the nearest class loader, from its own class loader upwards, that has
+one its parent class loader does not see; the classes of the JVM's own class loaders, of the class loader of Stack
+Augmentor, and of class loaders without such a file SHALL use the base configuration. With the agent, that configuration
+SHALL decide everything for the class; with build-time instrumentation, what the runtime decides. Each configuration
+SHALL be read once per class loader, before the first class of it is augmented. `inPlaceModification` SHALL be decided
+once, by the base configuration, and `debug = true` in any configuration SHALL turn on the debug output.
+
+#### Scenario: Two applications in one server
+- **GIVEN** the agent with a configuration that selects nothing, and two applications in class loaders of their own, each with a `stack-augmentor.toml` that selects its classes, one with `receiverFormat = "<$value>"`
+- **WHEN** an augmented exception leaves an annotated method of each
+- **THEN** each frame shows its receiver members in the format of its own application's configuration
+
+#### Scenario: Spring Boot application
+- **GIVEN** a Spring Boot executable jar with `stack-augmentor.toml`, run with the agent and another configuration
+- **WHEN** an exception leaves a library method that the jar's configuration selects
+- **THEN** the frame shows the parameter values that the jar's configuration selects, in its format
+
+#### Scenario: Invalid configuration of an application
+- **GIVEN** an application whose own `stack-augmentor.toml` has `maxValueLength = 1` on line 2
+- **WHEN** its first class is loaded with the agent
+- **THEN** an error names the file, line 2 and `maxValueLength`, the JVM keeps running, and that application's frames stay unchanged
 
 ### Requirement: Built-in configuration
 Without a file, this configuration SHALL apply, with the default values of every other key, in the agent, the build plugin
@@ -211,7 +231,8 @@ With build-time instrumentation:
 - the build SHALL decide, from `[augment.annotations]`, `[augment.receiver]` and `[augment.params]`, which methods are
   augmented, which parameter values they show, and where their receiver members come from;
 - the runtime SHALL apply `[augment]`, `[augment.exceptions]`, `debug`, `inPlaceModification`, and the members of the
-  `[augment.receiver]` entries the build chose (see the build-time instrumentation specification).
+  `[augment.receiver]` entries the build chose (see the build-time instrumentation specification), from the
+  configuration of each class (see "Configurations of applications").
 
 One file SHALL serve both phases of build-time instrumentation.
 

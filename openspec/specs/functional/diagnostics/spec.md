@@ -18,9 +18,9 @@ the build plugin and the runtime SHALL report the same configuration the same wa
 - **THEN** each prints the same description of its configuration, marked with its name
 
 ### Requirement: Errors
-An invalid configuration, and `inPlaceModification = true` where the JVM does not allow it (see the performance
-specification), SHALL be printed as an error, also where the tool that runs the component would not show the cause, such as
-a build tool or the JVM's service lookup. An invalid configuration's message SHALL name the file, the key and the line.
+An invalid configuration, also that of an application (see the configuration specification), SHALL be printed as an
+error, also where the tool that runs the component would not show the cause, such as a build tool or the JVM's service
+lookup. An invalid configuration's message SHALL name the file, the key and the line.
 
 #### Scenario: Invalid runtime configuration
 - **GIVEN** a build-time instrumented application started with `-Dstackaugmentor.config=bad.toml`, where line 2 is `maxValueLength = 1`
@@ -40,7 +40,8 @@ The system SHALL always print a warning:
 - when a configuration selects something to augment but no `[augment.exceptions]` entry is `true`, suggesting
   `"java.lang.Exception+" = true`;
 - when the agent was asked for the live-stack mode but cannot use it, with the reason;
-- when the agent cannot use its shared temporary files safely and falls back to private ones.
+- when the agent cannot use its shared temporary files safely and falls back to private ones;
+- when `inPlaceModification = true` was set explicitly but is not possible, so that frames are written the slower way.
 
 A member missing for an entry with wildcards SHALL only be reported in debug output, since a pattern is not expected to
 fit every class it matches.
@@ -67,7 +68,8 @@ fit every class it matches.
 
 ### Requirement: Debug output
 With `debug = true`, the system SHALL report:
-- the configuration: where it came from, and the entries of every table and the formats;
+- the configuration: where it came from, and the entries of every table and the formats; the same for each
+  configuration of an application, naming its class loader;
 - each instrumented class: why (which entries, or the annotations), and its instrumented methods with their parameter values;
 - classes left alone, and why: annotations ignored because no `[augment.annotations]` entry selects the class or because
   entries or `@Augmented` decide otherwise; with the agent, classes already instrumented at build time;

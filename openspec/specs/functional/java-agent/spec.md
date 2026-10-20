@@ -55,8 +55,9 @@ The agent SHALL augment classes of any package, also without annotations, throug
 ### Requirement: Classes instrumented at build time
 Under the agent, classes instrumented at build time SHALL keep working and SHALL NOT be instrumented again. Their
 augmentation SHALL be as without the agent: the build decides which methods are augmented and which parameter values they
-show, and the agent's configuration gives the formats, `[augment.exceptions]` and the members of the `[augment.receiver]`
-entries the build chose. In the live-stack mode, the agent's own configuration SHALL decide every frame.
+show, and the configuration of the class at runtime (the agent's, or its application's, see the configuration
+specification) gives the formats, `[augment.exceptions]` and the members of the `[augment.receiver]` entries the build
+chose. In the live-stack mode, those configurations SHALL decide every frame.
 
 #### Scenario: Build-time classes under the agent
 - **GIVEN** classes instrumented at build time, run with the agent

@@ -6,6 +6,7 @@ Everything Stack Augmentor does is set in one TOML file. It says which exception
 
 - [The file at a glance](#the-file-at-a-glance)
 - [Where the file comes from](#where-the-file-comes-from)
+- [Several applications in one JVM](#several-applications-in-one-jvm)
 - [The built-in configuration](#the-built-in-configuration)
 - [Keys: classes and methods](#keys-classes-and-methods)
 - [Exceptions](#exceptions): `[augment.exceptions]`
@@ -23,7 +24,7 @@ Everything Stack Augmentor does is set in one TOML file. It says which exception
 
 ```toml
 debug = false                  # print what gets instrumented and where each value comes from
-inPlaceModification = false    # write frames into the exception's own stack trace instead of copying it
+inPlaceModification = true     # write frames into the exception's own stack trace instead of copying it
 
 [augment]                      # how frames look (these are the defaults)
 frameFormat = "$class$receiver.$method$params"
@@ -53,7 +54,7 @@ maxValueLength = 64
 | Key | Value | Default | Section |
 |---|---|---|---|
 | `debug` | `true` or `false` | `false` | [Root options](#root-options) |
-| `inPlaceModification` | `true` or `false` | `false` | [Root options](#root-options) |
+| `inPlaceModification` | `true` or `false` | `true` | [Root options](#root-options) |
 | `[augment]` `frameFormat` | template | `"$class$receiver.$method$params"` | [Formats](#formats) |
 | `[augment]` `receiverFormat` | template | `"{$name=$value, ...}"` | [Formats](#formats) |
 | `[augment]` `paramsFormat` | template | `"{$name=$value, ...}"` | [Formats](#formats) |
@@ -73,11 +74,22 @@ The file name must end in `.toml`.
 |---|---|---|
 | Java agent, also in the live-stack mode | `-javaagent:stack-augmentor-agent.jar=config=<file>` (or just `=<file>`), otherwise `-Dstackaugmentor.config=<file>` | everything, at JVM start |
 | Build plugin | the plugin's argument in `build.gradle.kts` (see the [README](../README.md#quick-start-build-time-instrumentation)) | `[augment.annotations]`, `[augment.receiver]` and `[augment.params]`, to decide which classes and methods to instrument and which parameters they pass; `debug`. It validates the whole file and warns if no `[augment.exceptions]` entry is `true` |
-| Runtime of classes instrumented at build time | `-Dstackaugmentor.config=<file>`, otherwise `stack-augmentor.toml` on the classpath (in an application server also from the context class loader of the first throwing thread) | `[augment]`, `[augment.exceptions]`, `[augment.receiver]`, `debug`, `inPlaceModification`; the parameters and where the annotations are read were chosen at build time |
+| Runtime of classes instrumented at build time | `-Dstackaugmentor.config=<file>`, otherwise `stack-augmentor.toml` on the classpath of the runtime library | `[augment]`, `[augment.exceptions]`, `[augment.receiver]`, `debug`, `inPlaceModification`; the parameters and where the annotations are read were chosen at build time |
 
 For build-time instrumentation, one file in `src/main/resources` serves both the build and the runtime. A frame's receiver members come from the runtime entry with the same key as the entry that decided its method at build time, so if you change a key, rebuild. Where the annotations decided at build time, the frame shows the `@AugmentedReceiver` members, as it shows the annotated parameters: the build decides both, and the runtime's `[augment.annotations]` is not checked again. Without a runtime file, the built-in configuration applies and a warning says so: a forgotten file would otherwise go unnoticed, since the built-in configuration does not have the keys of your build file.
 
 The defaults in the table above are those of a file that leaves a key out: an empty file augments nothing.
+
+## Several applications in one JVM
+
+An application server runs each application in a class loader of its own, and Spring Boot and Quarkus load an application's classes and libraries in one of their own. Such an application can bring its own `stack-augmentor.toml`, e.g. in `WEB-INF/classes`, in `BOOT-INF/classes` or in `src/main/resources`, with the agent and with build-time instrumentation alike:
+
+- A class uses the `stack-augmentor.toml` of the nearest class loader, from its own upwards, that has one of its own, one that its parent class loader does not see.
+- The class loaders of the JVM itself, the system class loader and its parents, and the class loader of the agent or of `stack-augmentor-runtime`, use the file above: the agent's, or the one the runtime library sees. So do the classes whose class loaders have no file of their own.
+- With the agent, an application's file decides everything for its classes and libraries: what is instrumented, which exceptions are augmented, and how the frames look. With build-time instrumentation, its runtime part, as above.
+- Each file is read once, when the first class of its class loader is loaded (agent) or when an exception first leaves one of its instrumented methods (build-time), and is kept while the class loader lives. `debug = true` in any of them turns on the debug output for the whole JVM.
+- An invalid application file is printed as an error naming the file, the key and the line, and that application's frames stay unchanged; it does not stop the JVM. `inPlaceModification` is decided once, by the file above.
+- The frames of one stack trace may then look different: the server's frames in the server's format, the application's in its own.
 
 ## The built-in configuration
 
@@ -261,7 +273,7 @@ Without the `@Augmented` on the class, both frames would be unchanged; with `@Au
 ## Root options
 
 - **`debug = true`** prints diagnostics to stderr: the configuration and where it came from, which classes and methods get instrumented and by which entry, where each value comes from, and annotations or entries that have no effect. Startup messages start with their source: `agent:`, `build plugin:` or `runtime:` (classes instrumented at build time, at runtime); the others name the class or the entry they are about.
-- **`inPlaceModification = true`** writes each frame into the exception's own stack trace instead of copying the trace, which is faster for deep stacks (see [Limitations](limitations.md)). It needs `java.lang` open: the agent opens it; with build-time instrumentation, start the application with `--add-opens java.base/java.lang=ALL-UNNAMED`, otherwise the agent stops the JVM at startup, and the runtime of build-time classes prints an error and leaves stack traces unchanged. `-Dstackaugmentor.inPlaceModification=true|false` overrides the file.
+- **`inPlaceModification = true`** (the default) writes each frame into the exception's own stack trace instead of copying the trace, which is faster for deep stacks (see [Limitations](limitations.md)). It needs `java.lang` open: the agent opens it; with build-time instrumentation, start the application with `--add-opens java.base/java.lang=ALL-UNNAMED`. Where `java.lang` is not open, frames are copied instead, with a warning if the file or the system property sets `inPlaceModification = true` explicitly. `false` always copies. `-Dstackaugmentor.inPlaceModification=true|false` overrides the file.
 
 ## Errors and warnings
 

@@ -44,7 +44,7 @@ NOT take effect. It SHALL leave the same types alone as the agent (see the Java 
 
 ### Requirement: Runtime without an agent
 At runtime, the runtime library SHALL start by itself on the first exception that leaves an instrumented method, reading
-its configuration (see the configuration specification). What the build decided SHALL stand: which methods are augmented,
+its configuration, and each application's own where it has one (see the configuration specification). What the build decided SHALL stand: which methods are augmented,
 their parameter values, and whether their receiver members come from the annotations or from an `[augment.receiver]`
 entry. For an entry, the runtime SHALL show the members of its own entry with the same key; a method whose key the runtime
 configuration does not have, e.g. after a key was changed without rebuilding, SHALL show no receiver members. For the

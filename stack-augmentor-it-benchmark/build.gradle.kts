@@ -68,8 +68,9 @@ val benchmarkTasks = modes.map { mode ->
                 listOf("-javaagent:${agentJar.singleFile.absolutePath}=config=${config.asFile.absolutePath}")
             })
         }
-        if (mode == "agentInPlace") {
-            systemProperty("stackaugmentor.inPlaceModification", "true")
+        // In place is the default; copying needs it turned off.
+        if (mode == "agentCopying") {
+            systemProperty("stackaugmentor.inPlaceModification", "false")
         }
         if (mode == "live") {
             val library = nativeLibrary
