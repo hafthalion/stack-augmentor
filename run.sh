@@ -4,11 +4,11 @@
 #   ./run.sh benchmark
 # Without an argument, it asks which one to run.
 #
-#   java-agent  the Java agent instruments classes, ids from annotations and from
+#   java-agent  the Java agent instruments classes, values from annotations and from
 #               stack-augmentor.toml, and a simple cause chain printed both ways:
 #                 java -javaagent:<agent jar>=config=<stack-augmentor.toml> -jar <example jar>
 #   live-agent  twice: with the agent alone, and in the agent's live-stack mode with the
-#               native library as well, which shows ids on every frame:
+#               native library as well, which augments every frame:
 #                 java -agentpath:<native library> -javaagent:<agent jar>=config=<stack-augmentor.toml> -jar <example jar>
 #               Without a C compiler (cc or gcc) there is no native library, and only the first runs.
 #   build-time  classes instrumented when they were built, no agent:
