@@ -6,6 +6,7 @@ import net.bytebuddy.description.method.MethodDescription;
 import net.bytebuddy.description.type.TypeDefinition;
 import net.bytebuddy.description.type.TypeDescription;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -31,7 +32,11 @@ final class ClassEntries {
         }
     }
 
-    private record Cached(TypeDescription type, List<AugmentorConfig.ClassEntry> entries) {
+    /**
+     * The type only weakly: the agent keeps one instance per class loader's configuration as long as the class loader
+     * lives, and the type would keep the class loader alive.
+     */
+    private record Cached(WeakReference<TypeDescription> type, List<AugmentorConfig.ClassEntry> entries) {
     }
 
     private final AugmentorConfig config;
@@ -46,11 +51,11 @@ final class ClassEntries {
     /** The entries whose class part matches the type, in the order of the file. */
     List<AugmentorConfig.ClassEntry> entries(TypeDescription type) {
         Cached last = cached;
-        if (last != null && last.type() == type) {
+        if (last != null && last.type().get() == type) {
             return last.entries();
         }
         List<AugmentorConfig.ClassEntry> entries = config.classEntries(type.getName(), new SupertypeNames(type)::contains);
-        cached = new Cached(type, entries);
+        cached = new Cached(new WeakReference<>(type), entries);
         return entries;
     }
 

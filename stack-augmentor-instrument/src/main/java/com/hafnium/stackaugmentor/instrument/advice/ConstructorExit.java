@@ -13,6 +13,7 @@ import net.bytebuddy.implementation.Implementation;
 import net.bytebuddy.implementation.bytecode.StackManipulation;
 import net.bytebuddy.implementation.bytecode.assign.Assigner;
 import net.bytebuddy.implementation.bytecode.collection.ArrayFactory;
+import net.bytebuddy.implementation.bytecode.constant.ClassConstant;
 import net.bytebuddy.implementation.bytecode.constant.TextConstant;
 import net.bytebuddy.implementation.bytecode.member.MethodInvocation;
 import net.bytebuddy.implementation.bytecode.member.MethodVariableAccess;
@@ -167,7 +168,7 @@ public final class ConstructorExit {
                 labels.add(new TextConstant(selectedParam.encodedLabel()));
             }
             return new StackManipulation.Compound(
-                    new TextConstant(type.getName()),
+                    ClassConstant.of(type),
                     new TextConstant(MethodDescription.CONSTRUCTOR_INTERNAL_NAME),
                     ArrayFactory.forType(OBJECT).withValues(values),
                     ArrayFactory.forType(STRING).withValues(labels),
@@ -177,7 +178,7 @@ public final class ConstructorExit {
         private static MethodDescription.InDefinedShape onThrow() {
             try {
                 return new MethodDescription.ForLoadedMethod(Dispatch.class.getMethod("onThrow",
-                        Object.class, Throwable.class, String.class, String.class, String.class, Object[].class, String[].class));
+                        Object.class, Throwable.class, String.class, Class.class, String.class, Object[].class, String[].class));
             } catch (NoSuchMethodException e) {
                 throw new IllegalStateException(e);
             }

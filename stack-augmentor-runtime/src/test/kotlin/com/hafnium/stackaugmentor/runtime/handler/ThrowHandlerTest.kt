@@ -5,6 +5,7 @@ import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig
 import com.hafnium.stackaugmentor.runtime.config.ConfigException
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
+import java.net.URLClassLoader
 import java.nio.file.Files
 import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -32,15 +33,29 @@ class ThrowHandlerTest {
     }
 
     @Test
-    fun `build-time handler copies the trace by default`() {
+    fun `build-time handler copies the trace when java lang is not open`() {
         assertSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces(AugmentorConfig()))
     }
 
     @Test
-    fun `build-time handler refuses in-place modification when java lang is not open`() {
+    fun `build-time handler copies the trace and warns when in-place modification is asked for but java lang is not open`() {
         val config = AugmentorConfig.builder().inPlaceModification(true).build()
-        val e = assertThrows(ConfigException::class.java) { ThrowHandler.runtimeStackTraces(config) }
-        assertTrue(e.message!!.contains("--add-opens java.base/java.lang=ALL-UNNAMED"), e.message)
+        val output = stderrOf { assertSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces(config)) }
+        assertTrue(output.contains("WARN runtime: inPlaceModification needs java.lang open"), output)
+        assertTrue(output.contains("--add-opens java.base/java.lang=ALL-UNNAMED"), output)
+        assertEquals("", stderrOf { ThrowHandler.runtimeStackTraces(AugmentorConfig()) }, "no warning by default")
+    }
+
+    private fun stderrOf(action: () -> Unit): String {
+        val originalErr = System.err
+        val err = ByteArrayOutputStream()
+        System.setErr(PrintStream(err, true, Charsets.UTF_8))
+        try {
+            action()
+        } finally {
+            System.setErr(originalErr)
+        }
+        return err.toString(Charsets.UTF_8)
     }
 
     @Test
@@ -55,9 +70,9 @@ class ThrowHandlerTest {
         try {
             val handler = ThrowHandler()
             // Built with the built-in configuration too: it reads the annotations of all classes.
-            handler.onThrow(target, built, AugmentorConfig.ANNOTATIONS, Annotated::class.java.name, "fail", null, null)
+            handler.onThrow(target, built, AugmentorConfig.ANNOTATIONS, Annotated::class.java, Annotated::class.java.name, "fail", null, null)
             // Built with another key: the built-in configuration does not have it.
-            handler.onThrow(target, other, Annotated::class.java.name + "::*", Annotated::class.java.name, "fail", null, null)
+            handler.onThrow(target, other, Annotated::class.java.name + "::*", Annotated::class.java, Annotated::class.java.name, "fail", null, null)
         } finally {
             System.setErr(originalErr)
         }
@@ -87,34 +102,66 @@ class ThrowHandlerTest {
         )
     }
 
-    @Test
-    fun `the context class loader provides the configuration that the runtime jar's loader does not see`(@TempDir dir: Path) {
-        Files.writeString(dir.resolve("stack-augmentor.toml"), "[augment.exceptions]\n\"java.lang.Exception+\" = true\n[augment.annotations]\n\"${Annotated::class.java.name}\" = true\n")
-        val thread = Thread.currentThread()
-        val originalLoader = thread.contextClassLoader
-        val originalErr = System.err
-        val err = ByteArrayOutputStream()
-        System.setErr(PrintStream(err, true, Charsets.UTF_8))
-        val target = Annotated()
-        val thrown = thrownBy(target)
-        try {
-            java.net.URLClassLoader(arrayOf(dir.toUri().toURL()), null).use { application ->
-                thread.contextClassLoader = application
-                ThrowHandler().onThrow(target, thrown, AugmentorConfig.ANNOTATIONS, Annotated::class.java.name, "fail", null, null)
+    /** Loads [Annotated] itself, not through its parent, from the test classes and [dir], as an application server does. */
+    private class Application(dir: Path) : URLClassLoader(
+        arrayOf(Annotated::class.java.protectionDomain.codeSource.location, dir.toUri().toURL()),
+        ThrowHandlerTest::class.java.classLoader,
+    ) {
+        override fun loadClass(name: String, resolve: Boolean): Class<*> = synchronized(getClassLoadingLock(name)) {
+            if (name != Annotated::class.java.name) {
+                return super.loadClass(name, resolve)
             }
-        } finally {
-            thread.contextClassLoader = originalLoader
-            System.setErr(originalErr)
+            findLoadedClass(name) ?: findClass(name)
         }
-        assertEquals(Annotated::class.java.name + "{objectId=a-1}", thrown.stackTrace[0].className)
-        assertTrue(!err.toString(Charsets.UTF_8).contains(ThrowHandler.NO_RUNTIME_CONFIG), err.toString(Charsets.UTF_8))
+    }
+
+    private fun thrownByOwn(target: Any): Throwable = try {
+        target.javaClass.getMethod("fail").invoke(target)
+        throw AssertionError("fail() returned")
+    } catch (e: java.lang.reflect.InvocationTargetException) {
+        e.cause!!
+    }
+
+    @Test
+    fun `a class uses the configuration of its own class loader`(@TempDir dir: Path) {
+        Files.writeString(dir.resolve("stack-augmentor.toml"), "[augment]\nreceiverFormat = \"<\$value>\"\n[augment.exceptions]\n\"java.lang.Exception+\" = true\n")
+        val handler = ThrowHandler()
+        Application(dir).use { application ->
+            val type = application.loadClass(Annotated::class.java.name)
+            assertSame(application, type.classLoader)
+            val target = type.getConstructor().newInstance()
+            val own = thrownByOwn(target)
+            val output = stderrOf { handler.onThrow(target, own, AugmentorConfig.ANNOTATIONS, type, type.name, "fail", null, null) }
+            assertEquals(Annotated::class.java.name + "<a-1>", own.stackTrace[0].className)
+            assertTrue(!output.contains(ThrowHandler.NO_RUNTIME_CONFIG), output)
+        }
+        // The class of the test's own class loader keeps the base configuration, here the built-in one.
+        val target = Annotated()
+        val base = thrownBy(target)
+        handler.onThrow(target, base, AugmentorConfig.ANNOTATIONS, Annotated::class.java, Annotated::class.java.name, "fail", null, null)
+        assertEquals(Annotated::class.java.name + "{objectId=a-1}", base.stackTrace[0].className)
+    }
+
+    @Test
+    fun `an invalid configuration of a class loader leaves its classes unchanged`(@TempDir dir: Path) {
+        Files.writeString(dir.resolve("stack-augmentor.toml"), "[augment]\nmaxValueLength = 1\n")
+        val handler = ThrowHandler()
+        Application(dir).use { application ->
+            val type = application.loadClass(Annotated::class.java.name)
+            val target = type.getConstructor().newInstance()
+            val own = thrownByOwn(target)
+            val output = stderrOf { handler.onThrow(target, own, AugmentorConfig.ANNOTATIONS, type, type.name, "fail", null, null) }
+            assertEquals(Annotated::class.java.name, own.stackTrace[0].className)
+            assertTrue(output.contains("ERROR runtime: "), output)
+            assertTrue(output.contains("line 2: maxValueLength must be between 2 and 10000, was 1"), output)
+        }
     }
 
     @Test
     fun `agent handler needs an entry`() {
         val target = Annotated()
         val thrown = thrownBy(target)
-        ThrowHandler(AugmentorConfig()).onThrow(target, thrown, Annotated::class.java.name + "::*", Annotated::class.java.name, "fail", null, null)
+        ThrowHandler(AugmentorConfig()).onThrow(target, thrown, Annotated::class.java.name + "::*", Annotated::class.java, Annotated::class.java.name, "fail", null, null)
         assertEquals(Annotated::class.java.name, thrown.stackTrace[0].className)
     }
 
@@ -123,13 +170,13 @@ class ThrowHandlerTest {
         val target = Annotated()
         val thrown = thrownBy(target)
         val config = AugmentorConfig.builder().annotations(mapOf(Annotated::class.java.name to true)).exceptions(mapOf("**" to true)).build()
-        ThrowHandler(config).onThrow(target, thrown, AugmentorConfig.ANNOTATIONS, Annotated::class.java.name, "fail", null, null)
+        ThrowHandler(config).onThrow(target, thrown, AugmentorConfig.ANNOTATIONS, Annotated::class.java, Annotated::class.java.name, "fail", null, null)
         assertEquals("${Annotated::class.java.name}{objectId=a-1}", thrown.stackTrace[0].className)
         // A build-time class: its build decided to read the annotations, as for its parameters, so the runtime
         // configuration without [augment.annotations] augments it too.
         val unread = thrownBy(target)
         ThrowHandler(AugmentorConfig.builder().exceptions(mapOf("**" to true)).build())
-            .onThrow(target, unread, AugmentorConfig.ANNOTATIONS, Annotated::class.java.name, "fail", null, null)
+            .onThrow(target, unread, AugmentorConfig.ANNOTATIONS, Annotated::class.java, Annotated::class.java.name, "fail", null, null)
         assertEquals("${Annotated::class.java.name}{objectId=a-1}", unread.stackTrace[0].className)
     }
 
@@ -138,7 +185,7 @@ class ThrowHandlerTest {
         val target = Annotated()
         val thrown = thrownBy(target)
         ThrowHandler(AugmentorConfig.builder().exceptions(mapOf("**" to true)).build()).onThrow(
-            null, thrown, null, Annotated::class.java.name, "fail", arrayOf<Any?>("ann@example.com", 42, null), arrayOf("email#", "id", "phone#"),
+            null, thrown, null, Annotated::class.java, Annotated::class.java.name, "fail", arrayOf<Any?>("ann@example.com", 42, null), arrayOf("email#", "id", "phone#"),
         )
         // SHA-256 of "ann@example.com" starts with 71d4f55f; null stays null.
         assertEquals("fail{email=#71d4f55f, id=42, phone=null}", thrown.stackTrace[0].methodName)
@@ -150,12 +197,12 @@ class ThrowHandlerTest {
         val target = Annotated()
         val skipped = thrownBy(target)
         ThrowHandler(AugmentorConfig.builder().annotations(annotations).exceptions(mapOf("java.lang.*" to false)).build())
-            .onThrow(target, skipped, AugmentorConfig.ANNOTATIONS, Annotated::class.java.name, "fail", null, null)
+            .onThrow(target, skipped, AugmentorConfig.ANNOTATIONS, Annotated::class.java, Annotated::class.java.name, "fail", null, null)
         assertEquals(Annotated::class.java.name, skipped.stackTrace[0].className)
 
         val augmented = thrownBy(target)
         ThrowHandler(AugmentorConfig.builder().annotations(annotations).exceptions(mapOf("java.lang.IllegalStateException" to true)).build())
-            .onThrow(target, augmented, AugmentorConfig.ANNOTATIONS, Annotated::class.java.name, "fail", null, null)
+            .onThrow(target, augmented, AugmentorConfig.ANNOTATIONS, Annotated::class.java, Annotated::class.java.name, "fail", null, null)
         assertEquals("${Annotated::class.java.name}{objectId=a-1}", augmented.stackTrace[0].className)
     }
 }

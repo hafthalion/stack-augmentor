@@ -1,19 +1,16 @@
 package com.hafnium.stackaugmentor.agent.instrument;
 
-import com.hafnium.stackaugmentor.instrument.ParamSelection;
+import com.hafnium.stackaugmentor.agent.Configured;
 import com.hafnium.stackaugmentor.instrument.TypeMatching;
 import com.hafnium.stackaugmentor.instrument.advice.ConstructorExit;
-import com.hafnium.stackaugmentor.instrument.advice.ExitAdviceFactory;
 import com.hafnium.stackaugmentor.instrument.bridge.Dispatch;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
+import com.hafnium.stackaugmentor.runtime.config.ClassLoaderConfigs;
 import com.hafnium.stackaugmentor.runtime.config.Startup;
 import com.hafnium.stackaugmentor.runtime.handler.StackTraces;
 import com.hafnium.stackaugmentor.runtime.handler.ThrowHandler;
-import com.hafnium.stackaugmentor.runtime.values.FrameFormat;
-import com.hafnium.stackaugmentor.runtime.values.ValueResolver;
 import net.bytebuddy.agent.builder.AgentBuilder;
-import net.bytebuddy.asm.Advice;
 import net.bytebuddy.description.method.MethodDescription;
 import net.bytebuddy.matcher.ElementMatcher;
 
@@ -31,15 +28,14 @@ public final class ClassInstrumentation {
     private ClassInstrumentation() {
     }
 
-    /** Installs the handler, and instruments the configured classes that are loaded now or later. */
-    public static void install(Instrumentation instrumentation, AugmentorConfig config, FrameFormat format, boolean javaLangOpen) {
-        StackTraces stackTraces = Startup.load(Startup.AGENT, () -> StackTraces.configured(config,
-                javaLangOpen ? "but it is not" : "but the agent cannot open it"));
-        Dispatch.install(new ThrowHandler(new ValueResolver(config), format, stackTraces));
-
-        ParamSelection parameters = new ParamSelection(config);
-        TypeMatching matching = new TypeMatching(config, parameters);
-        Advice advice = ExitAdviceFactory.create(matching, parameters);
+    /**
+     * Installs the handler, and instruments the configured classes that are loaded now or later, each by the configuration
+     * of its class loader.
+     */
+    public static void install(Instrumentation instrumentation, AugmentorConfig config, ClassLoaderConfigs<Configured> contexts,
+                               boolean javaLangOpen) {
+        StackTraces stackTraces = StackTraces.configured(config, Startup.AGENT, javaLangOpen ? "but it is not" : "but the agent cannot open it");
+        Dispatch.install(new ThrowHandler(contexts, stackTraces));
 
         new AgentBuilder.Default()
                 .disableClassFormatChanges()
@@ -57,13 +53,21 @@ public final class ClassInstrumentation {
                 // The same types are left alone as by the build plugin.
                 .ignore(TypeMatching.IGNORED)
                 .or(any(), isBootstrapClassLoader())
-                .type(matching::instrument)
+                .type((type, classLoader, module, classBeingRedefined, protectionDomain) -> {
+                    Configured context = contexts.forLoader(classLoader);
+                    return context != null && context.matching().instrument(type);
+                })
                 .transform((builder, type, classLoader, module, protectionDomain) -> {
+                    Configured context = contexts.forLoader(classLoader);
+                    if (context == null) {
+                        return builder;
+                    }
+                    TypeMatching matching = context.matching();
                     ElementMatcher<MethodDescription> methods = matching.methods(type);
                     if (Log.isDebug()) {
                         Log.debug(() -> matching.describe(type, methods));
                     }
-                    return builder.visit(advice.on(methods)).visit(ConstructorExit.on(parameters, matching.constructors(type)));
+                    return builder.visit(context.advice().on(methods)).visit(ConstructorExit.on(context.parameters(), matching.constructors(type)));
                 })
                 .installOn(instrumentation);
     }

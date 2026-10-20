@@ -1,12 +1,14 @@
 # The built-in configuration: it applies when no configuration file is given, to the agent, the build plugin and the
 # runtime of classes instrumented at build time. A file replaces it completely; nothing of it is merged. All keys are
-# listed with the values that also apply where a file leaves them out.
+# listed with the values that also apply where a file leaves them out; inPlaceModification only as a comment, as setting
+# it asks for a warning where it is not possible.
 
 # Print diagnostics to stderr.
 debug = false
 # Write augmented frames into the exception's own stack trace instead of a copy; needs java.lang open (the agent
-# opens it; with build-time instrumentation, start with --add-opens java.base/java.lang=ALL-UNNAMED).
-inPlaceModification = false
+# opens it; with build-time instrumentation, start with --add-opens java.base/java.lang=ALL-UNNAMED), otherwise frames
+# are copied.
+# inPlaceModification = true
 
 # How frames look.
 [augment]

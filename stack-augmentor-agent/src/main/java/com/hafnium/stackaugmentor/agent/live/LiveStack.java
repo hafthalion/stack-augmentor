@@ -1,24 +1,22 @@
 package com.hafnium.stackaugmentor.agent.live;
 
-import com.hafnium.stackaugmentor.instrument.ParamSelection;
-import com.hafnium.stackaugmentor.instrument.TypeMatching;
+import com.hafnium.stackaugmentor.agent.Configured;
 import com.hafnium.stackaugmentor.instrument.bridge.Dispatch;
 import com.hafnium.stackaugmentor.instrument.bridge.LiveDispatch;
-import com.hafnium.stackaugmentor.instrument.live.FrameSpecs;
 import com.hafnium.stackaugmentor.instrument.live.LiveFrames;
 import com.hafnium.stackaugmentor.instrument.live.LiveStackFrames;
 import com.hafnium.stackaugmentor.instrument.live.ThrowableHooks;
 import com.hafnium.stackaugmentor.runtime.Log;
-import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
-import com.hafnium.stackaugmentor.runtime.values.FrameFormat;
-import com.hafnium.stackaugmentor.runtime.values.ValueResolver;
+import com.hafnium.stackaugmentor.runtime.config.ClassLoaderConfigs;
 import com.sun.management.HotSpotDiagnosticMXBean;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.agent.builder.ResettableClassFileTransformer;
 import net.bytebuddy.utility.nullability.NeverNull;
 
+import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
 import java.lang.management.ManagementFactory;
+import java.security.ProtectionDomain;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static net.bytebuddy.matcher.ElementMatchers.is;
@@ -50,7 +48,7 @@ public final class LiveStack {
      *
      * @return null, or why the mode cannot be used; then nothing was changed
      */
-    public static String install(Instrumentation instrumentation, AugmentorConfig config, FrameFormat format) {
+    public static String install(Instrumentation instrumentation, ClassLoaderConfigs<Configured> contexts) {
         int version = NativeLibrary.loadedVersion();
         if (version != NativeLibrary.VERSION) {
             return version == 0
@@ -69,9 +67,7 @@ public final class LiveStack {
         }
         int maxDepth = vmOption("MaxJavaStackTraceDepth", DEFAULT_MAX_DEPTH);
         boolean eliminatedAllocations = vmOption("EliminateAllocations", 1) != 0;
-        TypeMatching matching = new TypeMatching(config, new ParamSelection(config));
-        LiveFrames handler = new LiveFrames(live, new FrameSpecs(config, matching), new ValueResolver(config), format,
-                maxDepth <= 0 ? Integer.MAX_VALUE : maxDepth, eliminatedAllocations);
+        LiveFrames handler = new LiveFrames(live, contexts, maxDepth <= 0 ? Integer.MAX_VALUE : maxDepth, eliminatedAllocations);
 
         AtomicBoolean probed = new AtomicBoolean();
         LiveDispatch.install(new ProbeHandler(probed));
@@ -92,9 +88,12 @@ public final class LiveStack {
             transformer.reset(instrumentation, AgentBuilder.RedefinitionStrategy.RETRANSFORMATION);
             return "the code added to java.lang.Throwable is not called";
         }
+        // The configurations of class loaders are read when their first class is defined: reading them while a stack trace
+        // is recorded could load classes then.
+        instrumentation.addTransformer(new ClassLoaderRegistration(contexts));
         LiveDispatch.install(handler);
         // Classes instrumented at build time still call the handler: the live stack already covers their frames.
-        Dispatch.install((self, thrown, receiverKey, owner, method, args, paramNames) -> {
+        Dispatch.install((self, thrown, receiverKey, ownerClass, owner, method, args, paramNames) -> {
         });
         Log.debug(() -> "agent: reading frames from the live stack (native library version " + version + "), stack trace depth " + maxDepth + (eliminatedAllocations
                 ? ", an object argument the JIT optimized away shows as '" + LiveFrames.UNKNOWN + "' (-XX:-EliminateAllocations avoids that)"
@@ -133,6 +132,19 @@ public final class LiveStack {
             };
         } catch (RuntimeException | LinkageError e) {
             return defaultValue;
+        }
+    }
+
+    /** Reads the configuration of each class loader when it defines its first class, and changes no class. */
+    private record ClassLoaderRegistration(ClassLoaderConfigs<Configured> contexts) implements ClassFileTransformer {
+
+        @Override
+        public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain,
+                                byte[] classfileBuffer) {
+            if (loader != null) {
+                contexts.forLoader(loader);
+            }
+            return null;
         }
     }
 

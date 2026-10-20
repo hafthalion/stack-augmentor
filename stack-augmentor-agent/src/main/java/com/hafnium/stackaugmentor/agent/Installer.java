@@ -5,6 +5,8 @@ import com.hafnium.stackaugmentor.agent.live.LiveStack;
 import com.hafnium.stackaugmentor.instrument.bridge.LiveDispatch;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
+import com.hafnium.stackaugmentor.runtime.config.ClassLoaderConfigs;
+import com.hafnium.stackaugmentor.runtime.config.Startup;
 import com.hafnium.stackaugmentor.runtime.handler.StackTraces;
 import com.hafnium.stackaugmentor.runtime.values.FrameFormat;
 import net.bytebuddy.dynamic.Nexus;
@@ -26,6 +28,10 @@ final class Installer {
     }
 
     static void install(Instrumentation instrumentation, AugmentorConfig config, FrameFormat format) {
+        // The agent's configuration, and those of the class loaders below the system class loader that have their own.
+        ClassLoaderConfigs<Configured> contexts = ClassLoaderConfigs.perClassLoader(Startup.AGENT, Configured.of(config, format), Configured::of,
+                Installer.class.getClassLoader());
+
         // Inlined advice needs neither the Nexus nor Unsafe-based class injection; turning them off avoids
         // the JDK's sun.misc.Unsafe warnings. In the shaded jar these property names are relocated, so they
         // do not affect a ByteBuddy copy used by the application itself.
@@ -34,13 +40,13 @@ final class Installer {
 
         boolean javaLangOpen = openJavaBase(instrumentation);
         if (LiveStack.requested()) {
-            String problem = javaLangOpen ? LiveStack.install(instrumentation, config, format) : "java.lang cannot be opened to the agent";
+            String problem = javaLangOpen ? LiveStack.install(instrumentation, contexts) : "java.lang cannot be opened to the agent";
             if (problem == null) {
                 return;
             }
             Log.warn("agent: cannot read frames from the live stack, so classes are instrumented instead: " + problem);
         }
-        ClassInstrumentation.install(instrumentation, config, format, javaLangOpen);
+        ClassInstrumentation.install(instrumentation, config, contexts, javaLangOpen);
     }
 
     /**

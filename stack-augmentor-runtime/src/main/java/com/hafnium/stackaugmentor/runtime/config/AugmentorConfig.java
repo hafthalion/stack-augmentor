@@ -31,8 +31,8 @@ import java.util.stream.Collectors;
  *
  * <pre>{@code
  * debug = false
- * inPlaceModification = false  # write frames into the exception's own stack trace instead of copying it; needs
- *                              # java.lang open (the agent opens it), otherwise startup fails
+ * inPlaceModification = true   # write frames into the exception's own stack trace instead of copying it; needs
+ *                              # java.lang open (the agent opens it), otherwise frames are copied
  *
  * [augment]                   # how frames look
  * frameFormat = "$class$receiver.$method$params"
@@ -122,7 +122,8 @@ public final class AugmentorConfig {
     private final String paramsFormat;
     private final int maxValueLength;
     private final boolean debug;
-    private final boolean inPlaceModification;
+    /** Null where neither the file nor the builder sets it. */
+    private final Boolean inPlaceModification;
     private final Map<String, Boolean> exceptions;
     private final Map<String, Boolean> annotations;
 
@@ -385,7 +386,7 @@ public final class AugmentorConfig {
     /** The default values: no class, method, annotation or exception entries, so nothing is augmented. See {@link #builtIn()}. */
     public AugmentorConfig() {
         this(Map.of(), Map.of(), DEFAULT_FRAME_FORMAT, DEFAULT_RECEIVER_FORMAT, DEFAULT_PARAMS_FORMAT,
-                DEFAULT_MAX_VALUE_LENGTH, false, false, Map.of(), Map.of());
+                DEFAULT_MAX_VALUE_LENGTH, false, null, Map.of(), Map.of());
     }
 
     /**
@@ -402,7 +403,7 @@ public final class AugmentorConfig {
      */
     public AugmentorConfig(Map<String, ReceiverSpec> classes, Map<String, List<ParamRef>> methods,
                            String frameFormat, String receiverFormat, String paramsFormat, int maxValueLength,
-                           boolean debug, boolean inPlaceModification, Map<String, Boolean> exceptions,
+                           boolean debug, Boolean inPlaceModification, Map<String, Boolean> exceptions,
                            Map<String, Boolean> annotations) {
         this.classes = Collections.unmodifiableMap(new LinkedHashMap<>(classes));
         Map<String, List<ParamRef>> methodsCopy = new LinkedHashMap<>();
@@ -513,12 +514,24 @@ public final class AugmentorConfig {
     }
 
     /**
-     * Whether the handler writes frames into the exception's own stack trace instead of copying it: the
-     * {@code inPlaceModification} key, unless the system property {@value #IN_PLACE_MODIFICATION_PROPERTY} is set.
+     * Whether the handler writes frames into the exception's own stack trace instead of copying it, where the JVM allows
+     * it: the system property {@value #IN_PLACE_MODIFICATION_PROPERTY}, else the {@code inPlaceModification} key, else
+     * {@code true}.
      */
     public boolean inPlaceModification() {
         String property = System.getProperty(IN_PLACE_MODIFICATION_PROPERTY);
-        return property != null ? Boolean.parseBoolean(property.trim()) : inPlaceModification;
+        if (property != null) {
+            return Boolean.parseBoolean(property.trim());
+        }
+        return inPlaceModification == null || inPlaceModification;
+    }
+
+    /**
+     * Whether {@link #inPlaceModification()} was asked for explicitly, by the system property or the key, rather than
+     * by default: then copying instead is worth a warning.
+     */
+    public boolean inPlaceModificationRequested() {
+        return System.getProperty(IN_PLACE_MODIFICATION_PROPERTY) != null || inPlaceModification != null;
     }
 
     /** The {@code [augment.receiver]} entries for the debug log, e.g. {@code com.acme.**::*=@, com.acme.Order::*=getId()}. */
@@ -779,7 +792,7 @@ public final class AugmentorConfig {
                 && paramsFormat.equals(that.paramsFormat)
                 && maxValueLength == that.maxValueLength
                 && debug == that.debug
-                && inPlaceModification == that.inPlaceModification
+                && Objects.equals(inPlaceModification, that.inPlaceModification)
                 && exceptions.equals(that.exceptions)
                 && annotations.equals(that.annotations);
     }
@@ -807,7 +820,7 @@ public final class AugmentorConfig {
         private String paramsFormat = DEFAULT_PARAMS_FORMAT;
         private int maxValueLength = DEFAULT_MAX_VALUE_LENGTH;
         private boolean debug;
-        private boolean inPlaceModification;
+        private Boolean inPlaceModification;
         private Map<String, Boolean> exceptions = Map.of();
         private Map<String, Boolean> annotations = Map.of();
 

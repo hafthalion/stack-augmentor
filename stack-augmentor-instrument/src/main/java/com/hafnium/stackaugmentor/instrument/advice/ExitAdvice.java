@@ -20,7 +20,7 @@ public final class ExitAdvice {
     public static void exit(@Receiver Object self,
                             @Advice.Thrown Throwable thrown,
                             @ReceiverKey String receiverKey,
-                            @Advice.Origin("#t") String owner,
+                            @Advice.Origin Class<?> owner,
                             @Advice.Origin("#m") String method,
                             @ParamArgs Object[] args,
                             @ParamNames String[] paramNames) {

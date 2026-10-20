@@ -78,13 +78,13 @@ class StackTracesTest {
     }
 
     @Test
-    fun `build-time handler writes in place when configured and the application opens java lang`() {
-        val config = AugmentorConfig.builder().inPlaceModification(true).build()
-        assertNotSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces(config))
+    fun `build-time handler writes in place by default when the application opens java lang`() {
+        assertNotSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces(AugmentorConfig()))
     }
 
     @Test
-    fun `build-time handler copies by default even when java lang is open`() {
-        assertSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces(AugmentorConfig()))
+    fun `build-time handler copies when in-place modification is turned off`() {
+        val config = AugmentorConfig.builder().inPlaceModification(false).build()
+        assertSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces(config))
     }
 }

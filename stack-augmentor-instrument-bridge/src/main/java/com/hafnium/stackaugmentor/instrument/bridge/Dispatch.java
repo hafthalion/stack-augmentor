@@ -20,8 +20,11 @@ public final class Dispatch {
          * @param self        the receiver where the frame shows receiver members, else {@code null}
          * @param receiverKey the key of the frame's deciding {@code [augment.receiver]} entry, or {@code null} without
          *                    receiver members
+         * @param ownerClass  the class that declares the method, whose class loader's configuration applies; null from
+         *                    classes instrumented by an earlier version, which use the base configuration
+         * @param owner       the name of that class
          */
-        void onThrow(Object self, Throwable thrown, String receiverKey, String owner, String method, Object[] args,
+        void onThrow(Object self, Throwable thrown, String receiverKey, Class<?> ownerClass, String owner, String method, Object[] args,
                      String[] paramNames);
     }
 
@@ -41,8 +44,19 @@ public final class Dispatch {
         handler = newHandler;
     }
 
+    public static void onThrow(Object self, Throwable thrown, String receiverKey, Class<?> owner, String method, Object[] args,
+                               String[] paramNames) {
+        handle(self, thrown, receiverKey, owner, owner.getName(), method, args, paramNames);
+    }
+
+    /** Called by classes instrumented at build time by an earlier version, which pass the name of the declaring class. */
     public static void onThrow(Object self, Throwable thrown, String receiverKey, String owner, String method, Object[] args,
                                String[] paramNames) {
+        handle(self, thrown, receiverKey, null, owner, method, args, paramNames);
+    }
+
+    private static void handle(Object self, Throwable thrown, String receiverKey, Class<?> ownerClass, String owner, String method,
+                               Object[] args, String[] paramNames) {
         if (ACTIVE.get() != null) {
             return;
         }
@@ -50,7 +64,7 @@ public final class Dispatch {
         try {
             Handler current = handler();
             if (current != null) {
-                current.onThrow(self, thrown, receiverKey, owner, method, args, paramNames);
+                current.onThrow(self, thrown, receiverKey, ownerClass, owner, method, args, paramNames);
             }
         } catch (Throwable ignored) {
             // Never let the augmentation change the exception the application sees.

@@ -45,6 +45,21 @@ public final class Startup {
      */
     public static void configure(String component, String location, AugmentorConfig config) {
         Log.setDebug(config.debug());
+        describe(component, location, config);
+    }
+
+    /**
+     * As {@link #configure}, for the configuration of a class loader ({@link ClassLoaderConfigs}): its {@code debug} turns
+     * debug output on, never off, as the output is the same for the whole JVM.
+     */
+    public static void configureFor(String component, String location, AugmentorConfig config) {
+        if (config.debug()) {
+            Log.setDebug(true);
+        }
+        describe(component, location, config);
+    }
+
+    private static void describe(String component, String location, AugmentorConfig config) {
         if (config.hasAugmentEntries() && !config.exceptions().containsValue(true)) {
             Log.warn(component + ": " + NO_EXCEPTIONS);
         }

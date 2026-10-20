@@ -3,6 +3,8 @@ package com.hafnium.stackaugmentor.instrument.live;
 import com.hafnium.stackaugmentor.instrument.bridge.LiveDispatch;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.WeakIdentityMap;
+import com.hafnium.stackaugmentor.runtime.config.ClassLoaderConfigs;
+import com.hafnium.stackaugmentor.runtime.handler.ThrowHandler;
 import com.hafnium.stackaugmentor.runtime.values.FrameFormat;
 import com.hafnium.stackaugmentor.runtime.values.ValueResolver;
 import com.hafnium.stackaugmentor.runtime.values.NamedValue;
@@ -22,21 +24,30 @@ import java.util.stream.Stream;
  * <p>So it sees every frame of the trace, also those of constructors while they call {@code super(...)}, and of the
  * methods that catch the exception or called them, and it matches frames by position: recursion needs no special
  * care.
+ *
+ * <p>Each frame uses the configuration of the class loader of its method's class ({@link ClassLoaderConfigs}): whether
+ * it augments the throwable, which values the frame shows and how. A throwable that no configuration augments is left
+ * alone without a look at the stack.
  */
 public final class LiveFrames implements LiveDispatch.Handler {
 
     /** Shown for an argument that the JIT optimized away (scalar replacement): it reads as {@code null}. */
     public static final String UNKNOWN = "?";
 
-    /** The values of one frame, at its position in the trace. */
-    record Captured(int index, String className, String methodName, int lineNumber, List<NamedValue> receiverValues, List<NamedValue> paramValues) {
+    /** What a configuration gives the live-stack mode. */
+    public interface Context extends ThrowHandler.Context {
+
+        FrameSpecs specs();
+    }
+
+    /** The values of one frame, at its position in the trace, and how its configuration writes them. */
+    record Captured(int index, String className, String methodName, int lineNumber, List<NamedValue> receiverValues, List<NamedValue> paramValues,
+                    FrameFormat format) {
     }
 
     private final StackWalker plain;
     private final LiveStackFrames live;
-    private final FrameSpecs specs;
-    private final ValueResolver resolver;
-    private final FrameFormat format;
+    private final ClassLoaderConfigs<? extends Context> contexts;
     /** Frames beyond this depth are not in the trace: {@code -XX:MaxJavaStackTraceDepth}. */
     private final int maxDepth;
     /** Whether a {@code null} object in a compiled frame may be one the JIT optimized away: {@code -XX:+EliminateAllocations}. */
@@ -45,20 +56,17 @@ public final class LiveFrames implements LiveDispatch.Handler {
     /** The captured frames of the throwables whose stack trace array was not created yet. */
     private final WeakIdentityMap<Throwable, List<Captured>> pending = new WeakIdentityMap<>();
 
-    public LiveFrames(LiveStackFrames live, FrameSpecs specs, ValueResolver resolver, FrameFormat format, int maxDepth,
-                      boolean eliminatedAllocations) {
+    public LiveFrames(LiveStackFrames live, ClassLoaderConfigs<? extends Context> contexts, int maxDepth, boolean eliminatedAllocations) {
         this.plain = live.plainWalker();
         this.live = live;
-        this.specs = specs;
-        this.resolver = resolver;
-        this.format = format;
+        this.contexts = contexts;
         this.maxDepth = maxDepth;
         this.eliminatedAllocations = eliminatedAllocations;
     }
 
     @Override
     public void onFill(Throwable thrown) {
-        if (!resolver.augments(thrown)) {
+        if (!contexts.anyMatches(context -> context.resolver().augments(thrown))) {
             // Also when the application fills in the trace again.
             pending.remove(thrown);
             return;
@@ -117,7 +125,7 @@ public final class LiveFrames implements LiveDispatch.Handler {
                 if (!shared) {
                     StackTraceElement plain = otherOriginal != null ? otherOriginal[j] : otherTrace[j];
                     if (rewritten[i] != null && sameMethod(plain, original[i])) {
-                        otherTrace[j] = format.rewrite(plain, rewritten[i].receiverValues(), rewritten[i].paramValues());
+                        otherTrace[j] = rewritten[i].format().rewrite(plain, rewritten[i].receiverValues(), rewritten[i].paramValues());
                         changed = true;
                     }
                     break;
@@ -171,7 +179,7 @@ public final class LiveFrames implements LiveDispatch.Handler {
             if (ClassLoader.class.isAssignableFrom(frame.getDeclaringClass())) {
                 return -1;
             }
-            if (index < maxDepth && specs.of(frame) != FrameSpecs.NONE) {
+            if (index < maxDepth && spec(frame, thrown) != FrameSpecs.NONE) {
                 last = index;
             }
             frame = iterator.hasNext() ? iterator.next() : null;
@@ -184,9 +192,10 @@ public final class LiveFrames implements LiveDispatch.Handler {
         StackWalker.StackFrame frame = firstTraceFrame(iterator, thrown);
         List<Captured> captured = new ArrayList<>();
         for (int index = 0; frame != null && index <= last; index++) {
-            FrameSpecs.Spec spec = specs.of(frame);
+            Context context = contexts.forClass(frame.getDeclaringClass());
+            FrameSpecs.Spec spec = spec(context, frame, thrown);
             if (spec != FrameSpecs.NONE) {
-                Captured values = capture(frame, spec, index);
+                Captured values = capture(context, frame, spec, index);
                 if (values != null) {
                     captured.add(values);
                 }
@@ -196,7 +205,17 @@ public final class LiveFrames implements LiveDispatch.Handler {
         return captured;
     }
 
-    private Captured capture(StackWalker.StackFrame frame, FrameSpecs.Spec spec, int index) {
+    /** What the frame shows: nothing where the configuration of its class does not augment the throwable. */
+    private FrameSpecs.Spec spec(StackWalker.StackFrame frame, Throwable thrown) {
+        return spec(contexts.forClass(frame.getDeclaringClass()), frame, thrown);
+    }
+
+    private static FrameSpecs.Spec spec(Context context, StackWalker.StackFrame frame, Throwable thrown) {
+        return context != null && context.resolver().augments(thrown) ? context.specs().of(frame) : FrameSpecs.NONE;
+    }
+
+    private Captured capture(Context context, StackWalker.StackFrame frame, FrameSpecs.Spec spec, int index) {
+        ValueResolver resolver = context.resolver();
         Object[] locals = live.locals(frame);
         boolean compiled = live.compiled(frame);
         List<NamedValue> receiverValues = List.of();
@@ -209,15 +228,16 @@ public final class LiveFrames implements LiveDispatch.Handler {
         }
         List<NamedValue> paramValues = new ArrayList<>(spec.params().size());
         for (FrameSpecs.Param param : spec.params()) {
-            paramValues.add(new NamedValue(param.label(), paramValue(locals, param, compiled)));
+            paramValues.add(new NamedValue(param.label(), paramValue(resolver, locals, param, compiled)));
         }
         if (receiverValues.isEmpty() && paramValues.isEmpty()) {
             return null;
         }
-        return new Captured(index, frame.getClassName(), frame.getMethodName(), frame.getLineNumber(), receiverValues, List.copyOf(paramValues));
+        return new Captured(index, frame.getClassName(), frame.getMethodName(), frame.getLineNumber(), receiverValues, List.copyOf(paramValues),
+                context.format());
     }
 
-    private String paramValue(Object[] locals, FrameSpecs.Param param, boolean compiled) {
+    private String paramValue(ValueResolver resolver, Object[] locals, FrameSpecs.Param param, boolean compiled) {
         Class<?> type = param.type();
         boolean wide = type == long.class || type == double.class;
         int slot = wide ? param.slot() + 1 : param.slot();
@@ -287,7 +307,7 @@ public final class LiveFrames implements LiveDispatch.Handler {
                 continue;
             }
             shift = index - frame.index();
-            trace[index] = format.rewrite(trace[index], frame.receiverValues(), frame.paramValues());
+            trace[index] = frame.format().rewrite(trace[index], frame.receiverValues(), frame.paramValues());
             rewritten[index] = frame;
         }
         return rewritten;

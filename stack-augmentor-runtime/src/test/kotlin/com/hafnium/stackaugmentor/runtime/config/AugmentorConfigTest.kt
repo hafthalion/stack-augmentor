@@ -38,7 +38,10 @@ class AugmentorConfigTest {
         assertEquals("{\$name=\$value, ...}", AugmentorConfig().paramsFormat())
         assertFalse(AugmentorConfig().hasAugmentEntries())
         assertNull(AugmentorConfig().entryOf("any.pkg.Class"))
-        assertFalse(AugmentorConfig().inPlaceModification())
+        assertTrue(AugmentorConfig().inPlaceModification())
+        assertFalse(AugmentorConfig().inPlaceModificationRequested())
+        assertFalse(parse("inPlaceModification = false").inPlaceModification())
+        assertTrue(parse("inPlaceModification = false").inPlaceModificationRequested())
     }
 
     @Test
@@ -102,8 +105,10 @@ class AugmentorConfigTest {
     fun `the system property overrides inPlaceModification of the file`() {
         val property = AugmentorConfig.IN_PLACE_MODIFICATION_PROPERTY
         try {
+            System.setProperty(property, "false")
+            assertFalse(parse("").inPlaceModification())
             System.setProperty(property, "true")
-            assertTrue(parse("").inPlaceModification())
+            assertTrue(parse("inPlaceModification = false").inPlaceModification())
             System.setProperty(property, "false")
             assertFalse(parse("inPlaceModification = true").inPlaceModification())
         } finally {
