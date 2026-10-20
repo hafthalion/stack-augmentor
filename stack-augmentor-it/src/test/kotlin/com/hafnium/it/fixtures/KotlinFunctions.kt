@@ -20,6 +20,13 @@ class Coroutines(@AugmentedReceiver val id: String) {
         throw IllegalStateException("after suspension $key")
     }
 
+    /** Does not use [key] after the suspension, so does not keep it. */
+    suspend fun forget(@AugmentedParam key: String): Nothing {
+        check(key.isNotEmpty())
+        suspendCoroutine { waiting = it }
+        throw IllegalStateException("after suspension")
+    }
+
     fun withDefault(@AugmentedParam key: String, @AugmentedParam count: Int = 3): Nothing = throw IllegalStateException("default $key $count")
 
     @Suppress("NOTHING_TO_INLINE")
