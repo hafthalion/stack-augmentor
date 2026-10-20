@@ -16,7 +16,10 @@ public final class ExitAdvice {
     private ExitAdvice() {
     }
 
-    @Advice.OnMethodExit(onThrowable = Throwable.class, suppress = Throwable.class)
+    // The parameters' current values, not copies made on entry: a reassigned parameter shows its new value, and a
+    // Kotlin suspend function resumed after a suspension shows the values it restored, not the placeholders it was
+    // called with. Not copying also keeps normal returns free of cost.
+    @Advice.OnMethodExit(onThrowable = Throwable.class, suppress = Throwable.class, backupArguments = false)
     public static void exit(@Receiver Object self,
                             @Advice.Thrown Throwable thrown,
                             @ReceiverKey String receiverKey,

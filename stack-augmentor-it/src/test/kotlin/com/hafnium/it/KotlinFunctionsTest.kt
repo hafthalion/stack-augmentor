@@ -1,6 +1,7 @@
 package com.hafnium.it
 
 import com.hafnium.it.fixtures.Coroutines
+import com.hafnium.it.fixtures.Reassigning
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.startCoroutine
@@ -30,11 +31,21 @@ class KotlinFunctionsTest {
     }
 
     @Test
-    fun `a suspend function that throws after it resumed`() {
+    fun `a suspend function that throws after it resumed shows the values it kept`() {
         val thrown = suspendedThrownBy({ coroutines.load("k-2") }) { coroutines.waiting!!.resumeWith(Result.success(Unit)) }
-        // The resumed call does not get the arguments again: the instrumenting modes show what it got. The live-stack
-        // mode reads the value the function still holds.
-        assertEquals(if (AgentMode.liveStack) "Coroutines{id=c-1}.load{key=k-2}" else "Coroutines{id=c-1}.load{key=null}", thrown.frame())
+        // The resumed call gets placeholders for its arguments, and restores the values it kept before the suspension.
+        assertEquals("Coroutines{id=c-1}.load{key=k-2}", thrown.frame())
+    }
+
+    @Test
+    fun `a suspend function does not keep a value it no longer needs after a suspension`() {
+        val thrown = suspendedThrownBy({ coroutines.forget("k-5") }) { coroutines.waiting!!.resumeWith(Result.success(Unit)) }
+        assertEquals("Coroutines{id=c-1}.forget{key=null}", thrown.frame())
+    }
+
+    @Test
+    fun `a reassigned parameter shows its new value`() {
+        assertEquals("run{arg0=new-k-6}", thrownBy { Reassigning().run("k-6") }.stackTrace[0].methodName)
     }
 
     @Test

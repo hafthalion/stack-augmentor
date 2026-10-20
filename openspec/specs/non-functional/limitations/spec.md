@@ -75,9 +75,9 @@ iteration) SHALL show the values of the call that the wrapper leaves in those sh
 Frames SHALL follow the compiled form of Kotlin functions. An inline function has no frame of its own: the frame of the
 function it was inlined into SHALL show that function's values. The wrapper the compiler generates for default arguments
 SHALL stay unchanged, and the function's own frame SHALL show every value, the default ones included. A suspend function
-that throws after it resumed from a suspension does not get its arguments again, so in the instrumenting modes its frame
-SHALL show the values that call got, such as `null` and `0`; the live-stack mode MAY show the values the function still
-holds.
+that throws after it resumed from a suspension SHALL show the values it kept across the suspension; a parameter that it
+no longer uses after the suspension is not kept, and SHALL show the placeholder the resumed call got, such as `null` or
+`0`.
 
 #### Scenario: Default argument
 - **GIVEN** `fun withDefault(@AugmentedParam key: String, @AugmentedParam count: Int = 3)` in a class that the annotations select
@@ -85,9 +85,10 @@ holds.
 - **THEN** its frame shows `withDefault{key=k-3, count=3}`, and the frame of the generated `withDefault$default` below it is unchanged
 
 #### Scenario: Suspend function after a suspension
-- **GIVEN** `suspend fun load(@AugmentedParam key: String)` that suspends and throws after it is resumed
+- **GIVEN** `suspend fun load(@AugmentedParam key: String)` that suspends, and after it is resumed throws an exception with `key` in its message
 - **WHEN** `load("k-2")` is run with the agent
-- **THEN** its frame shows `load{key=null}`, and in the live-stack mode `load{key=k-2}`
+- **THEN** its frame shows `load{key=k-2}`
+- **AND** a suspend function that does not use `key` after the suspension shows `key=null`
 
 ### Requirement: Live-stack mode limits
 The live-stack mode SHALL depend on JDK internals and on HotSpot; an object argument that the JIT optimized away SHALL be
