@@ -39,7 +39,7 @@ The system SHALL always print a warning:
   or `[augment.params]` entries other than `"-"` and no `[augment.annotations]` entry that is `true`;
 - when a configuration selects something to augment but no `[augment.exceptions]` entry is `true`, suggesting
   `"java.lang.Exception+" = true`;
-- when the agent was asked for the live-stack mode but cannot use it, with the reason;
+- when the JVM was started with the native library of the live-stack mode but the agent cannot use it, with the reason;
 - when the agent cannot use its shared temporary files safely and falls back to private ones;
 - when `inPlaceModification = true` was set explicitly but is not possible, so that frames are written the slower way.
 

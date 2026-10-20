@@ -42,7 +42,8 @@ be one of:
   classes implementing it, without loading classes to find out;
 - a pattern with `*` (any characters within one package segment), `**` (any characters across segments) and `?` (one
   character other than `.`): it SHALL match class names only, never subclasses by inheritance; `**` alone matches every
-  class. `+` after a pattern SHALL be rejected.
+  class. `$` SHALL be an ordinary character in patterns, so `com.acme.Order*` also matches `com.acme.Order$Line`. `+`
+  after a pattern SHALL be rejected.
 
 A class key SHALL be matched against the throwable's class in `[augment.exceptions]`, and against the declaring class of
 the frame's method in the other three tables.
@@ -93,7 +94,7 @@ The values SHALL be:
 - in `[augment.exceptions]` and `[augment.annotations]`: `true` or `false`;
 - in `[augment.receiver]`: a string with a field name or a no-argument method written with `()`, or several of them
   separated by commas (`"tenant, lineId()"`), or `"-"` for no receiver members;
-- in `[augment.params]`: a string with parameter names and 0-based indexes up to 255 (the JVM's maximum number of
+- in `[augment.params]`: a string with parameter names and 0-based indexes from 0 to 254 (a method has at most 255
   parameters), separated by commas, each optionally followed by `#` to show the value hashed (`"order, 2, email#"`), or
   `"-"` for none. There SHALL be no value that selects all parameters.
 

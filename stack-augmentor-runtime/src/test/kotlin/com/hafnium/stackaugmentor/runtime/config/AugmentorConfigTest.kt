@@ -600,11 +600,11 @@ class AugmentorConfigTest {
         assertTrue(error("[augment.params]\n\"com.acme.Order::process\" = true").contains("(# hashes the value), or \"-\" for none, was true"))
         // No wildcard for the parameters: they are named, or selected by the annotations.
         assertTrue(error("[augment.params]\n\"com.acme.Order::process\" = \"*\"").contains("invalid parameter '*'"))
-        // The JVM allows at most 255 parameters.
-        assertEquals(listOf(ParamRef.ByIndex(255)), parse("augment.params.\"com.acme.Order::process\" = \"255\"").methods()["com.acme.Order::process"])
+        // The JVM allows at most 255 parameters, so the last index is 254.
+        assertEquals(listOf(ParamRef.ByIndex(254)), parse("augment.params.\"com.acme.Order::process\" = \"254\"").methods()["com.acme.Order::process"])
         assertTrue(
-            error("[augment.params]\n\"com.acme.Order::process\" = \"256\"")
-                .contains("invalid parameter '256': use a parameter name or a 0-based index from 0 to 255"),
+            error("[augment.params]\n\"com.acme.Order::process\" = \"255\"")
+                .contains("invalid parameter '255': use a parameter name or a 0-based index from 0 to 254"),
         )
         assertEquals(
             "test.toml, line 2: [augment.params] keys must name a class and its methods separated by ::, e.g. " +

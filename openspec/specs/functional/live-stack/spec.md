@@ -8,7 +8,8 @@ on a native library and on internals of the JVM; there is no build-time equivale
 ## Requirements
 
 ### Requirement: Turning the mode on
-The mode SHALL be used when the JVM was started with the agent and its native library. The library SHALL only enable what
+The user SHALL ask for the mode by starting the JVM with the agent and, next to it, its native library; nothing else
+SHALL turn it on, and without the library the agent SHALL instrument classes. The library SHALL only enable what
 the JVM must allow at startup for reading the values of compiled frames, and SHALL never stop the JVM. Before using the
 mode, the agent SHALL check that the library matches its version and that the JVM behaves as the mode needs; if not, it
 SHALL warn with the reason and instrument classes as usual. The native library SHALL be buildable for Linux, macOS and

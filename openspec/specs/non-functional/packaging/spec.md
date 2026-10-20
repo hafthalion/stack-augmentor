@@ -12,7 +12,7 @@ The project SHALL deliver:
 - a runtime library for build-time instrumented applications;
 - the Java agent, as one self-contained jar;
 - the native library of the live-stack mode;
-- the build plugin.
+- the build plugin, for Gradle builds.
 
 #### Scenario: Application code
 - **GIVEN** an application that uses the annotations

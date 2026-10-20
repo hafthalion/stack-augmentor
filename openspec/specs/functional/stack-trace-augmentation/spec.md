@@ -11,7 +11,7 @@ specification says where its mode differs.
 A frame SHALL be augmented when its method has receiver members or parameter values (see the overview and the receivers
 and parameters specification) and the exception left that method. Instance methods SHALL show both, static methods
 parameter values only. Abstract and native methods, and compiler-generated methods such as lambda bodies, bridge methods
-and synthetic accessors, SHALL stay unchanged. A frame without any receiver member or parameter value SHALL stay unchanged.
+and synthetic accessors, SHALL stay unchanged, and so SHALL static initializers, which keys cannot name. A frame without any receiver member or parameter value SHALL stay unchanged.
 
 #### Scenario: Static method without parameter values
 - **GIVEN** a static function without selected parameters
