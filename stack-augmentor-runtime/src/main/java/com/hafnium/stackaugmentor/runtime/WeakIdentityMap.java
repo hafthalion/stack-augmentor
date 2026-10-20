@@ -3,6 +3,8 @@ package com.hafnium.stackaugmentor.runtime;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -22,6 +24,19 @@ public final class WeakIdentityMap<K, V> {
     public void set(K key, V value) {
         expunge();
         map.put(new Key<>(key, queue), value);
+    }
+
+    /** Sets the value unless the key has one, and returns the key's value. */
+    public V setIfAbsent(K key, V value) {
+        expunge();
+        V existing = map.putIfAbsent(new Key<>(key, queue), value);
+        return existing != null ? existing : value;
+    }
+
+    /** The values of the keys that are still referenced. */
+    public List<V> values() {
+        expunge();
+        return new ArrayList<>(map.values());
     }
 
     /** Removes the key's value and returns it, or {@code null} if there is none. */

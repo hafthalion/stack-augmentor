@@ -4,6 +4,7 @@ import com.hafnium.stackaugmentor.instrument.bridge.Dispatch;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.WeakIdentityMap;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
+import com.hafnium.stackaugmentor.runtime.config.ClassLoaderConfigs;
 import com.hafnium.stackaugmentor.runtime.config.Startup;
 import com.hafnium.stackaugmentor.runtime.values.FrameFormat;
 import com.hafnium.stackaugmentor.runtime.values.ValueResolver;
@@ -20,6 +21,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Called when an exception leaves an instrumented method: finds that method's frame in the
@@ -27,17 +29,21 @@ import java.util.Objects;
  *
  * <p>The Java agent creates it with the agent's configuration and installs it. With build-time
  * instrumentation no agent does that: {@link Dispatch} creates it through {@code ServiceLoader} with the
- * no-argument constructor, which reads the configuration from {@code -Dstackaugmentor.config} or from
- * {@code stack-augmentor.toml} on the classpath. What gets instrumented was decided at build time; at runtime,
- * {@code [augment]}, {@code [augment.exceptions]}, {@code debug}, {@code inPlaceModification} and the
- * {@code [augment.receiver]} entries apply, the latter by the key of the entry that decided the method at build time:
- * a method without such an entry shows no receiver members, even if its class is annotated.
+ * no-argument constructor, which reads the base configuration from {@code -Dstackaugmentor.config} or from
+ * {@code stack-augmentor.toml} seen by the runtime library's class loader. What gets instrumented was decided at build
+ * time; at runtime, {@code [augment]}, {@code [augment.exceptions]}, {@code debug} and the {@code [augment.receiver]}
+ * entries apply, the latter by the key of the entry that decided the method at build time: a method without such an
+ * entry shows no receiver members, even if its class is annotated.
+ *
+ * <p>Each frame uses the configuration of the class loader of its method's class ({@link ClassLoaderConfigs}), so the
+ * applications of one server can have their own; {@code inPlaceModification} is decided once, by the base
+ * configuration.
  */
 public final class ThrowHandler implements Dispatch.Handler {
 
-    public static final String CLASSPATH_CONFIG = "stack-augmentor.toml";
+    public static final String CLASSPATH_CONFIG = ClassLoaderConfigs.RESOURCE;
 
-    static final String NO_RUNTIME_CONFIG = "no " + CLASSPATH_CONFIG + " on the classpath and no -D"
+    static final String NO_RUNTIME_CONFIG = "no " + CLASSPATH_CONFIG + " found and no -D"
             + AugmentorConfig.CONFIG_PROPERTY + ", so the built-in configuration is used";
 
     /** Reflection frames are part of stack traces, so the walker shows them too. */
@@ -45,9 +51,29 @@ public final class ThrowHandler implements Dispatch.Handler {
 
     private static final String DISPATCH = Dispatch.class.getName();
 
-    private final ValueResolver resolver;
-    private final FrameFormat format;
+    /** What a configuration gives the handler. */
+    public interface Context {
+
+        ValueResolver resolver();
+
+        FrameFormat format();
+
+        static Context of(AugmentorConfig config) {
+            return of(new ValueResolver(config), FrameFormat.create(config));
+        }
+
+        static Context of(ValueResolver resolver, FrameFormat format) {
+            return new Values(resolver, format);
+        }
+    }
+
+    private record Values(ValueResolver resolver, FrameFormat format) implements Context {
+    }
+
+    private final ClassLoaderConfigs<? extends Context> contexts;
     private final StackTraces stackTraces;
+    /** Set when no configuration file was found, until the built-in configuration was first used, for a warning. */
+    private final AtomicBoolean builtInUnannounced = new AtomicBoolean();
 
     /**
      * Per throwable, the index after the last frame handled. Frames unwind from the top of the trace
@@ -61,10 +87,13 @@ public final class ThrowHandler implements Dispatch.Handler {
      */
     private final WeakIdentityMap<Throwable, WeakReference<Throwable>> shared = new WeakIdentityMap<>();
 
-    public ThrowHandler(ValueResolver resolver, FrameFormat format, StackTraces stackTraces) {
-        this.resolver = resolver;
-        this.format = format;
+    public ThrowHandler(ClassLoaderConfigs<? extends Context> contexts, StackTraces stackTraces) {
+        this.contexts = contexts;
         this.stackTraces = stackTraces;
+    }
+
+    public ThrowHandler(ValueResolver resolver, FrameFormat format, StackTraces stackTraces) {
+        this(ClassLoaderConfigs.fixed(Context.of(resolver, format)), stackTraces);
     }
 
     public ThrowHandler(ValueResolver resolver, FrameFormat format) {
@@ -77,16 +106,26 @@ public final class ThrowHandler implements Dispatch.Handler {
 
     /** For {@code ServiceLoader}: build-time instrumentation. */
     public ThrowHandler() {
-        this(runtimeConfig(), Startup.RUNTIME);
+        this(runtimeConfig());
     }
 
-    private ThrowHandler(AugmentorConfig config, String component) {
-        this(new ValueResolver(config), FrameFormat.create(config), Startup.load(component, () -> runtimeStackTraces(config)));
+    private ThrowHandler(RuntimeConfig base) {
+        this(ClassLoaderConfigs.perClassLoader(Startup.RUNTIME, Context.of(base.config()), Context::of, ThrowHandler.class.getClassLoader()),
+                runtimeStackTraces(base.config()));
+        builtInUnannounced.set(base.builtIn());
     }
 
     @Override
-    public void onThrow(Object self, Throwable thrown, String receiverKey, String owner, String method, Object[] args,
-                        String[] paramNames) {
+    public void onThrow(Object self, Throwable thrown, String receiverKey, Class<?> ownerClass, String owner, String method,
+                        Object[] args, String[] paramNames) {
+        Context context = ownerClass != null ? contexts.forClass(ownerClass) : contexts.base();
+        if (context == null) {
+            return;
+        }
+        if (context == contexts.base() && builtInUnannounced.compareAndSet(true, false)) {
+            Log.warn(Startup.RUNTIME + ": " + NO_RUNTIME_CONFIG);
+        }
+        ValueResolver resolver = context.resolver();
         if (!resolver.augments(thrown)) {
             return;
         }
@@ -135,9 +174,10 @@ public final class ThrowHandler implements Dispatch.Handler {
         }
 
         StackTraceElement original = trace[index];
+        FrameFormat format = context.format();
         stackTraces.write(thrown, trace, index, format.rewrite(original, receiverValues, paramValues));
         if (thrown.getCause() != null || thrown.getSuppressed().length > 0) {
-            rewriteShared(thrown, trace, index, original, receiverValues, paramValues);
+            rewriteShared(format, thrown, trace, index, original, receiverValues, paramValues);
         }
     }
 
@@ -148,7 +188,7 @@ public final class ThrowHandler implements Dispatch.Handler {
      * frames with {@code equals}. A frame of the same call at another line, e.g. where the method caught the cause that
      * it wraps, gets the same values with its own line.
      */
-    private void rewriteShared(Throwable thrown, StackTraceElement[] trace, int index, StackTraceElement original,
+    private void rewriteShared(FrameFormat format, Throwable thrown, StackTraceElement[] trace, int index, StackTraceElement original,
             List<NamedValue> receiverValues, List<NamedValue> paramValues) {
         int below = trace.length - index - 1;
         List<Throwable> related = new ArrayList<>();
@@ -249,8 +289,9 @@ public final class ThrowHandler implements Dispatch.Handler {
             Iterator<StackWalker.StackFrame> iterator = frames.iterator();
             while (iterator.hasNext()) {
                 if (iterator.next().getClassName().equals(DISPATCH)) {
-                    if (iterator.hasNext()) {
-                        iterator.next(); // the exiting method
+                    StackWalker.StackFrame exiting = iterator.hasNext() ? iterator.next() : null;
+                    while (exiting != null && exiting.getClassName().equals(DISPATCH)) {
+                        exiting = iterator.hasNext() ? iterator.next() : null;
                     }
                     if (!iterator.hasNext()) {
                         return Caller.NONE;
@@ -263,13 +304,19 @@ public final class ThrowHandler implements Dispatch.Handler {
         });
     }
 
+    /** The base configuration of build-time instrumentation, and whether it is the built-in one. */
+    private record RuntimeConfig(AugmentorConfig config, boolean builtIn) {
+    }
+
     /**
-     * The configuration for build-time instrumentation: the system property, then the classpath, then the built-in configuration. An
-     * invalid one is printed as an error; {@link Dispatch} then warns that there is no handler.
+     * The base configuration for build-time instrumentation: the system property, then the runtime library's class
+     * loader, then the built-in configuration, with a warning when it is first used. An invalid one is printed as an
+     * error; {@link Dispatch} then warns that there is no handler.
      */
-    private static AugmentorConfig runtimeConfig() {
+    private static RuntimeConfig runtimeConfig() {
         String location = AugmentorConfig.location(null);
-        URL resource = location == null ? classpathConfig() : null;
+        ClassLoader own = ThrowHandler.class.getClassLoader();
+        URL resource = location == null && own != null ? own.getResource(CLASSPATH_CONFIG) : null;
         AugmentorConfig config = Startup.load(Startup.RUNTIME, () -> {
             if (location != null) {
                 return AugmentorConfig.load((String) null);
@@ -278,33 +325,16 @@ public final class ThrowHandler implements Dispatch.Handler {
         });
         Startup.configure(Startup.RUNTIME, location != null ? location : resource != null ? resource.toString() : AugmentorConfig.BUILT_IN_LOCATION,
                 config);
-        if (location == null && resource == null) {
-            Log.warn(Startup.RUNTIME + ": " + NO_RUNTIME_CONFIG);
-        }
-        return config;
+        return new RuntimeConfig(config, location == null && resource == null);
     }
 
     /**
-     * For build-time instrumentation, no agent opens {@code java.lang}: frames can be written in place
+     * For build-time instrumentation, no agent opens {@code java.lang}: frames are written in place
      * ({@code inPlaceModification}) only if the application was started with
-     * {@code --add-opens java.base/java.lang=ALL-UNNAMED}.
+     * {@code --add-opens java.base/java.lang=ALL-UNNAMED}, and copied otherwise.
      */
     static StackTraces runtimeStackTraces(AugmentorConfig config) {
-        return StackTraces.configured(config, "start the application with --add-opens java.base/java.lang=ALL-UNNAMED");
-    }
-
-    /**
-     * The runtime jar's class loader, then the context class loader of the thread that first throws: in an application
-     * server or a fat jar, the runtime jar can sit in a parent loader that does not see the application's resources.
-     */
-    private static URL classpathConfig() {
-        ClassLoader own = ThrowHandler.class.getClassLoader();
-        URL resource = own != null ? own.getResource(CLASSPATH_CONFIG) : null;
-        ClassLoader context = Thread.currentThread().getContextClassLoader();
-        if (resource == null && context != null && context != own) {
-            resource = context.getResource(CLASSPATH_CONFIG);
-        }
-        return resource;
+        return StackTraces.configured(config, Startup.RUNTIME, "start the application with --add-opens java.base/java.lang=ALL-UNNAMED");
     }
 
     private static String read(URL resource) {

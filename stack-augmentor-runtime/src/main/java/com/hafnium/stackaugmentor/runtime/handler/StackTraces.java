@@ -1,7 +1,7 @@
 package com.hafnium.stackaugmentor.runtime.handler;
 
+import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
-import com.hafnium.stackaugmentor.runtime.config.ConfigException;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -12,8 +12,8 @@ import java.lang.invoke.VarHandle;
  * <p>{@link #copying()} uses the public API: {@code getStackTrace} and {@code setStackTrace} each copy the whole
  * trace, so every instrumented frame an exception leaves costs time proportional to the trace length.
  * {@link #inPlace()} replaces the one element in the throwable's own array instead, which needs
- * {@code java.lang} to be open to this module; the Java agent opens it through {@code Instrumentation}. Copying is the
- * default, see {@link #configured}.
+ * {@code java.lang} to be open to this module; the Java agent opens it through {@code Instrumentation}. In place is the
+ * default where possible, see {@link #configured}.
  */
 public abstract sealed class StackTraces {
 
@@ -46,19 +46,27 @@ public abstract sealed class StackTraces {
     }
 
     /**
-     * Copying, or in place if the configuration asks for it ({@link AugmentorConfig#inPlaceModification()}).
+     * In place, unless the configuration turns it off ({@link AugmentorConfig#inPlaceModification()}) or {@code java.lang}
+     * is not open to this module: then copying, with a warning if in-place modification was asked for explicitly.
      *
-     * @param notOpen how to open {@code java.lang}, for the error message
-     * @throws ConfigException if in-place modification is asked for, but {@code java.lang} is not open to this module
+     * @param component the component, for the messages
+     * @param notOpen   how to open {@code java.lang}, for the messages
      */
-    public static StackTraces configured(AugmentorConfig config, String notOpen) {
+    public static StackTraces configured(AugmentorConfig config, String component, String notOpen) {
         if (!config.inPlaceModification()) {
             return COPYING;
         }
         try {
             return inPlace();
         } catch (IllegalAccessException | RuntimeException e) {
-            throw new ConfigException("inPlaceModification needs java.lang open to stack-augmentor, " + notOpen + " (" + e + ")");
+            String message = component + ": inPlaceModification needs java.lang open to stack-augmentor, " + notOpen
+                    + ", so stack traces are copied (" + e + ")";
+            if (config.inPlaceModificationRequested()) {
+                Log.warn(message);
+            } else {
+                Log.debug(() -> message);
+            }
+            return COPYING;
         }
     }
 
