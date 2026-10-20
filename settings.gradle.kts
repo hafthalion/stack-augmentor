@@ -17,6 +17,8 @@ include(
     "stack-augmentor-it",
     "stack-augmentor-it-build-time",
     "stack-augmentor-it-benchmark",
+    "stack-augmentor-it-spring-boot",
+    "stack-augmentor-it-quarkus",
     "examples:java-agent",
     "examples:live-agent",
     "examples:build-time",

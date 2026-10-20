@@ -1,0 +1,16 @@
+# The application's configuration: the build reads its method and annotation tables, and at runtime it applies to the
+# classes that Spring Boot's class loader loads, with the agent too: the agent's own configuration then only applies to
+# the classes of the system class loader.
+
+[augment]
+receiverFormat = "<$value>"
+
+[augment.exceptions]
+"java.lang.Exception+" = true
+
+[augment.annotations]
+"com.hafnium.it.spring.**" = true
+
+# A library class: only the agent instruments it, build-time instrumentation changes the application's classes only.
+[augment.params]
+"org.springframework.util.Assert::notNull" = "1"
