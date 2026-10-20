@@ -27,7 +27,8 @@ naming the reason, change nothing, and instrument classes as usual.
 In this mode the agent SHALL add code only to `java.lang.Throwable`: when the JVM has recorded a stack trace, for each
 frame of that trace whose method an entry selects, as decided by the same rules as for instrumentation, it SHALL read
 the receiver and the selected arguments from the live stack and turn them into text right away. Exceptions created while
-a class is being loaded SHALL be skipped. The augmentation SHALL be written into the throwable's stack trace array when that is
+a class loader method is on the stack, such as a class loader's `ClassNotFoundException`, SHALL be skipped: looking at
+classes then could load the class being loaded again. The augmentation SHALL be written into the throwable's stack trace array when that is
 created from the recorded frames, once, and SHALL not be written if the application replaced the stack trace.
 The configuration, the formats and the rules of the configuration, receivers and parameters and stack trace augmentation
 specifications SHALL be the same as with instrumentation: `[augment.exceptions]` decides which throwables are augmented,
@@ -65,7 +66,8 @@ instrumented classes ("Frames shared with causes and suppressed exceptions"), so
 
 ### Requirement: Values the JIT optimized away
 An argument of an object type that reads as `null` in a JIT-compiled frame while the JVM may eliminate allocations
-(`-XX:+EliminateAllocations`, the default) SHALL be shown as `?`. A receiver that is not an instance of the declaring
+(`-XX:+EliminateAllocations`, the default) SHALL be shown as `?`, and so SHALL an argument whose slot cannot be read
+as a value of its type. A receiver that is not an instance of the declaring
 class SHALL show no receiver members.
 
 #### Scenario: Allocations not eliminated

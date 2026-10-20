@@ -36,7 +36,8 @@ SHALL be converted to text immediately, and per-exception state SHALL be held we
 - **THEN** the exception and the objects its values came from can be collected
 
 ### Requirement: Fail fast on invalid configuration
-An invalid configuration SHALL stop the JVM when the agent starts, or fail the build when the build
+An invalid configuration SHALL stop the JVM when the agent starts with `-javaagent` (an agent attached later fails to
+start instead), or fail the build when the build
 plugin is created, with a message naming the file, the key and the line. With build-time instrumentation, an
 invalid runtime configuration SHALL be printed as an error with the file, the key and the line, and the
 application SHALL keep running with unchanged stack traces. It SHALL NOT be silently ignored.

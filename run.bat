@@ -4,11 +4,11 @@ rem   run.bat [example] [JVM options]     example: java-agent, live-agent or bui
 rem   run.bat benchmark
 rem Without an argument, it asks which one to run.
 rem
-rem   java-agent  the Java agent instruments classes, ids from annotations and from
+rem   java-agent  the Java agent instruments classes, values from annotations and from
 rem               stack-augmentor.toml, and a simple cause chain printed both ways:
 rem                 java -javaagent:<agent jar>=config=<stack-augmentor.toml> -jar <example jar>
 rem   live-agent  twice: with the agent alone, and in the agent's live-stack mode with the
-rem               native library as well, which shows ids on every frame:
+rem               native library as well, which augments every frame:
 rem                 java -agentpath:<native library> -javaagent:<agent jar>=config=<stack-augmentor.toml> -jar <example jar>
 rem               Without MinGW gcc on the PATH there is no native library, and only the first runs.
 rem   build-time  classes instrumented when they were built, no agent:

@@ -170,10 +170,10 @@ SHALL still be used.
 ### Requirement: Receiver members by name
 The deciding `[augment.receiver]` entry of a method SHALL give its receiver members, in the order of its value, one value
 per member, read from the object the method runs on:
-- a field name: the field, looked up in the class the entry matched and its superclasses, private members included; for
-  an interface, in the interface and the interfaces it extends. When no field of that name exists, as in an interface or for
-  a Kotlin property without a backing field, the property's getter SHALL be used (`getName()`, or `isName()` for a name
-  starting with `is`), with the configured name as the label;
+- a field name: the field, looked up in the declaring class of the frame's method and its superclasses, private members
+  included; for an interface, in the interface and the interfaces it extends. When no usable field of that name exists, as
+  in an interface or for a Kotlin property without a backing field, the property's getter SHALL be used (`getName()` for
+  `name`, and the name itself for a Kotlin-style `isActive`), with the configured name as the label;
 - `method()`: the result of that no-argument method, looked up the same way;
 - a configured method or getter that the class and its superclasses do not declare SHALL then be looked up in the
   interfaces they implement, nearest first, so that a Java class finds a default method it inherits, as a Kotlin class,
@@ -433,7 +433,7 @@ be compiled with `javac -parameters` (Kotlin with `javaParameters = true`).
 Every receiver member and parameter value SHALL be converted to text when it is captured. `null` SHALL be shown as `null`.
 Strings, numbers, booleans, characters and enums SHALL be shown with `toString()`, arrays by their elements, and other
 objects with `toString()`, also when their class has receiver members: `[augment.receiver]` SHALL only apply to receivers.
-Line breaks SHALL be replaced by a single space, and `(` and `)` by `{` and `}`, because IDEs find a frame's file and line
+Each run of line breaks (`\r`, `\n`) SHALL be replaced by a single space, and `(` and `)` by `{` and `}`, because IDEs find a frame's file and line
 by the parenthesised `(File.kt:12)` that follows the method. Text longer than `[augment] maxValueLength` SHALL be cut to
 `maxValueLength - 1` characters followed by `…`. A member or a `toString()` that throws SHALL be shown as `?`.
 

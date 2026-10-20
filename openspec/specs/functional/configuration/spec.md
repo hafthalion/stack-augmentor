@@ -42,7 +42,8 @@ be one of:
 - a class name, dotted identifier segments with `$` for nested classes (`com.acme.Order$Line`): it SHALL match that class only;
 - a class name followed by `+` (`com.acme.Order+`): it SHALL match that class, its subclasses and, for an interface, the
   classes implementing it, as `instanceof` does, comparing the names of the supertypes so that no class is loaded;
-- a pattern with `*` (any characters within one segment), `**` (any characters across segments) and `?` (one character):
+- a pattern with `*` (any characters within one segment), `**` (any characters across segments) and `?` (one character
+  other than `.`):
   it SHALL match the names of classes only, never their subclasses by inheritance. `**` alone matches every class. `+`
   after a pattern SHALL be rejected.
 
