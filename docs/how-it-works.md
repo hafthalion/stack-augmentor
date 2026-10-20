@@ -3,9 +3,9 @@
 [Back to the README](../README.md)
 
 The agent (ByteBuddy, shaded), or the ByteBuddy build plugin, adds exit advice to instrumented methods:
-- instance methods of matched classes;
-- static methods that have parameters to show;
-- constructors that have parameters to show. ByteBuddy's advice cannot catch exceptions in constructors, so these get handlers of stack-augmentor's own (`ConstructorExit`): one around the code before the `super(...)` or `this(...)` call and one around the code after it, each passing the selected arguments without a receiver and rethrowing the exception. On a normal return they run no code at all.
+- instance methods that have receiver members or parameter values to show;
+- static methods that have parameter values to show;
+- constructors that have parameter values to show. ByteBuddy's advice cannot catch exceptions in constructors, so these get handlers of stack-augmentor's own (`ConstructorExit`): one around the code before the `super(...)` or `this(...)` call and one around the code after it, each passing the selected arguments without a receiver and rethrowing the exception. On a normal return they run no code at all.
 
 When an exception leaves such a method, the advice passes `this`, the key of the `[augment.receiver]` entry that decided the method (or `@` where the `@AugmentedReceiver` members do), the selected arguments and their labels to `Dispatch` (in `stack-augmentor-instrument-bridge`), which hands them to the handler. The handler finds the method's frame in the exception's stack trace and replaces it, so every printer and logger shows the augmented frame. By default it copies the trace and writes it back with `setStackTrace`; with `inPlaceModification = true` it replaces the one element in the exception's own array. Causes and suppressed exceptions that share the frame with the exception (the same frame with the same frames below it, e.g. the callers of the method that wrapped the cause) get the same rewritten frame, so printed traces still collapse the shared frames into `... N more`. The frame where the method caught the cause, the same call at another line, gets the same values with its own line. On a normal return the inlined advice costs one null check and allocates nothing (a test checks that).
 

@@ -19,7 +19,10 @@ The project SHALL be split into these modules:
 - `stack-augmentor-native`: the native library (C) of the agent's experimental live-stack mode;
 - `stack-augmentor-build-plugin`: the ByteBuddy build plugin.
 
-The agent and build-time instrumentation SHALL share the runtime and instrument modules.
+These modules are published. The project SHALL also contain modules that are not: `stack-augmentor-it` (integration tests
+with the agent, also in the live-stack mode), `stack-augmentor-it-build-time` (integration tests of build-time
+instrumentation, without and with the agent), `stack-augmentor-it-benchmark` (the benchmark) and the examples. The agent
+and build-time instrumentation SHALL share the runtime and instrument modules.
 
 #### Scenario: Shared behaviour
 - **GIVEN** the same annotated class and the same `[augment]` configuration

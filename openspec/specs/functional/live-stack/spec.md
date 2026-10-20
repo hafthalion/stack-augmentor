@@ -2,7 +2,8 @@
 
 ## Purpose
 Defines the agent's experimental live-stack mode: instead of instrumenting the configured classes, the agent reads
-the receiver and the arguments of the configured frames from the live stack when the JVM records a stack trace.
+the receiver and the arguments of the configured frames from the live stack when the JVM records a stack trace. It relies
+on JDK internals (`java.lang.LiveStackFrame`) and on a native JVMTI library; there is no build-time equivalent.
 
 ## Requirements
 
@@ -28,7 +29,12 @@ frame of that trace whose method an entry selects, as decided by the same rules 
 the receiver and the selected arguments from the live stack and turn them into text right away. Exceptions created while
 a class is being loaded SHALL be skipped. The augmentation SHALL be written into the throwable's stack trace array when that is
 created from the recorded frames, once, and SHALL not be written if the application replaced the stack trace.
-The configuration and the formats SHALL be the same as with instrumentation.
+The configuration, the formats and the rules of the configuration, receivers and parameters and stack trace augmentation
+specifications SHALL be the same as with instrumentation: `[augment.exceptions]` decides which throwables are augmented,
+the deciding entries or, where they are in use, the annotations decide each frame, and the types the agent ignores (see
+the Java agent specification), synthetic and bridge methods stay unchanged. Unlike with instrumentation, every configured
+frame on the stack when the throwable is created SHALL be augmented, also the frames of the method that catches it and of
+its callers, and of a constructor while it calls `super(...)` or `this(...)`, and the values SHALL be those at that moment.
 
 #### Scenario: Frames below a catch
 - **GIVEN** `Layers.catchAndReturn()` catches the exception that `Layers.inner(1)` throws, and returns it
@@ -47,6 +53,16 @@ The configuration and the formats SHALL be the same as with instrumentation.
 - **GIVEN** an exception with captured values whose stack trace the application replaced with `setStackTrace`
 - **THEN** the stack trace is exactly the one the application set
 
+### Requirement: Causes and suppressed exceptions
+When the stack trace array of an augmented throwable is created, its augmented frames SHALL also be written into its causes
+and suppressed exceptions, and theirs, where they share them, as the stack trace augmentation specification requires for
+instrumented classes ("Frames shared with causes and suppressed exceptions"), so that printed traces still collapse.
+
+#### Scenario: Wrapped exception
+- **GIVEN** `wrap()` catches the exception of `inner(2)` and throws `RuntimeException("wrapped", cause)`, in the live-stack mode
+- **WHEN** the wrapper is printed
+- **THEN** the frames the cause shares with the wrapper show the wrapper's augmentation, and the cause section ends with `... N more`
+
 ### Requirement: Values the JIT optimized away
 An argument of an object type that reads as `null` in a JIT-compiled frame while the JVM may eliminate allocations
 (`-XX:+EliminateAllocations`, the default) SHALL be shown as `?`. A receiver that is not an instance of the declaring
@@ -55,3 +71,14 @@ class SHALL show no receiver members.
 #### Scenario: Allocations not eliminated
 - **GIVEN** the JVM started with `-XX:-EliminateAllocations`
 - **THEN** a `null` argument is shown as `null` in every frame
+
+### Requirement: Native library
+`stack-augmentor-native` SHALL be a C library built with the platform's C compiler (`cc`, or MinGW `gcc` on Windows) by
+`./gradlew :stack-augmentor-native:compileNative`, into `libstackaugmentor.so`, `libstackaugmentor.dylib` or
+`stackaugmentor.dll`. Its only job SHALL be to acquire `can_access_local_variables` at JVM start and report its version;
+the build SHALL skip it, and the tests of this mode, when no C compiler is found, except on CI.
+
+#### Scenario: No C compiler
+- **GIVEN** a machine without a C compiler
+- **WHEN** `./gradlew build` runs
+- **THEN** the native library and the live-stack tests are skipped, and the build succeeds

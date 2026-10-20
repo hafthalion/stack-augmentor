@@ -48,7 +48,8 @@ class loader and module prefix, so that `printStackTrace` and loggers need no ch
 
 ### Requirement: No JDK warnings from the agent's dependencies
 The agent SHALL NOT cause `sun.misc.Unsafe` deprecation warnings. The class data sharing notice that the
-JVM prints when the bootstrap class path is extended SHALL be the only expected JVM message.
+JVM prints when the bootstrap class path is extended (`Sharing is only supported for boot loader classes because bootstrap
+classpath has been appended`, silenced by `-Xshare:off`) SHALL be the only expected JVM message.
 
 #### Scenario: Agent start
 - **GIVEN** the agent on Java 25

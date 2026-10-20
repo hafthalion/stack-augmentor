@@ -157,7 +157,7 @@ A method belongs to the class that declares it: a subclass's own methods need an
 - **The keys are classes as above, without methods**: a class name matches that class only, `+` after it also its subclasses, and a pattern the name of the exception's class only.
 - **Unquoted class names work too**, since TOML reads `java.io.IOException = true` as nested tables, which mean the same. Keys with `+` or wildcards must be quoted.
 - **It is checked when an exception leaves an instrumented method** (in the live-stack mode: when it is created). Classes are instrumented as the other tables say, whatever this table contains.
-- **Causes:** the frames an exception that is not augmented leaves stay as they are, also where its causes share them. An augmented exception still writes its frames into the causes that share them, whatever their class, so printed traces still collapse into `... N more`, in both modes. See [Causes](causes.md).
+- **Causes:** the frames an exception that is not augmented leaves stay as they are, also where its causes share them. An augmented exception still writes its frames into the causes that share them, whatever their class, so printed traces still collapse into `... N more`, in every way to run. See [Causes](causes.md).
 
 ## Annotations
 
