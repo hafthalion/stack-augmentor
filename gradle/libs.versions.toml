@@ -7,6 +7,8 @@ tomlj = "1.3.0"
 checker-qual = "3.55.1"
 mockito = "5.24.0"
 spring = "7.0.9"
+spring-boot = "4.1.1"
+quarkus = "3.40.1"
 
 [libraries]
 bytebuddy = { module = "net.bytebuddy:byte-buddy", version.ref = "bytebuddy" }
@@ -18,8 +20,13 @@ junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 spring-core = { module = "org.springframework:spring-core", version.ref = "spring" }
+spring-boot-starter = { module = "org.springframework.boot:spring-boot-starter", version.ref = "spring-boot" }
+quarkus-bom = { module = "io.quarkus.platform:quarkus-bom", version.ref = "quarkus" }
+quarkus-arc = { module = "io.quarkus:quarkus-arc" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
 bytebuddy = { id = "net.bytebuddy.byte-buddy-gradle-plugin", version.ref = "bytebuddy" }
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
+quarkus = { id = "io.quarkus", version.ref = "quarkus" }
