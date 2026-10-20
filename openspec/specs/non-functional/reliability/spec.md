@@ -9,7 +9,7 @@ and that configuration mistakes are found early.
 ### Requirement: The application's exceptions are never changed otherwise
 Apart from the frames of its stack trace, an exception SHALL reach the application unchanged: same
 object, type, message, cause and suppressed exceptions. Any failure inside the augmentation, including
-failures of receiver members and of creating the handler, SHALL be contained and SHALL NOT be thrown to the
+failures of receiver members and of starting the runtime, SHALL be contained and SHALL NOT be thrown to the
 application.
 
 #### Scenario: Receiver member throws
@@ -27,8 +27,8 @@ instrumented method, SHALL NOT be augmented.
 - **THEN** its exception is not augmented and the value is shown as `?`
 
 ### Requirement: No retained objects
-The augmentation SHALL NOT keep references to application objects or exceptions beyond their use: values
-SHALL be converted to text immediately, and per-exception state SHALL be held weakly.
+The augmentation SHALL NOT keep application objects or exceptions alive: values SHALL be converted to text when they are
+captured, and anything kept per exception SHALL be released when the exception is no longer used.
 
 #### Scenario: Exception becomes unreachable
 - **GIVEN** an augmented exception that the application no longer references
@@ -37,10 +37,9 @@ SHALL be converted to text immediately, and per-exception state SHALL be held we
 
 ### Requirement: Fail fast on invalid configuration
 An invalid configuration SHALL stop the JVM when the agent starts with `-javaagent` (an agent attached later fails to
-start instead), or fail the build when the build
-plugin is created, with a message naming the file, the key and the line. With build-time instrumentation, an
-invalid runtime configuration SHALL be printed as an error with the file, the key and the line, and the
-application SHALL keep running with unchanged stack traces. It SHALL NOT be silently ignored.
+start instead), or fail the build when the build plugin starts, with a message naming the file, the key and the line.
+With build-time instrumentation, an invalid runtime configuration SHALL be reported as an error with the file, the key
+and the line, and the application SHALL keep running with unchanged stack traces. It SHALL NOT be silently ignored.
 
 #### Scenario: Typo in a key
 - **GIVEN** `[augment]` with `frameformat = "…"`

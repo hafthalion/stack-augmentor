@@ -19,7 +19,8 @@ values are captured on method exit to keep normal returns free of cost. The live
 ### Requirement: Constructors show parameter values only, not for exceptions from super(...)
 Constructors SHALL NOT show receiver members, because an exception can leave a constructor before the object is
 initialised. In the instrumenting modes, their parameter values SHALL NOT be shown for exceptions thrown inside the
-constructor called with `super(...)` or `this(...)`: the JVM's verifier accepts no exception handler around that call.
+constructor called with `super(...)` or `this(...)`, because the JVM does not let added code catch exceptions of that
+call.
 
 #### Scenario: Exception in a constructor without parameter values
 - **GIVEN** an annotated class whose constructor, without annotated parameters, throws, and no `[augment.params]` entry for its `<init>`
@@ -42,18 +43,17 @@ method reassigned SHALL show its new value.
 - **THEN** the frame shows the reassigned value
 
 ### Requirement: Changed class and method names
-Rewritten frames SHALL contain the receiver members and parameter values in the class and method names of their `StackTraceElement`s. Tools
-that parse stack traces by class name, such as IDE links or error grouping, MAY not recognise these
-frames.
+Augmented frames SHALL carry the receiver members and parameter values in their class and method names. Tools that
+parse stack traces by class name, such as IDE links or error grouping, MAY not recognise these frames.
 
-#### Scenario: Class name of a rewritten frame
-- **GIVEN** a frame rewritten with the default layout
+#### Scenario: Class name of an augmented frame
+- **GIVEN** a frame augmented with the default layout
 - **WHEN** `StackTraceElement.getClassName()` is called
 - **THEN** it returns the class name followed by the receiver group, e.g. `com.hafnium.ObjectClass{objectId=object-1}`
 
 ### Requirement: Reused exceptions keep their first values
 An exception instance thrown more than once SHALL keep the augmentation of its first throw: its stack trace is recorded
-once, when it is created, and the frames already rewritten are not found again.
+once, when it is created, and the frames already augmented are not augmented again.
 
 #### Scenario: Preallocated exception
 - **GIVEN** a static exception instance with a stack trace, thrown from instrumented methods twice
@@ -77,6 +77,6 @@ shown as `?` (see the live-stack specification), and every augmented exception S
 is configured (see the performance specification).
 
 #### Scenario: JDK without the internals
-- **GIVEN** a JDK whose live stack frames do not behave as the agent expects
+- **GIVEN** a JDK that does not provide the internals the live-stack mode needs
 - **WHEN** the agent starts with the native library
 - **THEN** it warns and instruments classes as usual

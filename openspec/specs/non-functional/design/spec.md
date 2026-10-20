@@ -1,169 +1,78 @@
 # Design Specification
 
 ## Purpose
-Non-functional requirements that record the current design decisions: how receiver members and parameter values are captured, dispatched
-and rendered, and how the Java agent loads, so that changes to them are made deliberately.
+Non-functional constraints on the architecture: what the parts of the system must guarantee about each other, without
+prescribing how they are written.
 
 ## Requirements
 
-### Requirement: Inlined exit advice
-Instrumented methods SHALL get ByteBuddy exit advice (`@Advice.OnMethodExit(onThrowable = Throwable.class)`)
-that is inlined into the method. The advice SHALL only check whether a throwable is leaving and, if so,
-call `Dispatch.onThrow`. Exceptions inside the advice SHALL be suppressed.
+### Requirement: Code added to application classes
+The code that instrumentation adds to application methods SHALL do nothing but check whether a throwable is leaving and,
+only then, hand the values to Stack Augmentor; it SHALL depend on nothing but the JDK and one small entry point of
+Stack Augmentor that every class loader can reach, and nothing it does SHALL be able to fail the method. It SHALL NOT
+change a method's name, signature or behaviour, so that frames show the original methods.
 
-#### Scenario: Normal return
-- **GIVEN** an instrumented method
-- **WHEN** it returns normally
-- **THEN** the only added work is the null check of the thrown value
+#### Scenario: Frames after instrumentation
+- **GIVEN** a class instrumented by the agent or at build time
+- **WHEN** one of its methods throws
+- **THEN** the frame shows the original class and method name, with no renamed or generated copies
 
-### Requirement: Lazily built advice arguments
-The receiver, the key of the deciding `[augment.receiver]` entry (or `@` where the `@AugmentedReceiver` members decide), the parameter values and their labels SHALL be
-bound through custom ByteBuddy offset mappings (`@Receiver` for `this`, or `null` where no receiver members apply,
-`@ReceiverKey` for the entry key as a constant, `@ParamArgs` for an `Object[]` of the selected parameters, boxing primitives, and `@ParamNames` for a
-`String[]` of labels), so that the arrays are built only where the advice reads them: inside the
-exception branch. Methods without selected parameters SHALL get `null` for both.
-
-#### Scenario: Six selected primitive parameters
-- **GIVEN** a method with six selected `Int` parameters
-- **WHEN** it returns normally
-- **THEN** no `Object[]`, `String[]` or boxed `Integer` is created
-
-### Requirement: Advice and bridge written in Java
-The advice classes, the bridge (`Dispatch`) and every other class of a published module SHALL be written
-in Java, so that no Kotlin runtime calls are inlined into instrumented classes and no Kotlin runtime is
-needed by the agent, the runtime handler or the build plugin. The inlined code SHALL reference only JDK
-classes and `Dispatch`.
-
-#### Scenario: Instrumented class without Kotlin
-- **GIVEN** a Java application without the Kotlin standard library
-- **WHEN** its classes are instrumented
-- **THEN** they load and run without `NoClassDefFoundError`
-
-### Requirement: Single dispatch point
-All instrumented code SHALL call the static `Dispatch.onThrow(self, thrown, receiverKey, owner, method, args, paramNames)`,
-which forwards to one installed `Dispatch.Handler`. The agent SHALL install the handler explicitly;
-otherwise `Dispatch` SHALL look it up once with `ServiceLoader`. A thread-local flag SHALL prevent
-re-entrant calls, and any `Throwable` from the handler SHALL be swallowed.
+### Requirement: One handler per JVM
+All instrumented code in a JVM SHALL reach one handler: the agent's when an agent runs, otherwise the runtime library's,
+found without configuration by the application. Calls into the handler while it is already working on the same thread
+SHALL be ignored, and nothing it throws SHALL reach the application.
 
 #### Scenario: Handler already running on the thread
-- **GIVEN** the handler is building a value on a thread
-- **WHEN** an instrumented method called by a receiver member throws on the same thread
-- **THEN** `Dispatch.onThrow` returns immediately
+- **GIVEN** the handler is reading a receiver member on a thread
+- **WHEN** an instrumented method called by that member throws on the same thread
+- **THEN** its exception is not augmented and the application sees it unchanged
 
-### Requirement: Bridge on the bootstrap class path
-The agent SHALL embed the bridge jar as a resource and append it with
-`Instrumentation.appendToBootstrapClassLoaderSearch` before any bridge class is referenced. It SHALL add
-read edges from instrumented modules to the bridge. The jar file SHALL be named after the SHA-256 hash of its
-content and kept in a directory `stack-augmentor-<user>` of the temporary directory. Where the file system has
-POSIX permissions, the agent SHALL create that directory accessible by its owner only, and SHALL refuse an
-existing one that is a link, belongs to another user or is accessible by others. When the directory cannot be
-used, the agent SHALL print a warning and use a copy of its own, readable by its user only. The agent SHALL use an existing
-jar whose content has the hash, and otherwise write it to a new file in that directory and move it into place.
-It SHALL NOT delete the jar: the JVMs of the user share it, and the bootstrap class loader keeps it open until
-the JVM exits, which on Windows prevents deleting it.
+### Requirement: Shared behaviour
+The agent, the build plugin and the live-stack mode SHALL share one implementation of the configuration, of the rules that
+decide which methods are augmented with which values, and of turning values into text and frames, so that they cannot
+drift apart.
+
+#### Scenario: Same rules everywhere
+- **GIVEN** a configuration and a class
+- **WHEN** the class is used with the agent, at build time and in the live-stack mode
+- **THEN** the same methods are augmented with the same values in the same layout
+
+### Requirement: Annotations matched by name
+The annotations SHALL be recognised by their names, so that the instrumentation needs no compile-time dependency on the
+application's copy of the API and also recognises a copy loaded by another class loader or an older copy; an `@Augmented`
+of an older API without its on/off value SHALL count as on. The annotations SHALL have no attributes other than `secret`
+on `@AugmentedParam` and the on/off value of `@Augmented`.
+
+#### Scenario: API loaded by an application class loader
+- **GIVEN** the application loads its own copy of the API, and its classes use that copy's annotations
+- **WHEN** they are instrumented
+- **THEN** the annotations are recognised
+
+### Requirement: Agent files on the machine
+Files that the agent writes to make its entry point reachable from every class loader SHALL be private to the user who runs
+the JVM: never shared with or writable by other users, reused by later JVMs of the same user, replaced when damaged, and
+not piling up. When such a place cannot be used safely, the agent SHALL warn and use a private copy for this JVM.
 
 #### Scenario: Several users on one machine
 - **GIVEN** another user's JVM has started with the agent on the same machine
 - **WHEN** the agent starts
-- **THEN** it writes and uses the bridge jar in its own user's directory, never a file another user created
+- **THEN** it never uses a file that another user created
 
 #### Scenario: Later runs of the same user
-- **GIVEN** an earlier JVM of the same user wrote the bridge jar of the same agent version
+- **GIVEN** an earlier JVM of the same user started with the same agent version
 - **WHEN** the agent starts
-- **THEN** it uses that jar without writing it again, and no bridge copies pile up in the temporary directory
+- **THEN** no new file accumulates on the machine
 
-#### Scenario: Damaged bridge jar
-- **GIVEN** the bridge jar in the user's directory whose content no longer matches its hash
+#### Scenario: Damaged file
+- **GIVEN** the agent's file on the machine was changed
 - **WHEN** the agent starts
-- **THEN** it replaces the jar with the embedded one
+- **THEN** it replaces it with its own
 
-#### Scenario: Directory prepared by another user
-- **GIVEN** a directory `stack-augmentor-<user>` in the temporary directory that another user created, or that others can write to
-- **WHEN** the agent starts
-- **THEN** it warns that it cannot use the shared bridge jar, and uses a copy of its own
-
-### Requirement: Agent transformation strategy
-The agent SHALL instrument with ByteBuddy's `AgentBuilder` using `disableClassFormatChanges`, the
-`RETRANSFORMATION` redefinition strategy, the `DECORATE` type strategy and disabled class injection. It
-SHALL disable ByteBuddy's Nexus and Unsafe use through ByteBuddy's (relocated) system properties.
-
-#### Scenario: Retransformation of loaded classes
-- **GIVEN** a class that was loaded before the agent's transformer was installed
-- **WHEN** the agent installs
-- **THEN** the class is retransformed without changing its fields or method signatures
-
-### Requirement: Build-time transformation strategy
-Build-time instrumentation SHALL use the ByteBuddy Gradle plugin with the `DECORATE` entry point, so
-that methods are only decorated with advice and not rebased. The build plugin SHALL reuse the agent's
-type matching and advice.
-
-#### Scenario: Frames after build-time instrumentation
-- **GIVEN** a class instrumented at build time
-- **WHEN** one of its methods throws
-- **THEN** the frame shows the original method name (no renamed or synthetic copies)
-
-### Requirement: Matching by name
-The agent, build plugin and runtime SHALL recognise `@AugmentedReceiver`, `@AugmentedParam`,
-`@AugmentedParams` and `@Augmented` by their class names (`com.hafnium.stackaugmentor.AugmentedReceiver`,
-`com.hafnium.stackaugmentor.AugmentedParam`, `com.hafnium.stackaugmentor.AugmentedParams`,
-`com.hafnium.stackaugmentor.Augmented`), without
-depending on the API module. The annotations SHALL have no attributes other than `secret` on `@AugmentedParam` and
-the on/off `value` on `@Augmented`; an `@Augmented` of a copy of the API without `value` SHALL count as on.
-
-#### Scenario: API loaded by an application class loader
-- **GIVEN** the application loads its own copy of `stack-augmentor-api`, and its annotated classes have `@Augmented` of that copy
-- **WHEN** its annotated classes are instrumented
-- **THEN** the annotations are recognised
-
-### Requirement: Caching and weak state
-Receiver members SHALL be looked up once per class and cached in a `ClassValue`. The per-exception search
-position SHALL be kept in a weak, identity-based map. Values SHALL be converted to `String` when captured.
-
-#### Scenario: Exceptions that override equals
-- **GIVEN** two distinct exceptions that are `equals` to each other
-- **WHEN** both are being augmented
-- **THEN** each keeps its own search position
-
-### Requirement: Rewriting with StackTraceElement
-A rewritten frame SHALL be a new `StackTraceElement` built with the seven-argument constructor, keeping
-the class loader name, module name and version only where the original element printed them, and the
-file name and line number. It SHALL be installed with `Throwable.setStackTrace`.
-
-#### Scenario: Built-in class loader
-- **GIVEN** a frame of a class loaded by the application class loader, printed without a loader prefix
-- **WHEN** it is rewritten
-- **THEN** the new frame is also printed without a loader prefix (not as `app//…`)
-
-### Requirement: Configuration model
-The configuration SHALL be parsed with tomlj and mapped directly onto an immutable `AugmentorConfig`
-Java class, with typed access and value-based equality. Every key SHALL be validated. The receiver
-members, parameter references and labelled values SHALL be Java records, grouped under sealed interfaces
-where there are alternatives (`ReceiverSpec`, `ParamRef`). The frame templates SHALL be parsed and validated
-whenever the configuration is loaded, also by the build plugin, which does not render frames.
+### Requirement: Validated, immutable configuration
+The configuration SHALL be read once per component, validated completely, including the templates also where a component
+does not render frames, and SHALL NOT change afterwards. An empty file SHALL be equal to the default configuration.
 
 #### Scenario: Template error at startup
 - **GIVEN** an invalid `receiverFormat`
 - **WHEN** the agent starts
 - **THEN** it fails before any class is instrumented
-
-#### Scenario: Equal configurations
-- **GIVEN** an empty TOML file
-- **WHEN** it is parsed
-- **THEN** the result equals the default configuration
-
-### Requirement: Logging without a framework
-Warnings and debug messages SHALL be written to standard error by a small internal `Log` class, without
-a logging framework. Debug messages SHALL be passed as a `Supplier<String>`, so that disabled debug
-messages are never built. Where a message would capture values on a path that runs for every class or every
-exception, the call SHALL be guarded by a check of the debug flag, so that no lambda is allocated when
-debugging is off.
-
-#### Scenario: Application with its own logging setup
-- **GIVEN** an application that configures SLF4J or java.util.logging
-- **WHEN** the agent writes messages
-- **THEN** it does not use or change the application's logging configuration
-
-#### Scenario: Debug disabled
-- **GIVEN** `debug = false`
-- **WHEN** exceptions leave instrumented methods
-- **THEN** no debug message text and no message supplier is created

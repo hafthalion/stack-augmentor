@@ -37,8 +37,7 @@ constructor only where `@Augmented` selects it (see "Methods selected by @Augmen
 entry matching it: the `@AugmentedReceiver` members where no `[augment.receiver]` entry matches the method, the
 `@AugmentedParam` and `@AugmentedParams` parameters where no `[augment.params]` entry matches it. A class without
 `@Augmented` and without a matching entry SHALL NOT be augmented, even when `[augment.annotations]` selects it and it has
-other annotations. The annotations SHALL be recognised by their class names, so that a copy of the API loaded by another
-class loader is also recognised (see the design specification).
+other annotations. The annotations SHALL also be recognised when the application brings its own copy of the API.
 
 #### Scenario: Annotated class outside the selected classes
 - **GIVEN** `"com.hafnium.it.fixtures.**" = true` as the only `[augment.annotations]` entry, and no `[augment.receiver]` or `[augment.params]` entries
@@ -126,21 +125,20 @@ it, and `@Augmented` SHALL have no effect where `[augment.annotations]` does not
 
 ### Requirement: Receiver members from annotations
 Where the annotations decide a method's receiver members, every non-static field and every non-static, no-argument,
-non-synthetic method annotated with `@AugmentedReceiver` (`com.hafnium.stackaugmentor.AugmentedReceiver`) SHALL be a
+non-generated method annotated with `@AugmentedReceiver` (`com.hafnium.stackaugmentor.AugmentedReceiver`) SHALL be a
 receiver member, one value each. They SHALL be looked up in the declaring class and its superclasses, which need no
 `@Augmented` or `[augment.annotations]` entry of their own, and shown in this order: the class itself first, then its
 superclasses, nearest first; within a class, its fields in declaration order, then its methods by name. A member whose
 label a member shown before it already has, such as a superclass field hidden by a field of the same name, SHALL be left
 out. In Kotlin, a property annotated in the primary constructor has the annotation on its field, because
-`@AugmentedReceiver` does not target parameters. A static member, a method with parameters and a synthetic method SHALL
-NOT be receiver members, even when annotated, and SHALL NOT make a class count as annotated when the instrumentation
-decides which classes to change. A member that cannot be made accessible SHALL be skipped with a warning, and the others
-SHALL still be used.
+`@AugmentedReceiver` does not target parameters. A static member, a method with parameters and a compiler-generated method
+SHALL NOT be receiver members, even when annotated. A member that cannot be read SHALL be skipped with a warning, and the
+others SHALL still be used.
 
 #### Scenario: Annotated method with parameters
 - **GIVEN** a class with `@Augmented` that `[augment.annotations]` selects, whose only `@AugmentedReceiver` member is `String idFor(int version)`
-- **WHEN** the instrumentation decides whether to change the class
-- **THEN** the class is not instrumented for a receiver member
+- **WHEN** an exception leaves one of its instance methods
+- **THEN** that frame shows no receiver members
 
 #### Scenario: Annotated field
 - **GIVEN** a class `ObjectClass` with `@Augmented` and `@AugmentedReceiver val objectId = "object-1"`, selected by `[augment.annotations]`
@@ -180,8 +178,7 @@ per member, read from the object the method runs on:
   which compiles it into the class, does;
 - `"-"`: no receiver members, not even the `@AugmentedReceiver` members.
 
-A member that is not found, or that cannot be made accessible while no accessible field or getter of that name replaces
-it, SHALL be left out with the warning of the diagnostics specification, and the others SHALL still be shown. A method that
+A member that is not found, or that cannot be read while no readable field or getter of that name replaces it, SHALL be left out with the warning of the diagnostics specification, and the others SHALL still be shown. A method that
 no entry decides and whose annotations are not in use SHALL show no receiver members.
 
 #### Scenario: Configured method of a third-party class
@@ -224,14 +221,14 @@ no entry decides and whose annotations are not in use SHALL show no receiver mem
 #### Scenario: Configured member does not exist
 - **GIVEN** `"com.thirdparty.Customer::*" = "customerNo"` in `[augment.receiver]`, a misspelling: `Customer` has a field `customerId`, but no field and no getter for `customerNo`
 - **WHEN** the receiver members of `Customer` are first needed
-- **THEN** a warning `[augment.receiver] "com.thirdparty.Customer::*": no field or property customerNo found` is printed
+- **THEN** a warning names the entry and the missing member `customerNo`
 - **AND** frames of `Customer` show no receiver members
 
-#### Scenario: Configured member cannot be made accessible
+#### Scenario: Configured member cannot be read
 - **GIVEN** `"com.thirdparty.Customer::*" = "customerNo"`, where `Customer`'s private field `customerNo` is in a module package not opened to stack-augmentor
 - **WHEN** the receiver members of `Customer` are first needed
 - **THEN** a public getter `getCustomerNo()`, if there is one, gives the receiver member `customerNo=…` without a warning
-- **AND** without a usable getter, one warning `[augment.receiver] "com.thirdparty.Customer::*": cannot access private … customerNo` is printed, and no warning about a missing member
+- **AND** without a usable getter, one warning names the entry and the field that cannot be read, and no warning about a missing member
 
 ### Requirement: Subclasses, proxies and interfaces
 The receiver members of a frame SHALL come from the deciding entry of the declaring class of the frame's method, read from
@@ -243,8 +240,8 @@ the object the method runs on, whatever the object's runtime class. So:
   that matches its name;
 - a default method of an interface SHALL show the receiver members of the interface's deciding entry, whatever entry the
   implementing class has; without an entry for the interface, its frame SHALL be unchanged;
-- bridge methods, including those Kotlin compiles into a class for each default method it inherits, SHALL NOT be
-  instrumented, so their frames are unchanged.
+- the frames of compiler-generated bridge methods, including those Kotlin generates in a class for each default method it
+  inherits, SHALL stay unchanged.
 
 #### Scenario: Subclass without an entry
 - **GIVEN** `"com.thirdparty.Order+::*" = "getOrderNumber()"` and a subclass `com.acme.RushOrder` that no other entry matches
