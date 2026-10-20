@@ -38,8 +38,9 @@ captured, and anything kept per exception SHALL be released when the exception i
 ### Requirement: Fail fast on invalid configuration
 An invalid configuration SHALL stop the JVM when the agent starts with `-javaagent` (an agent attached later fails to
 start instead), or fail the build when the build plugin starts, with a message naming the file, the key and the line.
-With build-time instrumentation, an invalid runtime configuration SHALL be reported as an error with the file, the key
-and the line, and the application SHALL keep running with unchanged stack traces. It SHALL NOT be silently ignored.
+With build-time instrumentation, an invalid runtime configuration, and in every way to run an invalid configuration of an
+application (see the configuration specification), SHALL be reported as an error with the file, the key and the line,
+and the application SHALL keep running with the stack traces it covers unchanged. It SHALL NOT be silently ignored.
 
 #### Scenario: Typo in a key
 - **GIVEN** `[augment]` with `frameformat = "…"`

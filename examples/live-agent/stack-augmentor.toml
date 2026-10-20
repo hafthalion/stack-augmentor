@@ -1,7 +1,8 @@
 # Print diagnostics to stderr (default: false): the configuration, which classes and methods get
 # instrumented and why, where each receiver member and parameter value comes from, and config entries or annotations that have no effect.
 debug = false
-inPlaceModification = true
+# Write augmented frames into the exception's own stack trace (default: true); the agent makes that possible.
+# inPlaceModification = true
 
 # Only the example's exceptions are augmented: in the live-stack mode the agent looks at the stack of every throwable
 # whose trace the VM records, also those the JDK creates and catches itself, unless no entry augments it. A class

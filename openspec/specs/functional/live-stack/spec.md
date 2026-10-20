@@ -24,9 +24,10 @@ Windows with the platform's C compiler; a build without a C compiler SHALL still
 
 ### Requirement: Capturing values from the live stack
 In this mode, no application class SHALL be changed. When an augmented exception records its stack trace, the agent SHALL
-read the receiver and the selected arguments of every frame whose method the configuration selects, by the same rules as
-the instrumenting modes (see the overview, the configuration and the receivers and parameters specifications), and turn
-them into text right away. Unlike the instrumenting modes, every configured frame on the stack when the exception is
+read the receiver and the selected arguments of every frame whose method the configuration of its class selects, by the
+same rules as the instrumenting modes (see the overview, the configuration and the receivers and parameters
+specifications), and turn them into text right away. An exception SHALL be looked at when any configuration augments it,
+and each frame SHALL be augmented only where the configuration of its class does. Unlike the instrumenting modes, every configured frame on the stack when the exception is
 created SHALL be augmented, also the method that catches it and its callers, and a constructor while it calls
 `super(...)` or `this(...)`; the values SHALL be those at that moment. The augmentation SHALL appear in the stack trace
 when it is first read or printed, and not at all if the application replaced the stack trace. Exceptions created while a

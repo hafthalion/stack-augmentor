@@ -25,6 +25,17 @@ functions, primary-constructor properties and data classes, and Java classes com
 - **WHEN** an annotated parameter's method throws
 - **THEN** the frame shows the parameter value labelled `arg<N>`
 
+### Requirement: Application frameworks
+The agent and build-time instrumentation SHALL work for applications packaged by Spring Boot (executable jar) and Quarkus
+(JVM mode), whose classes and libraries those frameworks load in class loaders of their own, and for applications in an
+application server. Classes that a framework generates at runtime or at build time, such as proxies, SHALL be treated
+like any other class: augmented by entries that match them, and left alone when they are compiler-generated.
+
+#### Scenario: Quarkus application
+- **GIVEN** a Quarkus application instrumented at build time, with `stack-augmentor.toml` in its resources
+- **WHEN** it is run from its packaged form, without and with the agent
+- **THEN** the frames of its instrumented methods show their augmentation in the format of its configuration
+
 ### Requirement: No conflicts with the application's dependencies
 The Java agent SHALL keep its own dependencies apart from the application's, so that the application can use any
 version of the same libraries, and nothing the agent sets up for its own copies SHALL affect the application's. The agent
