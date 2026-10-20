@@ -1247,10 +1247,11 @@ public final class AugmentorConfig {
             if (IDENTIFIER.matcher(name).matches()) {
                 return new ParamRef.ByName(name, hashed);
             }
-            if (INDEX.matcher(name).matches() && Integer.parseInt(name) <= 255) {
+            // A method has at most 255 parameters, so the indexes go up to 254.
+            if (INDEX.matcher(name).matches() && Integer.parseInt(name) <= 254) {
                 return new ParamRef.ByIndex(Integer.parseInt(name), hashed);
             }
-            throw error(path, "invalid parameter '" + text + "': use a parameter name or a 0-based index from 0 to 255, "
+            throw error(path, "invalid parameter '" + text + "': use a parameter name or a 0-based index from 0 to 254, "
                     + "optionally followed by # to hash the value, e.g. \"email#\" or \"1#\"");
         }
 

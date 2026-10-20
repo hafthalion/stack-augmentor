@@ -43,7 +43,7 @@ Stack Augmentor SHALL offer three ways to run, with the same configuration file 
 - **Java agent** (see the Java agent specification): instruments the classes that need it when they are loaded,
   third-party classes included, without changes to the application's build; it augments the frames an exception leaves;
 - **live-stack mode** (the agent with a native library, experimental, see the live-stack specification): reads the values
-  of every configured frame from the stack when an exception is created, also of the frames that catch it;
+  of every configured frame from the stack when an exception records its stack trace, also of the frames that catch it;
 - **build-time instrumentation** (see the build-time instrumentation specification): instruments the project's own classes
   when they are built; at runtime only a small runtime library is needed, no agent.
 

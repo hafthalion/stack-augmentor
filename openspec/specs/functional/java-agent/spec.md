@@ -9,8 +9,8 @@ changing the application's build.
 ### Requirement: Starting the agent
 The agent SHALL be one self-contained jar, started with `-javaagent:<agent jar>[=config=<path>]`, and MAY also be attached
 to a running JVM. A second start in the same JVM SHALL have no effect. At startup it SHALL read and validate the
-configuration (see the configuration specification), and use the live-stack mode when its native library is loaded and
-usable (see the live-stack specification), otherwise instrument classes.
+configuration (see the configuration specification), and use the live-stack mode when the JVM was started with its native
+library and can use it (see the live-stack specification), otherwise instrument classes.
 
 #### Scenario: Demo application
 - **GIVEN** the `examples/java-agent` application started with the agent and its `stack-augmentor.toml`

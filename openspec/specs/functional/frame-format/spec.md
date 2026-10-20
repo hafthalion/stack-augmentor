@@ -23,7 +23,8 @@ name, each in braces. The defaults SHALL be `frameFormat = "$class$receiver.$met
 
 ### Requirement: Frame template
 `frameFormat` SHALL support the placeholders `$class`, `$simpleClass`, `$method`, `$receiver` and
-`$params`. A placeholder name SHALL end at the first character that is not a letter or digit; the braced form,
+`$params`. `$simpleClass` SHALL be the class name without its package, with the names of nested classes kept
+(`Order$Line` for `com.acme.Order$Line`). A placeholder name SHALL end at the first character that is not a letter or digit; the braced form,
 e.g. `${method}`, SHALL be the same placeholder, with the name ending at the `}`. All other text, including a
 brace without a `$` before it, SHALL be literal, and `$$` SHALL be a literal `$`. It SHALL contain `.$method` (or `.${method}`) exactly once,
 because the JDK always prints `<class>.<method>(<file>:<line>)`: the part before that `.` becomes the

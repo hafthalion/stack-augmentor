@@ -171,12 +171,15 @@ per member, read from the object the method runs on:
 - a field name: the field, looked up in the declaring class of the frame's method and its superclasses, private members
   included; for an interface, in the interface and the interfaces it extends. When no usable field of that name exists, as
   in an interface or for a Kotlin property without a backing field, the property's getter SHALL be used (`getName()` for
-  `name`, and the name itself for a Kotlin-style `isActive`), with the configured name as the label;
+  `name`, and the name itself for a Kotlin-style `isActive`; `isName()` is never tried for `name`), with the configured
+  name as the label;
 - `method()`: the result of that no-argument method, looked up the same way;
 - a configured method or getter that the class and its superclasses do not declare SHALL then be looked up in the
   interfaces they implement, nearest first, so that a Java class finds a default method it inherits, as a Kotlin class,
   which compiles it into the class, does;
 - `"-"`: no receiver members, not even the `@AugmentedReceiver` members.
+
+Static fields and methods SHALL never be receiver members: a configured name SHALL only find instance members.
 
 A member that is not found, or that cannot be read while no readable field or getter of that name replaces it, SHALL be left out with the warning of the diagnostics specification, and the others SHALL still be shown. A method that
 no entry decides and whose annotations are not in use SHALL show no receiver members.
@@ -428,8 +431,8 @@ be compiled with `javac -parameters` (Kotlin with `javaParameters = true`).
 
 ### Requirement: Values as text
 Every receiver member and parameter value SHALL be converted to text when it is captured. `null` SHALL be shown as `null`.
-Strings, numbers, booleans, characters and enums SHALL be shown with `toString()`, arrays by their elements, and other
-objects with `toString()`, also when their class has receiver members: `[augment.receiver]` SHALL only apply to receivers.
+Strings, numbers, booleans, characters and enums SHALL be shown with `toString()`, arrays by their elements, nested arrays
+too (`[[1, 2], [3]]`), and other objects with `toString()`, also when their class has receiver members: `[augment.receiver]` SHALL only apply to receivers.
 Each run of line breaks (`\r`, `\n`) SHALL be replaced by a single space, and `(` and `)` by `{` and `}`, because IDEs find a frame's file and line
 by the parenthesised `(File.kt:12)` that follows the method. Text longer than `[augment] maxValueLength` SHALL be cut to
 `maxValueLength - 1` characters followed by `…`. A member or a `toString()` that throws SHALL be shown as `?`.

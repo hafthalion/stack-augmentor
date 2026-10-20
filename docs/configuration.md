@@ -232,7 +232,7 @@ Without the `@Augmented` on the class, both frames would be unchanged; with `@Au
 | Value | Parameter values |
 |---|---|
 | `"order"` | the parameter named `order` |
-| `"2"` | the third parameter (0-based index, 0 to 255) |
+| `"2"` | the third parameter (0-based index, 0 to 254) |
 | `"order, 2"` | several of them, by name or index |
 | `"user, email#, 3#"` | `#` after a name or index shows the value hashed: `email=#71d4f55f` |
 | `"-"` | none, also for the entries after it that would match, and not the annotations |
@@ -252,7 +252,7 @@ Without the `@Augmented` on the class, both frames would be unchanged; with `@Au
 
 | Key | Placeholders |
 |---|---|
-| `frameFormat` | `$class`, `$simpleClass`, `$method`, `$receiver`, `$params` |
+| `frameFormat` | `$class`, `$simpleClass` (without the package, nested names kept: `Order$Line`), `$method`, `$receiver`, `$params` |
 | `receiverFormat` | `$name`, `$value`, and `...` to mark repetition. Renders empty when the frame has no receiver members. |
 | `paramsFormat` | `$name`, `$value`, and `...` to mark repetition. Renders empty when the method has no parameter values. |
 | `maxValueLength` | longer values are cut to this many characters (2 to 10000, default 64) |
@@ -290,7 +290,7 @@ With build-time instrumentation, the runtime reads its configuration when the fi
 - invalid keys, e.g. without `::`, with `+` after a pattern, or `<init>` in `[augment.receiver]`;
 - `"@"` as a value of `[augment.receiver]` or `[augment.params]`, or `@` in their keys (`"com.acme.Order::@"`): `"@" is not allowed here: these tables name members and parameters, and [augment.annotations] says where the annotations are read, e.g. "com.acme.**" = true`;
 - `[augment.exceptions]` and `[augment.annotations]` values other than `true` or `false`;
-- invalid values, e.g. an index above 255, an empty item in `"a,,b"`, or a method, receiver member or parameter listed twice (`"email, email#"` too; a name and an index of the same parameter are allowed, and it is shown once);
+- invalid values, e.g. an index above 254, an empty item in `"a,,b"`, or a method, receiver member or parameter listed twice (`"email, email#"` too; a name and an index of the same parameter are allowed, and it is shown once);
 - the same key twice, also written differently: `"com.acme.Order"` and unquoted `com.acme.Order`, or `"Order::a, b"`, `"Order::a,b"` and `"Order::b, a"`;
 - templates with `(`, `)`, an unknown placeholder, or without `.$method`.
 

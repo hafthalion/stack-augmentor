@@ -36,7 +36,7 @@ Default methods of interfaces work the same way: with `"com.acme.Labeled::*" = "
 The label is the real field or method name (`{objectId=…}`, `{getKey=…}`); it cannot be changed.
 
 **Parameter values** are shown after the method name, in declaration order. `[augment.params]` entries select them (see [Configuration](configuration.md)), with the same keys: `"com.acme.Order::ship, cancel*"`, `"com.acme.Order::*"` for all methods of the class, `"com.acme.Order+::process"` for `process` of `Order` and of its subclasses. The entry names the parameters:
-- by name or by 0-based index (0 to 255), separated by commas, e.g. `"order, 2"`;
+- by name or by 0-based index (0 to 254), separated by commas, e.g. `"order, 2"`;
 - `"-"`: none, not even from annotations.
 
 A method that no entry matches uses its annotations instead, where `[augment.annotations]` selects its class and `@Augmented` the method: `@AugmentedParam` on a parameter, or `@AugmentedParams` on the method (all its parameters; not of methods that override it). There is no wildcard for the parameters themselves: each one is named, or selected by an annotation.
