@@ -1,8 +1,8 @@
 # Performance Specification
 
 ## Purpose
-Non-functional requirements on the runtime cost of augmentation, in both the Java agent and build-time
-instrumentation.
+Non-functional requirements on the runtime cost of augmentation, with the Java agent, with build-time instrumentation and
+in the live-stack mode.
 
 ## Requirements
 
@@ -55,6 +55,18 @@ instrumented frames costs O(N × trace length); the JVM caps the trace length
 - **GIVEN** a class whose receiver member is an annotated field
 - **WHEN** many exceptions leave its methods
 - **THEN** the field is found by reflection only once
+
+### Requirement: Cost of the live-stack mode
+In the live-stack mode, normal returns SHALL cost nothing, since no application class is instrumented. Every throwable that
+`[augment.exceptions]` selects SHALL pay one walk of the stack down to its deepest configured frame, reading local
+variables only for configured frames, and the conversion of their values to text; a throwable that it does not select SHALL
+pay only a class check, cached per class. The documentation (`docs/live-stack.md`) SHALL state this cost with measured
+numbers, and `stack-augmentor-it-benchmark` SHALL compare it with the agent.
+
+#### Scenario: Exception without configured frames
+- **GIVEN** the live-stack mode and an augmented exception none of whose frames is configured
+- **WHEN** it is created
+- **THEN** the stack is walked once without reading local variables, and its trace is not changed
 
 ### Requirement: Debug output costs nothing when off
 With `debug = false`, debug message texts SHALL NOT be built, and the checks that only serve debug

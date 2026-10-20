@@ -9,7 +9,10 @@ loaded, including third-party classes, without changing the application's build.
 ### Requirement: Starting the agent
 The agent SHALL be started with `-javaagent:<agent jar>[=config=<path>]` (`premain`), and MAY be
 attached to a running JVM (`agentmain`). A second start in the same JVM SHALL have no effect. The agent
-jar SHALL be self-contained.
+jar SHALL be self-contained. At startup it SHALL read the configuration (see the configuration specification), open
+`java.lang` to its own classes so that `inPlaceModification` and the live-stack mode can be used, choose the live-stack
+mode when the native library is loaded and its checks pass (see the live-stack specification), and otherwise install its
+handler and instrument classes.
 
 #### Scenario: Demo application
 - **GIVEN** the `examples/java-agent` application started with the agent and its `stack-augmentor.toml`
@@ -64,3 +67,18 @@ install its handler before any class is instrumented.
 - **GIVEN** an instrumented class loaded by an application-specific class loader
 - **WHEN** one of its methods throws
 - **THEN** the frame shows its augmentation
+
+### Requirement: Classes instrumented at build time
+The agent SHALL leave classes alone that the build plugin has already instrumented, recognised by a reference to
+`Dispatch` in their constant pool, since a second advice would break them (a constructor's handlers then fail
+verification). Their code SHALL reach the agent's handler, because `Dispatch` is then the one on the bootstrap class
+path. For them, the build decides which methods are augmented and which parameters they pass; the agent's
+`[augment.receiver]` entry with the key that decided a method at build time SHALL give its receiver members, and for the
+key `@` the `@AugmentedReceiver` members, whatever the agent's `[augment.annotations]` says, as the runtime of build-time
+instrumentation does. In the live-stack mode the agent SHALL ignore their calls, and its own configuration SHALL decide
+every frame.
+
+#### Scenario: Build-time classes under the agent
+- **GIVEN** the tests of `stack-augmentor-it-build-time`, run with the agent (`testWithAgent`)
+- **WHEN** an instrumented constructor or method throws
+- **THEN** the classes load without a `VerifyError`, and the frames show the same augmentation as without the agent

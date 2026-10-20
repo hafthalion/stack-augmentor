@@ -9,7 +9,8 @@ find out why a class or frame is or is not augmented.
 ### Requirement: Startup messages
 The agent, the build plugin and the runtime handler of build-time instrumentation SHALL report their
 configuration the same way, and their messages SHALL name them after the level: `agent:`, `build plugin:` or
-`runtime:`. An invalid configuration SHALL be printed to standard error, prefixed `[stack-augmentor] ERROR`, with
+`runtime:`. An invalid configuration, and `inPlaceModification = true` while `java.lang` is not open (see the performance
+specification), SHALL be printed to standard error, prefixed `[stack-augmentor] ERROR`, an invalid configuration with
 the file, the key and the line, also when the exception carrying it is thrown on: the ByteBuddy Gradle plugin and
 `ServiceLoader` do not show its message.
 
@@ -19,7 +20,7 @@ the file, the key and the line, also when the exception carrying it is thrown on
 - **THEN** `[stack-augmentor] ERROR runtime: bad.toml, line 2: maxValueLength must be between 2 and 10000, was 1` is printed
 - **AND** a warning says that the stack trace handler cannot be created because the configuration is invalid, and stack traces stay unchanged
 
-#### Scenario: Same messages in both modes
+#### Scenario: Same messages from every component
 - **GIVEN** `debug = true` in the configuration of the agent, of the build plugin and of the runtime handler
 - **WHEN** each of them starts
 - **THEN** each prints the same debug messages about its configuration, prefixed with its name, e.g. `[stack-augmentor] DEBUG build plugin: [augment.annotations] com.hafnium.**=true`
@@ -33,6 +34,9 @@ The system SHALL always print a warning to standard error, prefixed `[stack-augm
 - when an annotated receiver member cannot be made accessible;
 - when the runtime handler cannot be created, with the reason;
 - when the build-time runtime handler finds no configuration, so the built-in configuration is used;
+- when the agent was started with the native library but cannot read frames from the live stack, naming the reason, so
+  classes are instrumented instead (see the live-stack specification);
+- when the agent cannot use the shared bridge jar directory and uses a copy of its own (see the design specification);
 - when the agent or the build plugin starts with a configuration that has no `[augment.receiver]` and no
   `[augment.params]` entries other than `"-"` and no `[augment.annotations]` entry that is `true`, so nothing will be augmented;
 - when the agent, the build plugin or the runtime starts with `[augment.receiver]` or `[augment.params]` entries other
@@ -64,13 +68,14 @@ A member missing for an entry with wildcards SHALL only be reported as a debug m
 ### Requirement: Debug messages
 With `debug = true`, the system SHALL print messages to standard error, prefixed
 `[stack-augmentor] DEBUG`, for:
-- the configuration, from the agent, the build plugin and the runtime handler alike: its location, the `[augment.receiver]` entries (with `-` for none), the `[augment.params]` entries (with `#` for hashed parameters and `-` for none), then the `[augment.annotations]` entries (e.g. `[augment.annotations] com.acme.**=true`, or `none`), and the formats;
+- the configuration, from the agent, the build plugin and the runtime handler alike: its location, the `[augment.receiver]` entries (with `-` for none), the `[augment.params]` entries (with `#` for hashed parameters and `-` for none), then the `[augment.annotations]` entries (e.g. `[augment.annotations] com.acme.**=true`, or `none`), and the `[augment]` formats with `maxValueLength` and the `[augment.exceptions]` entries;
 - each instrumented class: why it is instrumented (the `[augment.receiver]` entries that give receiver members, `@AugmentedReceiver`, or parameter values only, e.g. `instrumenting com.acme.Order (receiver members from @AugmentedReceiver): …`), and its instrumented methods with their parameter values;
 - `@AugmentedReceiver` annotations ignored, `ignoring @AugmentedReceiver in <class>: no [augment.annotations] entry that is true matches it` or `…: [augment.receiver] entries or @Augmented decide for all its methods`, and `@AugmentedParam` and `@AugmentedParams` annotations ignored, `ignoring the parameter annotations of <methods> in <class>: no [augment.annotations] entry that is true matches it` or `…: an [augment.params] entry or @Augmented decides for them`;
 - `[augment.params]` entries without wildcards or `+` that name a missing method, a missing parameter or an index out of range, suggesting `-parameters` or an index when the class has no parameter names;
 - members missing for `[augment.receiver]` entries with wildcards;
 - the receiver members found for each class when they are first needed;
-- exceptions whose frame is not found in their stack trace.
+- exceptions whose frame is not found in their stack trace;
+- with the agent: classes it leaves alone because they were instrumented at build time, and, in the live-stack mode, that it reads frames from the live stack.
 
 `[augment.params]` entries with wildcards or `+` SHALL NOT produce messages for classes or methods they do not
 match, or for names and indexes a matched method does not have. With `debug = false`, no debug messages

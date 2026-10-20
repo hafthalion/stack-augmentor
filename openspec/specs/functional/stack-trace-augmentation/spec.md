@@ -1,8 +1,9 @@
 # Stack Trace Augmentation Specification
 
 ## Purpose
-Defines which methods are instrumented, when receiver members and parameter values are captured, and how the frames of an exception's
-stack trace are rewritten to show them.
+Defines which methods are instrumented, when receiver members and parameter values are captured, which exceptions are
+augmented, and how the frames of an exception's stack trace, and of its causes and suppressed exceptions, are rewritten to
+show them. The live-stack specification says where its mode differs.
 
 ## Requirements
 
@@ -63,22 +64,19 @@ exception that left them.
 - **THEN** the wrapper's `wrap` frame and the cause's `inner` frame both show their augmentation
 
 ### Requirement: Only some exceptions
-With `[augment.exceptions]`, the system SHALL capture and rewrite frames only of throwables for which the first
-matching entry, in the order of the file, has the value `true`. The keys SHALL have the class part of the
-`[augment.receiver]` and `[augment.params]` keys, as `[augment.annotations]` does, matched the same way, without methods: a class name SHALL match
-throwables of that class only; with `+` after it (`"java.io.IOException+"`) the throwables that are instances of
-that class, as `instanceof` does, subclasses included; a key with the class pattern wildcards SHALL match the name
-of the throwable's runtime class only, and not its superclasses. A throwable that no entry matches SHALL NOT be augmented. The frames that other throwables leave SHALL be
-left unchanged, in their own traces and in those of their causes and suppressed exceptions; a frame that an
-augmented throwable leaves SHALL still be written into the traces it shares, whatever their class, so that
-printed traces still collapse. What gets instrumented SHALL NOT depend on it. This SHALL hold in both modes and
-in the live-stack mode. Without the table, or with an empty one, no throwable SHALL be augmented, as without
-`[augment.receiver]`, `[augment.params]` and `[augment.annotations]` entries; when those have entries (other than
-`"-"`, or an `[augment.annotations]` entry that is `true`) but no `[augment.exceptions]` entry is `true`, startup SHALL warn.
+The system SHALL capture and rewrite frames only of throwables for which the deciding `[augment.exceptions]` entry, matched
+against the throwable's runtime class with the class keys of the configuration specification, is `true`. A throwable that
+no entry matches SHALL NOT be augmented, so without entries no throwable is; when the configuration has
+`[augment.receiver]` or `[augment.params]` entries other than `"-"`, or an `[augment.annotations]` entry that is `true`, but
+no `[augment.exceptions]` entry that is `true`, startup SHALL warn (see the diagnostics specification). The frames that
+other throwables leave SHALL be left unchanged, in their own traces and in those of their causes and suppressed
+exceptions; a frame that an augmented throwable leaves SHALL still be written into the traces it shares, whatever their
+class, so that printed traces still collapse. What gets instrumented SHALL NOT depend on this table. This SHALL hold with
+the agent, with build-time instrumentation and in the live-stack mode.
 
 #### Scenario: Cause that is not augmented
 - **GIVEN** `"com.acme.PlainCause" = false` before `"**" = true`, and `wrap()` catches a `PlainCause` from `inner()` and throws `RuntimeException("wrapped", cause)`
-- **WHEN** the wrapper is printed, in either mode
+- **WHEN** the wrapper is printed, with the agent or with build-time instrumentation
 - **THEN** the cause's `inner` frame is unchanged, its frames shared with the wrapper show the wrapper's augmentation, and they collapse into `... N more`
 
 #### Scenario: First matching entry

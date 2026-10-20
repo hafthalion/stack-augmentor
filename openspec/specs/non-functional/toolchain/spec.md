@@ -45,8 +45,8 @@ relocating them under `com.hafnium.stackaugmentor.shaded`.
 The project SHALL have unit tests for configuration, frame formatting, the resolution of receiver members and parameter values, and the weak map,
 integration tests that run fixtures in a test JVM started with the built agent jar and a test
 configuration, and tests in `stack-augmentor-it-build-time` that run fixtures instrumented at build time
-without an agent. The integration tests SHALL also run in the agent's live-stack mode, unless no C compiler built the
-native library. `./gradlew build` SHALL run them all.
+without an agent and again with it (`testWithAgent`). The integration tests SHALL also run in the agent's live-stack mode
+(`testLiveStack`), unless no C compiler built the native library. `./gradlew build` SHALL run them all.
 
 #### Scenario: Integration tests use the real agent
 - **GIVEN** the integration test module
@@ -76,3 +76,16 @@ run as part of `./gradlew build`.
 - **GIVEN** the project without such a change
 - **WHEN** `./gradlew build` runs
 - **THEN** the check passes, while the examples and tests still compile and run with Kotlin
+
+### Requirement: Benchmark
+`stack-augmentor-it-benchmark` SHALL measure exceptions in deep stacks (1000 frames, a quarter of them configured, caught
+near the bottom or near the top, logged or not, single exceptions and cause chains, and exceptions that `[augment.exceptions]` does not select) without Stack Augmentor, with the agent
+copying stack traces, with the agent writing frames in place, and in the live-stack mode.
+`./gradlew :stack-augmentor-it-benchmark:benchmark` SHALL write a sortable HTML report to
+`build/reports/benchmark/index.html` and copy it to `docs/benchmark/index.html`, which GitHub Pages publishes from master.
+The project build SHALL only compile it.
+
+#### Scenario: Project build
+- **GIVEN** the project
+- **WHEN** `./gradlew build` runs
+- **THEN** the benchmark is compiled but not run

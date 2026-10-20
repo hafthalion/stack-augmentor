@@ -40,7 +40,7 @@ classes and `Dispatch`.
 - **THEN** they load and run without `NoClassDefFoundError`
 
 ### Requirement: Single dispatch point
-All instrumented code SHALL call the static `Dispatch.onThrow(self, thrown, receiverKey, owner, method, paramValues, paramNames)`,
+All instrumented code SHALL call the static `Dispatch.onThrow(self, thrown, receiverKey, owner, method, args, paramNames)`,
 which forwards to one installed `Dispatch.Handler`. The agent SHALL install the handler explicitly;
 otherwise `Dispatch` SHALL look it up once with `ServiceLoader`. A thread-local flag SHALL prevent
 re-entrant calls, and any `Throwable` from the handler SHALL be swallowed.
