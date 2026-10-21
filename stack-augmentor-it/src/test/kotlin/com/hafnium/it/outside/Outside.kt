@@ -45,8 +45,6 @@ class ClassParamsViaMethods {
  * [augment.params] entry "SavingsAccount+::transfer" does, with "+".
  */
 class PremiumAccount(number: String) : SavingsAccount(number) {
-    fun upgrade(): Nothing = throw IllegalStateException("upgrade")
-
     fun transfer(amount: Int): Nothing = throw IllegalStateException("cannot transfer $amount")
 }
 

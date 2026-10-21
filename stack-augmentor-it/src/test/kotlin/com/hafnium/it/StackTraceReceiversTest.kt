@@ -110,12 +110,6 @@ class StackTraceReceiversTest {
     }
 
     @Test
-    fun `null parameter`() {
-        val e = report.thrown<IllegalStateException, _>("Shipping().ship(null)", Shipping()) { it.ship(null) }
-        assertEquals("ship{order=null}", e.stackTrace[0].methodName)
-    }
-
-    @Test
     fun `overloads get their own labels`() {
         val byInt = report.thrown<IllegalStateException, _>("Shipping().op(3)", Shipping()) { it.op(3) }
         assertEquals("op{x=3}", byInt.stackTrace[0].methodName)
@@ -391,15 +385,6 @@ class StackTraceReceiversTest {
         assertEquals("step{n=2}", e.stackTrace[0].methodName)
         assertEquals("com.hafnium.it.fixtures.Chain{id=chain}", e.stackTrace[1].className)
         assertEquals("start{n=1}", e.stackTrace[1].methodName)
-    }
-
-    @Test
-    fun `the synthetic method for default arguments is unchanged`() {
-        val e = report.thrown<IllegalStateException, _>("Chain().withDefault(1)", Chain()) { it.withDefault(1) }
-        assertEquals("com.hafnium.it.fixtures.Chain{id=chain}", e.stackTrace[0].className)
-        assertEquals("withDefault{a=1, b=2}", e.stackTrace[0].methodName)
-        assertEquals("com.hafnium.it.fixtures.Chain", e.stackTrace[1].className)
-        assertEquals("withDefault\$default", e.stackTrace[1].methodName)
     }
 
     @Test

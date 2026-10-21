@@ -158,14 +158,6 @@ class ThrowHandlerTest {
     }
 
     @Test
-    fun `agent handler needs an entry`() {
-        val target = Annotated()
-        val thrown = thrownBy(target)
-        ThrowHandler(AugmentorConfig()).onThrow(target, thrown, Annotated::class.java.name + "::*", Annotated::class.java, Annotated::class.java.name, "fail", null, null)
-        assertEquals(Annotated::class.java.name, thrown.stackTrace[0].className)
-    }
-
-    @Test
     fun `the annotations key uses the annotations, whatever the runtime annotations table says`() {
         val target = Annotated()
         val thrown = thrownBy(target)

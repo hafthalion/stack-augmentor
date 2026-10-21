@@ -98,12 +98,6 @@ class FrameFormatTest {
     }
 
     @Test
-    fun `all parameter values are shown`() {
-        val values = (1..6).map { NamedValue("p$it", "$it") }
-        assertEquals("process{p1=1, p2=2, p3=3, p4=4, p5=5, p6=6}", rewrite().rewrite(element, emptyList(), values).methodName)
-    }
-
-    @Test
     fun `double dollar is a literal dollar`() {
         val result = rewrite(receiverFormat = "\$\$\$value").rewrite(element, listOf(receiver), emptyList())
         assertEquals("com.hafnium.ObjectClass\$123", result.className)

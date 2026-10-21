@@ -38,13 +38,6 @@ class Overlap {
     fun op(@AugmentedParam x: Int, y: Int): Nothing = throw IllegalStateException("op")
 }
 
-@Augmented
-class Wide {
-    @AugmentedParams
-    fun ten(a: Int, b: Int, c: Int, d: Int, e: Int, f: Int, g: Int, h: Int, i: Int, j: Int): Nothing =
-        throw IllegalStateException("ten")
-}
-
 /**
  * Its annotations are read, but its own entries decide where they match: its receiver members come from its
  * [augment.receiver] entry "getId()", and fail's parameter annotation is ignored ("-"). No [augment.params] entry
@@ -70,12 +63,6 @@ class Secrets {
 
     @AugmentedParams
     fun register(@AugmentedParam(secret = true) email: String, nickname: String): Nothing = throw IllegalStateException("register")
-}
-
-/** A hashed parameter that is null. */
-@Augmented
-class Forgetful {
-    fun forget(@AugmentedParam(secret = true) email: String?): Nothing = throw IllegalStateException("forget")
 }
 
 // Constructors: parameter values from the "<init>" entry, never a receiver member.

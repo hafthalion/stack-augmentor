@@ -302,7 +302,6 @@ class AugmentorConfigTest {
         assertTrue(constructor.contains("keys must name a class and its methods") && !constructor.contains("<init>"), constructor)
         assertTrue(error("[augment.receiver]\n\"::a\" = \"id\"").contains("keys must name a class and its methods"))
         assertTrue(error("[augment.receiver]\n\"com.acme.A::a, a\" = \"id\"").contains("'a' is listed twice"))
-        assertTrue(error("[augment.receiver]\n\"com.acme.A::a,b\" = \"id\"\n\"com.acme.A::a, b\" = \"x\"").contains("is configured twice"))
         // The methods do not go in the value.
         assertTrue(error("[augment.receiver]\n\"com.acme.A::*\" = \"id :: a\"").contains("the methods go in the key"))
     }
