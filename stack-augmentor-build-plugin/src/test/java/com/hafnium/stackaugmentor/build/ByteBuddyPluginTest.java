@@ -1,11 +1,15 @@
 package com.hafnium.stackaugmentor.build;
 
+import com.hafnium.buildfixture.Failing;
 import com.hafnium.buildfixture.Plain;
 import com.hafnium.buildfixture.Tracked;
 import com.hafnium.stackaugmentor.AugmentedReceiver;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.ConfigException;
+import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.description.type.TypeDescription;
+import net.bytebuddy.dynamic.ClassFileLocator;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -13,10 +17,12 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -116,5 +122,31 @@ class ByteBuddyPluginTest {
         assertTrue(output.contains("DEBUG build plugin: [augment.params] none"), output);
         assertTrue(output.contains("DEBUG build plugin: [augment] frameFormat="), output);
         assertTrue(output.contains("maxValueLength=32"), output);
+    }
+
+    @Test
+    void theAdviceAugmentsTheFramesOfTheClassesItIsAppliedTo(@TempDir Path dir) throws Exception {
+        Path config = dir.resolve("stack-augmentor.toml");
+        Files.writeString(config, "debug = true\n[augment.annotations]\n\"com.hafnium.**\" = true\n");
+        ByteArrayOutputStream err = captureErr();
+        TypeDescription type = TypeDescription.ForLoadedType.of(Failing.class);
+        Class<?> instrumented;
+        try (ByteBuddyPlugin plugin = new ByteBuddyPlugin(config.toString())) {
+            assertTrue(plugin.matches(type));
+            instrumented = plugin.apply(new ByteBuddy().redefine(Failing.class), type, ClassFileLocator.ForClassLoader.of(Failing.class.getClassLoader()))
+                    .make()
+                    .load(Failing.class.getClassLoader(), ClassLoadingStrategy.Default.CHILD_FIRST)
+                    .getLoaded();
+        } finally {
+            Log.setDebug(false);
+        }
+        String output = err.toString(StandardCharsets.UTF_8);
+        assertTrue(output.contains("DEBUG instrumenting com.hafnium.buildfixture.Failing (receiver members from @AugmentedReceiver): fail"), output);
+
+        // At runtime, the advice calls the handler of stack-augmentor-runtime, here with its built-in configuration.
+        Object failing = instrumented.getConstructor().newInstance();
+        InvocationTargetException thrown = assertThrows(InvocationTargetException.class, () -> instrumented.getMethod("fail").invoke(failing));
+        assertEquals("com.hafnium.buildfixture.Failing{id=f-1}", thrown.getCause().getStackTrace()[0].getClassName());
+        assertEquals("fail", thrown.getCause().getStackTrace()[0].getMethodName());
     }
 }

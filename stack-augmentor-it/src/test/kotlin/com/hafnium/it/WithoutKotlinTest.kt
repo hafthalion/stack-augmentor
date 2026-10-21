@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
 import org.junit.jupiter.api.io.TempDir
@@ -26,11 +27,11 @@ class WithoutKotlinTest {
     private val classpath = System.getProperty("stackaugmentor.it.javaClasspath")
     private val nativeLibrary: String? = System.getProperty("stackaugmentor.it.nativeLibrary")
 
-    /** Runs JavaMain with the agent and this configuration, or without one. */
-    private fun run(config: Path?): Result {
+    /** Runs JavaMain with the agent and this configuration, or without one, and these JVM options. */
+    private fun run(config: Path?, vararg options: String): Result {
         val java = Path.of(System.getProperty("java.home"), "bin", "java").toString()
         val agent = if (config != null) "-javaagent:$agentJar=config=$config" else "-javaagent:$agentJar"
-        val command = listOfNotNull(java, nativeLibrary?.let { "-agentpath:$it" }, agent, "-cp", classpath, "com.hafnium.it.fixtures.JavaMain")
+        val command = listOfNotNull(java, nativeLibrary?.let { "-agentpath:$it" }, agent, *options, "-cp", classpath, "com.hafnium.it.fixtures.JavaMain")
         val process = ProcessBuilder(command)
             .redirectErrorStream(true)
             .start()
@@ -78,6 +79,25 @@ class WithoutKotlinTest {
         }
         assertTrue(result.output.contains("[stack-augmentor] DEBUG receiver members of com.hafnium.it.fixtures.JavaFixture"), result.output)
         assertNoKotlin(result.output)
+    }
+
+    @Test
+    fun `an agent given twice starts once`(@TempDir dir: Path) {
+        val config = config(dir, "debug = true\n[augment.exceptions]\n\"**\" = true\n[augment.annotations]\n\"com.hafnium.it.fixtures.**\" = true\n")
+        val result = run(config, "-javaagent:$agentJar=config=$config")
+        assertEquals(0, result.exitCode, result.output)
+        assertEquals(1, result.output.lines().count { it.startsWith("[stack-augmentor] DEBUG agent: configuration ") }, result.output)
+        assertEquals(1, result.output.lines().count { it.startsWith("\tat com.hafnium.it.fixtures.JavaFixture{key=java-1}.run{arg0=42}(") }, result.output)
+    }
+
+    @Test
+    fun `the live stack hint about objects the JIT optimized away is left out when that optimization is off`(@TempDir dir: Path) {
+        assumeTrue(AgentMode.liveStack)
+        val result = run(config(dir, "debug = true\n[augment.exceptions]\n\"**\" = true\n[augment.annotations]\n\"com.hafnium.it.fixtures.**\" = true\n"), "-XX:-EliminateAllocations")
+        assertEquals(0, result.exitCode, result.output)
+        assertTrue(result.output.contains("[stack-augmentor] DEBUG agent: reading frames from the live stack"), result.output)
+        assertFalse(result.output.contains("-XX:-EliminateAllocations avoids that"), result.output)
+        assertTrue(result.output.contains("at com.hafnium.it.fixtures.JavaFixture{key=java-1}.run{arg0=42}(JavaFixture.java:"), result.output)
     }
 
     @Test
