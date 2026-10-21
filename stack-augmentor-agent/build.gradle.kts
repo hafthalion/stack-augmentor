@@ -15,8 +15,8 @@ dependencies {
     compileOnly(project(":stack-augmentor-instrument-bridge"))
     bridge(project(":stack-augmentor-instrument-bridge"))
 
-    // The agent's classes refer to the bridge, which the agent jar carries as a jar of its own.
-    testRuntimeOnly(project(":stack-augmentor-instrument-bridge"))
+    // The agent's classes refer to the bridge, which the agent jar carries as a jar of its own; LiveStackTest calls it.
+    testImplementation(project(":stack-augmentor-instrument-bridge"))
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.launcher)
@@ -27,6 +27,11 @@ tasks.processResources {
         into("META-INF/stack-augmentor")
         rename { "stack-augmentor-instrument-bridge.jar" }
     }
+}
+
+tasks.test {
+    // As the agent opens it to itself: LiveStackTest creates LiveStackFrames.
+    jvmArgs("--add-opens", "java.base/java.lang=ALL-UNNAMED")
 }
 
 tasks.jar {
