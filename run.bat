@@ -13,8 +13,8 @@ rem                 java -agentpath:<native library> -javaagent:<agent jar>=conf
 rem               Without MinGW gcc on the PATH there is no native library, and only the first runs.
 rem   build-time  classes instrumented when they were built, no agent:
 rem                 java -jar <example jar>
-rem   benchmark   the exception cost benchmark (stack-augmentor-it-benchmark) in every mode, one JVM each; writes
-rem               stack-augmentor-it-benchmark\build\reports\benchmark\index.html. Takes a few minutes.
+rem   benchmark   the exception cost benchmark (stack-augmentor-it\benchmark) in every mode, one JVM each; writes
+rem               stack-augmentor-it\benchmark\build\reports\benchmark\index.html. Takes a few minutes.
 rem
 rem Builds everything first (including the tests), plus the example's lib folder.
 rem Options after the example name are passed to the JVM, e.g.  run.bat live-agent -Xshare:off
@@ -52,7 +52,7 @@ goto build
 
 :benchmark
 rem Runs each mode in a JVM of its own, the same way as the examples, and writes the report.
-call "%~dp0gradlew.bat" :stack-augmentor-it-benchmark:benchmark
+call "%~dp0gradlew.bat" :stack-augmentor-it:benchmark:benchmark
 if %ERRORLEVEL% neq 0 (
     endlocal & exit /b 1
 )

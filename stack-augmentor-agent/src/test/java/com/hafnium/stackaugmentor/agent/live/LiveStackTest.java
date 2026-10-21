@@ -34,7 +34,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The test JVM runs without the native library (-agentpath), with java.lang open (see build.gradle.kts). {@link FakeJvm}
- * stands in for it where a test needs the library or a failure; stack-augmentor-it runs the live-stack mode itself.
+ * stands in for it where a test needs the library or a failure; stack-augmentor-it/agent runs the live-stack mode itself.
  */
 class LiveStackTest {
 
