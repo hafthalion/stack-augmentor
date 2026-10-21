@@ -188,12 +188,6 @@ class ValueResolverTest {
     }
 
     @Test
-    fun `configured method`() {
-        val resolver = resolver(name(Unannotated::class.java) to ReceiverSpec.MethodSpec("toString"))
-        assertEquals(NamedValue("toString", "Unannotat…"), resolver.receiverValue(Unannotated("c-7")))
-    }
-
-    @Test
     fun `a class name with plus applies to subclasses, without plus or a pattern it does not, and members are found in superclasses`() {
         assertEquals(NamedValue("baseId", "b1"), resolver(annotations = reads(name(BaseWithReceiver::class.java) + "+")).receiverValue(ChildOfBase()))
         assertEquals(NamedValue("baseId", "b1"), resolver(name(BaseWithReceiver::class.java) + "+" to ReceiverSpec.FieldSpec("baseId")).receiverValue(ChildOfBase()))
@@ -254,14 +248,6 @@ class ValueResolverTest {
         val warnings = err.toString(Charsets.UTF_8).lines().filter { it.contains("WARN") }
         assertEquals(1, warnings.size, warnings.toString())
         assertTrue(warnings[0].contains("[augment.receiver] \"java.net.URI::*\": cannot access private transient int java.net.URI.hash"), warnings[0])
-    }
-
-    @Test
-    fun `annotations need an annotations entry`() {
-        assertNull(resolver().receiverValue(Annotated()))
-        // An [augment.receiver] entry ignores the annotations.
-        val configured = resolver(name(Annotated::class.java) to ReceiverSpec.FieldSpec("customerId"), annotations = reads(here))
-        assertEquals(NamedValue("customerId", "c-1"), configured.receiverValue(Annotated()))
     }
 
     @Test

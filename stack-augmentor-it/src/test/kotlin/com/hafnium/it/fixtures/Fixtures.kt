@@ -289,9 +289,6 @@ class Chain {
 
     private fun step(@AugmentedParam n: Int): Nothing = throw IllegalStateException("step $n")
 
-    /** Kotlin compiles a static withDefault$default, which fills in b and calls withDefault. */
-    fun withDefault(@AugmentedParam a: Int, @AugmentedParam b: Int = 2): Nothing = throw IllegalStateException("default $a $b")
-
     /** Catches and throws the same exception again. */
     fun rethrow(@AugmentedParam n: Int) {
         try {

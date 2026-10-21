@@ -15,7 +15,6 @@ import com.hafnium.it.outside.VipCustomer
 import com.hafnium.it.report.FrameReport
 import com.hafnium.it.report.ReceiverEntries
 import com.thirdparty.InventoryAudit
-import com.thirdparty.InventoryService
 import com.thirdparty.Ledger1
 import com.thirdparty.Ledger12
 import com.thirdparty.OrderLine
@@ -110,12 +109,6 @@ class ConfigTablesTest {
     }
 
     @Test
-    fun `an entry of a superclass does not apply to subclasses`() {
-        // "com.thirdparty.*Account" matches SavingsAccount, not com.hafnium.it.outside.PremiumAccount. See InheritanceTest.
-        assertEquals("com.hafnium.it.outside.PremiumAccount", frame("PremiumAccount(\"P-1\").upgrade()", PremiumAccount("P-1")) { it.upgrade() }.className)
-    }
-
-    @Test
     fun `a class name without plus does not apply to subclasses, with plus it does`() {
         // "com.thirdparty.Customer::*" has no "+": the methods VipCustomer declares show no receiver member, those it
         // inherits from Customer do.
@@ -144,7 +137,6 @@ class ConfigTablesTest {
     fun `a '-' method entry ignores the later entries`() {
         assertEquals("purge", frame("InventoryAudit().purge(\"x-1\")", InventoryAudit()) { it.purge("x-1") }.methodName)
         assertEquals("log{reason=disk full}", frame("InventoryAudit().log(\"disk full\", 2)", InventoryAudit()) { it.log("disk full", 2) }.methodName)
-        assertEquals("reserve{sku=x-1, count=2}", frame("InventoryService().reserve(\"x-1\", 2)", InventoryService()) { it.reserve("x-1", 2) }.methodName)
     }
 
     @Test

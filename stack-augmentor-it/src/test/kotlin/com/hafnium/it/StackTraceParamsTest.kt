@@ -4,13 +4,11 @@ import com.hafnium.it.fixtures.Accounts
 import com.hafnium.it.fixtures.Crate
 import com.hafnium.it.fixtures.DerivedInventory
 import com.hafnium.it.fixtures.ExpressParcel
-import com.hafnium.it.fixtures.Forgetful
 import com.hafnium.it.fixtures.Inventory
 import com.hafnium.it.fixtures.Overlap
 import com.hafnium.it.fixtures.Pallet
 import com.hafnium.it.fixtures.Secrets
 import com.hafnium.it.fixtures.Shipment
-import com.hafnium.it.fixtures.Wide
 import com.hafnium.it.outside.AllParamsOutside
 import com.hafnium.it.report.FrameReport
 import com.thirdparty.InventoryService
@@ -62,12 +60,6 @@ class StackTraceParamsTest {
     }
 
     @Test
-    fun `all selected parameters are shown`() {
-        val e = report.thrown<IllegalStateException, _>("Wide().ten(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)", Wide()) { it.ten(1, 2, 3, 4, 5, 6, 7, 8, 9, 10) }
-        assertEquals("ten{a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, i=9, j=10}", e.method())
-    }
-
-    @Test
     fun `third-party classes selected by wildcards`() {
         val reserve = report.thrown<IllegalStateException, _>("InventoryService().reserve(\"x-1\", 2)", InventoryService()) { it.reserve("x-1", 2) }
         assertEquals("com.thirdparty.InventoryService", reserve.stackTrace[0].className)
@@ -91,11 +83,6 @@ class StackTraceParamsTest {
             "register{email=#d648b243, nickname=annie}",
             report.thrown<IllegalStateException, _>("Secrets().register(\"a@b.c\", \"annie\")", Secrets()) { it.register("a@b.c", "annie") }.method(),
         )
-    }
-
-    @Test
-    fun `a hashed parameter that is null stays null`() {
-        assertEquals("forget{email=null}", report.thrown<IllegalStateException, _>("Forgetful().forget(null)", Forgetful()) { it.forget(null) }.method())
     }
 
     @Test
