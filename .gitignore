@@ -3,4 +3,5 @@
 /build/
 /*/build/
 /examples/*/build/
+/stack-augmentor-it/*/build/
 /stack-augmentor-native/jdk-include/

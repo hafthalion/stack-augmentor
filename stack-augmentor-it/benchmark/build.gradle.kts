@@ -4,11 +4,11 @@ plugins {
 
 // Benchmark: how long an exception takes in a 1000-frame stack without the agent, with it (frames written in place, or
 // the whole trace copied for every frame) and in its live-stack mode. Each mode runs the same tests in its own JVM;
-// `./gradlew :stack-augmentor-it-benchmark:benchmark` runs them all and writes build/reports/benchmark/index.html, and
+// `./gradlew :stack-augmentor-it:benchmark:benchmark` runs them all and writes build/reports/benchmark/index.html, and
 // copies it to docs/benchmark/index.html: committed to master, the Reports workflow publishes it on GitHub Pages.
 // The project build only compiles it: `test` is off, the benchmark runs only when one of its tasks is called.
 // How long it measures can be set with Gradle properties, e.g. for a quick, rough run:
-// `./gradlew :stack-augmentor-it-benchmark:benchmark -Pbenchmark.warmupMillis=500 -Pbenchmark.laterWarmupMillis=100
+// `./gradlew :stack-augmentor-it:benchmark:benchmark -Pbenchmark.warmupMillis=500 -Pbenchmark.laterWarmupMillis=100
 // -Pbenchmark.batchMillis=50 -Pbenchmark.batches=5` (defaults: 2000, 300, 200 and 10).
 
 val agent = configurations.create("agent") {

@@ -9,8 +9,8 @@ context: |
   library), and build-time instrumentation (ByteBuddy Gradle plugin, only api + runtime needed at runtime).
   Tech stack: Java for the published modules (no Kotlin runtime dependency), Kotlin for examples and
   tests, Java 25, Gradle 9 (Kotlin DSL, version catalog), ByteBuddy, tomlj, JUnit 6, C for the native library.
-  Modules: api, instrument-bridge, runtime, instrument, agent, native, build-plugin; not published: it
-  (agent and live-stack integration tests), it-build-time, it-benchmark, examples/java-agent,
+  Modules: api, instrument-bridge, runtime, instrument, agent, native, build-plugin; not published: under it/,
+  agent (agent and live-stack integration tests), build-time, spring-boot, quarkus, benchmark; examples/java-agent,
   examples/live-agent, examples/build-time.
   Configuration: stack-augmentor.toml with debug, inPlaceModification and [augment] (formats,
   maxValueLength) with the tables [augment.exceptions], [augment.annotations], [augment.receiver] and

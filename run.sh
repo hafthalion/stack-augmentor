@@ -13,8 +13,8 @@
 #               Without a C compiler (cc or gcc) there is no native library, and only the first runs.
 #   build-time  classes instrumented when they were built, no agent:
 #                 java -jar <example jar>
-#   benchmark   the exception cost benchmark (stack-augmentor-it-benchmark) in every mode, one JVM each; writes
-#               stack-augmentor-it-benchmark/build/reports/benchmark/index.html. Takes a few minutes.
+#   benchmark   the exception cost benchmark (stack-augmentor-it/benchmark) in every mode, one JVM each; writes
+#               stack-augmentor-it/benchmark/build/reports/benchmark/index.html. Takes a few minutes.
 #
 # Builds everything first (including the tests), plus the example's lib folder.
 # Options after the example name are passed to the JVM, e.g.  ./run.sh live-agent -Xshare:off
@@ -63,7 +63,7 @@ esac
 
 if [ "$EXAMPLE" = benchmark ]; then
     # Runs each mode in a JVM of its own, the same way as the examples, and writes the report.
-    ./gradlew :stack-augmentor-it-benchmark:benchmark
+    ./gradlew :stack-augmentor-it:benchmark:benchmark
     exit
 fi
 

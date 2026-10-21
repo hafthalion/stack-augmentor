@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Gradle itself must run on Java 25: the build-time example and stack-augmentor-it-build-time load the
+      # Gradle itself must run on Java 25: the build-time example and stack-augmentor-it/build-time load the
       # build plugin, compiled for 25, into the Gradle JVM.
       - uses: actions/setup-java@v6
         with:
@@ -33,7 +33,7 @@ jobs:
       - run: ./gradlew build
 
       # On every run, also when the build fails: the run's summary page links the archive. The frame reports
-      # (stack-augmentor-it/build/reports/frames, start with index.html) show the frames each agent test caught;
+      # (stack-augmentor-it/agent/build/reports/frames, start with index.html) show the frames each agent test caught;
       # frames-live the same for the agent's live-stack mode.
       # On master, reports.yml publishes this archive to GitHub Pages.
       - name: Upload test and frame reports
