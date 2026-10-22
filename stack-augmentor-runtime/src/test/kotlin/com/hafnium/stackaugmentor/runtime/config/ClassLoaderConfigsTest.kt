@@ -142,7 +142,7 @@ class ClassLoaderConfigsTest {
         val fds = Path.of("/proc/self/fd")
         assumeTrue(Files.isDirectory(fds), "needs /proc to see open files")
         val library = jar(dir, "library.jar",
-            "stack-augmentor-global.toml" to "[augment]\nmaxValueLength = 10\n",
+            "stack-augmentor-context.toml" to "[augment]\nmaxValueLength = 10\n",
             "stack-augmentor.toml" to "[augment]\nmaxValueLength = 20\n")
         loader(library).use { loader ->
             assertEquals(10, configs().forType(loader, "com.acme.Book", from(library)).maxValueLength())
@@ -169,7 +169,7 @@ class ClassLoaderConfigsTest {
     fun `the global configuration of a class loader applies to all its classes before their local ones`(@TempDir dir: Path) {
         val application = directory(
             dir, "application",
-            "stack-augmentor-global.toml" to "[augment]\nreceiverFormat = \"<\$value>\"\n[augment.exceptions]\n\"**\" = false\n",
+            "stack-augmentor-context.toml" to "[augment]\nreceiverFormat = \"<\$value>\"\n[augment.exceptions]\n\"**\" = false\n",
         )
         val library = jar(
             dir, "library.jar",
@@ -193,7 +193,7 @@ class ClassLoaderConfigsTest {
 
     @Test
     fun `the global configuration given to the JVM applies before those on the classpath`(@TempDir dir: Path) {
-        val application = directory(dir, "application", "stack-augmentor-global.toml" to "[augment]\nreceiverFormat = \"<\$value>\"\nmaxValueLength = 10\n")
+        val application = directory(dir, "application", "stack-augmentor-context.toml" to "[augment]\nreceiverFormat = \"<\$value>\"\nmaxValueLength = 10\n")
         val configs = configs(AugmentorConfig.parse("[augment]\nmaxValueLength = 30\n", "agent.toml"))
         assertEquals(30, configs.base().maxValueLength())
         loader(application).use { loader ->
@@ -205,13 +205,13 @@ class ClassLoaderConfigsTest {
 
     @Test
     fun `a class loader may have one global configuration only`(@TempDir dir: Path) {
-        val first = directory(dir, "first", "stack-augmentor-global.toml" to "")
-        val second = directory(dir, "second", "stack-augmentor-global.toml" to "")
+        val first = directory(dir, "first", "stack-augmentor-context.toml" to "")
+        val second = directory(dir, "second", "stack-augmentor-context.toml" to "")
         val configs = configs()
         loader(first, second).use { loader ->
             val output = stderrOf { assertNull(configs.forType(loader, "com.acme.Order", from(first))) }
             assertTrue(output.contains("ERROR runtime: class loader "), output)
-            assertTrue(output.contains("has several stack-augmentor-global.toml, but may have one only"), output)
+            assertTrue(output.contains("has several stack-augmentor-context.toml, but may have one only"), output)
             assertTrue(output.contains("are not augmented"), output)
         }
     }
@@ -233,7 +233,7 @@ class ClassLoaderConfigsTest {
 
     @Test
     fun `the global configuration of a class loader must not have the settings of the whole JVM`(@TempDir dir: Path) {
-        val application = directory(dir, "application", "stack-augmentor-global.toml" to "[settings]\ninPlaceModification = false\n")
+        val application = directory(dir, "application", "stack-augmentor-context.toml" to "[settings]\ninPlaceModification = false\n")
         val configs = configs()
         loader(application).use { loader ->
             val output = stderrOf { configs.register(loader) }

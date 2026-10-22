@@ -1,6 +1,6 @@
 package com.thirdparty
 
-// Stand-ins for library classes: no annotations, stack-augmentor-global.toml augments them. Build-time
+// Stand-ins for library classes: no annotations, stack-augmentor-context.toml augments them. Build-time
 // instrumentation only changes this project's classes: these are compiled here, real library classes would not be.
 
 class Order(private val orderNumber: Long) {

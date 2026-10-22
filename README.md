@@ -35,7 +35,7 @@ An application with classes instrumented at build time can also run with the age
 
 | Option | Where | Default | What it does |
 |---|---|---|---|
-| Configuration files | global: `-javaagent:...=config=<file>` or `-Dstackaugmentor.config=<file>`, and `stack-augmentor-global.toml` on the classpath of a class loader; local: `stack-augmentor.toml` in a jar or directory, for its own classes | none: the [built-in configuration](docs/configuration.md#the-built-in-configuration), which also applies after the files, augments all exceptions with the annotated members and parameters of the classes with `@Augmented` | TOML files with everything below ([where they come from](docs/configuration.md#where-the-files-come-from)) |
+| Configuration files | global: `-javaagent:...=config=<file>` or `-Dstackaugmentor.config=<file>`, and `stack-augmentor-context.toml` on the classpath of a class loader; local: `stack-augmentor.toml` in a jar or directory, for its own classes | none: the [built-in configuration](docs/configuration.md#the-built-in-configuration), which also applies after the files, augments all exceptions with the annotated members and parameters of the classes with `@Augmented` | TOML files with everything below ([where they come from](docs/configuration.md#where-the-files-come-from)) |
 | `[augment.exceptions]` | configuration | empty: the next configuration decides | which exceptions are augmented, e.g. `"java.lang.Exception+" = true` ([Exceptions](docs/configuration.md#exceptions)) |
 | `[augment.annotations]` | configuration | empty: the next configuration decides | in which classes `@AugmentedReceiver`, `@AugmentedParam`, `@AugmentedParams` and `@Augmented` are read, e.g. `"com.acme.**" = true` ([Annotations](docs/configuration.md#annotations)) |
 | `[augment.receiver]` | configuration | empty | which frames show receiver members by name, and which ones, e.g. `"com.thirdparty.Order+::*" = "getOrderNumber()"` ([Receiver members](docs/configuration.md#receiver-members)) |
@@ -137,7 +137,7 @@ dependencies {
     byteBuddy("com.hafnium:stack-augmentor-build-plugin:<version>")   // the ByteBuddy build plugin
 }
 
-val stackAugmentorConfig = layout.projectDirectory.file("src/main/resources/stack-augmentor-global.toml")
+val stackAugmentorConfig = layout.projectDirectory.file("src/main/resources/stack-augmentor-context.toml")
 
 byteBuddy {
     entryPoint = EntryPoint.Default.DECORATE   // only add advice, keep the methods as they are
@@ -159,8 +159,8 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 ```
 
 - **At build time**, the plugin instruments the classes and methods that `[augment.annotations]`, `[augment.receiver]` and `[augment.params]` need. Without the configuration argument, the built-in configuration applies: the methods that `@Augmented` selects are instrumented, where their class has annotated members or they have annotated parameters.
-- **At runtime**, the application needs only `stack-augmentor-api` and `stack-augmentor-runtime` (no agent, no ByteBuddy, no Kotlin). The runtime reads the file in `-Dstackaugmentor.config` and those on the classpath, `stack-augmentor-global.toml` of the class loader and `stack-augmentor.toml` of the class's jar or directory, for `[augment]`, `[augment.exceptions]` and `[augment.receiver]` (receiver members), and `[settings]` from `-Dstackaugmentor.config` only ([the configuration chain](docs/configuration.md#the-configuration-chain)).
-- **One file serves both** when it is `src/main/resources/stack-augmentor-global.toml`. A module's local `src/main/resources/stack-augmentor.toml`, for its own classes only, serves both when it is the plugin's third argument: the plugin marks the classes it instruments with it, so they find it at runtime also when classes and resources are in different build directories ([where the files come from](docs/configuration.md#where-the-files-come-from)).
+- **At runtime**, the application needs only `stack-augmentor-api` and `stack-augmentor-runtime` (no agent, no ByteBuddy, no Kotlin). The runtime reads the file in `-Dstackaugmentor.config` and those on the classpath, `stack-augmentor-context.toml` of the class loader and `stack-augmentor.toml` of the class's jar or directory, for `[augment]`, `[augment.exceptions]` and `[augment.receiver]` (receiver members), and `[settings]` from `-Dstackaugmentor.config` only ([the configuration chain](docs/configuration.md#the-configuration-chain)).
+- **One file serves both** when it is `src/main/resources/stack-augmentor-context.toml`. A module's local `src/main/resources/stack-augmentor.toml`, for its own classes only, serves both when it is the plugin's third argument: the plugin marks the classes it instruments with it, so they find it at runtime also when classes and resources are in different build directories ([where the files come from](docs/configuration.md#where-the-files-come-from)).
 - A frame's receiver members come from the runtime `[augment.receiver]` entry with the same key as the entry that decided its method at build time; without that key they are left out. Where the annotations decided at build time, the `@AugmentedReceiver` members are shown, like the annotated parameters: the runtime's `[augment.annotations]` is not checked again.
 - Without a runtime configuration, a warning says so and the built-in configuration applies; it shows the `@AugmentedReceiver` members, but not the receiver members of `[augment.receiver]` entries. An invalid one is printed as an error, and stack traces stay unchanged.
 

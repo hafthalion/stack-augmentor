@@ -407,7 +407,7 @@ public final class AugmentorConfig {
      * The configuration file on the classpath that applies to all classes of the class loader that has it, before their
      * local ones ({@link #LOCAL_RESOURCE}); at most one per class loader.
      */
-    public static final String GLOBAL_RESOURCE = "stack-augmentor-global.toml";
+    public static final String CONTEXT_RESOURCE = "stack-augmentor-context.toml";
 
     /** The default values: no class, method, annotation or exception entries, so nothing is augmented. See {@link #builtIn()}. */
     public AugmentorConfig() {

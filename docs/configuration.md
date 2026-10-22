@@ -74,7 +74,7 @@ File names must end in `.toml`. There are global files, which apply to many clas
 | File | Where from | Applies to |
 |---|---|---|
 | the JVM's global file | `-javaagent:stack-augmentor-agent.jar=config=<file>` (or just `=<file>`), otherwise `-Dstackaugmentor.config=<file>`; with build-time instrumentation, the system property | all classes, first |
-| `stack-augmentor-global.toml` | on the classpath of a class loader: one per class loader at most | all classes of that class loader, and of those below it without one of their own |
+| `stack-augmentor-context.toml` | on the classpath of a class loader: one per class loader at most | all classes of that class loader, and of those below it without one of their own |
 | `stack-augmentor.toml` | in a jar or directory on the classpath: one per jar or directory, a class loader may have several | the classes of that jar or directory only |
 | the build plugin's files | the plugin's arguments in `build.gradle.kts` (see the [README](../README.md#quick-start-build-time-instrumentation)), in the order they apply: the build's own file, like the agent's, a global file, and the module's local `stack-augmentor.toml` | the build, in this order; the global and the local file also at runtime, see below |
 
@@ -84,7 +84,7 @@ Who reads what:
 - **The build plugin** uses `[augment.annotations]`, `[augment.receiver]` and `[augment.params]`, to decide which classes and methods to instrument and which parameters they pass, and `[settings]` `debug` from its first file, the build's own. It validates every file.
 - **The runtime of classes instrumented at build time** uses `[augment]`, `[augment.exceptions]`, `[augment.receiver]`, and the `[settings]` of `-Dstackaugmentor.config`; the parameters and where the annotations are read were chosen at build time.
 
-For build-time instrumentation, one `src/main/resources/stack-augmentor-global.toml` serves both the build and the runtime. It is on the classpath, so it has no `[settings]`, and the plugin rejects them in it as the runtime does: they go in a file given by `-Dstackaugmentor.config` at runtime, and in the plugin's first file, the build's own, for the build. A frame's receiver members come from the runtime entry with the same key as the entry that decided its method at build time, so if you change a key, rebuild. Where the annotations decided at build time, the frame shows the `@AugmentedReceiver` members, as it shows the annotated parameters: the build decides both, and the runtime's `[augment.annotations]` is not checked again. Without a runtime file for a class, the built-in configuration applies alone and a warning says so: a forgotten file would otherwise go unnoticed, since the built-in configuration does not have the keys of your build file.
+For build-time instrumentation, one `src/main/resources/stack-augmentor-context.toml` serves both the build and the runtime. It is on the classpath, so it has no `[settings]`, and the plugin rejects them in it as the runtime does: they go in a file given by `-Dstackaugmentor.config` at runtime, and in the plugin's first file, the build's own, for the build. A frame's receiver members come from the runtime entry with the same key as the entry that decided its method at build time, so if you change a key, rebuild. Where the annotations decided at build time, the frame shows the `@AugmentedReceiver` members, as it shows the annotated parameters: the build decides both, and the runtime's `[augment.annotations]` is not checked again. Without a runtime file for a class, the built-in configuration applies alone and a warning says so: a forgotten file would otherwise go unnoticed, since the built-in configuration does not have the keys of your build file.
 
 A local `stack-augmentor.toml` in `src/main/resources` applies to the classes of the jar it is packaged in. When the classes run from the build directories, as with `gradle run`, in tests or in an IDE, the resources and the classes are different directories. So pass it to the build plugin as its third argument: the plugin marks the classes it instruments with the file's SHA-256 (`@LocalConfiguration`), and at runtime they use the `stack-augmentor.toml` with that content wherever their class loader has it. If none matches, e.g. because it changed after the build, a warning says so and their jar or directory decides. Classes the agent instruments always go by their jar or directory.
 
@@ -93,7 +93,7 @@ A local `stack-augmentor.toml` in `src/main/resources` applies to the classes of
 Each class uses these configurations, in this order, with the agent and with build-time instrumentation alike:
 
 1. the JVM's global file;
-2. the `stack-augmentor-global.toml` of the nearest class loader, from the class's own upwards, that has one of its own, one that its parent class loader does not see; otherwise that of the system class loader;
+2. the `stack-augmentor-context.toml` of the nearest class loader, from the class's own upwards, that has one of its own, one that its parent class loader does not see; otherwise that of the system class loader;
 3. the `stack-augmentor.toml` of the jar or directory the class comes from;
 4. the [built-in configuration](#the-built-in-configuration).
 
@@ -103,17 +103,17 @@ How they combine:
 - `frameFormat`, `receiverFormat`, `paramsFormat` and `maxValueLength` each come from the first configuration that sets them: a global file's format applies to all classes, a local file's to the classes of its jar or directory where no global file sets it.
 - `[settings]` apply to the whole JVM, so only the JVM's global file may have them; a file on the classpath that does is rejected, see [Settings](#settings).
 
-So an application server, Spring Boot or Quarkus, which run each application in a class loader of its own, let each application bring its own `stack-augmentor-global.toml` (in `WEB-INF/classes`, `BOOT-INF/classes` or `src/main/resources`) for its classes and libraries, and each jar its own `stack-augmentor.toml` for its classes:
+So an application server, Spring Boot or Quarkus, which run each application in a class loader of its own, let each application bring its own `stack-augmentor-context.toml` (in `WEB-INF/classes`, `BOOT-INF/classes` or `src/main/resources`) for its classes and libraries, and each jar its own `stack-augmentor.toml` for its classes:
 
 ```
 -javaagent:...=config=ops.toml                 # first, for every class
-webapp A: WEB-INF/classes/stack-augmentor-global.toml   # then, for every class of webapp A
+webapp A: WEB-INF/classes/stack-augmentor-context.toml   # then, for every class of webapp A
           WEB-INF/lib/orders.jar!/stack-augmentor.toml  # then, for the classes of orders.jar only
 built-in configuration                         # last
 ```
 
-- The JVM's global file and the system class loader's `stack-augmentor-global.toml` are read at startup (agent) or when the first exception needs them (build-time), and an invalid one stops the agent as described in [Errors and warnings](#errors-and-warnings). The other files are read once per class loader, when its first class is loaded (agent) or when an exception first leaves one of its instrumented methods (build-time), and are kept while the class loader lives.
-- An invalid file of a class loader, or two `stack-augmentor-global.toml` in one class loader, is printed as an error naming the file, the key and the line, and the classes it applies to stay unchanged; it does not stop the JVM. An invalid local file affects the classes of its jar or directory only.
+- The JVM's global file and the system class loader's `stack-augmentor-context.toml` are read at startup (agent) or when the first exception needs them (build-time), and an invalid one stops the agent as described in [Errors and warnings](#errors-and-warnings). The other files are read once per class loader, when its first class is loaded (agent) or when an exception first leaves one of its instrumented methods (build-time), and are kept while the class loader lives.
+- An invalid file of a class loader, or two `stack-augmentor-context.toml` in one class loader, is printed as an error naming the file, the key and the line, and the classes it applies to stay unchanged; it does not stop the JVM. An invalid local file affects the classes of its jar or directory only.
 - A class without a jar or directory, e.g. one generated at runtime, uses the global files and the built-in configuration.
 - The frames of one stack trace may then look different: the server's frames in the server's format, an application's in its own.
 
@@ -298,7 +298,7 @@ Without the `@Augmented` on the class, both frames would be unchanged; with `@Au
 
 ## Settings
 
-The `[settings]` table applies to the whole JVM, so only the file given explicitly may have it: the agent's (`config=<file>`) or `-Dstackaugmentor.config`, and for the build, the build plugin's first file. A file on the classpath, also when it is given to the build plugin as its global or local file, `stack-augmentor-global.toml` or `stack-augmentor.toml`, that has it is rejected. Without `[settings]` in the JVM's global file, the defaults apply.
+The `[settings]` table applies to the whole JVM, so only the file given explicitly may have it: the agent's (`config=<file>`) or `-Dstackaugmentor.config`, and for the build, the build plugin's first file. A file on the classpath, also when it is given to the build plugin as its global or local file, `stack-augmentor-context.toml` or `stack-augmentor.toml`, that has it is rejected. Without `[settings]` in the JVM's global file, the defaults apply.
 
 ```toml
 [settings]
@@ -327,9 +327,9 @@ With build-time instrumentation, the runtime reads its configuration when the fi
 - invalid values, e.g. an index above 254, an empty item in `"a,,b"`, or a method, receiver member or parameter listed twice (`"email, email#"` too; a name and an index of the same parameter are allowed, and it is shown once);
 - the same key twice, also written differently: `"com.acme.Order"` and unquoted `com.acme.Order`, or `"Order::a, b"`, `"Order::a,b"` and `"Order::b, a"`;
 - templates with `(`, `)`, an unknown placeholder, or without `.$method`;
-- `[settings]` in a file on the classpath, `stack-augmentor-global.toml` or `stack-augmentor.toml`;
+- `[settings]` in a file on the classpath, `stack-augmentor-context.toml` or `stack-augmentor.toml`;
 - `debug` or `inPlaceModification` outside `[settings]`: `'debug' belongs in the [settings] table`;
-- two `stack-augmentor-global.toml` in one class loader.
+- two `stack-augmentor-context.toml` in one class loader.
 
 **Warnings** don't stop anything:
 

@@ -163,7 +163,7 @@ the classes of one jar or directory. They SHALL be taken from:
 - the global configuration of the JVM: with the Java agent, in both of its modes, the agent argument (`config=<path>` or
   `<path>`), otherwise the system property `stackaugmentor.config`; at runtime with build-time instrumentation, the
   system property;
-- the global configuration of a class loader: a `stack-augmentor-global.toml` on its classpath;
+- the global configuration of a class loader: a `stack-augmentor-context.toml` on its classpath;
 - the local configuration of a jar or directory: a `stack-augmentor.toml` in it;
 - with the build plugin: its argument, as a global configuration.
 
@@ -178,7 +178,7 @@ A named file that does not exist SHALL be an error.
 At runtime, with the agent in both of its modes and with build-time instrumentation, each class SHALL use these
 configurations, in this order:
 1. the global configuration of the JVM;
-2. the `stack-augmentor-global.toml` of the nearest class loader, from the class's own upwards, that has one its parent
+2. the `stack-augmentor-context.toml` of the nearest class loader, from the class's own upwards, that has one its parent
    class loader does not see, otherwise that of the system class loader; a class loader SHALL have one at most, and
    several SHALL be an error;
 3. the `stack-augmentor.toml` of the jar or directory the class comes from, if its class loader has one there that its
@@ -201,7 +201,7 @@ class is augmented; an invalid one SHALL be reported, the JVM SHALL keep running
 unchanged.
 
 #### Scenario: Two applications in one server
-- **GIVEN** the agent with a configuration that selects nothing in their packages, and two applications in class loaders of their own, each with a `stack-augmentor-global.toml` that selects its classes, one with `receiverFormat = "<$value>"`
+- **GIVEN** the agent with a configuration that selects nothing in their packages, and two applications in class loaders of their own, each with a `stack-augmentor-context.toml` that selects its classes, one with `receiverFormat = "<$value>"`
 - **WHEN** an augmented exception leaves an annotated method of each
 - **THEN** each frame shows its receiver members in the format of its own application's configuration
 
@@ -216,22 +216,22 @@ unchanged.
 - **THEN** it shows its receiver members as `<…>`, with values cut off at 10 characters
 
 #### Scenario: Spring Boot application
-- **GIVEN** a Spring Boot executable jar with `stack-augmentor-global.toml`, run with the agent and another configuration
+- **GIVEN** a Spring Boot executable jar with `stack-augmentor-context.toml`, run with the agent and another configuration
 - **WHEN** an exception leaves a library method that the jar's configuration selects
 - **THEN** the frame shows the parameter values that the jar's configuration selects, in the format of the agent's configuration, which applies first
 
 #### Scenario: Several global files in one class loader
-- **GIVEN** a class loader with two jars that each have a `stack-augmentor-global.toml`
+- **GIVEN** a class loader with two jars that each have a `stack-augmentor-context.toml`
 - **WHEN** its first class is loaded with the agent
 - **THEN** an error names both files, and the classes of that class loader stay unchanged
 
 #### Scenario: Settings of the JVM in a file on the classpath
-- **GIVEN** a `stack-augmentor.toml` or an application's `stack-augmentor-global.toml` with `[settings]` on line 1
+- **GIVEN** a `stack-augmentor.toml` or an application's `stack-augmentor-context.toml` with `[settings]` on line 1
 - **WHEN** it is read
 - **THEN** it is rejected, naming the file, line 1 and `[settings]`, and the classes it applies to stay unchanged
 
 #### Scenario: Invalid configuration of an application
-- **GIVEN** an application whose own `stack-augmentor-global.toml` has `maxValueLength = 1` on line 2
+- **GIVEN** an application whose own `stack-augmentor-context.toml` has `maxValueLength = 1` on line 2
 - **WHEN** its first class is loaded with the agent
 - **THEN** an error names the file, line 2 and `maxValueLength`, the JVM keeps running, and that application's frames stay unchanged
 
@@ -289,6 +289,6 @@ One global file, and one local file of the module, SHALL serve both phases of bu
 - **THEN** the frames show the receiver members of its entries
 
 #### Scenario: One file for build-time instrumentation
-- **GIVEN** `src/main/resources/stack-augmentor-global.toml` passed to the build plugin and packaged with the application
+- **GIVEN** `src/main/resources/stack-augmentor-context.toml` passed to the build plugin and packaged with the application
 - **WHEN** the project is built and run
 - **THEN** the build uses its method and annotation tables, and the runtime its formats, `[augment.exceptions]` and receiver members

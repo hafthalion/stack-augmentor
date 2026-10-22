@@ -38,7 +38,7 @@ public final class ThrowHandler implements Dispatch.Handler {
 
     public static final String CLASSPATH_CONFIG = ClassLoaderConfigs.RESOURCE;
 
-    static final String NO_RUNTIME_CONFIG = "no " + ClassLoaderConfigs.GLOBAL_RESOURCE + " or " + CLASSPATH_CONFIG
+    static final String NO_RUNTIME_CONFIG = "no " + ClassLoaderConfigs.CONTEXT_RESOURCE + " or " + CLASSPATH_CONFIG
             + " found for the class and no -D" + AugmentorConfig.CONFIG_PROPERTY + ", so the built-in configuration is used";
 
     /** Reflection frames are part of stack traces, so the walker shows them too. */

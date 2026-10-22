@@ -204,7 +204,7 @@ class LiveStackTest {
 
     @Test
     void aClassLoadersConfigurationIsReadOnceWhenItDefinesItsFirstClass(@TempDir Path dir) throws IOException {
-        Files.writeString(dir.resolve("stack-augmentor-global.toml"), "[augment.exceptions]\n\"**\" = true\n");
+        Files.writeString(dir.resolve("stack-augmentor-context.toml"), "[augment.exceptions]\n\"**\" = true\n");
         LiveStack.ClassLoaderRegistration registration = new LiveStack.ClassLoaderRegistration(contexts);
         // The base configuration.
         assertEquals(1, read.get());

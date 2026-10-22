@@ -39,7 +39,7 @@ import java.util.List;
  * <ol start="0">
  *   <li>the build's own configuration, as the agent's file is of the JVM: the only one that may have
  *       {@code [settings]}, whose {@code debug} logs what gets instrumented;</li>
- *   <li>the global configuration, usually the application's {@code src/main/resources/stack-augmentor-global.toml};</li>
+ *   <li>the global configuration, usually the application's {@code src/main/resources/stack-augmentor-context.toml};</li>
  *   <li>the module's local configuration, {@code src/main/resources/stack-augmentor.toml}: the instrumented classes get a
  *       {@link LocalConfiguration} naming it, so that they use it at runtime wherever it is on the classpath, also when
  *       classes and resources are in different build directories.</li>

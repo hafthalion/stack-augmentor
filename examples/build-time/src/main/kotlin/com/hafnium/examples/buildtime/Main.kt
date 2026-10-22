@@ -11,7 +11,7 @@ object Main {
         // Your own classes: annotations, and an [augment.params] entry
         printStackTraceOf { ClassWithoutAnnotation("object-2").method("123") }
 
-        // Third-party classes without annotations: everything from stack-augmentor-global.toml
+        // Third-party classes without annotations: everything from stack-augmentor-context.toml
         printStackTraceOf { OrderService(InventoryService(InventoryAudit())).process(Order(4711), 3, "rush") }
 
         // An IllegalArgumentException, which [augment.exceptions] excludes: its frames are not augmented
