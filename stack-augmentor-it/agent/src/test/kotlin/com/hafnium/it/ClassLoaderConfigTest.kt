@@ -4,6 +4,7 @@ import com.hafnium.it.webapp.Webapp
 import com.hafnium.it.webapp.WebappLibrary
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
+import java.lang.ref.WeakReference
 import java.lang.reflect.InvocationTargetException
 import java.net.URL
 import java.net.URLClassLoader
@@ -12,6 +13,7 @@ import java.nio.file.Path
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -154,6 +156,29 @@ class ClassLoaderConfigTest {
             assertEquals("com.hafnium.it.webapp.WebappLibrary<library h>", libraryFrame.className)
             assertEquals("fail[code:8]", libraryFrame.methodName)
         }
+    }
+
+    @Test
+    fun `an application's class loader can be collected after use`(@TempDir dir: Path) {
+        // With a context and a local configuration, so that the agent keeps configurations for the class loader and its jar.
+        val application = jar(dir, "application.jar", Webapp::class.java, "[augment]\nreceiverFormat = \"<application ${'$'}value>\"\n")
+        val config = Files.createDirectories(dir.resolve("config"))
+        Files.writeString(config.resolve("stack-augmentor-context.toml"), "[augment]\nparamsFormat = \"[${'$'}name:${'$'}value]\"\n")
+        fun undeployed(): WeakReference<ClassLoader> {
+            val loader = Application(config, listOf(application.toUri().toURL()))
+            assertEquals("com.hafnium.it.webapp.Webapp<application g>", frame(loader, "g", 7).className)
+            loader.close()
+            return WeakReference(loader)
+        }
+        val loader = undeployed()
+        for (attempt in 0 until 50) {
+            if (loader.get() == null) {
+                break
+            }
+            System.gc()
+            Thread.sleep(20)
+        }
+        assertNull(loader.get(), "the class loader is still reachable")
     }
 
     @Test

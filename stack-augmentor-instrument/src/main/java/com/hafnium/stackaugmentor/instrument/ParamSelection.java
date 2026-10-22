@@ -10,6 +10,7 @@ import net.bytebuddy.description.method.ParameterDescription;
 import net.bytebuddy.description.method.ParameterList;
 import net.bytebuddy.description.type.TypeDescription;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -52,14 +53,18 @@ public final class ParamSelection {
         return config.paramsEntry(type.getName(), supertypes(type)::contains, method.getInternalName());
     }
 
-    /** The last type's supertype names: they are asked for once per method of a type, for keys with {@code +}. */
-    private volatile ClassEntries.SupertypeNames lastSupertypes;
+    /**
+     * The last type's supertype names: they are asked for once per method of a type, for keys with {@code +}. Weakly, as
+     * the type description holds its class loader: kept, it would keep a class loader, e.g. an undeployed application's,
+     * alive until the next type.
+     */
+    private volatile WeakReference<ClassEntries.SupertypeNames> lastSupertypes = new WeakReference<>(null);
 
     private ClassEntries.SupertypeNames supertypes(TypeDescription type) {
-        ClassEntries.SupertypeNames last = lastSupertypes;
+        ClassEntries.SupertypeNames last = lastSupertypes.get();
         if (last == null || last.type() != type) {
             last = new ClassEntries.SupertypeNames(type);
-            lastSupertypes = last;
+            lastSupertypes = new WeakReference<>(last);
         }
         return last;
     }
