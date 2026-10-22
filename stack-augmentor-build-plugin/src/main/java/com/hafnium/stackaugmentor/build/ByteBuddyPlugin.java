@@ -32,12 +32,12 @@ import java.util.List;
  * Only the project's classes are changed; libraries are left alone.
  * At runtime, the application needs {@code stack-augmentor-runtime} on its classpath.
  *
- * <p>Argument 0 is the path of a global TOML configuration, which applies before the built-in one
+ * <p>Argument 0 is the path of a global TOML configuration, usually the application's
+ * {@code src/main/resources/stack-augmentor-global.toml}, which applies before the built-in one
  * ({@link AugmentorConfig#layered}): their {@code [augment.annotations]}, {@code [augment.receiver]} and
  * {@code [augment.params]} entries decide which receiver members and parameter values are shown, and the classes and
- * methods that need the advice for that are instrumented, as with the agent; its {@code [settings]} {@code debug} logs
- * what gets instrumented. The file is given explicitly, so it may have {@code [settings]}, unless it is also packaged as the
- * application's {@code stack-augmentor-global.toml}: no file on the classpath may.
+ * methods that need the advice for that are instrumented, as with the agent. Like every file on the classpath, it must
+ * not have {@code [settings]}.
  * Without it (e.g. when discovered through {@code META-INF/net.bytebuddy/build.plugins}), the built-in configuration
  * applies alone ({@link AugmentorConfig#BUILT_IN_RESOURCE}): the methods that {@code @Augmented} selects are
  * instrumented.
@@ -45,7 +45,12 @@ import java.util.List;
  * <p>Argument 1, if given, is the path of the module's local configuration, {@code src/main/resources/stack-augmentor.toml}:
  * it applies after the global one, and the instrumented classes get a {@link LocalConfiguration} naming it, so that they
  * use it at runtime wherever it is on the classpath, also when classes and resources are in different build directories.
- * An empty argument 0 stands for no global configuration.
+ *
+ * <p>Argument 2, if given, is the path of a configuration of the build alone, as the agent's file is of the JVM: it
+ * applies first, before the global one, and only it may have {@code [settings]}, whose {@code debug} logs what gets
+ * instrumented.
+ *
+ * <p>An empty argument stands for no such file.
  */
 public final class ByteBuddyPlugin implements Plugin {
 
@@ -56,7 +61,7 @@ public final class ByteBuddyPlugin implements Plugin {
     private final AnnotationDescription localConfiguration;
 
     public ByteBuddyPlugin() {
-        this(null, null, null, null);
+        this(null, null, null, null, null, null);
     }
 
     /** @param configFile a global TOML configuration; its {@code [augment.receiver]} and {@code [augment.params]} apply. */
@@ -70,8 +75,21 @@ public final class ByteBuddyPlugin implements Plugin {
      */
     @Plugin.Factory.UsingReflection.Priority(1)
     public ByteBuddyPlugin(String configFile, String localFile) {
+        this(configFile, localFile, "");
+    }
+
+    /**
+     * @param configFile   a global TOML configuration, or empty for none
+     * @param localFile    the module's local TOML configuration, or empty for none
+     * @param settingsFile the build's own TOML configuration, which may have {@code [settings]}, or empty for none
+     */
+    @Plugin.Factory.UsingReflection.Priority(2)
+    public ByteBuddyPlugin(String configFile, String localFile, String settingsFile) {
         // The ByteBuddy Gradle plugin reports a failing constructor without its cause, so Startup prints the reason too.
-        this(configFile.isBlank() ? null : Startup.load(Startup.BUILD_PLUGIN, () -> AugmentorConfig.load(Path.of(configFile))), configFile,
+        this(settingsFile.isBlank() ? null : Startup.load(Startup.BUILD_PLUGIN, () -> AugmentorConfig.load(Path.of(settingsFile))),
+                settingsFile,
+                configFile.isBlank() ? null : Startup.load(Startup.BUILD_PLUGIN, () -> AugmentorConfig.load(Path.of(configFile), false)),
+                configFile,
                 localFile.isBlank() ? null : Startup.load(Startup.BUILD_PLUGIN, () -> local(Path.of(localFile))), localFile);
     }
 
@@ -91,8 +109,12 @@ public final class ByteBuddyPlugin implements Plugin {
         }
     }
 
-    private ByteBuddyPlugin(AugmentorConfig file, String location, Local local, String localLocation) {
+    private ByteBuddyPlugin(AugmentorConfig settings, String settingsLocation, AugmentorConfig file, String location, Local local,
+                            String localLocation) {
         List<AugmentorConfig> layers = new ArrayList<>();
+        if (settings != null) {
+            layers.add(settings);
+        }
         if (file != null) {
             layers.add(file);
         }
@@ -100,9 +122,14 @@ public final class ByteBuddyPlugin implements Plugin {
             layers.add(local.config());
         }
         layers.add(AugmentorConfig.builtIn());
-        Log.setDebug(file != null && file.debug());
-        Startup.describe(Startup.BUILD_PLUGIN, file != null ? location : AugmentorConfig.BUILT_IN_LOCATION,
-                file != null ? file : AugmentorConfig.builtIn());
+        Log.setDebug(settings != null && settings.debug());
+        if (settings != null) {
+            Startup.describe(Startup.BUILD_PLUGIN, settingsLocation, settings);
+        }
+        if (file != null || settings == null) {
+            Startup.describe(Startup.BUILD_PLUGIN, file != null ? location : AugmentorConfig.BUILT_IN_LOCATION,
+                    file != null ? file : AugmentorConfig.builtIn());
+        }
         if (local != null) {
             Startup.describe(Startup.BUILD_PLUGIN, localLocation, local.config());
         }

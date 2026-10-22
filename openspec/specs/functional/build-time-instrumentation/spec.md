@@ -8,8 +8,11 @@ only needs the API and a small runtime library.
 
 ### Requirement: Build plugin
 A build plugin for Gradle SHALL instrument the project's compiled Java and Kotlin classes so that they are augmented as with the agent
-and the same configuration. It SHALL take a global configuration file and the module's local configuration file as
-optional arguments, and apply them in this order, then the built-in configuration. Each class it instruments SHALL then
+and the same configuration. It SHALL take a global configuration file, the module's local configuration file and a
+configuration file of the build itself as optional arguments, and apply the build's file first, then the global and the
+local file, then the built-in configuration. The global and the local file, which the application also has on its
+classpath, SHALL reject `[settings]` as every file on the classpath does; only the build's file, which plays the role
+of the agent's file for the build, MAY have them. Each class it instruments SHALL then
 use that local configuration at runtime too, wherever it is on the classpath of its class loader, also where classes and
 resources are in different directories, as in a build directory; where it is not found, e.g. as it changed after the
 build, a warning SHALL say so and the class's jar or directory SHALL decide. An invalid configuration, including an invalid template that only the runtime renders, SHALL fail the build,

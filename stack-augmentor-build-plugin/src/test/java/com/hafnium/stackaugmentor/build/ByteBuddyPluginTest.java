@@ -114,7 +114,7 @@ class ByteBuddyPluginTest {
         Files.writeString(config, "[settings]\ndebug = true\n[augment]\nmaxValueLength = 32\n[augment.annotations]\n\"com.hafnium.**\" = true\n");
         ByteArrayOutputStream err = captureErr();
         try {
-            new ByteBuddyPlugin(config.toString());
+            new ByteBuddyPlugin("", "", config.toString());
         } finally {
             Log.setDebug(false);
         }
@@ -134,7 +134,7 @@ class ByteBuddyPluginTest {
         ByteArrayOutputStream err = captureErr();
         TypeDescription type = TypeDescription.ForLoadedType.of(Failing.class);
         Class<?> instrumented;
-        try (ByteBuddyPlugin plugin = new ByteBuddyPlugin(config.toString())) {
+        try (ByteBuddyPlugin plugin = new ByteBuddyPlugin("", "", config.toString())) {
             assertTrue(plugin.matches(type));
             instrumented = plugin.apply(new ByteBuddy().redefine(Failing.class), type, ClassFileLocator.ForClassLoader.of(Failing.class.getClassLoader()))
                     .make()
@@ -179,11 +179,31 @@ class ByteBuddyPluginTest {
     }
 
     @Test
-    void aLocalConfigurationMustNotSetTheSettingsOfTheWholeJvm(@TempDir Path dir) throws IOException {
+    void theSettingsFileAppliesBeforeTheGlobalOne(@TempDir Path dir) throws IOException {
+        Path settings = dir.resolve("build.toml");
+        Files.writeString(settings, "[augment.annotations]\n\"com.hafnium.buildfixture.Failing\" = false\n");
+        Path global = dir.resolve("stack-augmentor-global.toml");
+        Files.writeString(global, "[augment.annotations]\n\"com.hafnium.**\" = true\n");
+        TypeDescription type = TypeDescription.ForLoadedType.of(Failing.class);
+        try (ByteBuddyPlugin plugin = new ByteBuddyPlugin(global.toString(), "", settings.toString())) {
+            assertFalse(plugin.matches(type));
+        }
+        try (ByteBuddyPlugin plugin = new ByteBuddyPlugin(global.toString(), "")) {
+            assertTrue(plugin.matches(type));
+        }
+    }
+
+    @Test
+    void onlyTheSettingsFileMayHaveSettings(@TempDir Path dir) throws IOException {
+        Path global = dir.resolve("stack-augmentor-global.toml");
+        Files.writeString(global, "[settings]\ndebug = true\n");
         Path local = dir.resolve("stack-augmentor.toml");
         Files.writeString(local, "[settings]\ndebug = true\n");
         captureErr();
-        ConfigException error = assertThrows(ConfigException.class, () -> new ByteBuddyPlugin("", local.toString()));
+        // The global and the local file are on the application's classpath too.
+        ConfigException error = assertThrows(ConfigException.class, () -> new ByteBuddyPlugin(global.toString()));
+        assertTrue(error.getMessage().startsWith("stack-augmentor-global.toml, line 1: [settings] applies to the whole JVM"), error.getMessage());
+        error = assertThrows(ConfigException.class, () -> new ByteBuddyPlugin("", local.toString()));
         assertTrue(error.getMessage().startsWith("stack-augmentor.toml, line 1: [settings] applies to the whole JVM"), error.getMessage());
         assertTrue(assertThrows(ConfigException.class, () -> new ByteBuddyPlugin("", dir.resolve("missing.toml").toString()))
                 .getMessage().contains("not found"));
