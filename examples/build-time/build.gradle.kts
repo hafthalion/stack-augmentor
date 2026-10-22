@@ -22,7 +22,7 @@ dependencies {
 }
 
 // One configuration for both phases: [augment.receiver] and [augment.params] are read here at build time,
-// [augment], [augment.exceptions], [augment.receiver], debug and inPlaceModification from the classpath at runtime.
+// [augment], [augment.exceptions] and [augment.receiver] from the classpath at runtime.
 val stackAugmentorConfig = layout.projectDirectory.file("src/main/resources/stack-augmentor-global.toml")
 
 byteBuddy {

@@ -40,14 +40,15 @@ class AugmentorConfigTest {
         assertNull(AugmentorConfig().entryOf("any.pkg.Class"))
         assertTrue(AugmentorConfig().inPlaceModification())
         assertFalse(AugmentorConfig().inPlaceModificationRequested())
-        assertFalse(parse("inPlaceModification = false").inPlaceModification())
-        assertTrue(parse("inPlaceModification = false").inPlaceModificationRequested())
+        assertFalse(parse("settings.inPlaceModification = false").inPlaceModification())
+        assertTrue(parse("settings.inPlaceModification = false").inPlaceModificationRequested())
     }
 
     @Test
     fun `full configuration`() {
         val config = parse(
             """
+            [settings]
             debug = true
             inPlaceModification = true
 
@@ -108,13 +109,13 @@ class AugmentorConfigTest {
             System.setProperty(property, "false")
             assertFalse(parse("").inPlaceModification())
             System.setProperty(property, "true")
-            assertTrue(parse("inPlaceModification = false").inPlaceModification())
+            assertTrue(parse("settings.inPlaceModification = false").inPlaceModification())
             System.setProperty(property, "false")
-            assertFalse(parse("inPlaceModification = true").inPlaceModification())
+            assertFalse(parse("settings.inPlaceModification = true").inPlaceModification())
         } finally {
             System.clearProperty(property)
         }
-        assertTrue(parse("inPlaceModification = true").inPlaceModification())
+        assertTrue(parse("settings.inPlaceModification = true").inPlaceModification())
     }
 
     @Test
@@ -376,12 +377,17 @@ class AugmentorConfigTest {
     fun `invalid values name the key and its line`() {
         assertEquals(
             "test.toml, line 3: maxValueLength must be between 2 and 10000, was 1",
-            error("debug = false\n[augment]\nmaxValueLength = 1"),
+            error("settings.debug = false\n[augment]\nmaxValueLength = 1"),
         )
         assertTrue(error("augment.maxValueLength = \"64\"").contains("'augment.maxValueLength' must be an integer"))
         assertTrue(error("augment.maxValueLength = 1.5").contains("'augment.maxValueLength' must be an integer"))
-        assertTrue(error("debug = \"yes\"").contains("'debug' must be true or false"))
-        assertTrue(error("inPlaceModification = 1").contains("'inPlaceModification' must be true or false"))
+        assertTrue(error("[settings]\ndebug = \"yes\"").contains("'settings.debug' must be true or false"))
+        assertTrue(error("[settings]\ninPlaceModification = 1").contains("'settings.inPlaceModification' must be true or false"))
+        assertTrue(error("settings = 1").contains("'settings' must be a table"))
+        assertTrue(error("[settings]\nmaxValueLength = 10").contains("unknown key 'maxValueLength' in [settings]"))
+        // Before the [settings] table, they were keys of their own.
+        assertEquals("test.toml, line 1: 'debug' belongs in the [settings] table", error("debug = true"))
+        assertEquals("test.toml, line 1: 'inPlaceModification' belongs in the [settings] table", error("inPlaceModification = false"))
         assertTrue(error("augment = \"x\"").contains("'augment' must be a table"))
         assertTrue(error("[augment]\nreceiver = \"x\"").contains("'augment.receiver' must be a table"))
     }
@@ -404,9 +410,9 @@ class AugmentorConfigTest {
                 "exceptions, annotations, receiver, params",
             error("[augment]\nframe = \"\$class.\$method\""),
         )
-        assertTrue(error("[other]\nx = 1").contains("unknown key 'other'; allowed: debug, inPlaceModification, augment"))
+        assertTrue(error("[other]\nx = 1").contains("unknown key 'other'; allowed: settings, augment"))
         // Keys in the wrong place are rejected, not silently ignored.
-        assertTrue(error("maxValueLength = 64").contains("unknown key 'maxValueLength'; allowed: debug, inPlaceModification, augment"))
+        assertTrue(error("maxValueLength = 64").contains("unknown key 'maxValueLength'; allowed: settings, augment"))
         assertTrue(error("[augment.other]\nx = 1").contains("unknown key 'other' in [augment]"))
     }
 
@@ -415,7 +421,7 @@ class AugmentorConfigTest {
         assertEquals(
             "test.toml, line 3: invalid receiver member 'get-id()': use a field name (e.g. \"orderId\") or a method (e.g. \"getOrderId()\"), " +
                 "several separated by commas",
-            error("debug = false\n[augment.receiver]\n\"com.acme.Order::*\" = \"get-id()\""),
+            error("settings.debug = false\n[augment.receiver]\n\"com.acme.Order::*\" = \"get-id()\""),
         )
         assertEquals(
             "test.toml, line 2: must be a string: a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), several of them " +

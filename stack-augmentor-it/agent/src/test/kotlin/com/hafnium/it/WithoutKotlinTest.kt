@@ -64,7 +64,7 @@ class WithoutKotlinTest {
 
     @Test
     fun `agent augments a Java application without the Kotlin runtime`(@TempDir dir: Path) {
-        val result = run(config(dir, "debug = true\n[augment.exceptions]\n\"**\" = true\n[augment.annotations]\n\"com.hafnium.it.fixtures.**\" = true\n"))
+        val result = run(config(dir, "[settings]\ndebug = true\n[augment.exceptions]\n\"**\" = true\n[augment.annotations]\n\"com.hafnium.it.fixtures.**\" = true\n"))
         assertEquals(0, result.exitCode, result.output)
         record("JavaMain, with the agent and a configuration", result.output)
         assertTrue(result.output.contains("at com.hafnium.it.fixtures.JavaFixture{key=java-1}.run{arg0=42}(JavaFixture.java:"), result.output)
@@ -83,7 +83,7 @@ class WithoutKotlinTest {
 
     @Test
     fun `an agent given twice starts once`(@TempDir dir: Path) {
-        val config = config(dir, "debug = true\n[augment.exceptions]\n\"**\" = true\n[augment.annotations]\n\"com.hafnium.it.fixtures.**\" = true\n")
+        val config = config(dir, "[settings]\ndebug = true\n[augment.exceptions]\n\"**\" = true\n[augment.annotations]\n\"com.hafnium.it.fixtures.**\" = true\n")
         val result = run(config, "-javaagent:$agentJar=config=$config")
         assertEquals(0, result.exitCode, result.output)
         assertEquals(1, result.output.lines().count { it.startsWith("[stack-augmentor] DEBUG agent: configuration ") }, result.output)
@@ -93,7 +93,7 @@ class WithoutKotlinTest {
     @Test
     fun `the live stack hint about objects the JIT optimized away is left out when that optimization is off`(@TempDir dir: Path) {
         assumeTrue(AgentMode.liveStack)
-        val result = run(config(dir, "debug = true\n[augment.exceptions]\n\"**\" = true\n[augment.annotations]\n\"com.hafnium.it.fixtures.**\" = true\n"), "-XX:-EliminateAllocations")
+        val result = run(config(dir, "[settings]\ndebug = true\n[augment.exceptions]\n\"**\" = true\n[augment.annotations]\n\"com.hafnium.it.fixtures.**\" = true\n"), "-XX:-EliminateAllocations")
         assertEquals(0, result.exitCode, result.output)
         assertTrue(result.output.contains("[stack-augmentor] DEBUG agent: reading frames from the live stack"), result.output)
         assertFalse(result.output.contains("-XX:-EliminateAllocations avoids that"), result.output)
@@ -113,7 +113,7 @@ class WithoutKotlinTest {
     @Test
     fun `a configuration without entries augments nothing`(@TempDir dir: Path) {
         // The built-in configuration, which applies after the file, would read the annotations of all classes.
-        val result = run(config(dir, "debug = false\n[augment.annotations]\n\"**\" = false\n"))
+        val result = run(config(dir, "[settings]\ndebug = false\n[augment.annotations]\n\"**\" = false\n"))
         assertEquals(0, result.exitCode, result.output)
         assertTrue(
             result.output.contains(
@@ -128,10 +128,10 @@ class WithoutKotlinTest {
 
     @Test
     fun `invalid configuration is reported without the Kotlin runtime`(@TempDir dir: Path) {
-        val result = run(config(dir, "debug = false\n[augment]\nmaxValueLength = 1\n"))
+        val result = run(config(dir, "[settings]\ndebug = false\n[augment]\nmaxValueLength = 1\n"))
         assertNotEquals(0, result.exitCode, result.output)
         assertTrue(
-            result.output.contains("[stack-augmentor] ERROR agent: stack-augmentor.toml, line 3: maxValueLength must be between 2 and 10000, was 1"),
+            result.output.contains("[stack-augmentor] ERROR agent: stack-augmentor.toml, line 4: maxValueLength must be between 2 and 10000, was 1"),
             result.output,
         )
         assertNoKotlin(result.output)

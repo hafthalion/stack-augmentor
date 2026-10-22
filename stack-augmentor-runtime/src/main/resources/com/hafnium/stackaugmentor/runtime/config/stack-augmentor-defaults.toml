@@ -3,6 +3,9 @@
 # their settings win. All keys are listed with the values that also apply where the files leave them out;
 # inPlaceModification only as a comment, as setting it asks for a warning where it is not possible.
 
+# For the whole JVM: only the file given to the agent (config=<file>) or by -Dstackaugmentor.config may have this table,
+# no file on the classpath.
+[settings]
 # Print diagnostics to stderr.
 debug = false
 # Write augmented frames into the exception's own stack trace instead of a copy; needs java.lang open (the agent

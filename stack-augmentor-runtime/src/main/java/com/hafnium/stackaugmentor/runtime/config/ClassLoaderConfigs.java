@@ -125,7 +125,7 @@ public final class ClassLoaderConfigs<T> {
                                                    Function<AugmentorConfig, T> factory) {
         ClassLoader system = ClassLoader.getSystemClassLoader();
         URL resource = globalResource(system);
-        AugmentorConfig systemGlobal = resource != null ? read(resource, true) : null;
+        AugmentorConfig systemGlobal = resource != null ? read(resource) : null;
         ClassLoaderConfigs<T> configs = new ClassLoaderConfigs<>(component, factory, argument, systemGlobal, null);
         Log.setDebug(configs.baseConfig.debug());
         if (argument != null) {
@@ -153,7 +153,7 @@ public final class ClassLoaderConfigs<T> {
 
     /**
      * The configuration of {@link #base()}: the global ones given to the JVM and of the system class loader, and the
-     * built-in one. Its {@code debug} and {@code inPlaceModification} apply to the whole JVM.
+     * built-in one. Its {@code [settings]}, which only the one given to the JVM may have, apply to the whole JVM.
      */
     public AugmentorConfig baseConfig() {
         return baseConfig;
@@ -294,7 +294,7 @@ public final class ClassLoaderConfigs<T> {
         } else {
             try {
                 URL resource = globalResource(loader);
-                global = resource != null ? readFor(loader, resource, bytes(resource), true) : inherited(loader.getParent());
+                global = resource != null ? readFor(loader, resource, bytes(resource)) : inherited(loader.getParent());
             } catch (ConfigException e) {
                 Log.error(component + ": " + e.getMessage() + "; the classes of class loader " + describe(loader) + " are not augmented");
                 return null;
@@ -310,7 +310,7 @@ public final class ClassLoaderConfigs<T> {
             try {
                 byte[] content = bytes(resource);
                 sources.putIfAbsent(hash(content), source);
-                locals.put(source, Optional.of(readFor(loader, resource, content, false)));
+                locals.put(source, Optional.of(readFor(loader, resource, content)));
             } catch (ConfigException e) {
                 Log.error(component + ": " + e.getMessage() + "; the classes of " + source + " are not augmented");
                 locals.put(source, Optional.empty());
@@ -334,23 +334,15 @@ public final class ClassLoaderConfigs<T> {
     }
 
     /** Reads a configuration file of a class loader, and describes it. */
-    private AugmentorConfig readFor(ClassLoader loader, URL resource, byte[] content, boolean global) {
-        AugmentorConfig config = AugmentorConfig.parse(new String(content, StandardCharsets.UTF_8), resource.toString(), global);
+    private AugmentorConfig readFor(ClassLoader loader, URL resource, byte[] content) {
+        AugmentorConfig config = AugmentorConfig.parse(new String(content, StandardCharsets.UTF_8), resource.toString(), false);
         String location = resource + " of class loader " + describe(loader);
-        if (config.sets("inPlaceModification")) {
-            Log.warn(component + ": " + location + ": inPlaceModification applies to the whole JVM, so only the agent's file, -D"
-                    + AugmentorConfig.CONFIG_PROPERTY + " or the " + GLOBAL_RESOURCE + " of the system class loader decides it; "
-                    + "it is ignored here");
-        }
-        if (config.debug()) {
-            Log.setDebug(true);
-        }
         Startup.describe(component, location, config);
         return config;
     }
 
-    private static AugmentorConfig read(URL resource, boolean global) {
-        return AugmentorConfig.parse(new String(bytes(resource), StandardCharsets.UTF_8), resource.toString(), global);
+    private static AugmentorConfig read(URL resource) {
+        return AugmentorConfig.parse(new String(bytes(resource), StandardCharsets.UTF_8), resource.toString(), false);
     }
 
     /**

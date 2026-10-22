@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
  * The configuration, read from a TOML file:
  *
  * <pre>{@code
+ * [settings]                  # for the whole JVM: only in the file given to the agent or by -Dstackaugmentor.config
  * debug = false
  * inPlaceModification = true   # write frames into the exception's own stack trace instead of copying it; needs
  *                              # java.lang open (the agent opens it), otherwise frames are copied
@@ -136,8 +137,11 @@ public final class AugmentorConfig {
     public static final List<String> SETTINGS = List.of("debug", "inPlaceModification", "frameFormat", "receiverFormat", "paramsFormat",
             "maxValueLength");
 
-    /** The settings that only a global configuration may set, as they apply to the whole JVM. */
-    public static final List<String> GLOBAL_SETTINGS = List.of("debug", "inPlaceModification");
+    /**
+     * The settings of the {@code [settings]} table, which apply to the whole JVM: only the file given explicitly, to the
+     * agent or by {@code -Dstackaugmentor.config} (or to the build plugin), may set them, no file on the classpath.
+     */
+    public static final List<String> JVM_SETTINGS = List.of("debug", "inPlaceModification");
 
     /**
      * The class part of a key, the same in all three tables: a class name, which matches that class only; with
@@ -843,22 +847,23 @@ public final class AugmentorConfig {
         return parse(text, "configuration");
     }
 
-    /** Parses a global TOML configuration. {@code source} names it in error messages. */
+    /** Parses a TOML configuration given explicitly, which may have {@code [settings]}. {@code source} names it in errors. */
     public static AugmentorConfig parse(String text, String source) {
         return parse(text, source, true);
     }
 
     /**
-     * Parses a TOML configuration. {@code source} names it in error messages. A local one, which applies to the classes
-     * of one jar or directory, must not set the {@link #GLOBAL_SETTINGS}.
+     * Parses a TOML configuration. {@code source} names it in error messages. Only one given explicitly, to the agent or
+     * by {@code -Dstackaugmentor.config}, may have {@code [settings]}, see {@link #JVM_SETTINGS}; a file on the classpath
+     * must not.
      */
-    public static AugmentorConfig parse(String text, String source, boolean global) {
+    public static AugmentorConfig parse(String text, String source, boolean explicit) {
         TomlParseResult toml = Toml.parse(text);
         if (toml.hasErrors()) {
             String errors = toml.errors().stream().map(Object::toString).collect(Collectors.joining("; "));
             throw new ConfigException("Invalid TOML in " + source + ": " + errors);
         }
-        return new ConfigReader(toml, source, global).read();
+        return new ConfigReader(toml, source, explicit).read();
     }
 
     /** {@code *} matches within one package segment, {@code **} across segments, {@code ?} one character. */
@@ -1001,13 +1006,14 @@ public final class AugmentorConfig {
     /** Maps the parsed TOML onto {@link AugmentorConfig}; errors name the key and its line. */
     private static final class ConfigReader {
 
+        private static final List<String> SETTINGS_TABLE = List.of("settings");
         private static final List<String> AUGMENT = List.of("augment");
         private static final List<String> CLASSES = List.of("augment", "receiver");
         private static final List<String> METHODS = List.of("augment", "params");
         private static final List<String> EXCEPTIONS = List.of("augment", "exceptions");
         private static final List<String> ANNOTATION_CLASSES = List.of("augment", "annotations");
 
-        private static final List<String> ROOT_KEYS = List.of("debug", "inPlaceModification", "augment");
+        private static final List<String> ROOT_KEYS = List.of("settings", "augment");
         private static final List<String> AUGMENT_KEYS = List.of("frameFormat", "receiverFormat", "paramsFormat", "maxValueLength",
                 "exceptions", "annotations", "receiver", "params");
 
@@ -1023,23 +1029,28 @@ public final class AugmentorConfig {
 
         private final TomlParseResult toml;
         private final String source;
-        private final boolean global;
+        private final boolean explicit;
 
-        ConfigReader(TomlParseResult toml, String source, boolean global) {
+        ConfigReader(TomlParseResult toml, String source, boolean explicit) {
             this.toml = toml;
             this.source = source;
-            this.global = global;
+            this.explicit = explicit;
         }
 
         AugmentorConfig read() {
-            checkKeys(List.of(), toml, ROOT_KEYS);
-            if (!global) {
-                for (String setting : GLOBAL_SETTINGS) {
-                    if (toml.contains(List.of(setting))) {
-                        throw error(List.of(setting), "'" + setting + "' applies to the whole JVM, so only a global configuration "
-                                + "may set it: the agent's file, -D" + CONFIG_PROPERTY + " or " + GLOBAL_RESOURCE);
-                    }
+            for (String setting : JVM_SETTINGS) {
+                if (toml.contains(List.of(setting))) {
+                    throw error(List.of(setting), "'" + setting + "' belongs in the [settings] table");
                 }
+            }
+            checkKeys(List.of(), toml, ROOT_KEYS);
+            TomlTable settings = table(SETTINGS_TABLE);
+            if (settings != null) {
+                if (!explicit) {
+                    throw error(SETTINGS_TABLE, "[settings] applies to the whole JVM, so only the file given to the agent "
+                            + "(config=<file>) or by -D" + CONFIG_PROPERTY + " may have it, no file on the classpath");
+                }
+                checkKeys(SETTINGS_TABLE, settings, JVM_SETTINGS);
             }
             TomlTable augment = table(AUGMENT);
             if (augment != null) {
@@ -1081,11 +1092,11 @@ public final class AugmentorConfig {
                     + "false not to"));
             config.annotations(switches(ANNOTATION_CLASSES, "must be true to read the annotations of this class or class "
                     + "pattern, or false not to"));
-            Boolean debug = value(List.of("debug"), Boolean.class, "true or false");
+            Boolean debug = value(plus(SETTINGS_TABLE, "debug"), Boolean.class, "true or false");
             if (debug != null) {
                 config.debug(debug);
             }
-            Boolean inPlaceModification = value(List.of("inPlaceModification"), Boolean.class, "true or false");
+            Boolean inPlaceModification = value(plus(SETTINGS_TABLE, "inPlaceModification"), Boolean.class, "true or false");
             if (inPlaceModification != null) {
                 config.inPlaceModification(inPlaceModification);
             }

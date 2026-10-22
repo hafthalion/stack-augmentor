@@ -36,8 +36,6 @@ The system SHALL always print a warning:
 - when the runtime cannot start, with the reason, so that stack traces stay unchanged;
 - when the runtime of build-time instrumentation finds no configuration file for a class, so that the built-in
   configuration is used alone;
-- when the global configuration of a class loader other than the system class loader sets `inPlaceModification`, which
-  is then ignored;
 - when the agent or the build plugin starts with a configuration that selects nothing to augment: no `[augment.receiver]`
   or `[augment.params]` entries other than `"-"` and no `[augment.annotations]` entry that is `true`;
 - when a configuration selects something to augment but no `[augment.exceptions]` entry is `true`, suggesting

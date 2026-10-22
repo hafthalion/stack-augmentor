@@ -9,10 +9,11 @@ other specifications refer to them.
 
 ### Requirement: File and keys
 A configuration SHALL be a TOML file whose name ends in `.toml`, with these keys and defaults:
-- `debug` (boolean, default `false`): diagnostics, see the diagnostics specification;
-- `inPlaceModification` (boolean, default `true`): a faster way of writing augmented frames that needs extra JVM
-  permissions, used where the JVM allows it, see the performance specification; a system property
-  `stackaugmentor.inPlaceModification` SHALL override it;
+- `[settings]`, which apply to the whole JVM (see "Configuration chain" for which files may have them):
+  - `debug` (boolean, default `false`): diagnostics, see the diagnostics specification;
+  - `inPlaceModification` (boolean, default `true`): a faster way of writing augmented frames that needs extra JVM
+    permissions, used where the JVM allows it, see the performance specification; a system property
+    `stackaugmentor.inPlaceModification` SHALL override it;
 - `[augment]`: `frameFormat`, `receiverFormat`, `paramsFormat` (see the frame format specification) and `maxValueLength`
   (integer from 2 to 10000, default 64, see the receivers and parameters specification);
 - `[augment.exceptions]` (class key → `true` or `false`): which throwables are augmented;
@@ -26,7 +27,7 @@ notation for the same keys (sections, dotted keys, inline tables) SHALL mean the
 matter; the order of the entries within a table SHALL (see "First matching entry").
 
 #### Scenario: Full configuration
-- **GIVEN** a file with `debug`, `inPlaceModification`, `[augment]`, `[augment.exceptions]`, `[augment.annotations]`, `[augment.receiver]` and `[augment.params]` entries
+- **GIVEN** a file with `[settings]` `debug` and `inPlaceModification`, `[augment]`, `[augment.exceptions]`, `[augment.annotations]`, `[augment.receiver]` and `[augment.params]` entries
 - **WHEN** it is loaded
 - **THEN** every value is used as written, and the entries of each table in the order of the file
 
@@ -188,11 +189,10 @@ configurations, in this order:
 
 In each of `[augment.exceptions]`, `[augment.annotations]`, `[augment.receiver]` and `[augment.params]`, the first
 matching entry of the first configuration in the chain that has one SHALL decide, so a `false` or `"-"` entry SHALL stop
-the later configurations too; each other key SHALL come from the first configuration that sets it. `debug` and
-`inPlaceModification` apply to the whole JVM: only global configurations SHALL set them, and a local one that does SHALL
-be rejected. `inPlaceModification` SHALL be decided once, by the global configurations of the JVM and of the system class
-loader; in that of another class loader it SHALL be ignored with a warning. `debug = true` in any global configuration
-SHALL turn on the debug output.
+the later configurations too; each other key SHALL come from the first configuration that sets it. `[settings]` apply to
+the whole JVM: only a file given explicitly, the JVM's global configuration (and the build plugin's, for the build),
+SHALL have them, and a file on the classpath that does SHALL be rejected. `debug` or `inPlaceModification` outside
+`[settings]` SHALL be rejected, saying where they belong.
 
 With the agent, the chain SHALL decide everything for the class; with build-time instrumentation, what the runtime
 decides. The global configurations of the JVM and of the system class loader SHALL be read at startup, and an invalid one
@@ -225,10 +225,10 @@ unchanged.
 - **WHEN** its first class is loaded with the agent
 - **THEN** an error names both files, and the classes of that class loader stay unchanged
 
-#### Scenario: Setting of the JVM in a local file
-- **GIVEN** a `stack-augmentor.toml` with `debug = true` on line 1
+#### Scenario: Settings of the JVM in a file on the classpath
+- **GIVEN** a `stack-augmentor.toml` or an application's `stack-augmentor-global.toml` with `[settings]` on line 1
 - **WHEN** it is read
-- **THEN** it is rejected, naming the file, line 1 and `debug`, and the classes of its jar or directory stay unchanged
+- **THEN** it is rejected, naming the file, line 1 and `[settings]`, and the classes it applies to stay unchanged
 
 #### Scenario: Invalid configuration of an application
 - **GIVEN** an application whose own `stack-augmentor-global.toml` has `maxValueLength = 1` on line 2
@@ -262,7 +262,7 @@ augment some exceptions or read some annotations SHALL say so with `false` entri
 - **THEN** its frame is unchanged
 
 #### Scenario: File without entries
-- **GIVEN** a configuration file with only `debug = false`
+- **GIVEN** a configuration file with only `[settings]` `debug = false`
 - **WHEN** the agent starts
 - **THEN** the built-in configuration decides, as without the file
 
@@ -277,9 +277,9 @@ configured directly. Every component SHALL validate the whole file. With the age
 With build-time instrumentation:
 - the build SHALL decide, from `[augment.annotations]`, `[augment.receiver]` and `[augment.params]`, which methods are
   augmented, which parameter values they show, and where their receiver members come from;
-- the runtime SHALL apply `[augment]`, `[augment.exceptions]`, `debug`, `inPlaceModification`, and the members of the
-  `[augment.receiver]` entries the build chose (see the build-time instrumentation specification), from the
-  configuration of each class (see "Configuration chain").
+- the runtime SHALL apply `[augment]`, `[augment.exceptions]`, the `[settings]` of the JVM's global configuration, and the
+  members of the `[augment.receiver]` entries the build chose (see the build-time instrumentation specification), from
+  the configuration of each class (see "Configuration chain").
 
 One global file, and one local file of the module, SHALL serve both phases of build-time instrumentation.
 

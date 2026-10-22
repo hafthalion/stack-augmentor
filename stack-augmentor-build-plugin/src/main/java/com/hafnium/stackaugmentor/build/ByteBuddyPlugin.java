@@ -35,7 +35,9 @@ import java.util.List;
  * <p>Argument 0 is the path of a global TOML configuration, which applies before the built-in one
  * ({@link AugmentorConfig#layered}): their {@code [augment.annotations]}, {@code [augment.receiver]} and
  * {@code [augment.params]} entries decide which receiver members and parameter values are shown, and the classes and
- * methods that need the advice for that are instrumented, as with the agent; {@code debug} logs what gets instrumented.
+ * methods that need the advice for that are instrumented, as with the agent; its {@code [settings]} {@code debug} logs
+ * what gets instrumented. The file is given explicitly, so it may have {@code [settings]}, unless it is also packaged as the
+ * application's {@code stack-augmentor-global.toml}: no file on the classpath may.
  * Without it (e.g. when discovered through {@code META-INF/net.bytebuddy/build.plugins}), the built-in configuration
  * applies alone ({@link AugmentorConfig#BUILT_IN_RESOURCE}): the methods that {@code @Augmented} selects are
  * instrumented.
