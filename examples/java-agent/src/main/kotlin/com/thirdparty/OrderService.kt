@@ -1,6 +1,6 @@
 package com.thirdparty
 
-// Stand-ins for library classes: no annotations, stack-augmentor.toml augments them.
+// Stand-ins for library classes: no annotations, stack-augmentor-global.toml augments them.
 
 class Order(private val orderNumber: Long) {
     fun getOrderNumber(): Long = orderNumber

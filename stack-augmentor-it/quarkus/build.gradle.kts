@@ -53,7 +53,7 @@ tasks.test {
     dependsOn(tasks.named("quarkusBuild"))
     val application = layout.buildDirectory.file("quarkus-app/quarkus-run.jar")
     val agentJar = agent
-    val agentConfig = layout.projectDirectory.file("src/test/resources/agent.toml")
+    val agentConfig = layout.projectDirectory.file("stack-augmentor-global.toml")
     inputs.files(agentJar).withPropertyName("agent")
     inputs.file(agentConfig).withPropertyName("agentConfig")
     jvmArgumentProviders.add(CommandLineArgumentProvider {

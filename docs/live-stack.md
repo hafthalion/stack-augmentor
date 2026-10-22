@@ -5,7 +5,7 @@
 The agent can also work without instrumenting any class. Start the JVM with the native library as well:
 
 ```
-java -agentpath:/path/to/libstackaugmentor.so -javaagent:stack-augmentor-agent-<version>.jar=config=stack-augmentor.toml -jar app.jar
+java -agentpath:/path/to/libstackaugmentor.so -javaagent:stack-augmentor-agent-<version>.jar=config=stack-augmentor-global.toml -jar app.jar
 ```
 
 - **Building the library:** `./gradlew :stack-augmentor-native:compileNative` builds it into `stack-augmentor-native/build/native/` with the platform's C compiler: `libstackaugmentor.so` on Linux, `libstackaugmentor.dylib` on macOS (`cc`), `stackaugmentor.dll` on Windows (MinGW `gcc`). It first copies the JDK's headers to `stack-augmentor-native/jdk-include` (ignored by git), where `.idea/c_cpp_properties.json` points IntelliJ too.

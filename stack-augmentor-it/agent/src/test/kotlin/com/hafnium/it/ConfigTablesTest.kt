@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
 
 /**
- * [augment.receiver] and [augment.params] entries; runs with the agent, see src/test/resources/stack-augmentor.toml.
+ * [augment.receiver] and [augment.params] entries; runs with the agent, see stack-augmentor-global.toml.
  * [FrameReport] writes the frames each test caught to build/reports/frames/ConfigTablesTest.html.
  */
 class ConfigTablesTest {
@@ -158,7 +158,7 @@ class ConfigTablesTest {
         val report = FrameReport(
             "Configuration tables",
             basePackage = "com.hafnium.it",
-            entries = ReceiverEntries.load(Path.of("src/test/resources/stack-augmentor.toml")),
+            entries = ReceiverEntries.load(Path.of("stack-augmentor-global.toml")),
         )
     }
 }

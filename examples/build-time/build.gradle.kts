@@ -24,7 +24,7 @@ dependencies {
 // One configuration for both phases: [augment.receiver] and [augment.params] are read here at build time,
 // [augment], [augment.exceptions] and [augment.receiver] from the classpath at runtime.
 val stackAugmentorConfig = layout.projectDirectory.file("src/main/resources/stack-augmentor-context.toml")
-val buildSettings = layout.projectDirectory.file("stack-augmentor-build.toml")
+val buildSettings = layout.projectDirectory.file("stack-augmentor-global.toml")
 
 byteBuddy {
     // Only adds advice to existing methods: keep the classes' methods as they are (no rebasing).

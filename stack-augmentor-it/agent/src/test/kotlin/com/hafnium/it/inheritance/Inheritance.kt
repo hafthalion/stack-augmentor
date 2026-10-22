@@ -1,7 +1,7 @@
 package com.hafnium.it.inheritance
 
 // Receiver members by inheritance, see InheritanceTest. Only the classes whose comment names an entry have one in
-// src/test/resources/stack-augmentor.toml; such an entry also matches the subclasses and implementing classes. The
+// stack-augmentor-global.toml; such an entry also matches the subclasses and implementing classes. The
 // classes are open, so that proxies and mocks can subclass them.
 
 /** Entry "id". */

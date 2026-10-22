@@ -111,7 +111,7 @@ Use it in your own application:
 3. Start the JVM with the agent (`./gradlew :stack-augmentor-agent:shadowJar` builds it):
 
    ```
-   java -javaagent:stack-augmentor-agent-<version>.jar=config=stack-augmentor.toml -jar app.jar
+   java -javaagent:stack-augmentor-agent-<version>.jar=config=stack-augmentor-global.toml -jar app.jar
    ```
 
    Without a configuration, the [built-in one](docs/configuration.md#the-built-in-configuration) applies, the same as this example for all classes with `@Augmented`; with one, it applies after it. Applications and jars can bring their own files too ([the configuration chain](docs/configuration.md#the-configuration-chain)).
@@ -145,7 +145,7 @@ byteBuddy {
         pluginName = "com.hafnium.stackaugmentor.build.ByteBuddyPlugin"
         // the files in the order they apply, each optional ("" for none); without any, the built-in configuration
         // the build's own file, like the agent's; only it may have [settings], e.g. debug
-        argument { index = 0; value = "" }   // e.g. layout.projectDirectory.file("stack-augmentor-build.toml").asFile.absolutePath
+        argument { index = 0; value = "" }   // e.g. layout.projectDirectory.file("stack-augmentor-global.toml").asFile.absolutePath
         argument { index = 1; value = stackAugmentorConfig.asFile.absolutePath }   // the context file: its [augment.*] tables
         // the module's local stack-augmentor.toml, for this module's classes only
         // argument { index = 2; value = layout.projectDirectory.file("src/main/resources/stack-augmentor.toml").asFile.absolutePath }
