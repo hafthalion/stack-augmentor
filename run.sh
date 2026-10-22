@@ -5,11 +5,11 @@
 # Without an argument, it asks which one to run.
 #
 #   java-agent  the Java agent instruments classes, values from annotations and from
-#               stack-augmentor.toml, and a simple cause chain printed both ways:
-#                 java -javaagent:<agent jar>=config=<stack-augmentor.toml> -jar <example jar>
+#               stack-augmentor-global.toml, and a simple cause chain printed both ways:
+#                 java -javaagent:<agent jar>=config=<stack-augmentor-global.toml> -jar <example jar>
 #   live-agent  twice: with the agent alone, and in the agent's live-stack mode with the
 #               native library as well, which augments every frame:
-#                 java -agentpath:<native library> -javaagent:<agent jar>=config=<stack-augmentor.toml> -jar <example jar>
+#                 java -agentpath:<native library> -javaagent:<agent jar>=config=<stack-augmentor-global.toml> -jar <example jar>
 #               Without a C compiler (cc or gcc) there is no native library, and only the first runs.
 #   build-time  classes instrumented when they were built, no agent:
 #                 java -jar <example jar>
@@ -69,7 +69,7 @@ fi
 
 # The example is the Gradle module examples/$EXAMPLE. Its jar's manifest names the main class and the other jars
 # in its lib folder.
-CONFIG=examples/$EXAMPLE/stack-augmentor.toml
+CONFIG=examples/$EXAMPLE/stack-augmentor-global.toml
 JAR=examples/$EXAMPLE/build/install/$EXAMPLE/lib/$EXAMPLE-0.1.0-SNAPSHOT.jar
 
 if ! ./gradlew build ":examples:$EXAMPLE:installDist"; then

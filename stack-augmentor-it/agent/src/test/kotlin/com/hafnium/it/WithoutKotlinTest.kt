@@ -47,7 +47,7 @@ class WithoutKotlinTest {
     }
 
     private fun config(dir: Path, text: String): Path =
-        dir.resolve("stack-augmentor.toml").also { Files.writeString(it, text) }
+        dir.resolve("stack-augmentor-global.toml").also { Files.writeString(it, text) }
 
     private fun assertNoKotlin(output: String) {
         assertFalse(output.contains("kotlin/"), output)
@@ -131,7 +131,7 @@ class WithoutKotlinTest {
         val result = run(config(dir, "[settings]\ndebug = false\n[augment]\nmaxValueLength = 1\n"))
         assertNotEquals(0, result.exitCode, result.output)
         assertTrue(
-            result.output.contains("[stack-augmentor] ERROR agent: stack-augmentor.toml, line 4: maxValueLength must be between 2 and 10000, was 1"),
+            result.output.contains("[stack-augmentor] ERROR agent: stack-augmentor-global.toml, line 4: maxValueLength must be between 2 and 10000, was 1"),
             result.output,
         )
         assertNoKotlin(result.output)

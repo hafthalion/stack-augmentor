@@ -54,7 +54,7 @@ class ConcurrencyTest {
             "Concurrency",
             basePackage = "com.hafnium.it.fixtures",
             ownPackage = "com.hafnium.it",
-            entries = ReceiverEntries.load(Path.of("src/test/resources/stack-augmentor.toml")),
+            entries = ReceiverEntries.load(Path.of("stack-augmentor-global.toml")),
         )
     }
 }

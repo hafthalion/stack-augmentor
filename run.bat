@@ -5,11 +5,11 @@ rem   run.bat benchmark
 rem Without an argument, it asks which one to run.
 rem
 rem   java-agent  the Java agent instruments classes, values from annotations and from
-rem               stack-augmentor.toml, and a simple cause chain printed both ways:
-rem                 java -javaagent:<agent jar>=config=<stack-augmentor.toml> -jar <example jar>
+rem               stack-augmentor-global.toml, and a simple cause chain printed both ways:
+rem                 java -javaagent:<agent jar>=config=<stack-augmentor-global.toml> -jar <example jar>
 rem   live-agent  twice: with the agent alone, and in the agent's live-stack mode with the
 rem               native library as well, which augments every frame:
-rem                 java -agentpath:<native library> -javaagent:<agent jar>=config=<stack-augmentor.toml> -jar <example jar>
+rem                 java -agentpath:<native library> -javaagent:<agent jar>=config=<stack-augmentor-global.toml> -jar <example jar>
 rem               Without MinGW gcc on the PATH there is no native library, and only the first runs.
 rem   build-time  classes instrumented when they were built, no agent:
 rem                 java -jar <example jar>
@@ -66,7 +66,7 @@ for /f "tokens=1,*" %%a in ("%*") do set JVM_ARGS=%%b
 rem The example is the Gradle module examples\%EXAMPLE%. Its jar's manifest names the main class and the other
 rem jars in its lib folder.
 set PROJECT=%EXAMPLE%
-set CONFIG=examples\%PROJECT%\stack-augmentor.toml
+set CONFIG=examples\%PROJECT%\stack-augmentor-global.toml
 set JAR=examples\%PROJECT%\build\install\%PROJECT%\lib\%PROJECT%-0.1.0-SNAPSHOT.jar
 
 call "%~dp0gradlew.bat" build :examples:%PROJECT%:installDist

@@ -53,7 +53,7 @@ tasks.matching { it.name == "byteBuddyJava" }.configureEach {
 tasks.test {
     val bootJar = tasks.named<Jar>("bootJar").flatMap { it.archiveFile }
     val agentJar = agent
-    val agentConfig = layout.projectDirectory.file("src/test/resources/agent.toml")
+    val agentConfig = layout.projectDirectory.file("stack-augmentor-global.toml")
     inputs.file(bootJar).withPropertyName("bootJar")
     inputs.files(agentJar).withPropertyName("agent")
     inputs.file(agentConfig).withPropertyName("agentConfig")

@@ -51,7 +51,7 @@ import org.springframework.cglib.proxy.NoOp
 /**
  * An [augment.receiver] entry with "+" after a class name applies to its class and the subclasses, a pattern to the
  * classes whose name it matches only, and the first matching entry wins: see the inheritance entries in
- * src/test/resources/stack-augmentor.toml. A frame's receiver member comes from the entry that matches the class declaring
+ * stack-augmentor-global.toml. A frame's receiver member comes from the entry that matches the class declaring
  * its method, read from the object: a subclass, e.g. a proxy or a mock, shows the receiver member of Order in the frames of Order's
  * methods, and its own methods show it too unless an earlier entry matches the subclass. Runs with the agent.
  *
@@ -499,7 +499,7 @@ class InheritanceTest {
             "Receiver members by inheritance",
             basePackage = "com.hafnium.it.inheritance",
             ownPackage = "com.hafnium.it",
-            entries = ReceiverEntries.load(Path.of("src/test/resources/stack-augmentor.toml")),
+            entries = ReceiverEntries.load(Path.of("stack-augmentor-global.toml")),
         )
     }
 }

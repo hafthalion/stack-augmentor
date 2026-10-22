@@ -38,7 +38,7 @@ tasks.test {
 }
 
 val results = layout.buildDirectory.dir("benchmark")
-val config = layout.projectDirectory.file("src/test/resources/stack-augmentor.toml")
+val config = layout.projectDirectory.file("stack-augmentor-global.toml")
 
 // The modes, as Mode in the tests names them.
 val modes = listOf("plain", "agentInPlace", "agentCopying", "live")

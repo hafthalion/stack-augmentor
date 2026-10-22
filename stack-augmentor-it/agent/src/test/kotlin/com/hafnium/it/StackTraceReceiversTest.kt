@@ -53,7 +53,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
 
 /**
- * Runs with the agent and `src/test/resources/stack-augmentor.toml` attached; see build.gradle.kts. [FrameReport] writes
+ * Runs with the agent and `stack-augmentor-global.toml` attached; see build.gradle.kts. [FrameReport] writes
  * the frames each test caught to build/reports/frames/StackTraceReceiversTest.html.
  */
 class StackTraceReceiversTest {
@@ -475,7 +475,7 @@ class StackTraceReceiversTest {
             "Receiver members and parameter values",
             basePackage = "com.hafnium.it.fixtures",
             ownPackage = "com.hafnium.it",
-            entries = ReceiverEntries.load(Path.of("src/test/resources/stack-augmentor.toml")),
+            entries = ReceiverEntries.load(Path.of("stack-augmentor-global.toml")),
         )
     }
 }

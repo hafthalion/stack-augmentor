@@ -73,10 +73,10 @@ File names must end in `.toml`. The JVM's global file and the context files of c
 
 | File | Where from | Applies to |
 |---|---|---|
-| the JVM's global file | `-javaagent:stack-augmentor-agent.jar=config=<file>` (or just `=<file>`), otherwise `-Dstackaugmentor.config=<file>`; with build-time instrumentation, the system property | all classes, first |
+| the JVM's global file, by convention `stack-augmentor-global.toml` outside the classpath | `-javaagent:stack-augmentor-agent.jar=config=<file>` (or just `=<file>`), otherwise `-Dstackaugmentor.config=<file>`; with build-time instrumentation, the system property | all classes, first |
 | `stack-augmentor-context.toml` | on the classpath of a class loader: one per class loader at most | all classes of that class loader, and of those below it without one of their own |
 | `stack-augmentor.toml` | in a jar or directory on the classpath: one per jar or directory, a class loader may have several | the classes of that jar or directory only |
-| the build plugin's files | the plugin's arguments in `build.gradle.kts` (see the [README](../README.md#quick-start-build-time-instrumentation)), in the order they apply: the build's own file, like the agent's, a context file, and the module's local `stack-augmentor.toml` | the build, in this order; the context and the local file also at runtime, see below |
+| the build plugin's files | the plugin's arguments in `build.gradle.kts` (see the [README](../README.md#quick-start-build-time-instrumentation)), in the order they apply: the build's own file, like the agent's (`stack-augmentor-global.toml` outside the classpath, e.g. in the module's directory), a context file, and the module's local `stack-augmentor.toml` | the build, in this order; the context and the local file also at runtime, see below |
 
 Who reads what:
 

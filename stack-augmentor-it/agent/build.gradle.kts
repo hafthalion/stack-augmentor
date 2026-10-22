@@ -41,7 +41,7 @@ dependencies {
 
 tasks.withType<Test>().configureEach {
     val agentJar = agent
-    val config = layout.projectDirectory.file("src/test/resources/stack-augmentor.toml")
+    val config = layout.projectDirectory.file("stack-augmentor-global.toml")
     inputs.files(agentJar).withPropertyName("agent")
     inputs.file(config).withPropertyName("agentConfig")
     jvmArgumentProviders.add(CommandLineArgumentProvider {
