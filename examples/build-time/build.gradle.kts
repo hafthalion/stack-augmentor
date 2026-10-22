@@ -34,8 +34,8 @@ byteBuddy {
         // The files in the order they apply. First the build's own file, like the agent's: only it may have [settings],
         // e.g. debug = true to see what gets instrumented.
         argument { index = 0; value = buildSettings.asFile.absolutePath }
-        // Then the context file. Without it, nothing is instrumented and the build prints a warning. A third argument
-        // could name the module's local stack-augmentor.toml.
+        // Then the context file. Without it, only the built-in configuration applies: the methods that @Augmented selects.
+        // A third argument could name the module's local stack-augmentor.toml.
         argument { index = 1; value = stackAugmentorConfig.asFile.absolutePath }
     }
 }

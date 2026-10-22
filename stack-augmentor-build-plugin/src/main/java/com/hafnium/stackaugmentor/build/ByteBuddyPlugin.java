@@ -7,7 +7,6 @@ import com.hafnium.stackaugmentor.instrument.advice.ExitAdviceFactory;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
 import com.hafnium.stackaugmentor.runtime.config.ClassLoaderConfigs;
-import com.hafnium.stackaugmentor.runtime.config.ConfigException;
 import com.hafnium.stackaugmentor.runtime.config.LocalConfiguration;
 import com.hafnium.stackaugmentor.runtime.config.Startup;
 import net.bytebuddy.asm.Advice;
@@ -21,7 +20,6 @@ import net.bytebuddy.matcher.ElementMatcher;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -94,13 +92,9 @@ public final class ByteBuddyPlugin implements Plugin {
     }
 
     private static Local local(Path file) {
-        if (!Files.isRegularFile(file)) {
-            throw new ConfigException("Configuration file not found: " + file);
-        }
+        AugmentorConfig config = AugmentorConfig.load(file, false);
         try {
-            byte[] content = Files.readAllBytes(file);
-            return new Local(AugmentorConfig.parse(new String(content, StandardCharsets.UTF_8), file.getFileName().toString(), false),
-                    ClassLoaderConfigs.hash(content));
+            return new Local(config, ClassLoaderConfigs.hash(Files.readAllBytes(file)));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

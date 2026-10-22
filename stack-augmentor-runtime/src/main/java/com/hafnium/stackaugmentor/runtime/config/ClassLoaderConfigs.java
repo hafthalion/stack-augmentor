@@ -360,6 +360,9 @@ public final class ClassLoaderConfigs<T> {
             throw new ConfigException("cannot read " + resource + ": " + e);
         } catch (UncheckedIOException e) {
             throw new ConfigException("cannot read " + resource + ": " + e.getCause());
+        } catch (RuntimeException e) {
+            // E.g. from the URL handler of a nested jar or an application server: reported as any unreadable file.
+            throw new ConfigException("cannot read " + resource + ": " + e);
         }
     }
 
