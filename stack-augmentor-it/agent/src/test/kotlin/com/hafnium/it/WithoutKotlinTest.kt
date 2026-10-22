@@ -112,7 +112,8 @@ class WithoutKotlinTest {
 
     @Test
     fun `a configuration without entries augments nothing`(@TempDir dir: Path) {
-        val result = run(config(dir, "debug = false\n"))
+        // The built-in configuration, which applies after the file, would read the annotations of all classes.
+        val result = run(config(dir, "debug = false\n[augment.annotations]\n\"**\" = false\n"))
         assertEquals(0, result.exitCode, result.output)
         assertTrue(
             result.output.contains(

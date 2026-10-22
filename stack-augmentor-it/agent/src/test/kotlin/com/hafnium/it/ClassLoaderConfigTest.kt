@@ -4,6 +4,7 @@ import com.hafnium.it.webapp.Webapp
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 import java.lang.reflect.InvocationTargetException
+import java.net.URL
 import java.net.URLClassLoader
 import java.nio.file.Files
 import java.nio.file.Path
@@ -14,15 +15,16 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 
 /**
- * Applications in one server, each in a class loader of its own with its own stack-augmentor.toml: each class uses the
- * configuration of its class loader, the others the agent's.
+ * Applications in one server, each in a class loader of its own with its own stack-augmentor-global.toml, and jars with
+ * their own stack-augmentor.toml: each class uses the agent's configuration, then the global one of its class loader,
+ * then the local one of its jar or directory, then the built-in one.
  */
 class ClassLoaderConfigTest {
 
-    /** Loads the classes of [PACKAGE] itself, from the test classes, and its own stack-augmentor.toml from [config]. */
-    private class Application(config: Path) : URLClassLoader(
+    /** Loads the classes of [PACKAGE] itself, from [classes], and its configurations from [config]. */
+    private class Application(config: Path, classes: URL = Webapp::class.java.protectionDomain.codeSource.location) : URLClassLoader(
         "webapp-" + config.fileName,
-        arrayOf(Webapp::class.java.protectionDomain.codeSource.location, config.toUri().toURL()),
+        arrayOf(classes, config.toUri().toURL()),
         ClassLoaderConfigTest::class.java.classLoader,
     ) {
         override fun loadClass(name: String, resolve: Boolean): Class<*> = synchronized(getClassLoadingLock(name)) {
@@ -35,7 +37,7 @@ class ClassLoaderConfigTest {
 
     private fun application(dir: Path, name: String, toml: String): Application {
         val config = Files.createDirectories(dir.resolve(name))
-        Files.writeString(config.resolve("stack-augmentor.toml"), toml)
+        Files.writeString(config.resolve("stack-augmentor-global.toml"), toml)
         return Application(config)
     }
 
@@ -53,20 +55,16 @@ class ClassLoaderConfigTest {
     }
 
     @Test
-    fun `each application uses its own configuration`(@TempDir dir: Path) {
+    fun `each application uses its own global configuration`(@TempDir dir: Path) {
         val first = application(dir, "first", """
             [augment]
             receiverFormat = "<${'$'}value>"
-            [augment.exceptions]
-            "**" = true
             [augment.annotations]
             "com.hafnium.it.webapp.**" = true
             """.trimIndent())
         val second = application(dir, "second", """
             [augment]
             paramsFormat = "[${'$'}name:${'$'}value]"
-            [augment.exceptions]
-            "java.lang.RuntimeException+" = true
             [augment.annotations]
             "com.hafnium.it.webapp.Webapp" = true
             """.trimIndent())
@@ -78,25 +76,49 @@ class ClassLoaderConfigTest {
             assertEquals("com.hafnium.it.webapp.Webapp{name=b}", secondFrame.className)
             assertEquals("fail[code:2]", secondFrame.methodName)
         } }
-        // The agent's configuration does not read the annotations of this package.
+        // The class of the system class loader: the agent's configuration does not read the annotations of this package,
+        // the built-in one after it does.
         val base = try {
             Webapp("c").fail(3)
         } catch (e: IllegalStateException) {
             e.stackTrace[0]
         }
-        assertEquals("com.hafnium.it.webapp.Webapp", base.className)
-        assertEquals("fail", base.methodName)
+        assertEquals("com.hafnium.it.webapp.Webapp{name=c}", base.className)
+        assertEquals("fail{code=3}", base.methodName)
     }
 
     @Test
-    fun `an application whose configuration does not augment the exception keeps its frames`(@TempDir dir: Path) {
+    fun `the agent's configuration applies before an application's`(@TempDir dir: Path) {
+        // The agent's configuration augments all throwables, and cuts values off at 20 characters.
         application(dir, "errors-only", """
+            [augment]
+            maxValueLength = 64
             [augment.exceptions]
             "java.lang.Error+" = true
-            [augment.annotations]
-            "**" = true
+            "**" = false
             """.trimIndent()).use {
-            assertEquals("com.hafnium.it.webapp.Webapp", frame(it, "d", 4).className)
+            assertEquals("com.hafnium.it.webapp.Webapp{name=0123456789012345678…}", frame(it, "0123456789012345678901234", 4).className)
+        }
+    }
+
+    @Test
+    fun `a local configuration applies to the classes of its own jar or directory`(@TempDir dir: Path) {
+        // The class files of the package, with a local configuration next to them.
+        val classes = Files.createDirectories(dir.resolve("classes"))
+        val source = Path.of(Webapp::class.java.protectionDomain.codeSource.location.toURI())
+        val packageDir = PACKAGE.removeSuffix(".").replace('.', '/')
+        Files.list(source.resolve(packageDir)).use { files ->
+            for (file in files) {
+                Files.createDirectories(classes.resolve(packageDir))
+                Files.copy(file, classes.resolve(packageDir).resolve(file.fileName))
+            }
+        }
+        Files.writeString(classes.resolve("stack-augmentor.toml"), "[augment]\nreceiverFormat = \"<local ${'$'}value>\"\n")
+        // The global configuration of the class loader applies first, here to the other directory only.
+        val config = Files.createDirectories(dir.resolve("config"))
+        Files.writeString(config.resolve("stack-augmentor.toml"), "[augment]\nreceiverFormat = \"[other ${'$'}value]\"\n")
+        Application(config, classes.toUri().toURL()).use {
+            assertEquals("com.hafnium.it.webapp.Webapp<local f>", frame(it, "f", 6).className)
         }
     }
 

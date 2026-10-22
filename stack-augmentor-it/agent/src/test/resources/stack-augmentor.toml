@@ -22,6 +22,8 @@ maxValueLength = 20
 # Not read: a false entry before the pattern that would match
 "com.hafnium.it.outside.Unread" = false
 "com.hafnium.it.outside.Un*" = true
+# Nowhere else in this package: without this entry, the built-in configuration, which applies after this one, would read them
+"com.hafnium.it.outside.**" = false
 
 # The two tables below are independent: [augment.receiver] for the receiver members, [augment.params] for the
 # parameter values. Their keys are "<class>::<methods>": a class name matches that class only, "+" after it its

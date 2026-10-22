@@ -69,7 +69,7 @@ not piling up. When such a place cannot be used safely, the agent SHALL warn and
 - **THEN** it replaces it with its own
 
 ### Requirement: Validated, immutable configuration
-Each configuration SHALL be read once per component and class loader, validated completely, including the templates also
+Each configuration file SHALL be read once per component and class loader, validated completely, including the templates also
 where a component does not render frames, and SHALL NOT change afterwards. An empty file SHALL be equal to the default
 configuration. What is kept per class loader SHALL NOT keep the class loader alive.
 

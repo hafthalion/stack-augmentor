@@ -1,7 +1,7 @@
-# The built-in configuration: it applies when no configuration file is given, to the agent, the build plugin and the
-# runtime of classes instrumented at build time. A file replaces it completely; nothing of it is merged. All keys are
-# listed with the values that also apply where a file leaves them out; inPlaceModification only as a comment, as setting
-# it asks for a warning where it is not possible.
+# The built-in configuration: it applies to the agent, the build plugin and the runtime of classes instrumented at build
+# time, alone when no configuration file is given, otherwise after the files: their entries come first in each table, and
+# their settings win. All keys are listed with the values that also apply where the files leave them out;
+# inPlaceModification only as a comment, as setting it asks for a warning where it is not possible.
 
 # Print diagnostics to stderr.
 debug = false

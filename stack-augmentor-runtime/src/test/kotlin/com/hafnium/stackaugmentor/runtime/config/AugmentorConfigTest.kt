@@ -623,17 +623,17 @@ class AugmentorConfigTest {
     fun `load reads toml files only`(@TempDir dir: Path) {
         val toml = dir.resolve("agent.toml")
         Files.writeString(toml, "augment.maxValueLength = 10")
-        assertEquals(10, AugmentorConfig.load("config=$toml").maxValueLength())
-        assertEquals(10, AugmentorConfig.load(toml.toString()).maxValueLength())
+        assertEquals(10, AugmentorConfig.global("config=$toml").maxValueLength())
+        assertEquals(10, AugmentorConfig.global(toml.toString()).maxValueLength())
         assertEquals(10, AugmentorConfig.load(toml).maxValueLength())
 
         val properties = dir.resolve("agent.properties")
         Files.writeString(properties, "maxValueLength=10")
-        val message = assertThrows<ConfigException> { AugmentorConfig.load("config=$properties") }.message!!
+        val message = assertThrows<ConfigException> { AugmentorConfig.global("config=$properties") }.message!!
         assertTrue(message.contains("must be a TOML file ending in .toml"), message)
 
-        assertTrue(assertThrows<ConfigException> { AugmentorConfig.load("config=${dir.resolve("missing.toml")}") }.message!!.contains("not found"))
-        assertEquals(AugmentorConfig.builtIn(), AugmentorConfig.load(null as String?))
+        assertTrue(assertThrows<ConfigException> { AugmentorConfig.global("config=${dir.resolve("missing.toml")}") }.message!!.contains("not found"))
+        assertNull(AugmentorConfig.global(null))
     }
 
     @Test

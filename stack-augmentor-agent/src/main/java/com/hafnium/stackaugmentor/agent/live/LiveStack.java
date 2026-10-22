@@ -101,7 +101,7 @@ public final class LiveStack {
         public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain,
                                 byte[] classfileBuffer) {
             if (loader != null) {
-                contexts.forLoader(loader);
+                contexts.register(loader);
             }
             return null;
         }

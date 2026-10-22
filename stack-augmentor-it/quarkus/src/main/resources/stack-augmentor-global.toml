@@ -1,0 +1,16 @@
+# The application's global configuration: the build reads its method and annotation tables, and at runtime it applies to
+# all classes that Quarkus's class loader loads, the application's and its libraries', after the agent's configuration if there
+# is one.
+
+[augment]
+receiverFormat = "<$value>"
+
+[augment.exceptions]
+"java.lang.Exception+" = true
+
+[augment.annotations]
+"com.hafnium.it.quarkus.**" = true
+
+# A library class: only the agent instruments it, build-time instrumentation changes the application's classes only.
+[augment.params]
+"io.smallrye.mutiny.helpers.ParameterValidation::nonNull" = "1"

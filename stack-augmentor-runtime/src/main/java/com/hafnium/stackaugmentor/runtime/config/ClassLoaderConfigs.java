@@ -5,98 +5,247 @@ import com.hafnium.stackaugmentor.runtime.WeakIdentityMap;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.security.CodeSource;
+import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
- * The configurations of one JVM by class loader, so that applications in one server, each with a class loader of its
- * own, can each have a configuration of their own. A class uses the {@value #RESOURCE} of the nearest class loader, from
- * its own up to the base class loaders, that has one of its own, one that its parent does not see; without one, the base
- * configuration applies: the agent's, or that of the runtime library's class loader. The base class loaders are the
- * system class loader, the class loader of the agent or the runtime library, and their parents.
+ * The configurations of the classes of one JVM. A class uses these configurations, in this order (see
+ * {@link AugmentorConfig#layered}):
  *
- * <p>A configuration is read once per class loader, when a class of it first needs it, and kept as long as the class
- * loader lives. An invalid one is printed as an error, and the classes of that class loader are not augmented.
+ * <ol>
+ *     <li>the global configuration given to the JVM: the agent's file or {@code -Dstackaugmentor.config};</li>
+ *     <li>the {@value AugmentorConfig#GLOBAL_RESOURCE} of the nearest class loader, from the class's own upwards, that has
+ *     one of its own, one that its parent does not see; without one, that of the system class loader, if any. A class
+ *     loader may have one only;</li>
+ *     <li>the {@value AugmentorConfig#LOCAL_RESOURCE} of the jar or the directory that the class comes from, if it has
+ *     one of its own: a class loader may have several, one per jar or directory;</li>
+ *     <li>the built-in configuration.</li>
+ * </ol>
+ *
+ * <p>The global configurations of the JVM and of the system class loader are read at once, and an invalid one is
+ * thrown. Those of the other class loaders, and all local ones, are read once per class loader, when a class of it first
+ * needs them, and kept as long as the class loader lives. An invalid one is printed as an error, and the classes it
+ * applies to are not augmented.
  *
  * @param <T> what the component makes of a configuration: the values it needs, never classes of the class loader, which
  *            would keep it alive
  */
 public final class ClassLoaderConfigs<T> {
 
-    /** The configuration file of a class loader. */
-    public static final String RESOURCE = "stack-augmentor.toml";
+    /** The local configuration file of a jar or directory. */
+    public static final String RESOURCE = AugmentorConfig.LOCAL_RESOURCE;
+
+    /** The global configuration file of a class loader. */
+    public static final String GLOBAL_RESOURCE = AugmentorConfig.GLOBAL_RESOURCE;
 
     private final String component;
-    private final T base;
-    private final Function<AugmentorConfig, T> factory;
     /** Null where every class uses the base configuration. */
-    private final Set<ClassLoader> baseLoaders;
+    private final Function<AugmentorConfig, T> factory;
+    /** The global configuration given to the JVM, or null. */
+    private final AugmentorConfig argument;
+    /** The global configuration of the system class loader, or null. */
+    private final AugmentorConfig systemGlobal;
+    private final AugmentorConfig baseConfig;
+    private final T base;
+    private final boolean builtInOnly;
 
-    /** By class loader: its configuration, empty where it is invalid. */
-    private final WeakIdentityMap<ClassLoader, Optional<T>> byLoader = new WeakIdentityMap<>();
+    /** By class loader: its configurations, without one where its global configuration is invalid. */
+    private final WeakIdentityMap<ClassLoader, Optional<LoaderConfigs<T>>> byLoader = new WeakIdentityMap<>();
 
-    /** The class loaders whose configuration this thread is reading: one that it asks for again gets none. */
+    /** The class loaders whose configurations this thread is reading: one that it asks for again gets none. */
     private final ThreadLocal<List<ClassLoader>> reading = ThreadLocal.withInitial(ArrayList::new);
 
-    private ClassLoaderConfigs(String component, T base, Function<AugmentorConfig, T> factory, Set<ClassLoader> baseLoaders) {
+    /** Per class, what its configuration gives, empty where it is invalid. */
+    private final ClassValue<Optional<T>> byClass = new ClassValue<>() {
+        @Override
+        protected Optional<T> computeValue(Class<?> type) {
+            return Optional.ofNullable(forType(type.getClassLoader(), type.getName(), type.getProtectionDomain()));
+        }
+    };
+
+    /**
+     * The configurations of one class loader.
+     *
+     * @param global       its global configuration, or that of the nearest class loader above it that has one; null for
+     *                     that of the system class loader
+     * @param withoutLocal what the classes without a local configuration use
+     * @param locals       the local configurations by {@link #source}, empty where one is invalid
+     */
+    private record LoaderConfigs<T>(AugmentorConfig global, T withoutLocal, Map<String, Optional<AugmentorConfig>> locals,
+                                    Map<String, Optional<T>> bySource) {
+    }
+
+    private ClassLoaderConfigs(String component, Function<AugmentorConfig, T> factory, AugmentorConfig argument,
+                               AugmentorConfig systemGlobal, T base) {
         this.component = component;
-        this.base = base;
         this.factory = factory;
-        this.baseLoaders = baseLoaders;
+        this.argument = argument;
+        this.systemGlobal = systemGlobal;
+        this.baseConfig = layered(null, null);
+        this.base = base != null ? base : factory.apply(baseConfig);
+        this.builtInOnly = argument == null && systemGlobal == null;
     }
 
     /**
-     * @param component   the component, for the messages
-     * @param base        made of the base configuration
-     * @param factory     makes what the component needs of a class loader's configuration
-     * @param baseLoaders class loaders whose classes use the base configuration, with their parents and the system class
-     *                    loader's
+     * Reads the global configuration of the system class loader, and describes both global configurations; an invalid
+     * one is thrown.
+     *
+     * @param component        the component, for the messages
+     * @param argument         the global configuration given to the JVM, or null
+     * @param argumentLocation where it comes from, for the debug output
+     * @param factory          makes what the component needs of a class's configuration
      */
-    public static <T> ClassLoaderConfigs<T> perClassLoader(String component, T base, Function<AugmentorConfig, T> factory,
-                                                           ClassLoader... baseLoaders) {
-        Set<ClassLoader> loaders = Collections.newSetFromMap(new IdentityHashMap<>());
-        List<ClassLoader> roots = new ArrayList<>(List.of(baseLoaders));
-        roots.add(ClassLoader.getSystemClassLoader());
-        for (ClassLoader root : roots) {
-            for (ClassLoader loader = root; loader != null; loader = loader.getParent()) {
-                loaders.add(loader);
-            }
+    public static <T> ClassLoaderConfigs<T> create(String component, AugmentorConfig argument, String argumentLocation,
+                                                   Function<AugmentorConfig, T> factory) {
+        ClassLoader system = ClassLoader.getSystemClassLoader();
+        URL resource = globalResource(system);
+        AugmentorConfig systemGlobal = resource != null ? read(resource, true) : null;
+        ClassLoaderConfigs<T> configs = new ClassLoaderConfigs<>(component, factory, argument, systemGlobal, null);
+        Log.setDebug(configs.baseConfig.debug());
+        if (argument != null) {
+            Startup.describe(component, argumentLocation, argument);
         }
-        return new ClassLoaderConfigs<>(component, base, factory, loaders);
+        if (systemGlobal != null) {
+            Startup.describe(component, resource + " of the system class loader", systemGlobal);
+        }
+        if (configs.builtInOnly) {
+            Startup.describe(component, AugmentorConfig.BUILT_IN_LOCATION, AugmentorConfig.builtIn());
+        }
+        Startup.warnIfNoExceptions(component, configs.baseConfig);
+        return configs;
     }
 
     /** Every class uses {@code base}: for tests, and for the configurations given in code. */
     public static <T> ClassLoaderConfigs<T> fixed(T base) {
-        return new ClassLoaderConfigs<>(null, base, null, null);
+        return new ClassLoaderConfigs<>(null, null, null, null, base);
     }
 
+    /** What the classes of the JVM itself use, and those of class loaders without configurations of their own. */
     public T base() {
         return base;
     }
 
-    /** What the class's configuration gives, or null if its class loader's configuration is invalid. */
+    /**
+     * The configuration of {@link #base()}: the global ones given to the JVM and of the system class loader, and the
+     * built-in one. Its {@code debug} and {@code inPlaceModification} apply to the whole JVM.
+     */
+    public AugmentorConfig baseConfig() {
+        return baseConfig;
+    }
+
+    /** Whether {@link #base()} is the built-in configuration only, as no global configuration was found. */
+    public boolean builtInOnly() {
+        return builtInOnly;
+    }
+
+    /** What the class's configuration gives, or null if one of its configurations is invalid. */
     public T forClass(Class<?> type) {
-        return forLoader(type.getClassLoader());
+        ClassLoader loader = type.getClassLoader();
+        if (factory == null || loader == null) {
+            return base;
+        }
+        if (byLoader.get(loader) == null) {
+            // Not cached: the class loader's configurations may be being read on this thread.
+            return forType(loader, type.getName(), type.getProtectionDomain());
+        }
+        return byClass.get(type).orElse(null);
     }
 
     /**
-     * What the configuration of the classes of this class loader gives, or null if it is invalid, or if it is being read
-     * on this thread, e.g. because reading it loads a class.
+     * What the configuration of a class gives, by its class loader, name and protection domain, e.g. while it is being
+     * loaded; null if one of its configurations is invalid, or if those of its class loader are being read on this
+     * thread, e.g. because reading them loads a class.
      */
-    public T forLoader(ClassLoader loader) {
-        if (baseLoaders == null || loader == null || baseLoaders.contains(loader)) {
+    public T forType(ClassLoader loader, String className, ProtectionDomain protectionDomain) {
+        if (factory == null || loader == null) {
             return base;
         }
-        Optional<T> known = byLoader.get(loader);
+        LoaderConfigs<T> configs = configs(loader);
+        if (configs == null) {
+            return null;
+        }
+        if (configs.locals().isEmpty()) {
+            return configs.withoutLocal();
+        }
+        String source = source(loader, className, protectionDomain);
+        Optional<AugmentorConfig> local = source != null ? configs.locals().get(source) : null;
+        if (local == null) {
+            return configs.withoutLocal();
+        }
+        if (local.isEmpty()) {
+            return null;
+        }
+        return configs.bySource().computeIfAbsent(source, key -> Optional.of(factory.apply(layered(configs.global(), local.get()))))
+                .orElse(null);
+    }
+
+    /** Reads the configurations of the class loader now, if they were not yet read. */
+    public void register(ClassLoader loader) {
+        if (factory != null && loader != null) {
+            configs(loader);
+        }
+    }
+
+    /** Whether the base configuration, or one of those made so far, matches. */
+    public boolean anyMatches(Predicate<T> predicate) {
+        if (predicate.test(base)) {
+            return true;
+        }
+        if (factory == null) {
+            return false;
+        }
+        for (Optional<LoaderConfigs<T>> value : byLoader.values()) {
+            if (value.isEmpty()) {
+                continue;
+            }
+            LoaderConfigs<T> configs = value.get();
+            if (configs.withoutLocal() != null && predicate.test(configs.withoutLocal())) {
+                return true;
+            }
+            for (Optional<T> each : configs.bySource().values()) {
+                if (each.isPresent() && predicate.test(each.get())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** The configurations of a class's chain, without the ones that are null. */
+    private AugmentorConfig layered(AugmentorConfig global, AugmentorConfig local) {
+        List<AugmentorConfig> layers = new ArrayList<>();
+        if (argument != null) {
+            layers.add(argument);
+        }
+        AugmentorConfig loaderGlobal = global != null ? global : systemGlobal;
+        if (loaderGlobal != null) {
+            layers.add(loaderGlobal);
+        }
+        if (local != null) {
+            layers.add(local);
+        }
+        layers.add(AugmentorConfig.builtIn());
+        return AugmentorConfig.layered(layers);
+    }
+
+    /** The class loader's configurations, or null if its global configuration is invalid or being read on this thread. */
+    private LoaderConfigs<T> configs(ClassLoader loader) {
+        Optional<LoaderConfigs<T>> known = byLoader.get(loader);
         if (known != null) {
             return known.orElse(null);
         }
@@ -106,73 +255,166 @@ public final class ClassLoaderConfigs<T> {
         }
         current.add(loader);
         try {
-            URL own = ownResource(loader);
-            Optional<T> found = own != null ? read(loader, own) : Optional.ofNullable(forLoader(loader.getParent()));
-            return byLoader.setIfAbsent(loader, found).orElse(null);
+            return byLoader.setIfAbsent(loader, Optional.ofNullable(read(loader))).orElse(null);
         } finally {
             current.remove(loader);
         }
     }
 
-    /** Whether the base configuration, or one of the class loaders read so far, matches. */
-    public boolean anyMatches(Predicate<T> predicate) {
-        if (predicate.test(base)) {
-            return true;
-        }
-        if (baseLoaders == null) {
-            return false;
-        }
-        for (Optional<T> value : byLoader.values()) {
-            if (value.isPresent() && predicate.test(value.get())) {
-                return true;
+    private LoaderConfigs<T> read(ClassLoader loader) {
+        AugmentorConfig global;
+        if (loader == ClassLoader.getSystemClassLoader()) {
+            global = null;
+        } else {
+            try {
+                URL resource = globalResource(loader);
+                global = resource != null ? readFor(loader, resource, true) : inherited(loader.getParent());
+            } catch (ConfigException e) {
+                Log.error(component + ": " + e.getMessage() + "; the classes of class loader " + describe(loader) + " are not augmented");
+                return null;
+            }
+            if (global == INVALID) {
+                return null;
             }
         }
-        return false;
+        Map<String, Optional<AugmentorConfig>> locals = new HashMap<>();
+        for (URL resource : ownResources(loader, RESOURCE)) {
+            String source = source(resource);
+            try {
+                locals.put(source, Optional.of(readFor(loader, resource, false)));
+            } catch (ConfigException e) {
+                Log.error(component + ": " + e.getMessage() + "; the classes of " + source + " are not augmented");
+                locals.put(source, Optional.empty());
+            }
+        }
+        T withoutLocal = global == null ? base : factory.apply(layered(global, null));
+        return new LoaderConfigs<>(global, withoutLocal, Collections.unmodifiableMap(locals), new ConcurrentHashMap<>());
     }
 
-    /** The class loader's own {@value #RESOURCE}, which its parent does not see, or null. */
-    private static URL ownResource(ClassLoader loader) {
+    /** Stands for an invalid global configuration of a class loader above. */
+    private static final AugmentorConfig INVALID = new AugmentorConfig();
+
+    /** The global configuration that a class loader without one of its own uses: that of its parent, null for the system's. */
+    private AugmentorConfig inherited(ClassLoader parent) {
+        if (parent == null || parent == ClassLoader.getSystemClassLoader()) {
+            return null;
+        }
+        LoaderConfigs<T> configs = configs(parent);
+        return configs != null ? configs.global() : INVALID;
+    }
+
+    /** Reads a configuration file of a class loader, and describes it. */
+    private AugmentorConfig readFor(ClassLoader loader, URL resource, boolean global) {
+        AugmentorConfig config = read(resource, global);
+        String location = resource + " of class loader " + describe(loader);
+        if (config.sets("inPlaceModification")) {
+            Log.warn(component + ": " + location + ": inPlaceModification applies to the whole JVM, so only the agent's file, -D"
+                    + AugmentorConfig.CONFIG_PROPERTY + " or the " + GLOBAL_RESOURCE + " of the system class loader decides it; "
+                    + "it is ignored here");
+        }
+        if (config.debug()) {
+            Log.setDebug(true);
+        }
+        Startup.describe(component, location, config);
+        return config;
+    }
+
+    private static AugmentorConfig read(URL resource, boolean global) {
+        String text;
+        try (InputStream in = resource.openStream()) {
+            text = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new ConfigException("cannot read " + resource + ": " + e);
+        } catch (UncheckedIOException e) {
+            throw new ConfigException("cannot read " + resource + ": " + e.getCause());
+        }
+        return AugmentorConfig.parse(text, resource.toString(), global);
+    }
+
+    /** The class loader's own {@value #GLOBAL_RESOURCE}, or null; several are an error. */
+    private static URL globalResource(ClassLoader loader) {
+        List<URL> resources = ownResources(loader, GLOBAL_RESOURCE);
+        if (resources.size() > 1) {
+            throw new ConfigException("class loader " + describe(loader) + " has several " + GLOBAL_RESOURCE + ", but may have one only: "
+                    + resources.stream().map(URL::toString).collect(Collectors.joining(", ")));
+        }
+        return resources.isEmpty() ? null : resources.get(0);
+    }
+
+    /** The class loader's own resources of this name, which its parent does not see. */
+    private static List<URL> ownResources(ClassLoader loader, String name) {
         try {
-            List<URL> resources = Collections.list(loader.getResources(RESOURCE));
+            List<URL> resources = Collections.list(loader.getResources(name));
             if (resources.isEmpty()) {
-                return null;
+                return List.of();
             }
             ClassLoader parent = loader.getParent();
             Set<String> inherited = new HashSet<>();
             if (parent != null) {
-                for (URL resource : Collections.list(parent.getResources(RESOURCE))) {
+                for (URL resource : Collections.list(parent.getResources(name))) {
                     inherited.add(resource.toString());
                 }
             }
+            List<URL> own = new ArrayList<>();
             for (URL resource : resources) {
                 if (!inherited.contains(resource.toString())) {
-                    return resource;
+                    own.add(resource);
                 }
             }
-            return null;
+            return own;
         } catch (IOException | RuntimeException e) {
-            Log.debug(() -> "cannot look for " + RESOURCE + " in " + describe(loader) + ": " + e);
+            Log.debug(() -> "cannot look for " + name + " in " + describe(loader) + ": " + e);
+            return List.of();
+        }
+    }
+
+    /** The jar or directory of a configuration file: its URL without the file name, see {@link #source(String)}. */
+    static String source(URL resource) {
+        String url = resource.toString();
+        return source(url.substring(0, url.length() - RESOURCE.length()));
+    }
+
+    /**
+     * The jar or directory a class comes from: the location of its code source, or else where its class loader finds its
+     * class file; null if neither is known, e.g. for a class generated at runtime.
+     */
+    static String source(ClassLoader loader, String className, ProtectionDomain protectionDomain) {
+        CodeSource codeSource = protectionDomain != null ? protectionDomain.getCodeSource() : null;
+        URL location = codeSource != null ? codeSource.getLocation() : null;
+        if (location != null) {
+            return source(location.toString());
+        }
+        String path = className.replace('.', '/') + ".class";
+        try {
+            URL classFile = loader.getResource(path);
+            String url = classFile != null ? classFile.toString() : null;
+            return url != null && url.endsWith(path) ? source(url.substring(0, url.length() - path.length())) : null;
+        } catch (RuntimeException e) {
             return null;
         }
     }
 
-    private Optional<T> read(ClassLoader loader, URL resource) {
-        String location = resource + " of class loader " + describe(loader);
-        try {
-            String text;
-            try (InputStream in = resource.openStream()) {
-                text = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-            }
-            AugmentorConfig config = AugmentorConfig.parse(text, resource.toString());
-            Startup.configureFor(component, location, config);
-            return Optional.of(factory.apply(config));
-        } catch (ConfigException e) {
-            Log.error(component + ": " + e.getMessage() + "; the classes of class loader " + describe(loader) + " are not augmented");
-            return Optional.empty();
-        } catch (IOException | RuntimeException e) {
-            Log.error(component + ": cannot read " + location + ", so its classes are not augmented: " + e);
-            return Optional.empty();
+    /**
+     * A jar's or directory's URL in one form: {@code jar:file:/app/a.jar!/} and {@code file:/app/a.jar} as
+     * {@code file:/app/a.jar}, {@code file:///app/classes/} as {@code file:/app/classes}. Code sources name jars without
+     * {@code jar:}, resources in them with it; nested jars, e.g. Spring Boot's
+     * {@code jar:nested:/app.jar/!BOOT-INF/classes/!/}, keep their inner {@code !}.
+     */
+    static String source(String url) {
+        String source = url;
+        if (source.startsWith("jar:")) {
+            source = source.substring("jar:".length());
         }
+        if (source.endsWith("!/")) {
+            source = source.substring(0, source.length() - "!/".length());
+        }
+        if (source.startsWith("file:///")) {
+            source = "file:/" + source.substring("file:///".length());
+        }
+        while (source.endsWith("/")) {
+            source = source.substring(0, source.length() - 1);
+        }
+        return source;
     }
 
     /** The class loader's name, or its class, with its identity. */

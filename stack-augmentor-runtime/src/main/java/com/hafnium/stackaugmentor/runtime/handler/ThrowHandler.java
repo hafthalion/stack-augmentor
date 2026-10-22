@@ -10,12 +10,7 @@ import com.hafnium.stackaugmentor.runtime.values.FrameFormat;
 import com.hafnium.stackaugmentor.runtime.values.ValueResolver;
 import com.hafnium.stackaugmentor.runtime.values.NamedValue;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.lang.ref.WeakReference;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -29,22 +24,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * <p>The Java agent creates it with the agent's configuration and installs it. With build-time
  * instrumentation no agent does that: {@link Dispatch} creates it through {@code ServiceLoader} with the
- * no-argument constructor, which reads the base configuration from {@code -Dstackaugmentor.config} or from
- * {@code stack-augmentor.toml} seen by the runtime library's class loader. What gets instrumented was decided at build
+ * no-argument constructor, which reads the global configuration from {@code -Dstackaugmentor.config}, and those on
+ * the classpath as {@link ClassLoaderConfigs} describes. What gets instrumented was decided at build
  * time; at runtime, {@code [augment]}, {@code [augment.exceptions]}, {@code debug} and the {@code [augment.receiver]}
  * entries apply, the latter by the key of the entry that decided the method at build time: a method without such an
  * entry shows no receiver members, even if its class is annotated.
  *
- * <p>Each frame uses the configuration of the class loader of its method's class ({@link ClassLoaderConfigs}), so the
- * applications of one server can have their own; {@code inPlaceModification} is decided once, by the base
- * configuration.
+ * <p>Each frame uses the configuration of its method's class ({@link ClassLoaderConfigs}), so the applications of one
+ * server, and the jars of one application, can have their own; {@code inPlaceModification} is decided once, by the global
+ * configurations of the JVM.
  */
 public final class ThrowHandler implements Dispatch.Handler {
 
     public static final String CLASSPATH_CONFIG = ClassLoaderConfigs.RESOURCE;
 
-    static final String NO_RUNTIME_CONFIG = "no " + CLASSPATH_CONFIG + " found and no -D"
-            + AugmentorConfig.CONFIG_PROPERTY + ", so the built-in configuration is used";
+    static final String NO_RUNTIME_CONFIG = "no " + ClassLoaderConfigs.GLOBAL_RESOURCE + " or " + CLASSPATH_CONFIG
+            + " found for the class and no -D" + AugmentorConfig.CONFIG_PROPERTY + ", so the built-in configuration is used";
 
     /** Reflection frames are part of stack traces, so the walker shows them too. */
     private static final StackWalker WALKER = StackWalker.getInstance(StackWalker.Option.SHOW_REFLECT_FRAMES);
@@ -106,13 +101,12 @@ public final class ThrowHandler implements Dispatch.Handler {
 
     /** For {@code ServiceLoader}: build-time instrumentation. */
     public ThrowHandler() {
-        this(runtimeConfig());
+        this(runtimeConfigs());
     }
 
-    private ThrowHandler(RuntimeConfig base) {
-        this(ClassLoaderConfigs.perClassLoader(Startup.RUNTIME, Context.of(base.config()), Context::of, ThrowHandler.class.getClassLoader()),
-                runtimeStackTraces(base.config()));
-        builtInUnannounced.set(base.builtIn());
+    private ThrowHandler(ClassLoaderConfigs<Context> contexts) {
+        this(contexts, runtimeStackTraces(contexts.baseConfig()));
+        builtInUnannounced.set(contexts.builtInOnly());
     }
 
     @Override
@@ -304,28 +298,14 @@ public final class ThrowHandler implements Dispatch.Handler {
         });
     }
 
-    /** The base configuration of build-time instrumentation, and whether it is the built-in one. */
-    private record RuntimeConfig(AugmentorConfig config, boolean builtIn) {
-    }
-
     /**
-     * The base configuration for build-time instrumentation: the system property, then the runtime library's class
-     * loader, then the built-in configuration, with a warning when it is first used. An invalid one is printed as an
+     * The configurations for build-time instrumentation: the system property, then those on the classpath, then the
+     * built-in configuration, with a warning when a class first uses it alone. An invalid global one is printed as an
      * error; {@link Dispatch} then warns that there is no handler.
      */
-    private static RuntimeConfig runtimeConfig() {
-        String location = AugmentorConfig.location(null);
-        ClassLoader own = ThrowHandler.class.getClassLoader();
-        URL resource = location == null && own != null ? own.getResource(CLASSPATH_CONFIG) : null;
-        AugmentorConfig config = Startup.load(Startup.RUNTIME, () -> {
-            if (location != null) {
-                return AugmentorConfig.load((String) null);
-            }
-            return resource != null ? AugmentorConfig.parse(read(resource), CLASSPATH_CONFIG) : AugmentorConfig.builtIn();
-        });
-        Startup.configure(Startup.RUNTIME, location != null ? location : resource != null ? resource.toString() : AugmentorConfig.BUILT_IN_LOCATION,
-                config);
-        return new RuntimeConfig(config, location == null && resource == null);
+    private static ClassLoaderConfigs<Context> runtimeConfigs() {
+        return Startup.load(Startup.RUNTIME, () -> ClassLoaderConfigs.create(Startup.RUNTIME, AugmentorConfig.global(null),
+                AugmentorConfig.location(null), Context::of));
     }
 
     /**
@@ -335,13 +315,5 @@ public final class ThrowHandler implements Dispatch.Handler {
      */
     static StackTraces runtimeStackTraces(AugmentorConfig config) {
         return StackTraces.configured(config, Startup.RUNTIME, "start the application with --add-opens java.base/java.lang=ALL-UNNAMED");
-    }
-
-    private static String read(URL resource) {
-        try (InputStream in = resource.openStream()) {
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 }

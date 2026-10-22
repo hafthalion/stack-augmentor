@@ -77,7 +77,7 @@ Each specification SHALL own one subject and refer to the owner instead of repea
 | Specification | Subject |
 |---|---|
 | functional/overview | goal, terminology, ways to run, what a frame shows |
-| functional/configuration | the file, where it comes from, configurations of applications, the built-in configuration, tables, key syntax and matching, validation |
+| functional/configuration | the files, where they come from, the configuration chain of a class, the built-in configuration, tables, key syntax and matching, validation |
 | functional/receivers-and-parameters | what entries and annotations select, labels, values as text, hashing |
 | functional/stack-trace-augmentation | which frames are augmented, when values are captured, exception selection, causes |
 | functional/frame-format | `frameFormat`, `receiverFormat`, `paramsFormat` |

@@ -1,8 +1,8 @@
 package com.hafnium.stackaugmentor.agent;
 
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
+import com.hafnium.stackaugmentor.runtime.config.ClassLoaderConfigs;
 import com.hafnium.stackaugmentor.runtime.config.Startup;
-import com.hafnium.stackaugmentor.runtime.values.FrameFormat;
 
 import java.lang.instrument.Instrumentation;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -32,13 +32,11 @@ public final class StackAugmentorAgent {
         if (!STARTED.compareAndSet(false, true)) {
             return;
         }
-        // Invalid configuration stops the JVM here, with the reason in the message.
-        AugmentorConfig config = Startup.load(Startup.AGENT, () -> AugmentorConfig.load(agentArgs));
-        FrameFormat format = FrameFormat.create(config);
-        String location = AugmentorConfig.location(agentArgs);
-        Startup.configure(Startup.AGENT, location != null ? location : AugmentorConfig.BUILT_IN_LOCATION, config);
-        Startup.warnIfNothingConfigured(Startup.AGENT, config);
+        // An invalid global configuration stops the JVM here, with the reason in the message.
+        ClassLoaderConfigs<Configured> contexts = Startup.load(Startup.AGENT, () -> ClassLoaderConfigs.create(Startup.AGENT,
+                AugmentorConfig.global(agentArgs), AugmentorConfig.location(agentArgs), Configured::of));
+        Startup.warnIfNothingConfigured(Startup.AGENT, contexts.baseConfig());
         BridgeInjector.inject(instrumentation);
-        Installer.install(instrumentation, config, format);
+        Installer.install(instrumentation, contexts);
     }
 }
