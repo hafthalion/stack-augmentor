@@ -2,6 +2,7 @@ package com.hafnium.stackaugmentor.runtime.config
 
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
+import java.net.URI
 import java.net.URL
 import java.net.URLClassLoader
 import java.nio.file.Files
@@ -19,6 +20,8 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.api.condition.EnabledOnOs
+import org.junit.jupiter.api.condition.OS
 import org.junit.jupiter.api.io.TempDir
 
 class ClassLoaderConfigsTest {
@@ -238,12 +241,21 @@ class ClassLoaderConfigsTest {
     }
 
     @Test
+    @EnabledOnOs(OS.WINDOWS)
+    fun `sources compare Windows paths with encoded backslashes in one form`() {
+        // Quarkus's code sources on Windows, while its resources are jar:file:/C:/app/a.jar!/...
+        assertEquals("file:/C:/app/a.jar", ClassLoaderConfigs.source("file:/C:%5Capp%5Ca.jar"))
+        assertEquals("file:/C:/app/a.jar", ClassLoaderConfigs.source("jar:file:/C:/app/a.jar!/"))
+    }
+
+    @Test
     fun `sources compare jars and directories in one form`() {
         assertEquals("file:/app/a.jar", ClassLoaderConfigs.source("jar:file:/app/a.jar!/"))
         assertEquals("file:/app/a.jar", ClassLoaderConfigs.source("file:/app/a.jar"))
         assertEquals("file:/app/classes", ClassLoaderConfigs.source("file:///app/classes/"))
         assertEquals("nested:/app.jar/!BOOT-INF/classes", ClassLoaderConfigs.source("jar:nested:/app.jar/!BOOT-INF/classes/!/"))
-        assertEquals("file:/app/a.jar", ClassLoaderConfigs.source(URL("jar:file:/app/a.jar!/stack-augmentor.toml")))
+        assertEquals("file:/app/a.jar", ClassLoaderConfigs.source(URI("jar:file:/app/a.jar!/stack-augmentor.toml").toURL()))
+        assertEquals("file:/app/a-b.jar", ClassLoaderConfigs.source("file:/app/a%2Db.jar"))
     }
 
     @Test

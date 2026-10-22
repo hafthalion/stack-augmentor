@@ -3,10 +3,13 @@ package com.hafnium.stackaugmentor.runtime.config;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.WeakIdentityMap;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.annotation.Annotation;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
@@ -462,7 +465,9 @@ public final class ClassLoaderConfigs<T> {
      * A jar's or directory's URL in one form: {@code jar:file:/app/a.jar!/} and {@code file:/app/a.jar} as
      * {@code file:/app/a.jar}, {@code file:///app/classes/} as {@code file:/app/classes}. Code sources name jars without
      * {@code jar:}, resources in them with it; nested jars, e.g. Spring Boot's
-     * {@code jar:nested:/app.jar/!BOOT-INF/classes/!/}, keep their inner {@code !}.
+     * {@code jar:nested:/app.jar/!BOOT-INF/classes/!/}, keep their inner {@code !}. A file's URL is encoded one way, with
+     * {@code /} as separator, as URLs may name the same file differently: on Windows, Quarkus's code sources are e.g.
+     * {@code file:/C:%5CUsers%5Capp.jar}, with encoded backslashes, its resources {@code jar:file:/C:/Users/app.jar!/...}.
      */
     static String source(String url) {
         String source = url;
@@ -471,6 +476,14 @@ public final class ClassLoaderConfigs<T> {
         }
         if (source.endsWith("!/")) {
             source = source.substring(0, source.length() - "!/".length());
+        }
+        if (source.startsWith("file:") && source.indexOf('!') < 0) {
+            try {
+                String path = new URI(source).getPath().replace(File.separatorChar, '/');
+                source = new URI("file", null, path, null).toString();
+            } catch (URISyntaxException | RuntimeException e) {
+                // Not a valid URI: compared as it is.
+            }
         }
         if (source.startsWith("file:///")) {
             source = "file:/" + source.substring("file:///".length());
