@@ -9,7 +9,7 @@ plugins {
 
 // A Spring Boot application, instrumented at build time and packaged as an executable jar, whose classes and libraries
 // Spring Boot's own class loader loads. The tests run the jar as an application is run: without the agent, and with the
-// agent and a configuration of its own, which applies before the application's stack-augmentor-global.toml.
+// agent and a configuration of its own, which applies before the application's stack-augmentor-context.toml.
 
 val agent = configurations.create("agent") {
     isCanBeConsumed = false
@@ -33,7 +33,7 @@ tasks.named<JavaCompile>("compileJava") {
     options.compilerArgs.add("-parameters")
 }
 
-val stackAugmentorConfig = layout.projectDirectory.file("src/main/resources/stack-augmentor-global.toml")
+val stackAugmentorConfig = layout.projectDirectory.file("src/main/resources/stack-augmentor-context.toml")
 
 byteBuddy {
     entryPoint = EntryPoint.Default.DECORATE

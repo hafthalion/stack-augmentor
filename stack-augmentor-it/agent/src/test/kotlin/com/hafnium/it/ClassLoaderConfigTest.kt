@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 
 /**
- * Applications in one server, each in a class loader of its own with its own stack-augmentor-global.toml, and jars with
+ * Applications in one server, each in a class loader of its own with its own stack-augmentor-context.toml, and jars with
  * their own stack-augmentor.toml: each class uses the agent's configuration, then the global one of its class loader,
  * then the local one of its jar or directory, then the built-in one.
  */
@@ -37,7 +37,7 @@ class ClassLoaderConfigTest {
 
     private fun application(dir: Path, name: String, toml: String): Application {
         val config = Files.createDirectories(dir.resolve(name))
-        Files.writeString(config.resolve("stack-augmentor-global.toml"), toml)
+        Files.writeString(config.resolve("stack-augmentor-context.toml"), toml)
         return Application(config)
     }
 

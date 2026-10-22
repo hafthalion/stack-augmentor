@@ -48,6 +48,6 @@ and the application SHALL keep running with the stack traces it covers unchanged
 - **THEN** the JVM stops with a message naming the unknown key `frameformat` and the allowed keys
 
 #### Scenario: Invalid runtime configuration of build-time instrumentation
-- **GIVEN** a build-time instrumented application whose `stack-augmentor-global.toml` on the classpath has `frameformat = "…"`
+- **GIVEN** a build-time instrumented application whose `stack-augmentor-context.toml` on the classpath has `frameformat = "…"`
 - **WHEN** the first exception leaves an instrumented method
 - **THEN** an error names the file, the unknown key `frameformat` and its line, and the exception is thrown with its original stack trace

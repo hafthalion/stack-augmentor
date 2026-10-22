@@ -124,7 +124,7 @@ class ThrowHandlerTest {
 
     @Test
     fun `a class uses the global configuration of its own class loader`(@TempDir dir: Path) {
-        Files.writeString(dir.resolve("stack-augmentor-global.toml"), "[augment]\nreceiverFormat = \"<\$value>\"\n[augment.exceptions]\n\"java.lang.Exception+\" = true\n")
+        Files.writeString(dir.resolve("stack-augmentor-context.toml"), "[augment]\nreceiverFormat = \"<\$value>\"\n[augment.exceptions]\n\"java.lang.Exception+\" = true\n")
         val handler = ThrowHandler()
         Application(dir).use { application ->
             val type = application.loadClass(Annotated::class.java.name)
@@ -144,7 +144,7 @@ class ThrowHandlerTest {
 
     @Test
     fun `an invalid configuration of a class loader leaves its classes unchanged`(@TempDir dir: Path) {
-        Files.writeString(dir.resolve("stack-augmentor-global.toml"), "[augment]\nmaxValueLength = 1\n")
+        Files.writeString(dir.resolve("stack-augmentor-context.toml"), "[augment]\nmaxValueLength = 1\n")
         val handler = ThrowHandler()
         Application(dir).use { application ->
             val type = application.loadClass(Annotated::class.java.name)

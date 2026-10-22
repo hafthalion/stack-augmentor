@@ -8,7 +8,7 @@ plugins {
 
 // A Quarkus application in JVM mode, instrumented at build time and packaged by Quarkus (fast-jar), whose classes and
 // libraries Quarkus's own class loader loads. The tests run it as an application is run: without the agent, and with
-// the agent and a configuration of its own, which applies before the application's stack-augmentor-global.toml.
+// the agent and a configuration of its own, which applies before the application's stack-augmentor-context.toml.
 
 val agent = configurations.create("agent") {
     isCanBeConsumed = false
@@ -32,7 +32,7 @@ tasks.named<JavaCompile>("compileJava") {
     options.compilerArgs.add("-parameters")
 }
 
-val stackAugmentorConfig = layout.projectDirectory.file("src/main/resources/stack-augmentor-global.toml")
+val stackAugmentorConfig = layout.projectDirectory.file("src/main/resources/stack-augmentor-context.toml")
 
 byteBuddy {
     entryPoint = EntryPoint.Default.DECORATE

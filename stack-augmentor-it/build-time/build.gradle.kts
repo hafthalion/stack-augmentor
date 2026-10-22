@@ -32,7 +32,7 @@ dependencies {
 
 // One configuration for both phases: [augment.receiver] and [augment.params] are read here at build time,
 // [augment] and [augment.receiver] from the classpath at runtime.
-val stackAugmentorConfig = layout.projectDirectory.file("src/main/resources/stack-augmentor-global.toml")
+val stackAugmentorConfig = layout.projectDirectory.file("src/main/resources/stack-augmentor-context.toml")
 // The module's local configuration: the plugin names it on the classes it instruments, which then use it at runtime.
 val stackAugmentorLocalConfig = layout.projectDirectory.file("src/main/resources/stack-augmentor.toml")
 

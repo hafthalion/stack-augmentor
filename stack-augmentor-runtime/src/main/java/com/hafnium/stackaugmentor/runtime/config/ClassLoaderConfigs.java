@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
  *
  * <ol>
  *     <li>the global configuration given to the JVM: the agent's file or {@code -Dstackaugmentor.config};</li>
- *     <li>the {@value AugmentorConfig#GLOBAL_RESOURCE} of the nearest class loader, from the class's own upwards, that has
+ *     <li>the {@value AugmentorConfig#CONTEXT_RESOURCE} of the nearest class loader, from the class's own upwards, that has
  *     one of its own, one that its parent does not see; without one, that of the system class loader, if any. A class
  *     loader may have one only;</li>
  *     <li>the {@value AugmentorConfig#LOCAL_RESOURCE} of the jar or the directory that the class comes from, if it has
@@ -59,7 +59,7 @@ public final class ClassLoaderConfigs<T> {
     public static final String RESOURCE = AugmentorConfig.LOCAL_RESOURCE;
 
     /** The global configuration file of a class loader. */
-    public static final String GLOBAL_RESOURCE = AugmentorConfig.GLOBAL_RESOURCE;
+    public static final String CONTEXT_RESOURCE = AugmentorConfig.CONTEXT_RESOURCE;
 
     private final String component;
     /** Null where every class uses the base configuration. */
@@ -124,7 +124,7 @@ public final class ClassLoaderConfigs<T> {
     public static <T> ClassLoaderConfigs<T> create(String component, AugmentorConfig argument, String argumentLocation,
                                                    Function<AugmentorConfig, T> factory) {
         ClassLoader system = ClassLoader.getSystemClassLoader();
-        URL resource = globalResource(system);
+        URL resource = contextResource(system);
         AugmentorConfig systemGlobal = resource != null ? read(resource) : null;
         ClassLoaderConfigs<T> configs = new ClassLoaderConfigs<>(component, factory, argument, systemGlobal, null);
         Log.setDebug(configs.baseConfig.debug());
@@ -293,7 +293,7 @@ public final class ClassLoaderConfigs<T> {
             global = null;
         } else {
             try {
-                URL resource = globalResource(loader);
+                URL resource = contextResource(loader);
                 global = resource != null ? readFor(loader, resource, bytes(resource)) : inherited(loader.getParent());
             } catch (ConfigException e) {
                 Log.error(component + ": " + e.getMessage() + "; the classes of class loader " + describe(loader) + " are not augmented");
@@ -390,11 +390,11 @@ public final class ClassLoaderConfigs<T> {
         return null;
     }
 
-    /** The class loader's own {@value #GLOBAL_RESOURCE}, or null; several are an error. */
-    private static URL globalResource(ClassLoader loader) {
-        List<URL> resources = ownResources(loader, GLOBAL_RESOURCE);
+    /** The class loader's own {@value #CONTEXT_RESOURCE}, or null; several are an error. */
+    private static URL contextResource(ClassLoader loader) {
+        List<URL> resources = ownResources(loader, CONTEXT_RESOURCE);
         if (resources.size() > 1) {
-            throw new ConfigException("class loader " + describe(loader) + " has several " + GLOBAL_RESOURCE + ", but may have one only: "
+            throw new ConfigException("class loader " + describe(loader) + " has several " + CONTEXT_RESOURCE + ", but may have one only: "
                     + resources.stream().map(URL::toString).collect(Collectors.joining(", ")));
         }
         return resources.isEmpty() ? null : resources.get(0);
