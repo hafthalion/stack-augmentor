@@ -1,11 +1,8 @@
 # The module's global file, for both phases:
 # - [augment.annotations], [augment.receiver] and [augment.params] are read at build time by the ByteBuddy build
 #   plugin (see build.gradle.kts), which instruments the classes and methods they need;
-# - [augment], [augment.exceptions], [augment.annotations], [augment.receiver], debug and inPlaceModification are read
-#   at runtime, from the classpath (or from -Dstackaugmentor.config=<file>).
-
-# Print diagnostics to stderr (default: false).
-debug = false
+# - [augment], [augment.exceptions], [augment.annotations] and [augment.receiver] are read at runtime, from the
+#   classpath. A file on the classpath has no [settings]: they go in a file given by -Dstackaugmentor.config=<file>.
 
 # How frames look, at runtime (these are the defaults, see the README).
 [augment]

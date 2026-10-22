@@ -1,14 +1,12 @@
 # One file for both phases:
 # - [augment.annotations], [augment.receiver] and [augment.params] are read at build time by the ByteBuddy build
 #   plugin (see build.gradle.kts), which instruments the classes and methods they need;
-# - [augment], [augment.exceptions], [augment.annotations], [augment.receiver], debug and inPlaceModification are read
-#   at runtime, from the classpath (or from -Dstackaugmentor.config=<file>).
-
-# Print diagnostics to stderr (default: false).
-debug = false
-# Write augmented frames into the exception's own stack trace (default: true): only where the application is started
-# with --add-opens java.base/java.lang=ALL-UNNAMED, otherwise frames are copied.
-# inPlaceModification = true
+# - [augment], [augment.exceptions], [augment.annotations] and [augment.receiver] are read at runtime, from the
+#   classpath. A file on the classpath has no [settings] (debug, inPlaceModification): they go in a file given by
+#   -Dstackaugmentor.config=<file>, e.g.
+#     [settings]
+#     debug = true
+#     inPlaceModification = true   # only where the application is started with --add-opens java.base/java.lang=ALL-UNNAMED
 
 # How frames look, at runtime (these are the defaults, see the README).
 [augment]

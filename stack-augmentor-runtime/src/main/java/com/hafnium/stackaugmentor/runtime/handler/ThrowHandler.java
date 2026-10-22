@@ -26,13 +26,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * instrumentation no agent does that: {@link Dispatch} creates it through {@code ServiceLoader} with the
  * no-argument constructor, which reads the global configuration from {@code -Dstackaugmentor.config}, and those on
  * the classpath as {@link ClassLoaderConfigs} describes. What gets instrumented was decided at build
- * time; at runtime, {@code [augment]}, {@code [augment.exceptions]}, {@code debug} and the {@code [augment.receiver]}
- * entries apply, the latter by the key of the entry that decided the method at build time: a method without such an
+ * time; at runtime, {@code [augment]}, {@code [augment.exceptions]}, the {@code [settings]} of {@code -Dstackaugmentor.config}
+ * and the {@code [augment.receiver]} entries apply, the latter by the key of the entry that decided the method at build time: a method without such an
  * entry shows no receiver members, even if its class is annotated.
  *
  * <p>Each frame uses the configuration of its method's class ({@link ClassLoaderConfigs}), so the applications of one
- * server, and the jars of one application, can have their own; {@code inPlaceModification} is decided once, by the global
- * configurations of the JVM.
+ * server, and the jars of one application, can have their own; {@code [settings]} come from the global configuration given
+ * to the JVM only.
  */
 public final class ThrowHandler implements Dispatch.Handler {
 

@@ -16,7 +16,7 @@ Stack Augmentor augments the frames of stack traces with receiver members and pa
 - **Three ways to run**: a Java agent, the agent reading every frame from the live stack (experimental), or build-time instrumentation without an agent.
 - **Cause chains**: the frames a cause shares with its wrapper are augmented the same way, so `... N more` still works; `ExceptionFormat.rootCauseFirst` prints the root cause first.
 - **Java and Kotlin**, constructors included; the library is Java and does not need the Kotlin runtime.
-- **Cheap**: with instrumented classes, a few microseconds per configured frame an exception leaves, nothing on normal returns; `debug = true` shows what gets instrumented and why.
+- **Cheap**: with instrumented classes, a few microseconds per configured frame an exception leaves, nothing on normal returns; `debug = true` in `[settings]` shows what gets instrumented and why.
 
 ## Three ways to use it
 
@@ -41,8 +41,8 @@ An application with classes instrumented at build time can also run with the age
 | `[augment.receiver]` | configuration | empty | which frames show receiver members by name, and which ones, e.g. `"com.thirdparty.Order+::*" = "getOrderNumber()"` ([Receiver members](docs/configuration.md#receiver-members)) |
 | `[augment.params]` | configuration | empty | which frames show parameter values by name or index, and which parameters, e.g. `"com.acme.Order::ship, cancel*" = "orderId"` ([Parameter values](docs/configuration.md#parameter-values)) |
 | `[augment]` | configuration | see [Formats](docs/configuration.md#formats) | how frames look: `frameFormat`, `receiverFormat`, `paramsFormat`, `maxValueLength` |
-| `debug` | configuration | `false` | prints what gets instrumented and where each value comes from |
-| `inPlaceModification` | configuration, or `-Dstackaugmentor.inPlaceModification=false` | `true` | writes each frame into the exception's own stack trace instead of copying the trace; faster for deep stacks, needs `java.lang` open, otherwise frames are copied (see [Limitations](docs/limitations.md)) |
+| `debug` | `[settings]` of the agent's file or `-Dstackaugmentor.config` | `false` | prints what gets instrumented and where each value comes from |
+| `inPlaceModification` | `[settings]` of the agent's file or `-Dstackaugmentor.config`, or `-Dstackaugmentor.inPlaceModification=false` | `true` | writes each frame into the exception's own stack trace instead of copying the trace; faster for deep stacks, needs `java.lang` open, otherwise frames are copied (see [Limitations](docs/limitations.md)) |
 | Live stack | `-agentpath:<native library>` | off | the agent reads the values from the live stack instead of instrumenting classes (see [Live stack](docs/live-stack.md)) |
 
 In all four tables the first matching entry decides, and classes are written the same way: a class name matches that class only, `+` after it also its subclasses, and a pattern (`*`, `**`, `?`) matches class names. The tables differ in their keys and values:
@@ -156,7 +156,7 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 ```
 
 - **At build time**, the plugin instruments the classes and methods that `[augment.annotations]`, `[augment.receiver]` and `[augment.params]` need. Without the configuration argument, the built-in configuration applies: the methods that `@Augmented` selects are instrumented, where their class has annotated members or they have annotated parameters.
-- **At runtime**, the application needs only `stack-augmentor-api` and `stack-augmentor-runtime` (no agent, no ByteBuddy, no Kotlin). The runtime reads the file in `-Dstackaugmentor.config` and those on the classpath, `stack-augmentor-global.toml` of the class loader and `stack-augmentor.toml` of the class's jar or directory, for `[augment]`, `[augment.exceptions]`, `[augment.receiver]` (receiver members), `debug` and `inPlaceModification` ([the configuration chain](docs/configuration.md#the-configuration-chain)).
+- **At runtime**, the application needs only `stack-augmentor-api` and `stack-augmentor-runtime` (no agent, no ByteBuddy, no Kotlin). The runtime reads the file in `-Dstackaugmentor.config` and those on the classpath, `stack-augmentor-global.toml` of the class loader and `stack-augmentor.toml` of the class's jar or directory, for `[augment]`, `[augment.exceptions]` and `[augment.receiver]` (receiver members), and `[settings]` from `-Dstackaugmentor.config` only ([the configuration chain](docs/configuration.md#the-configuration-chain)).
 - **One file serves both** when it is `src/main/resources/stack-augmentor-global.toml`. A module's local `src/main/resources/stack-augmentor.toml`, for its own classes only, serves both when it is the plugin's second argument: the plugin marks the classes it instruments with it, so they find it at runtime also when classes and resources are in different build directories ([where the files come from](docs/configuration.md#where-the-files-come-from)).
 - A frame's receiver members come from the runtime `[augment.receiver]` entry with the same key as the entry that decided its method at build time; without that key they are left out. Where the annotations decided at build time, the `@AugmentedReceiver` members are shown, like the annotated parameters: the runtime's `[augment.annotations]` is not checked again.
 - Without a runtime configuration, a warning says so and the built-in configuration applies; it shows the `@AugmentedReceiver` members, but not the receiver members of `[augment.receiver]` entries. An invalid one is printed as an error, and stack traces stay unchanged.

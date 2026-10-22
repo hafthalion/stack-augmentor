@@ -111,7 +111,7 @@ class ByteBuddyPluginTest {
     @Test
     void debugDescribesTheConfigurationAsTheAgentDoes(@TempDir Path dir) throws IOException {
         Path config = dir.resolve("stack-augmentor.toml");
-        Files.writeString(config, "debug = true\n[augment]\nmaxValueLength = 32\n[augment.annotations]\n\"com.hafnium.**\" = true\n");
+        Files.writeString(config, "[settings]\ndebug = true\n[augment]\nmaxValueLength = 32\n[augment.annotations]\n\"com.hafnium.**\" = true\n");
         ByteArrayOutputStream err = captureErr();
         try {
             new ByteBuddyPlugin(config.toString());
@@ -130,7 +130,7 @@ class ByteBuddyPluginTest {
     @Test
     void theAdviceAugmentsTheFramesOfTheClassesItIsAppliedTo(@TempDir Path dir) throws Exception {
         Path config = dir.resolve("stack-augmentor.toml");
-        Files.writeString(config, "debug = true\n[augment.annotations]\n\"com.hafnium.**\" = true\n");
+        Files.writeString(config, "[settings]\ndebug = true\n[augment.annotations]\n\"com.hafnium.**\" = true\n");
         ByteArrayOutputStream err = captureErr();
         TypeDescription type = TypeDescription.ForLoadedType.of(Failing.class);
         Class<?> instrumented;
@@ -181,10 +181,10 @@ class ByteBuddyPluginTest {
     @Test
     void aLocalConfigurationMustNotSetTheSettingsOfTheWholeJvm(@TempDir Path dir) throws IOException {
         Path local = dir.resolve("stack-augmentor.toml");
-        Files.writeString(local, "debug = true\n");
+        Files.writeString(local, "[settings]\ndebug = true\n");
         captureErr();
         ConfigException error = assertThrows(ConfigException.class, () -> new ByteBuddyPlugin("", local.toString()));
-        assertTrue(error.getMessage().startsWith("stack-augmentor.toml, line 1: 'debug' applies to the whole JVM"), error.getMessage());
+        assertTrue(error.getMessage().startsWith("stack-augmentor.toml, line 1: [settings] applies to the whole JVM"), error.getMessage());
         assertTrue(assertThrows(ConfigException.class, () -> new ByteBuddyPlugin("", dir.resolve("missing.toml").toString()))
                 .getMessage().contains("not found"));
     }
