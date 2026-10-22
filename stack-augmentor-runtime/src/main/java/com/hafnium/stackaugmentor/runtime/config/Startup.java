@@ -39,12 +39,6 @@ public final class Startup {
         }
     }
 
-    /** Turns debug output on or off as configured, and describes the configuration and where it came from. */
-    public static void configure(String component, String location, AugmentorConfig config) {
-        Log.setDebug(config.debug());
-        describe(component, location, config);
-    }
-
     /** With debug output on, describes a configuration file and where it came from. */
     public static void describe(String component, String location, AugmentorConfig config) {
         if (!Log.isDebug()) {
