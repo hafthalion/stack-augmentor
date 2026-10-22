@@ -36,6 +36,8 @@ The system SHALL always print a warning:
 - when the runtime cannot start, with the reason, so that stack traces stay unchanged;
 - when the runtime of build-time instrumentation finds no configuration file for a class, so that the built-in
   configuration is used alone;
+- when the runtime of build-time instrumentation does not find the local configuration a class was instrumented with,
+  so that the local file of its jar or directory, if any, is used instead;
 - when the agent or the build plugin starts with a configuration that selects nothing to augment: no `[augment.receiver]`
   or `[augment.params]` entries other than `"-"` and no `[augment.annotations]` entry that is `true`;
 - when a configuration selects something to augment but no `[augment.exceptions]` entry is `true`, suggesting

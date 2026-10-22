@@ -31,7 +31,7 @@ with the reason printed. The build SHALL be repeatable: a changed configuration 
 #### Scenario: Configuration change
 - **GIVEN** the `[augment.annotations]` entries in the build plugin's configuration no longer select the project's classes
 - **WHEN** the project is rebuilt
-- **THEN** its classes are not instrumented, and with `debug = true` the build lists the ignored annotations
+- **THEN** its classes are not instrumented, and with `debug = true` in the `[settings]` of the build's own configuration the build lists the ignored annotations
 
 #### Scenario: No configuration
 - **GIVEN** the build plugin without a configuration

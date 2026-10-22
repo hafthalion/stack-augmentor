@@ -195,8 +195,10 @@ SHALL have them, and a file on the classpath that does SHALL be rejected. `debug
 `[settings]` SHALL be rejected, saying where they belong.
 
 With the agent, the chain SHALL decide everything for the class; with build-time instrumentation, what the runtime
-decides. The global configuration of the JVM and the context configuration of the system class loader SHALL be read at startup, and an invalid one
-SHALL stop the agent as any invalid configuration does. The others SHALL be read once per class loader, before its first
+decides. With the agent, the global configuration of the JVM and the context configuration of the system class loader
+SHALL be read at startup, and an invalid one SHALL stop the agent as any invalid configuration does; with build-time
+instrumentation, the runtime SHALL read them when the first exception needs them, and an invalid one SHALL be reported
+and leave stack traces unchanged (see the reliability specification). The others SHALL be read once per class loader, before its first
 class is augmented; an invalid one SHALL be reported, the JVM SHALL keep running, and the classes it applies to SHALL stay
 unchanged.
 
