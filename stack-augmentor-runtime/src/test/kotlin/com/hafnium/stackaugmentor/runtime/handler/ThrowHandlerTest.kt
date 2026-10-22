@@ -123,7 +123,7 @@ class ThrowHandlerTest {
     }
 
     @Test
-    fun `a class uses the global configuration of its own class loader`(@TempDir dir: Path) {
+    fun `a class uses the context configuration of its own class loader`(@TempDir dir: Path) {
         Files.writeString(dir.resolve("stack-augmentor-context.toml"), "[augment]\nreceiverFormat = \"<\$value>\"\n[augment.exceptions]\n\"java.lang.Exception+\" = true\n")
         val handler = ThrowHandler()
         Application(dir).use { application ->

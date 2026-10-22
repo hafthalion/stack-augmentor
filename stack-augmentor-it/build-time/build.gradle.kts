@@ -41,8 +41,8 @@ byteBuddy {
     entryPoint = EntryPoint.Default.DECORATE
     transformation {
         pluginName = "com.hafnium.stackaugmentor.build.ByteBuddyPlugin"
-        // Without the global file, nothing is instrumented and the build prints a warning.
-        // In the order the files apply: none of the build's own, the global file, the module's local file.
+        // Without the context file, nothing is instrumented and the build prints a warning.
+        // In the order the files apply: none of the build's own, the context file, the module's local file.
         argument { index = 0; value = "" }
         argument { index = 1; value = stackAugmentorConfig.asFile.absolutePath }
         argument { index = 2; value = stackAugmentorLocalConfig.asFile.absolutePath }

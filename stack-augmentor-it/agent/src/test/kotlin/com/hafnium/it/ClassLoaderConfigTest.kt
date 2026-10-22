@@ -16,7 +16,7 @@ import org.junit.jupiter.api.io.TempDir
 
 /**
  * Applications in one server, each in a class loader of its own with its own stack-augmentor-context.toml, and jars with
- * their own stack-augmentor.toml: each class uses the agent's configuration, then the global one of its class loader,
+ * their own stack-augmentor.toml: each class uses the agent's configuration, then the context one of its class loader,
  * then the local one of its jar or directory, then the built-in one.
  */
 class ClassLoaderConfigTest {
@@ -55,7 +55,7 @@ class ClassLoaderConfigTest {
     }
 
     @Test
-    fun `each application uses its own global configuration`(@TempDir dir: Path) {
+    fun `each application uses its own context configuration`(@TempDir dir: Path) {
         val first = application(dir, "first", """
             [augment]
             receiverFormat = "<${'$'}value>"
@@ -114,7 +114,7 @@ class ClassLoaderConfigTest {
             }
         }
         Files.writeString(classes.resolve("stack-augmentor.toml"), "[augment]\nreceiverFormat = \"<local ${'$'}value>\"\n")
-        // The global configuration of the class loader applies first, here to the other directory only.
+        // The context configuration of the class loader applies first, here to the other directory only.
         val config = Files.createDirectories(dir.resolve("config"))
         Files.writeString(config.resolve("stack-augmentor.toml"), "[augment]\nreceiverFormat = \"[other ${'$'}value]\"\n")
         Application(config, classes.toUri().toURL()).use {

@@ -70,7 +70,7 @@ class ClassLoaderConfigsTest {
 
     @Test
     fun `layered configurations look for the first matching entry in their order and take each setting from the first that sets it`() {
-        val global = AugmentorConfig.parse(
+        val context = AugmentorConfig.parse(
             """
             [augment]
             receiverFormat = "<${'$'}value>"
@@ -78,7 +78,7 @@ class ClassLoaderConfigsTest {
             "com.acme.FlowException" = false
             [augment.receiver]
             "com.acme.Order::*" = "id"
-            """.trimIndent(), "global.toml",
+            """.trimIndent(), "stack-augmentor-context.toml",
         )
         val local = AugmentorConfig.parse(
             """
@@ -93,12 +93,12 @@ class ClassLoaderConfigsTest {
             "com.acme.Invoice::*" = "number"
             """.trimIndent(), "local.toml", false,
         )
-        val config = AugmentorConfig.layered(listOf(global, local, AugmentorConfig.builtIn()))
+        val config = AugmentorConfig.layered(listOf(context, local, AugmentorConfig.builtIn()))
         assertEquals("<\$value>", config.receiverFormat())
         assertEquals("<\$value>", config.paramsFormat())
         assertEquals(10, config.maxValueLength())
         assertEquals(AugmentorConfig.DEFAULT_FRAME_FORMAT, config.frameFormat())
-        // The global entry decides, the local one with the same key is left out.
+        // The context entry decides, the local one with the same key is left out.
         assertEquals("id", AugmentorConfig.specText(config.classes()["com.acme.Order::*"]!!))
         assertEquals(listOf("com.acme.Order::*", "com.acme.Invoice::*"), config.classes().keys.toList())
         assertEquals(
@@ -166,7 +166,7 @@ class ClassLoaderConfigsTest {
     }
 
     @Test
-    fun `the global configuration of a class loader applies to all its classes before their local ones`(@TempDir dir: Path) {
+    fun `the context configuration of a class loader applies to all its classes before their local ones`(@TempDir dir: Path) {
         val application = directory(
             dir, "application",
             "stack-augmentor-context.toml" to "[augment]\nreceiverFormat = \"<\$value>\"\n[augment.exceptions]\n\"**\" = false\n",
@@ -204,7 +204,7 @@ class ClassLoaderConfigsTest {
     }
 
     @Test
-    fun `a class loader may have one global configuration only`(@TempDir dir: Path) {
+    fun `a class loader may have one context configuration only`(@TempDir dir: Path) {
         val first = directory(dir, "first", "stack-augmentor-context.toml" to "")
         val second = directory(dir, "second", "stack-augmentor-context.toml" to "")
         val configs = configs()
@@ -232,7 +232,7 @@ class ClassLoaderConfigsTest {
     }
 
     @Test
-    fun `the global configuration of a class loader must not have the settings of the whole JVM`(@TempDir dir: Path) {
+    fun `the context configuration of a class loader must not have the settings of the whole JVM`(@TempDir dir: Path) {
         val application = directory(dir, "application", "stack-augmentor-context.toml" to "[settings]\ninPlaceModification = false\n")
         val configs = configs()
         loader(application).use { loader ->

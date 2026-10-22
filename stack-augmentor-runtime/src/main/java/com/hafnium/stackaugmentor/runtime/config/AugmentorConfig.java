@@ -504,7 +504,7 @@ public final class AugmentorConfig {
     }
 
     /**
-     * The configuration of a class from several, in the order they apply, e.g. the global configuration, the local one
+     * The configuration of a class from several, in the order they apply, e.g. the context configuration, the local one
      * and the built-in one: each table has the entries of all of them in this order, so that the first matching entry of
      * the first configuration that has one decides, and each of {@link #SETTINGS} comes from the first that sets it. An
      * entry whose key an earlier configuration has already configured is left out, as it would never decide.
