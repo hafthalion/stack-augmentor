@@ -31,12 +31,12 @@ byteBuddy {
     entryPoint = EntryPoint.Default.DECORATE
     transformation {
         pluginName = "com.hafnium.stackaugmentor.build.ByteBuddyPlugin"
-        // Without this argument, nothing is instrumented and the build prints a warning.
-        argument { value = stackAugmentorConfig.asFile.absolutePath }
-        // The build's own file, like the agent's: only it may have [settings], e.g. debug = true to see what gets
-        // instrumented. Argument 1, the module's local stack-augmentor.toml, is left empty.
-        argument { index = 1; value = "" }
-        argument { index = 2; value = buildSettings.asFile.absolutePath }
+        // The files in the order they apply. First the build's own file, like the agent's: only it may have [settings],
+        // e.g. debug = true to see what gets instrumented.
+        argument { index = 0; value = buildSettings.asFile.absolutePath }
+        // Then the global file. Without it, nothing is instrumented and the build prints a warning. A third argument
+        // could name the module's local stack-augmentor.toml.
+        argument { index = 1; value = stackAugmentorConfig.asFile.absolutePath }
     }
 }
 
