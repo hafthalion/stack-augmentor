@@ -144,6 +144,8 @@ byteBuddy {
     transformation {
         pluginName = "com.hafnium.stackaugmentor.build.ByteBuddyPlugin"
         argument { value = stackAugmentorConfig.asFile.absolutePath }   // its [augment.*] tables; without it, the built-in configuration
+        // optional: the module's local stack-augmentor.toml, after the global file, for this module's classes only
+        // argument { index = 1; value = layout.projectDirectory.file("src/main/resources/stack-augmentor.toml").asFile.absolutePath }
     }
 }
 
@@ -155,7 +157,7 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 
 - **At build time**, the plugin instruments the classes and methods that `[augment.annotations]`, `[augment.receiver]` and `[augment.params]` need. Without the configuration argument, the built-in configuration applies: the methods that `@Augmented` selects are instrumented, where their class has annotated members or they have annotated parameters.
 - **At runtime**, the application needs only `stack-augmentor-api` and `stack-augmentor-runtime` (no agent, no ByteBuddy, no Kotlin). The runtime reads the file in `-Dstackaugmentor.config` and those on the classpath, `stack-augmentor-global.toml` of the class loader and `stack-augmentor.toml` of the class's jar or directory, for `[augment]`, `[augment.exceptions]`, `[augment.receiver]` (receiver members), `debug` and `inPlaceModification` ([the configuration chain](docs/configuration.md#the-configuration-chain)).
-- **One file serves both** when it is `src/main/resources/stack-augmentor-global.toml`. A local `stack-augmentor.toml` would apply to the classes of its own jar or directory only, and when the classes run from the build directories, as with `gradle run` or in tests, the resources are in another directory than the classes.
+- **One file serves both** when it is `src/main/resources/stack-augmentor-global.toml`. A module's local `src/main/resources/stack-augmentor.toml`, for its own classes only, serves both when it is the plugin's second argument: the plugin marks the classes it instruments with it, so they find it at runtime also when classes and resources are in different build directories ([where the files come from](docs/configuration.md#where-the-files-come-from)).
 - A frame's receiver members come from the runtime `[augment.receiver]` entry with the same key as the entry that decided its method at build time; without that key they are left out. Where the annotations decided at build time, the `@AugmentedReceiver` members are shown, like the annotated parameters: the runtime's `[augment.annotations]` is not checked again.
 - Without a runtime configuration, a warning says so and the built-in configuration applies; it shows the `@AugmentedReceiver` members, but not the receiver members of `[augment.receiver]` entries. An invalid one is printed as an error, and stack traces stay unchanged.
 

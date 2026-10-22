@@ -5,7 +5,9 @@ import com.hafnium.buildfixture.Plain;
 import com.hafnium.buildfixture.Tracked;
 import com.hafnium.stackaugmentor.AugmentedReceiver;
 import com.hafnium.stackaugmentor.runtime.Log;
+import com.hafnium.stackaugmentor.runtime.config.ClassLoaderConfigs;
 import com.hafnium.stackaugmentor.runtime.config.ConfigException;
+import com.hafnium.stackaugmentor.runtime.config.LocalConfiguration;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.description.type.TypeDescription;
 import net.bytebuddy.dynamic.ClassFileLocator;
@@ -149,5 +151,41 @@ class ByteBuddyPluginTest {
         InvocationTargetException thrown = assertThrows(InvocationTargetException.class, () -> instrumented.getMethod("fail").invoke(failing));
         assertEquals("com.hafnium.buildfixture.Failing{id=f-1}", thrown.getCause().getStackTrace()[0].getClassName());
         assertEquals("fail", thrown.getCause().getStackTrace()[0].getMethodName());
+    }
+
+    @Test
+    void aLocalConfigurationAppliesAfterTheGlobalOneAndIsNamedOnTheInstrumentedClasses(@TempDir Path dir) throws Exception {
+        Path config = dir.resolve("stack-augmentor-global.toml");
+        Files.writeString(config, "[augment.annotations]\n\"com.hafnium.buildfixture.Plain\" = false\n");
+        Path local = dir.resolve("stack-augmentor.toml");
+        String text = "[augment.annotations]\n\"com.hafnium.**\" = false\n";
+        Files.writeString(local, text);
+        TypeDescription type = TypeDescription.ForLoadedType.of(Failing.class);
+        Class<?> instrumented;
+        try (ByteBuddyPlugin plugin = new ByteBuddyPlugin(config.toString(), local.toString())) {
+            // The local file's false entry decides where the global file has none.
+            assertFalse(plugin.matches(type));
+        }
+        Files.writeString(local, "[augment]\nmaxValueLength = 10\n");
+        try (ByteBuddyPlugin plugin = new ByteBuddyPlugin("", local.toString())) {
+            assertTrue(plugin.matches(type));
+            instrumented = plugin.apply(new ByteBuddy().redefine(Failing.class), type, ClassFileLocator.ForClassLoader.of(Failing.class.getClassLoader()))
+                    .make()
+                    .load(Failing.class.getClassLoader(), ClassLoadingStrategy.Default.CHILD_FIRST)
+                    .getLoaded();
+        }
+        LocalConfiguration named = instrumented.getAnnotation(LocalConfiguration.class);
+        assertEquals(ClassLoaderConfigs.hash(Files.readAllBytes(local)), named.value());
+    }
+
+    @Test
+    void aLocalConfigurationMustNotSetTheSettingsOfTheWholeJvm(@TempDir Path dir) throws IOException {
+        Path local = dir.resolve("stack-augmentor.toml");
+        Files.writeString(local, "debug = true\n");
+        captureErr();
+        ConfigException error = assertThrows(ConfigException.class, () -> new ByteBuddyPlugin("", local.toString()));
+        assertTrue(error.getMessage().startsWith("stack-augmentor.toml, line 1: 'debug' applies to the whole JVM"), error.getMessage());
+        assertTrue(assertThrows(ConfigException.class, () -> new ByteBuddyPlugin("", dir.resolve("missing.toml").toString()))
+                .getMessage().contains("not found"));
     }
 }

@@ -238,4 +238,24 @@ class ClassLoaderConfigsTest {
         val fixed = ClassLoaderConfigs.fixed("base")
         assertSame("base", fixed.forClass(ClassLoaderConfigsTest::class.java))
     }
+
+    @LocalConfiguration("0123")
+    private class Stamped
+
+    @Test
+    fun `a class that its build plugin named a local configuration uses it wherever it is`(@TempDir dir: Path) {
+        val text = "[augment]\nmaxValueLength = 10\n"
+        val resources = directory(dir, "resources", "stack-augmentor.toml" to text)
+        val classes = directory(dir, "classes")
+        val configs = configs()
+        loader(classes, resources).use { loader ->
+            val hash = ClassLoaderConfigs.hash(text.toByteArray())
+            assertEquals(10, configs.forType(loader, "com.acme.Order", from(classes), hash).maxValueLength())
+            // Not found, e.g. changed after the build: its directory decides, with a warning.
+            val output = stderrOf { assertSame(configs.base(), configs.forType(loader, "com.acme.Order", from(classes), "0123")) }
+            assertTrue(output.contains("WARN runtime: com.acme.Order was instrumented with a stack-augmentor.toml that class loader"), output)
+        }
+        assertEquals("0123", ClassLoaderConfigs.localConfiguration(Stamped::class.java))
+        assertNull(ClassLoaderConfigs.localConfiguration(ClassLoaderConfigsTest::class.java))
+    }
 }

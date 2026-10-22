@@ -6,14 +6,18 @@ import com.hafnium.stackaugmentor.runtime.WeakIdentityMap;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.lang.annotation.Annotation;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.CodeSource;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -74,7 +78,7 @@ public final class ClassLoaderConfigs<T> {
     private final ClassValue<Optional<T>> byClass = new ClassValue<>() {
         @Override
         protected Optional<T> computeValue(Class<?> type) {
-            return Optional.ofNullable(forType(type.getClassLoader(), type.getName(), type.getProtectionDomain()));
+            return Optional.ofNullable(forType(type.getClassLoader(), type.getName(), type.getProtectionDomain(), localConfiguration(type)));
         }
     };
 
@@ -85,9 +89,12 @@ public final class ClassLoaderConfigs<T> {
      *                     that of the system class loader
      * @param withoutLocal what the classes without a local configuration use
      * @param locals       the local configurations by {@link #source}, empty where one is invalid
+     * @param sources      the {@link #source}s of the local configurations by the {@link #hash} of their content, for
+     *                     {@link LocalConfiguration}
+     * @param missing      the hashes of {@link LocalConfiguration}s not found, warned about once
      */
     private record LoaderConfigs<T>(AugmentorConfig global, T withoutLocal, Map<String, Optional<AugmentorConfig>> locals,
-                                    Map<String, Optional<T>> bySource) {
+                                    Map<String, String> sources, Map<String, Optional<T>> bySource, Set<String> missing) {
     }
 
     private ClassLoaderConfigs(String component, Function<AugmentorConfig, T> factory, AugmentorConfig argument,
@@ -161,7 +168,7 @@ public final class ClassLoaderConfigs<T> {
         }
         if (byLoader.get(loader) == null) {
             // Not cached: the class loader's configurations may be being read on this thread.
-            return forType(loader, type.getName(), type.getProtectionDomain());
+            return forType(loader, type.getName(), type.getProtectionDomain(), localConfiguration(type));
         }
         return byClass.get(type).orElse(null);
     }
@@ -172,6 +179,14 @@ public final class ClassLoaderConfigs<T> {
      * thread, e.g. because reading them loads a class.
      */
     public T forType(ClassLoader loader, String className, ProtectionDomain protectionDomain) {
+        return forType(loader, className, protectionDomain, null);
+    }
+
+    /**
+     * {@link #forType(ClassLoader, String, ProtectionDomain)}, for a class whose build plugin named its local
+     * configuration ({@link LocalConfiguration}): the {@link #hash} of its content, or null.
+     */
+    T forType(ClassLoader loader, String className, ProtectionDomain protectionDomain, String localConfiguration) {
         if (factory == null || loader == null) {
             return base;
         }
@@ -179,10 +194,17 @@ public final class ClassLoaderConfigs<T> {
         if (configs == null) {
             return null;
         }
-        if (configs.locals().isEmpty()) {
+        String source = localConfiguration != null ? configs.sources().get(localConfiguration) : null;
+        if (localConfiguration != null && source == null && configs.missing().add(localConfiguration)) {
+            Log.warn(component + ": " + className + " was instrumented with a " + RESOURCE + " that class loader " + describe(loader)
+                    + " does not have, e.g. one changed after the build, so its jar or directory decides which applies");
+        }
+        if (source == null && configs.locals().isEmpty()) {
             return configs.withoutLocal();
         }
-        String source = source(loader, className, protectionDomain);
+        if (source == null) {
+            source = source(loader, className, protectionDomain);
+        }
         Optional<AugmentorConfig> local = source != null ? configs.locals().get(source) : null;
         if (local == null) {
             return configs.withoutLocal();
@@ -268,7 +290,7 @@ public final class ClassLoaderConfigs<T> {
         } else {
             try {
                 URL resource = globalResource(loader);
-                global = resource != null ? readFor(loader, resource, true) : inherited(loader.getParent());
+                global = resource != null ? readFor(loader, resource, bytes(resource), true) : inherited(loader.getParent());
             } catch (ConfigException e) {
                 Log.error(component + ": " + e.getMessage() + "; the classes of class loader " + describe(loader) + " are not augmented");
                 return null;
@@ -278,17 +300,21 @@ public final class ClassLoaderConfigs<T> {
             }
         }
         Map<String, Optional<AugmentorConfig>> locals = new HashMap<>();
+        Map<String, String> sources = new HashMap<>();
         for (URL resource : ownResources(loader, RESOURCE)) {
             String source = source(resource);
             try {
-                locals.put(source, Optional.of(readFor(loader, resource, false)));
+                byte[] content = bytes(resource);
+                sources.putIfAbsent(hash(content), source);
+                locals.put(source, Optional.of(readFor(loader, resource, content, false)));
             } catch (ConfigException e) {
                 Log.error(component + ": " + e.getMessage() + "; the classes of " + source + " are not augmented");
                 locals.put(source, Optional.empty());
             }
         }
         T withoutLocal = global == null ? base : factory.apply(layered(global, null));
-        return new LoaderConfigs<>(global, withoutLocal, Collections.unmodifiableMap(locals), new ConcurrentHashMap<>());
+        return new LoaderConfigs<>(global, withoutLocal, Collections.unmodifiableMap(locals), Collections.unmodifiableMap(sources),
+                new ConcurrentHashMap<>(), ConcurrentHashMap.newKeySet());
     }
 
     /** Stands for an invalid global configuration of a class loader above. */
@@ -304,8 +330,8 @@ public final class ClassLoaderConfigs<T> {
     }
 
     /** Reads a configuration file of a class loader, and describes it. */
-    private AugmentorConfig readFor(ClassLoader loader, URL resource, boolean global) {
-        AugmentorConfig config = read(resource, global);
+    private AugmentorConfig readFor(ClassLoader loader, URL resource, byte[] content, boolean global) {
+        AugmentorConfig config = AugmentorConfig.parse(new String(content, StandardCharsets.UTF_8), resource.toString(), global);
         String location = resource + " of class loader " + describe(loader);
         if (config.sets("inPlaceModification")) {
             Log.warn(component + ": " + location + ": inPlaceModification applies to the whole JVM, so only the agent's file, -D"
@@ -320,15 +346,44 @@ public final class ClassLoaderConfigs<T> {
     }
 
     private static AugmentorConfig read(URL resource, boolean global) {
-        String text;
+        return AugmentorConfig.parse(new String(bytes(resource), StandardCharsets.UTF_8), resource.toString(), global);
+    }
+
+    private static byte[] bytes(URL resource) {
         try (InputStream in = resource.openStream()) {
-            text = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            return in.readAllBytes();
         } catch (IOException e) {
             throw new ConfigException("cannot read " + resource + ": " + e);
         } catch (UncheckedIOException e) {
             throw new ConfigException("cannot read " + resource + ": " + e.getCause());
         }
-        return AugmentorConfig.parse(text, resource.toString(), global);
+    }
+
+    /** What {@link LocalConfiguration} names a configuration file by: the SHA-256 of its content, in lowercase hex. */
+    public static String hash(byte[] content) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * The {@link LocalConfiguration} of a class, or null. Compared by name, as the class may see another copy of the
+     * annotation than this class does, e.g. that of the application while this one is the agent's.
+     */
+    static String localConfiguration(Class<?> type) {
+        try {
+            for (Annotation annotation : type.getDeclaredAnnotations()) {
+                if (annotation.annotationType().getName().equals(LocalConfiguration.class.getName())) {
+                    Object value = annotation.annotationType().getMethod("value").invoke(annotation);
+                    return value instanceof String hash ? hash : null;
+                }
+            }
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
+            Log.debug(() -> "cannot read the annotations of " + type.getName() + ": " + e);
+        }
+        return null;
     }
 
     /** The class loader's own {@value #GLOBAL_RESOURCE}, or null; several are an error. */

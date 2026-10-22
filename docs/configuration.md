@@ -75,7 +75,7 @@ File names must end in `.toml`. There are global files, which apply to many clas
 | the JVM's global file | `-javaagent:stack-augmentor-agent.jar=config=<file>` (or just `=<file>`), otherwise `-Dstackaugmentor.config=<file>`; with build-time instrumentation, the system property | all classes, first |
 | `stack-augmentor-global.toml` | on the classpath of a class loader: one per class loader at most | all classes of that class loader, and of those below it without one of their own |
 | `stack-augmentor.toml` | in a jar or directory on the classpath: one per jar or directory, a class loader may have several | the classes of that jar or directory only |
-| the build plugin's file | the plugin's argument in `build.gradle.kts` (see the [README](../README.md#quick-start-build-time-instrumentation)) | the build, as its global file |
+| the build plugin's files | the plugin's arguments in `build.gradle.kts` (see the [README](../README.md#quick-start-build-time-instrumentation)): a global file, and the module's local `stack-augmentor.toml` as the second | the build, in this order; the local file also at runtime, see below |
 
 Who reads what:
 
@@ -85,7 +85,7 @@ Who reads what:
 
 For build-time instrumentation, one `src/main/resources/stack-augmentor-global.toml` serves both the build and the runtime. A frame's receiver members come from the runtime entry with the same key as the entry that decided its method at build time, so if you change a key, rebuild. Where the annotations decided at build time, the frame shows the `@AugmentedReceiver` members, as it shows the annotated parameters: the build decides both, and the runtime's `[augment.annotations]` is not checked again. Without a runtime file for a class, the built-in configuration applies alone and a warning says so: a forgotten file would otherwise go unnoticed, since the built-in configuration does not have the keys of your build file.
 
-A local `stack-augmentor.toml` in `src/main/resources` applies to the classes of the jar it is packaged in. When the classes run from the build directories, as with `gradle run`, in tests or in an IDE, the resources and the classes are different directories, so it applies to none of them: use `stack-augmentor-global.toml` for those.
+A local `stack-augmentor.toml` in `src/main/resources` applies to the classes of the jar it is packaged in. When the classes run from the build directories, as with `gradle run`, in tests or in an IDE, the resources and the classes are different directories. So pass it to the build plugin as its second argument: the plugin marks the classes it instruments with the file's SHA-256 (`@LocalConfiguration`), and at runtime they use the `stack-augmentor.toml` with that content wherever their class loader has it. If none matches, e.g. because it changed after the build, a warning says so and their jar or directory decides. Classes the agent instruments always go by their jar or directory.
 
 ## The configuration chain
 

@@ -6,16 +6,25 @@ import com.hafnium.stackaugmentor.instrument.advice.ConstructorExit;
 import com.hafnium.stackaugmentor.instrument.advice.ExitAdviceFactory;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
+import com.hafnium.stackaugmentor.runtime.config.ClassLoaderConfigs;
+import com.hafnium.stackaugmentor.runtime.config.ConfigException;
+import com.hafnium.stackaugmentor.runtime.config.LocalConfiguration;
 import com.hafnium.stackaugmentor.runtime.config.Startup;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.build.Plugin;
+import net.bytebuddy.description.annotation.AnnotationDescription;
 import net.bytebuddy.description.method.MethodDescription;
 import net.bytebuddy.description.type.TypeDescription;
 import net.bytebuddy.dynamic.ClassFileLocator;
 import net.bytebuddy.dynamic.DynamicType;
 import net.bytebuddy.matcher.ElementMatcher;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -30,26 +39,74 @@ import java.util.List;
  * Without it (e.g. when discovered through {@code META-INF/net.bytebuddy/build.plugins}), the built-in configuration
  * applies alone ({@link AugmentorConfig#BUILT_IN_RESOURCE}): the methods that {@code @Augmented} selects are
  * instrumented.
+ *
+ * <p>Argument 1, if given, is the path of the module's local configuration, {@code src/main/resources/stack-augmentor.toml}:
+ * it applies after the global one, and the instrumented classes get a {@link LocalConfiguration} naming it, so that they
+ * use it at runtime wherever it is on the classpath, also when classes and resources are in different build directories.
+ * An empty argument 0 stands for no global configuration.
  */
 public final class ByteBuddyPlugin implements Plugin {
 
     private final ParamSelection parameters;
     private final TypeMatching matching;
     private final Advice advice;
+    /** Names the local configuration on the instrumented classes; null without one. */
+    private final AnnotationDescription localConfiguration;
 
     public ByteBuddyPlugin() {
-        this(AugmentorConfig.builtIn(), AugmentorConfig.BUILT_IN_LOCATION);
+        this(null, null, null, null);
     }
 
-    /** @param configFile a TOML configuration; its {@code [augment.receiver]} and {@code [augment.params]} apply. */
+    /** @param configFile a global TOML configuration; its {@code [augment.receiver]} and {@code [augment.params]} apply. */
     public ByteBuddyPlugin(String configFile) {
-        // The ByteBuddy Gradle plugin reports a failing constructor without its cause, so Startup prints the reason too.
-        this(Startup.load(Startup.BUILD_PLUGIN, () -> AugmentorConfig.load(Path.of(configFile))), configFile);
+        this(configFile, "");
     }
 
-    private ByteBuddyPlugin(AugmentorConfig file, String location) {
-        Startup.configure(Startup.BUILD_PLUGIN, location, file);
-        AugmentorConfig config = AugmentorConfig.layered(file == AugmentorConfig.builtIn() ? List.of(file) : List.of(file, AugmentorConfig.builtIn()));
+    /**
+     * @param configFile a global TOML configuration, or empty for none
+     * @param localFile  the module's local TOML configuration, or empty for none
+     */
+    @Plugin.Factory.UsingReflection.Priority(1)
+    public ByteBuddyPlugin(String configFile, String localFile) {
+        // The ByteBuddy Gradle plugin reports a failing constructor without its cause, so Startup prints the reason too.
+        this(configFile.isBlank() ? null : Startup.load(Startup.BUILD_PLUGIN, () -> AugmentorConfig.load(Path.of(configFile))), configFile,
+                localFile.isBlank() ? null : Startup.load(Startup.BUILD_PLUGIN, () -> local(Path.of(localFile))), localFile);
+    }
+
+    private record Local(AugmentorConfig config, String hash) {
+    }
+
+    private static Local local(Path file) {
+        if (!Files.isRegularFile(file)) {
+            throw new ConfigException("Configuration file not found: " + file);
+        }
+        try {
+            byte[] content = Files.readAllBytes(file);
+            return new Local(AugmentorConfig.parse(new String(content, StandardCharsets.UTF_8), file.getFileName().toString(), false),
+                    ClassLoaderConfigs.hash(content));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private ByteBuddyPlugin(AugmentorConfig file, String location, Local local, String localLocation) {
+        List<AugmentorConfig> layers = new ArrayList<>();
+        if (file != null) {
+            layers.add(file);
+        }
+        if (local != null) {
+            layers.add(local.config());
+        }
+        layers.add(AugmentorConfig.builtIn());
+        Log.setDebug(file != null && file.debug());
+        Startup.describe(Startup.BUILD_PLUGIN, file != null ? location : AugmentorConfig.BUILT_IN_LOCATION,
+                file != null ? file : AugmentorConfig.builtIn());
+        if (local != null) {
+            Startup.describe(Startup.BUILD_PLUGIN, localLocation, local.config());
+        }
+        AugmentorConfig config = AugmentorConfig.layered(layers);
+        this.localConfiguration = local == null ? null
+                : AnnotationDescription.Builder.ofType(LocalConfiguration.class).define("value", local.hash()).build();
         Startup.warnIfNoExceptions(Startup.BUILD_PLUGIN, config);
         Startup.warnIfNothingConfigured(Startup.BUILD_PLUGIN, config);
         this.parameters = new ParamSelection(config);
@@ -71,7 +128,8 @@ public final class ByteBuddyPlugin implements Plugin {
         if (Log.isDebug()) {
             Log.debug(() -> matching.describe(typeDescription, methods));
         }
-        return builder.visit(advice.on(methods)).visit(ConstructorExit.on(parameters, matching.constructors(typeDescription)));
+        DynamicType.Builder<?> instrumented = builder.visit(advice.on(methods)).visit(ConstructorExit.on(parameters, matching.constructors(typeDescription)));
+        return localConfiguration != null ? instrumented.annotateType(localConfiguration) : instrumented;
     }
 
     @Override
