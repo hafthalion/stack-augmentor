@@ -190,7 +190,7 @@ configurations, in this order:
 In each of `[augment.exceptions]`, `[augment.annotations]`, `[augment.receiver]` and `[augment.params]`, the first
 matching entry of the first configuration in the chain that has one SHALL decide, so a `false` or `"-"` entry SHALL stop
 the later configurations too; each other key SHALL come from the first configuration that sets it. `[settings]` apply to
-the whole JVM: only a file given explicitly, the JVM's global configuration (and the build plugin's, for the build),
+the whole JVM: only a file given explicitly, the JVM's global configuration (and the build plugin's own file, for the build),
 SHALL have them, and a file on the classpath that does SHALL be rejected. `debug` or `inPlaceModification` outside
 `[settings]` SHALL be rejected, saying where they belong.
 

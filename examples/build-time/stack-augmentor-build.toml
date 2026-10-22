@@ -1,0 +1,5 @@
+# The build's own configuration, the build plugin's third argument (see build.gradle.kts): like the agent's file, it
+# applies first, and only it may have [settings]. It is not packaged, so the runtime does not read it.
+[settings]
+# Print what gets instrumented and why, during the build (default: false).
+debug = false

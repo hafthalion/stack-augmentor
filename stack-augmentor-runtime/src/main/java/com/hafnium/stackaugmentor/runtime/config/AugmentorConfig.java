@@ -139,7 +139,8 @@ public final class AugmentorConfig {
 
     /**
      * The settings of the {@code [settings]} table, which apply to the whole JVM: only the file given explicitly, to the
-     * agent or by {@code -Dstackaugmentor.config} (or to the build plugin), may set them, no file on the classpath.
+     * agent or by {@code -Dstackaugmentor.config}, or the build plugin's settings file, may set them, no file on the
+     * classpath.
      */
     public static final List<String> JVM_SETTINGS = List.of("debug", "inPlaceModification");
 
@@ -816,8 +817,13 @@ public final class AugmentorConfig {
         }
     }
 
-    /** Loads a TOML configuration file. */
+    /** Loads a TOML configuration file given explicitly, which may have {@code [settings]}. */
     public static AugmentorConfig load(Path path) {
+        return load(path, true);
+    }
+
+    /** Loads a TOML configuration file; only one given explicitly may have {@code [settings]}, see {@link #parse(String, String, boolean)}. */
+    public static AugmentorConfig load(Path path, boolean explicit) {
         if (!Files.isRegularFile(path)) {
             throw new ConfigException("Configuration file not found: " + path);
         }
@@ -826,7 +832,7 @@ public final class AugmentorConfig {
             throw new ConfigException(path + ": the configuration must be a TOML file ending in .toml");
         }
         try {
-            return parse(Files.readString(path), fileName);
+            return parse(Files.readString(path), fileName, explicit);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -1048,7 +1054,8 @@ public final class AugmentorConfig {
             if (settings != null) {
                 if (!explicit) {
                     throw error(SETTINGS_TABLE, "[settings] applies to the whole JVM, so only the file given to the agent "
-                            + "(config=<file>) or by -D" + CONFIG_PROPERTY + " may have it, no file on the classpath");
+                            + "(config=<file>) or by -D" + CONFIG_PROPERTY + ", or the build plugin's settings file, may have it, no file on "
+                            + "the classpath");
                 }
                 checkKeys(SETTINGS_TABLE, settings, JVM_SETTINGS);
             }

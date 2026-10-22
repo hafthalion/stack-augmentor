@@ -24,6 +24,7 @@ dependencies {
 // One configuration for both phases: [augment.receiver] and [augment.params] are read here at build time,
 // [augment], [augment.exceptions] and [augment.receiver] from the classpath at runtime.
 val stackAugmentorConfig = layout.projectDirectory.file("src/main/resources/stack-augmentor-global.toml")
+val buildSettings = layout.projectDirectory.file("stack-augmentor-build.toml")
 
 byteBuddy {
     // Only adds advice to existing methods: keep the classes' methods as they are (no rebasing).
@@ -32,6 +33,10 @@ byteBuddy {
         pluginName = "com.hafnium.stackaugmentor.build.ByteBuddyPlugin"
         // Without this argument, nothing is instrumented and the build prints a warning.
         argument { value = stackAugmentorConfig.asFile.absolutePath }
+        // The build's own file, like the agent's: only it may have [settings], e.g. debug = true to see what gets
+        // instrumented. Argument 1, the module's local stack-augmentor.toml, is left empty.
+        argument { index = 1; value = "" }
+        argument { index = 2; value = buildSettings.asFile.absolutePath }
     }
 }
 
@@ -39,6 +44,7 @@ tasks.matching { it.name == "byteBuddyKotlin" }.configureEach {
     // Re-instrument when the configuration or the build plugin's code changes (the task is registered after
     // evaluation, and does not track either by itself).
     inputs.file(stackAugmentorConfig)
+    inputs.file(buildSettings)
     inputs.files(configurations.named("byteBuddy")).withNormalizer(ClasspathNormalizer::class.java)
 }
 

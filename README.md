@@ -146,6 +146,8 @@ byteBuddy {
         argument { value = stackAugmentorConfig.asFile.absolutePath }   // its [augment.*] tables; without it, the built-in configuration
         // optional: the module's local stack-augmentor.toml, after the global file, for this module's classes only
         // argument { index = 1; value = layout.projectDirectory.file("src/main/resources/stack-augmentor.toml").asFile.absolutePath }
+        // optional: the build's own file, like the agent's, before the others; only it may have [settings], e.g. debug
+        // argument { index = 2; value = layout.projectDirectory.file("stack-augmentor-build.toml").asFile.absolutePath }
     }
 }
 
