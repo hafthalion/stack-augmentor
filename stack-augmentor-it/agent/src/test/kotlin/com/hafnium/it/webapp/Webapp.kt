@@ -13,3 +13,10 @@ class Webapp(@AugmentedReceiver val name: String) {
 
     fun fail(@AugmentedParam code: Int): Nothing = throw IllegalStateException("fail $code")
 }
+
+/** Like [Webapp], packaged in a jar of its own by ClassLoaderConfigTest, as a library of the application. */
+@Augmented
+class WebappLibrary(@AugmentedReceiver val name: String) {
+
+    fun fail(@AugmentedParam code: Int): Nothing = throw IllegalStateException("fail $code")
+}

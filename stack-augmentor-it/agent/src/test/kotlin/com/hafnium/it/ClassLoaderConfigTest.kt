@@ -1,6 +1,7 @@
 package com.hafnium.it
 
 import com.hafnium.it.webapp.Webapp
+import com.hafnium.it.webapp.WebappLibrary
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 import java.lang.reflect.InvocationTargetException
@@ -8,6 +9,8 @@ import java.net.URL
 import java.net.URLClassLoader
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.jar.JarEntry
+import java.util.jar.JarOutputStream
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -22,9 +25,9 @@ import org.junit.jupiter.api.io.TempDir
 class ClassLoaderConfigTest {
 
     /** Loads the classes of [PACKAGE] itself, from [classes], and its configurations from [config]. */
-    private class Application(config: Path, classes: URL = Webapp::class.java.protectionDomain.codeSource.location) : URLClassLoader(
+    private class Application(config: Path, classes: List<URL> = listOf(FIXTURES.toUri().toURL())) : URLClassLoader(
         "webapp-" + config.fileName,
-        arrayOf(classes, config.toUri().toURL()),
+        (classes + config.toUri().toURL()).toTypedArray(),
         ClassLoaderConfigTest::class.java.classLoader,
     ) {
         override fun loadClass(name: String, resolve: Boolean): Class<*> = synchronized(getClassLoadingLock(name)) {
@@ -41,9 +44,9 @@ class ClassLoaderConfigTest {
         return Application(config)
     }
 
-    /** The top frame of the exception that `Webapp(name).fail(code)` of [loader] throws. */
-    private fun frame(loader: ClassLoader, name: String, code: Int): StackTraceElement {
-        val type = loader.loadClass(Webapp::class.java.name)
+    /** The top frame of the exception that `Webapp(name).fail(code)`, or that of [fixture], of [loader] throws. */
+    private fun frame(loader: ClassLoader, name: String, code: Int, fixture: Class<*> = Webapp::class.java): StackTraceElement {
+        val type = loader.loadClass(fixture.name)
         assertSame(loader, type.classLoader)
         val webapp = type.getConstructor(String::class.java).newInstance(name)
         try {
@@ -105,7 +108,7 @@ class ClassLoaderConfigTest {
     fun `a local configuration applies to the classes of its own jar or directory`(@TempDir dir: Path) {
         // The class files of the package, with a local configuration next to them.
         val classes = Files.createDirectories(dir.resolve("classes"))
-        val source = Path.of(Webapp::class.java.protectionDomain.codeSource.location.toURI())
+        val source = FIXTURES
         val packageDir = PACKAGE.removeSuffix(".").replace('.', '/')
         Files.list(source.resolve(packageDir)).use { files ->
             for (file in files) {
@@ -117,8 +120,39 @@ class ClassLoaderConfigTest {
         // The context configuration of the class loader applies first, here to the other directory only.
         val config = Files.createDirectories(dir.resolve("config"))
         Files.writeString(config.resolve("stack-augmentor.toml"), "[augment]\nreceiverFormat = \"[other ${'$'}value]\"\n")
-        Application(config, classes.toUri().toURL()).use {
+        Application(config, listOf(classes.toUri().toURL())).use {
             assertEquals("com.hafnium.it.webapp.Webapp<local f>", frame(it, "f", 6).className)
+        }
+    }
+
+    /** A jar with the class file of [fixture] and a stack-augmentor.toml of [toml]. */
+    private fun jar(dir: Path, name: String, fixture: Class<*>, toml: String): Path {
+        val jar = dir.resolve(name)
+        val classFile = fixture.name.replace('.', '/') + ".class"
+        JarOutputStream(Files.newOutputStream(jar)).use { out ->
+            out.putNextEntry(JarEntry(classFile))
+            Files.copy(FIXTURES.resolve(classFile), out)
+            out.closeEntry()
+            out.putNextEntry(JarEntry("stack-augmentor.toml"))
+            out.write(toml.toByteArray())
+            out.closeEntry()
+        }
+        return jar
+    }
+
+    @Test
+    fun `each jar of an application uses its own local configuration`(@TempDir dir: Path) {
+        val application = jar(dir, "application.jar", Webapp::class.java, "[augment]\nreceiverFormat = \"<application ${'$'}value>\"\n")
+        val library = jar(dir, "library.jar", WebappLibrary::class.java, "[augment]\nreceiverFormat = \"<library ${'$'}value>\"\n" +
+            "paramsFormat = \"[${'$'}name:${'$'}value]\"\n")
+        val config = Files.createDirectories(dir.resolve("config"))
+        Application(config, listOf(application, library).map { it.toUri().toURL() }).use {
+            val applicationFrame = frame(it, "g", 7)
+            assertEquals("com.hafnium.it.webapp.Webapp<application g>", applicationFrame.className)
+            assertEquals("fail{code=7}", applicationFrame.methodName)
+            val libraryFrame = frame(it, "h", 8, WebappLibrary::class.java)
+            assertEquals("com.hafnium.it.webapp.WebappLibrary<library h>", libraryFrame.className)
+            assertEquals("fail[code:8]", libraryFrame.methodName)
         }
     }
 
@@ -141,5 +175,8 @@ class ClassLoaderConfigTest {
 
     private companion object {
         val PACKAGE = Webapp::class.java.packageName + "."
+
+        /** The directory with the class files of the fixtures. */
+        val FIXTURES: Path = Path.of(Webapp::class.java.protectionDomain.codeSource.location.toURI())
     }
 }
