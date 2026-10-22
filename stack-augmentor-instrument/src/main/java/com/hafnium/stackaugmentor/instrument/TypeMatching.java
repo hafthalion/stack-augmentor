@@ -10,6 +10,7 @@ import net.bytebuddy.description.method.MethodDescription;
 import net.bytebuddy.description.type.TypeDescription;
 import net.bytebuddy.matcher.ElementMatcher;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -178,7 +179,8 @@ public final class TypeMatching {
         return parameters.annotationsSelect(type, method) && annotated(type) ? AugmentorConfig.ANNOTATION_ENTRY : null;
     }
 
-    private record Annotated(TypeDescription type, boolean annotated) {
+    /** The type weakly, as its description holds its class loader, as in {@link ClassEntries}. */
+    private record Annotated(WeakReference<TypeDescription> type, boolean annotated) {
     }
 
     /** The last answer of {@link #annotated}: it is asked for once per method of a type. */
@@ -187,8 +189,8 @@ public final class TypeMatching {
     /** Whether the type or one of its superclasses has an {@code @AugmentedReceiver} member. */
     private boolean annotated(TypeDescription type) {
         Annotated last = lastAnnotated;
-        if (last == null || last.type() != type) {
-            last = new Annotated(type, firstInHierarchy(type, TypeMatching::hasAnnotatedMember) != null);
+        if (last == null || last.type().get() != type) {
+            last = new Annotated(new WeakReference<>(type), firstInHierarchy(type, TypeMatching::hasAnnotatedMember) != null);
             lastAnnotated = last;
         }
         return last.annotated();
