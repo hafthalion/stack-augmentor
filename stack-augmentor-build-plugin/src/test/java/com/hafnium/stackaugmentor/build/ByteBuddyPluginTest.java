@@ -76,7 +76,7 @@ class ByteBuddyPluginTest {
         Files.writeString(config, "[augment.annotations]\n\"**\" = false\n");
         ByteArrayOutputStream err = captureErr();
 
-        assertFalse(new ByteBuddyPlugin(config.toString()).matches(tracked()));
+        assertFalse(new ByteBuddyPlugin("", config.toString()).matches(tracked()));
 
         String output = err.toString(StandardCharsets.UTF_8);
         assertTrue(output.contains("WARN build plugin: the configuration has no [augment.receiver] or [augment.params] entries other "
@@ -88,7 +88,7 @@ class ByteBuddyPluginTest {
         Path config = dir.resolve("stack-augmentor.toml");
         Files.writeString(config, "[augment]\nparamsFormat = \"($name: $value; ...)\"\n\n[augment.annotations]\n\"com.hafnium.**\" = true\n");
         ByteArrayOutputStream err = captureErr();
-        ConfigException error = assertThrows(ConfigException.class, () -> new ByteBuddyPlugin(config.toString()));
+        ConfigException error = assertThrows(ConfigException.class, () -> new ByteBuddyPlugin("", config.toString()));
         assertTrue(error.getMessage().startsWith("stack-augmentor.toml, line 2: paramsFormat must not contain '('"), error.getMessage());
         // Also printed, since the ByteBuddy Gradle plugin does not show the cause.
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("[stack-augmentor] ERROR build plugin: " + error.getMessage()), err.toString(StandardCharsets.UTF_8));
@@ -98,14 +98,14 @@ class ByteBuddyPluginTest {
     void anAnnotationsEntryEnablesTheAnnotations(@TempDir Path dir) throws IOException {
         Path config = dir.resolve("stack-augmentor.toml");
         Files.writeString(config, "[augment.annotations]\n\"com.hafnium.**\" = true\n");
-        assertTrue(new ByteBuddyPlugin(config.toString()).matches(tracked()));
+        assertTrue(new ByteBuddyPlugin("", config.toString()).matches(tracked()));
     }
 
     @Test
     void theAgentsIgnoredTypesAreLeftAlone(@TempDir Path dir) throws IOException {
         Path config = dir.resolve("stack-augmentor.toml");
         Files.writeString(config, "[augment.annotations]\n\"com.hafnium.**\" = true\n");
-        assertFalse(new ByteBuddyPlugin(config.toString()).matches(TypeDescription.ForLoadedType.of(Annotated.class)));
+        assertFalse(new ByteBuddyPlugin("", config.toString()).matches(TypeDescription.ForLoadedType.of(Annotated.class)));
     }
 
     @Test
@@ -114,7 +114,7 @@ class ByteBuddyPluginTest {
         Files.writeString(config, "[settings]\ndebug = true\n[augment]\nmaxValueLength = 32\n[augment.annotations]\n\"com.hafnium.**\" = true\n");
         ByteArrayOutputStream err = captureErr();
         try {
-            new ByteBuddyPlugin("", "", config.toString());
+            new ByteBuddyPlugin(config.toString());
         } finally {
             Log.setDebug(false);
         }
@@ -134,7 +134,7 @@ class ByteBuddyPluginTest {
         ByteArrayOutputStream err = captureErr();
         TypeDescription type = TypeDescription.ForLoadedType.of(Failing.class);
         Class<?> instrumented;
-        try (ByteBuddyPlugin plugin = new ByteBuddyPlugin("", "", config.toString())) {
+        try (ByteBuddyPlugin plugin = new ByteBuddyPlugin(config.toString())) {
             assertTrue(plugin.matches(type));
             instrumented = plugin.apply(new ByteBuddy().redefine(Failing.class), type, ClassFileLocator.ForClassLoader.of(Failing.class.getClassLoader()))
                     .make()
@@ -162,12 +162,12 @@ class ByteBuddyPluginTest {
         Files.writeString(local, text);
         TypeDescription type = TypeDescription.ForLoadedType.of(Failing.class);
         Class<?> instrumented;
-        try (ByteBuddyPlugin plugin = new ByteBuddyPlugin(config.toString(), local.toString())) {
+        try (ByteBuddyPlugin plugin = new ByteBuddyPlugin("", config.toString(), local.toString())) {
             // The local file's false entry decides where the global file has none.
             assertFalse(plugin.matches(type));
         }
         Files.writeString(local, "[augment]\nmaxValueLength = 10\n");
-        try (ByteBuddyPlugin plugin = new ByteBuddyPlugin("", local.toString())) {
+        try (ByteBuddyPlugin plugin = new ByteBuddyPlugin("", "", local.toString())) {
             assertTrue(plugin.matches(type));
             instrumented = plugin.apply(new ByteBuddy().redefine(Failing.class), type, ClassFileLocator.ForClassLoader.of(Failing.class.getClassLoader()))
                     .make()
@@ -185,10 +185,10 @@ class ByteBuddyPluginTest {
         Path global = dir.resolve("stack-augmentor-global.toml");
         Files.writeString(global, "[augment.annotations]\n\"com.hafnium.**\" = true\n");
         TypeDescription type = TypeDescription.ForLoadedType.of(Failing.class);
-        try (ByteBuddyPlugin plugin = new ByteBuddyPlugin(global.toString(), "", settings.toString())) {
+        try (ByteBuddyPlugin plugin = new ByteBuddyPlugin(settings.toString(), global.toString())) {
             assertFalse(plugin.matches(type));
         }
-        try (ByteBuddyPlugin plugin = new ByteBuddyPlugin(global.toString(), "")) {
+        try (ByteBuddyPlugin plugin = new ByteBuddyPlugin("", global.toString())) {
             assertTrue(plugin.matches(type));
         }
     }
@@ -201,11 +201,11 @@ class ByteBuddyPluginTest {
         Files.writeString(local, "[settings]\ndebug = true\n");
         captureErr();
         // The global and the local file are on the application's classpath too.
-        ConfigException error = assertThrows(ConfigException.class, () -> new ByteBuddyPlugin(global.toString()));
+        ConfigException error = assertThrows(ConfigException.class, () -> new ByteBuddyPlugin("", global.toString()));
         assertTrue(error.getMessage().startsWith("stack-augmentor-global.toml, line 1: [settings] applies to the whole JVM"), error.getMessage());
-        error = assertThrows(ConfigException.class, () -> new ByteBuddyPlugin("", local.toString()));
+        error = assertThrows(ConfigException.class, () -> new ByteBuddyPlugin("", "", local.toString()));
         assertTrue(error.getMessage().startsWith("stack-augmentor.toml, line 1: [settings] applies to the whole JVM"), error.getMessage());
-        assertTrue(assertThrows(ConfigException.class, () -> new ByteBuddyPlugin("", dir.resolve("missing.toml").toString()))
+        assertTrue(assertThrows(ConfigException.class, () -> new ByteBuddyPlugin("", "", dir.resolve("missing.toml").toString()))
                 .getMessage().contains("not found"));
     }
 }

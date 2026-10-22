@@ -38,7 +38,9 @@ byteBuddy {
     entryPoint = EntryPoint.Default.DECORATE
     transformation {
         pluginName = "com.hafnium.stackaugmentor.build.ByteBuddyPlugin"
-        argument { value = stackAugmentorConfig.asFile.absolutePath }
+        // In the order the files apply: none of the build's own, then the global file.
+        argument { index = 0; value = "" }
+        argument { index = 1; value = stackAugmentorConfig.asFile.absolutePath }
     }
 }
 
