@@ -28,7 +28,9 @@ instrumented method, SHALL NOT be augmented.
 
 ### Requirement: No retained objects
 The augmentation SHALL NOT keep application objects or exceptions alive: values SHALL be converted to text when they are
-captured, and anything kept per exception SHALL be released when the exception is no longer used.
+captured, and anything kept per exception SHALL be released when the exception is no longer used. Neither SHALL it keep
+a class loader alive, nor what is kept for its configuration, once the application that used it, e.g. an undeployed web
+application, no longer does.
 
 #### Scenario: Exception becomes unreachable
 - **GIVEN** an augmented exception that the application no longer references
@@ -51,3 +53,8 @@ and the application SHALL keep running with the stack traces it covers unchanged
 - **GIVEN** a build-time instrumented application whose `stack-augmentor-context.toml` on the classpath has `frameformat = "…"`
 - **WHEN** the first exception leaves an instrumented method
 - **THEN** an error names the file, the unknown key `frameformat` and its line, and the exception is thrown with its original stack trace
+
+#### Scenario: Application undeployed
+- **GIVEN** an application in a class loader of its own, with its own configuration, whose classes were augmented
+- **WHEN** the application no longer references its class loader and the garbage collector runs
+- **THEN** the class loader can be collected
