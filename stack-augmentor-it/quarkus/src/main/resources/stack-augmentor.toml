@@ -1,5 +1,5 @@
 # A local configuration: it applies to the classes of the application's own jar or directory only, not to its libraries,
-# after the global configurations.
+# after the JVM's and the context configurations.
 
 [augment]
 paramsFormat = "{$name: $value, ...}"

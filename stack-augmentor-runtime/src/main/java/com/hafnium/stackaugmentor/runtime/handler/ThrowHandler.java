@@ -300,8 +300,8 @@ public final class ThrowHandler implements Dispatch.Handler {
 
     /**
      * The configurations for build-time instrumentation: the system property, then those on the classpath, then the
-     * built-in configuration, with a warning when a class first uses it alone. An invalid global one is printed as an
-     * error; {@link Dispatch} then warns that there is no handler.
+     * built-in configuration, with a warning when a class first uses it alone. An invalid one of the JVM or of the system class
+     * loader is printed as an error; {@link Dispatch} then warns that there is no handler.
      */
     private static ClassLoaderConfigs<Context> runtimeConfigs() {
         return Startup.load(Startup.RUNTIME, () -> ClassLoaderConfigs.create(Startup.RUNTIME, AugmentorConfig.global(null),

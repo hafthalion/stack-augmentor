@@ -158,14 +158,14 @@ rejected with a pointer to `[augment.annotations]`.
 - **THEN** it is rejected with a message naming the key and its line
 
 ### Requirement: Locating the configuration
-There SHALL be two kinds of configuration files: global ones, which apply to many classes, and local ones, which apply to
-the classes of one jar or directory. They SHALL be taken from:
+There SHALL be three kinds of configuration files: the JVM's global one and the context ones of class loaders, which
+apply to many classes, and local ones, which apply to the classes of one jar or directory. They SHALL be taken from:
 - the global configuration of the JVM: with the Java agent, in both of its modes, the agent argument (`config=<path>` or
   `<path>`), otherwise the system property `stackaugmentor.config`; at runtime with build-time instrumentation, the
   system property;
-- the global configuration of a class loader: a `stack-augmentor-context.toml` on its classpath;
+- the context configuration of a class loader: a `stack-augmentor-context.toml` on its classpath;
 - the local configuration of a jar or directory: a `stack-augmentor.toml` in it;
-- with the build plugin: its argument, as a global configuration.
+- with the build plugin: its arguments, the build's own configuration, a context and a local one.
 
 A named file that does not exist SHALL be an error.
 
@@ -195,7 +195,7 @@ SHALL have them, and a file on the classpath that does SHALL be rejected. `debug
 `[settings]` SHALL be rejected, saying where they belong.
 
 With the agent, the chain SHALL decide everything for the class; with build-time instrumentation, what the runtime
-decides. The global configurations of the JVM and of the system class loader SHALL be read at startup, and an invalid one
+decides. The global configuration of the JVM and the context configuration of the system class loader SHALL be read at startup, and an invalid one
 SHALL stop the agent as any invalid configuration does. The others SHALL be read once per class loader, before its first
 class is augmented; an invalid one SHALL be reported, the JVM SHALL keep running, and the classes it applies to SHALL stay
 unchanged.
@@ -210,8 +210,8 @@ unchanged.
 - **WHEN** augmented exceptions leave a method of each
 - **THEN** only the application's frame shows its parameter values in that format
 
-#### Scenario: Global before local
-- **GIVEN** a global configuration with `receiverFormat = "<$value>"` and a local one with `receiverFormat = "[$value]"` and `maxValueLength = 10`
+#### Scenario: Context before local
+- **GIVEN** a context configuration with `receiverFormat = "<$value>"` and a local one with `receiverFormat = "[$value]"` and `maxValueLength = 10`
 - **WHEN** a frame of a class of the local configuration's jar is augmented
 - **THEN** it shows its receiver members as `<…>`, with values cut off at 10 characters
 
@@ -220,7 +220,7 @@ unchanged.
 - **WHEN** an exception leaves a library method that the jar's configuration selects
 - **THEN** the frame shows the parameter values that the jar's configuration selects, in the format of the agent's configuration, which applies first
 
-#### Scenario: Several global files in one class loader
+#### Scenario: Several context files in one class loader
 - **GIVEN** a class loader with two jars that each have a `stack-augmentor-context.toml`
 - **WHEN** its first class is loaded with the agent
 - **THEN** an error names both files, and the classes of that class loader stay unchanged
@@ -281,7 +281,7 @@ With build-time instrumentation:
   members of the `[augment.receiver]` entries the build chose (see the build-time instrumentation specification), from
   the configuration of each class (see "Configuration chain").
 
-One global file, and one local file of the module, SHALL serve both phases of build-time instrumentation.
+One context file, and one local file of the module, SHALL serve both phases of build-time instrumentation.
 
 #### Scenario: Local file of a module in its build directories
 - **GIVEN** `src/main/resources/stack-augmentor.toml` with `[augment.receiver]` entries, passed to the build plugin as the module's local file

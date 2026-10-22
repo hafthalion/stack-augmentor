@@ -1,4 +1,4 @@
-# The application's global configuration: the build reads its method and annotation tables, and at runtime it applies to
+# The application's context configuration: the build reads its method and annotation tables, and at runtime it applies to
 # all classes that Spring Boot's class loader loads, the application's and its libraries', after the agent's configuration if there
 # is one.
 

@@ -1,6 +1,6 @@
-# The module's local file, for both phases: the build plugin gets it as its second argument and names it on the
+# The module's local file, for both phases: the build plugin gets it as its third argument and names it on the
 # classes it instruments, so that they use it at runtime too, although their class files and this file are in different
-# build directories. It applies after the global file, to this module's classes only.
+# build directories. It applies after the context file, to this module's classes only.
 
 # Receiver members of classes you cannot annotate: a method() or a field. An order is identified by its
 # getOrderNumber() method, a customer by its customerId field.

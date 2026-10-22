@@ -35,7 +35,7 @@ An application with classes instrumented at build time can also run with the age
 
 | Option | Where | Default | What it does |
 |---|---|---|---|
-| Configuration files | global: `-javaagent:...=config=<file>` or `-Dstackaugmentor.config=<file>`, and `stack-augmentor-context.toml` on the classpath of a class loader; local: `stack-augmentor.toml` in a jar or directory, for its own classes | none: the [built-in configuration](docs/configuration.md#the-built-in-configuration), which also applies after the files, augments all exceptions with the annotated members and parameters of the classes with `@Augmented` | TOML files with everything below ([where they come from](docs/configuration.md#where-the-files-come-from)) |
+| Configuration files | the JVM's: `-javaagent:...=config=<file>` or `-Dstackaugmentor.config=<file>`; context: `stack-augmentor-context.toml` on the classpath of a class loader; local: `stack-augmentor.toml` in a jar or directory, for its own classes | none: the [built-in configuration](docs/configuration.md#the-built-in-configuration), which also applies after the files, augments all exceptions with the annotated members and parameters of the classes with `@Augmented` | TOML files with everything below ([where they come from](docs/configuration.md#where-the-files-come-from)) |
 | `[augment.exceptions]` | configuration | empty: the next configuration decides | which exceptions are augmented, e.g. `"java.lang.Exception+" = true` ([Exceptions](docs/configuration.md#exceptions)) |
 | `[augment.annotations]` | configuration | empty: the next configuration decides | in which classes `@AugmentedReceiver`, `@AugmentedParam`, `@AugmentedParams` and `@Augmented` are read, e.g. `"com.acme.**" = true` ([Annotations](docs/configuration.md#annotations)) |
 | `[augment.receiver]` | configuration | empty | which frames show receiver members by name, and which ones, e.g. `"com.thirdparty.Order+::*" = "getOrderNumber()"` ([Receiver members](docs/configuration.md#receiver-members)) |
@@ -146,7 +146,7 @@ byteBuddy {
         // the files in the order they apply, each optional ("" for none); without any, the built-in configuration
         // the build's own file, like the agent's; only it may have [settings], e.g. debug
         argument { index = 0; value = "" }   // e.g. layout.projectDirectory.file("stack-augmentor-build.toml").asFile.absolutePath
-        argument { index = 1; value = stackAugmentorConfig.asFile.absolutePath }   // the global file: its [augment.*] tables
+        argument { index = 1; value = stackAugmentorConfig.asFile.absolutePath }   // the context file: its [augment.*] tables
         // the module's local stack-augmentor.toml, for this module's classes only
         // argument { index = 2; value = layout.projectDirectory.file("src/main/resources/stack-augmentor.toml").asFile.absolutePath }
     }

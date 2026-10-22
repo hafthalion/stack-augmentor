@@ -32,7 +32,7 @@ public final class StackAugmentorAgent {
         if (!STARTED.compareAndSet(false, true)) {
             return;
         }
-        // An invalid global configuration stops the JVM here, with the reason in the message.
+        // An invalid configuration of the JVM or of the system class loader stops the JVM here, with the reason.
         ClassLoaderConfigs<Configured> contexts = Startup.load(Startup.AGENT, () -> ClassLoaderConfigs.create(Startup.AGENT,
                 AugmentorConfig.global(agentArgs), AugmentorConfig.location(agentArgs), Configured::of));
         Startup.warnIfNothingConfigured(Startup.AGENT, contexts.baseConfig());

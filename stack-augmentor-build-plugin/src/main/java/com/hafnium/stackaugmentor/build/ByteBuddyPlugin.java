@@ -39,12 +39,12 @@ import java.util.List;
  * <ol start="0">
  *   <li>the build's own configuration, as the agent's file is of the JVM: the only one that may have
  *       {@code [settings]}, whose {@code debug} logs what gets instrumented;</li>
- *   <li>the global configuration, usually the application's {@code src/main/resources/stack-augmentor-context.toml};</li>
+ *   <li>the context configuration, usually the application's {@code src/main/resources/stack-augmentor-context.toml};</li>
  *   <li>the module's local configuration, {@code src/main/resources/stack-augmentor.toml}: the instrumented classes get a
  *       {@link LocalConfiguration} naming it, so that they use it at runtime wherever it is on the classpath, also when
  *       classes and resources are in different build directories.</li>
  * </ol>
- * The global and the local configuration are on the application's classpath too, so like every file there they must not
+ * The context and the local configuration are on the application's classpath too, so like every file there they must not
  * have {@code [settings]}. Without any (e.g. when discovered through {@code META-INF/net.bytebuddy/build.plugins}), the
  * built-in configuration applies alone ({@link AugmentorConfig#BUILT_IN_RESOURCE}): the methods that {@code @Augmented}
  * selects are instrumented.
@@ -68,25 +68,25 @@ public final class ByteBuddyPlugin implements Plugin {
 
     /**
      * @param settingsFile the build's own TOML configuration, which may have {@code [settings]}, or empty for none
-     * @param configFile   a global TOML configuration, or empty for none
+     * @param contextFile  a context TOML configuration, or empty for none
      */
     @Plugin.Factory.UsingReflection.Priority(1)
-    public ByteBuddyPlugin(String settingsFile, String configFile) {
-        this(settingsFile, configFile, "");
+    public ByteBuddyPlugin(String settingsFile, String contextFile) {
+        this(settingsFile, contextFile, "");
     }
 
     /**
      * @param settingsFile the build's own TOML configuration, which may have {@code [settings]}, or empty for none
-     * @param configFile   a global TOML configuration, or empty for none
+     * @param contextFile  a context TOML configuration, or empty for none
      * @param localFile    the module's local TOML configuration, or empty for none
      */
     @Plugin.Factory.UsingReflection.Priority(2)
-    public ByteBuddyPlugin(String settingsFile, String configFile, String localFile) {
+    public ByteBuddyPlugin(String settingsFile, String contextFile, String localFile) {
         // The ByteBuddy Gradle plugin reports a failing constructor without its cause, so Startup prints the reason too.
         this(settingsFile.isBlank() ? null : Startup.load(Startup.BUILD_PLUGIN, () -> AugmentorConfig.load(Path.of(settingsFile))),
                 settingsFile,
-                configFile.isBlank() ? null : Startup.load(Startup.BUILD_PLUGIN, () -> AugmentorConfig.load(Path.of(configFile), false)),
-                configFile,
+                contextFile.isBlank() ? null : Startup.load(Startup.BUILD_PLUGIN, () -> AugmentorConfig.load(Path.of(contextFile), false)),
+                contextFile,
                 localFile.isBlank() ? null : Startup.load(Startup.BUILD_PLUGIN, () -> local(Path.of(localFile))), localFile);
     }
 

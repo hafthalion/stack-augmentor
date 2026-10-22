@@ -45,8 +45,8 @@ import java.util.stream.Collectors;
  *     <li>the built-in configuration.</li>
  * </ol>
  *
- * <p>The global configurations of the JVM and of the system class loader are read at once, and an invalid one is
- * thrown. Those of the other class loaders, and all local ones, are read once per class loader, when a class of it first
+ * <p>The global configuration of the JVM and the context configuration of the system class loader are read at once, and
+ * an invalid one is thrown. Those of the other class loaders, and all local ones, are read once per class loader, when a class of it first
  * needs them, and kept as long as the class loader lives. An invalid one is printed as an error, and the classes it
  * applies to are not augmented.
  *
@@ -58,7 +58,7 @@ public final class ClassLoaderConfigs<T> {
     /** The local configuration file of a jar or directory. */
     public static final String RESOURCE = AugmentorConfig.LOCAL_RESOURCE;
 
-    /** The global configuration file of a class loader. */
+    /** The context configuration file of a class loader. */
     public static final String CONTEXT_RESOURCE = AugmentorConfig.CONTEXT_RESOURCE;
 
     private final String component;
@@ -66,13 +66,13 @@ public final class ClassLoaderConfigs<T> {
     private final Function<AugmentorConfig, T> factory;
     /** The global configuration given to the JVM, or null. */
     private final AugmentorConfig argument;
-    /** The global configuration of the system class loader, or null. */
-    private final AugmentorConfig systemGlobal;
+    /** The context configuration of the system class loader, or null. */
+    private final AugmentorConfig systemContext;
     private final AugmentorConfig baseConfig;
     private final T base;
     private final boolean builtInOnly;
 
-    /** By class loader: its configurations, without one where its global configuration is invalid. */
+    /** By class loader: its configurations, without one where its context configuration is invalid. */
     private final WeakIdentityMap<ClassLoader, Optional<LoaderConfigs<T>>> byLoader = new WeakIdentityMap<>();
 
     /** The class loaders whose configurations this thread is reading: one that it asks for again gets none. */
@@ -89,7 +89,7 @@ public final class ClassLoaderConfigs<T> {
     /**
      * The configurations of one class loader.
      *
-     * @param global       its global configuration, or that of the nearest class loader above it that has one; null for
+     * @param context      its context configuration, or that of the nearest class loader above it that has one; null for
      *                     that of the system class loader
      * @param withoutLocal what the classes without a local configuration use
      * @param locals       the local configurations by {@link #source}, empty where one is invalid
@@ -97,23 +97,23 @@ public final class ClassLoaderConfigs<T> {
      *                     {@link LocalConfiguration}
      * @param missing      the hashes of {@link LocalConfiguration}s not found, warned about once
      */
-    private record LoaderConfigs<T>(AugmentorConfig global, T withoutLocal, Map<String, Optional<AugmentorConfig>> locals,
+    private record LoaderConfigs<T>(AugmentorConfig context, T withoutLocal, Map<String, Optional<AugmentorConfig>> locals,
                                     Map<String, String> sources, Map<String, Optional<T>> bySource, Set<String> missing) {
     }
 
     private ClassLoaderConfigs(String component, Function<AugmentorConfig, T> factory, AugmentorConfig argument,
-                               AugmentorConfig systemGlobal, T base) {
+                               AugmentorConfig systemContext, T base) {
         this.component = component;
         this.factory = factory;
         this.argument = argument;
-        this.systemGlobal = systemGlobal;
+        this.systemContext = systemContext;
         this.baseConfig = layered(null, null);
         this.base = base != null ? base : factory.apply(baseConfig);
-        this.builtInOnly = argument == null && systemGlobal == null;
+        this.builtInOnly = argument == null && systemContext == null;
     }
 
     /**
-     * Reads the global configuration of the system class loader, and describes both global configurations; an invalid
+     * Reads the context configuration of the system class loader, and describes it and the JVM's; an invalid
      * one is thrown.
      *
      * @param component        the component, for the messages
@@ -125,14 +125,14 @@ public final class ClassLoaderConfigs<T> {
                                                    Function<AugmentorConfig, T> factory) {
         ClassLoader system = ClassLoader.getSystemClassLoader();
         URL resource = contextResource(system);
-        AugmentorConfig systemGlobal = resource != null ? read(resource) : null;
-        ClassLoaderConfigs<T> configs = new ClassLoaderConfigs<>(component, factory, argument, systemGlobal, null);
+        AugmentorConfig systemContext = resource != null ? read(resource) : null;
+        ClassLoaderConfigs<T> configs = new ClassLoaderConfigs<>(component, factory, argument, systemContext, null);
         Log.setDebug(configs.baseConfig.debug());
         if (argument != null) {
             Startup.describe(component, argumentLocation, argument);
         }
-        if (systemGlobal != null) {
-            Startup.describe(component, resource + " of the system class loader", systemGlobal);
+        if (systemContext != null) {
+            Startup.describe(component, resource + " of the system class loader", systemContext);
         }
         if (configs.builtInOnly) {
             Startup.describe(component, AugmentorConfig.BUILT_IN_LOCATION, AugmentorConfig.builtIn());
@@ -152,14 +152,14 @@ public final class ClassLoaderConfigs<T> {
     }
 
     /**
-     * The configuration of {@link #base()}: the global ones given to the JVM and of the system class loader, and the
-     * built-in one. Its {@code [settings]}, which only the one given to the JVM may have, apply to the whole JVM.
+     * The configuration of {@link #base()}: the global one given to the JVM, the context one of the system class loader,
+     * and the built-in one. Its {@code [settings]}, which only the one given to the JVM may have, apply to the whole JVM.
      */
     public AugmentorConfig baseConfig() {
         return baseConfig;
     }
 
-    /** Whether {@link #base()} is the built-in configuration only, as no global configuration was found. */
+    /** Whether {@link #base()} is the built-in configuration only, as neither the JVM nor the system class loader has a configuration. */
     public boolean builtInOnly() {
         return builtInOnly;
     }
@@ -216,7 +216,7 @@ public final class ClassLoaderConfigs<T> {
         if (local.isEmpty()) {
             return null;
         }
-        return configs.bySource().computeIfAbsent(source, key -> Optional.of(factory.apply(layered(configs.global(), local.get()))))
+        return configs.bySource().computeIfAbsent(source, key -> Optional.of(factory.apply(layered(configs.context(), local.get()))))
                 .orElse(null);
     }
 
@@ -253,14 +253,14 @@ public final class ClassLoaderConfigs<T> {
     }
 
     /** The configurations of a class's chain, without the ones that are null. */
-    private AugmentorConfig layered(AugmentorConfig global, AugmentorConfig local) {
+    private AugmentorConfig layered(AugmentorConfig context, AugmentorConfig local) {
         List<AugmentorConfig> layers = new ArrayList<>();
         if (argument != null) {
             layers.add(argument);
         }
-        AugmentorConfig loaderGlobal = global != null ? global : systemGlobal;
-        if (loaderGlobal != null) {
-            layers.add(loaderGlobal);
+        AugmentorConfig loaderContext = context != null ? context : systemContext;
+        if (loaderContext != null) {
+            layers.add(loaderContext);
         }
         if (local != null) {
             layers.add(local);
@@ -269,7 +269,7 @@ public final class ClassLoaderConfigs<T> {
         return AugmentorConfig.layered(layers);
     }
 
-    /** The class loader's configurations, or null if its global configuration is invalid or being read on this thread. */
+    /** The class loader's configurations, or null if its context configuration is invalid or being read on this thread. */
     private LoaderConfigs<T> configs(ClassLoader loader) {
         Optional<LoaderConfigs<T>> known = byLoader.get(loader);
         if (known != null) {
@@ -288,18 +288,18 @@ public final class ClassLoaderConfigs<T> {
     }
 
     private LoaderConfigs<T> read(ClassLoader loader) {
-        AugmentorConfig global;
+        AugmentorConfig context;
         if (loader == ClassLoader.getSystemClassLoader()) {
-            global = null;
+            context = null;
         } else {
             try {
                 URL resource = contextResource(loader);
-                global = resource != null ? readFor(loader, resource, bytes(resource)) : inherited(loader.getParent());
+                context = resource != null ? readFor(loader, resource, bytes(resource)) : inherited(loader.getParent());
             } catch (ConfigException e) {
                 Log.error(component + ": " + e.getMessage() + "; the classes of class loader " + describe(loader) + " are not augmented");
                 return null;
             }
-            if (global == INVALID) {
+            if (context == INVALID) {
                 return null;
             }
         }
@@ -316,21 +316,21 @@ public final class ClassLoaderConfigs<T> {
                 locals.put(source, Optional.empty());
             }
         }
-        T withoutLocal = global == null ? base : factory.apply(layered(global, null));
-        return new LoaderConfigs<>(global, withoutLocal, Collections.unmodifiableMap(locals), Collections.unmodifiableMap(sources),
+        T withoutLocal = context == null ? base : factory.apply(layered(context, null));
+        return new LoaderConfigs<>(context, withoutLocal, Collections.unmodifiableMap(locals), Collections.unmodifiableMap(sources),
                 new ConcurrentHashMap<>(), ConcurrentHashMap.newKeySet());
     }
 
-    /** Stands for an invalid global configuration of a class loader above. */
+    /** Stands for an invalid context configuration of a class loader above. */
     private static final AugmentorConfig INVALID = new AugmentorConfig();
 
-    /** The global configuration that a class loader without one of its own uses: that of its parent, null for the system's. */
+    /** The context configuration that a class loader without one of its own uses: that of its parent, null for the system's. */
     private AugmentorConfig inherited(ClassLoader parent) {
         if (parent == null || parent == ClassLoader.getSystemClassLoader()) {
             return null;
         }
         LoaderConfigs<T> configs = configs(parent);
-        return configs != null ? configs.global() : INVALID;
+        return configs != null ? configs.context() : INVALID;
     }
 
     /** Reads a configuration file of a class loader, and describes it. */
