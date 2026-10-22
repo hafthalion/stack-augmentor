@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.io.TempDir
@@ -129,6 +130,23 @@ class ClassLoaderConfigsTest {
             assertSame(configs.base(), configs.forType(loader, "com.acme.Customer", from(other)))
             assertSame(configs.base(), configs.forType(loader, "com.acme.Customer", null))
         }
+    }
+
+    @Test
+    fun `reading the configurations of a jar leaves it closed`(@TempDir dir: Path) {
+        val fds = Path.of("/proc/self/fd")
+        assumeTrue(Files.isDirectory(fds), "needs /proc to see open files")
+        val library = jar(dir, "library.jar",
+            "stack-augmentor-global.toml" to "[augment]\nmaxValueLength = 10\n",
+            "stack-augmentor.toml" to "[augment]\nmaxValueLength = 20\n")
+        loader(library).use { loader ->
+            assertEquals(10, configs().forType(loader, "com.acme.Book", from(library)).maxValueLength())
+        }
+        // Windows could not delete it, nor @TempDir, if it was open.
+        val open = Files.list(fds).use { files ->
+            files.anyMatch { runCatching { Files.readSymbolicLink(it) == library.toRealPath() }.getOrDefault(false) }
+        }
+        assertFalse(open, "library.jar is still open")
     }
 
     @Test
