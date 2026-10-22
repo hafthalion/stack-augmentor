@@ -1,4 +1,4 @@
-# The agent's configuration: the application's classes use the application's own stack-augmentor.toml instead.
+# The agent's configuration: it applies to all classes, before the application's own stack-augmentor-global.toml.
 
 [augment]
 receiverFormat = "[$name: $value]"

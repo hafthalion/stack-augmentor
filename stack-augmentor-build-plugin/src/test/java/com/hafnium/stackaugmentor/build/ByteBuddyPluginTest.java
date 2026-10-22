@@ -70,7 +70,8 @@ class ByteBuddyPluginTest {
     @Test
     void aConfigurationWithoutEntriesInstrumentsNothing(@TempDir Path dir) throws IOException {
         Path config = dir.resolve("stack-augmentor.toml");
-        Files.writeString(config, "debug = false\n");
+        // The built-in configuration, which applies after the file, reads the annotations of all classes.
+        Files.writeString(config, "[augment.annotations]\n\"**\" = false\n");
         ByteArrayOutputStream err = captureErr();
 
         assertFalse(new ByteBuddyPlugin(config.toString()).matches(tracked()));

@@ -104,11 +104,10 @@ class LiveStackTest {
 
     private final AtomicInteger read = new AtomicInteger();
 
-    private final ClassLoaderConfigs<Configured> contexts = ClassLoaderConfigs.perClassLoader(Startup.AGENT, Configured.of(AugmentorConfig.builtIn()),
-            config -> {
-                read.incrementAndGet();
-                return Configured.of(config);
-            }, LiveStackTest.class.getClassLoader());
+    private final ClassLoaderConfigs<Configured> contexts = ClassLoaderConfigs.create(Startup.AGENT, null, null, config -> {
+        read.incrementAndGet();
+        return Configured.of(config);
+    });
 
     private final PrintStream originalErr = System.err;
 
@@ -205,18 +204,20 @@ class LiveStackTest {
 
     @Test
     void aClassLoadersConfigurationIsReadOnceWhenItDefinesItsFirstClass(@TempDir Path dir) throws IOException {
-        Files.writeString(dir.resolve("stack-augmentor.toml"), "[augment.exceptions]\n\"**\" = true\n");
+        Files.writeString(dir.resolve("stack-augmentor-global.toml"), "[augment.exceptions]\n\"**\" = true\n");
         LiveStack.ClassLoaderRegistration registration = new LiveStack.ClassLoaderRegistration(contexts);
+        // The base configuration.
+        assertEquals(1, read.get());
         try (URLClassLoader application = new URLClassLoader(new URL[] {dir.toUri().toURL()}, LiveStackTest.class.getClassLoader())) {
             // Classes are left unchanged.
             assertNull(registration.transform(application, "com/acme/Order", null, null, new byte[0]));
-            assertEquals(1, read.get());
+            assertEquals(2, read.get());
             registration.transform(application, "com/acme/Customer", null, null, new byte[0]);
-            assertEquals(1, read.get());
+            assertEquals(2, read.get());
         }
-        // The bootstrap class loader's classes use the agent's configuration.
+        // The bootstrap class loader's classes use the base configuration.
         assertNull(registration.transform(null, "java/lang/Object", null, null, new byte[0]));
-        assertEquals(1, read.get());
+        assertEquals(2, read.get());
     }
 
     @Test

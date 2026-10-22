@@ -1,6 +1,6 @@
 package com.hafnium.it.buildtime.configured
 
-// Classes without annotations, as if they could not be annotated: their receiver members and parameters come from stack-augmentor.toml.
+// Classes without annotations, as if they could not be annotated: their receiver members and parameters come from stack-augmentor-global.toml.
 
 class Order(private val orderNumber: Long) {
     fun getOrderNumber(): Long = orderNumber

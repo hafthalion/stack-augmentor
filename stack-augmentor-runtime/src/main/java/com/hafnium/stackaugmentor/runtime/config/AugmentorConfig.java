@@ -13,14 +13,17 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -126,6 +129,15 @@ public final class AugmentorConfig {
     private final Boolean inPlaceModification;
     private final Map<String, Boolean> exceptions;
     private final Map<String, Boolean> annotations;
+    /** The settings, of {@link #SETTINGS}, that the file or the builder sets, for {@link #layered}. */
+    private final Set<String> settings;
+
+    /** The settings outside the tables: a {@link #layered} configuration takes each from the first layer that sets it. */
+    public static final List<String> SETTINGS = List.of("debug", "inPlaceModification", "frameFormat", "receiverFormat", "paramsFormat",
+            "maxValueLength");
+
+    /** The settings that only a global configuration may set, as they apply to the whole JVM. */
+    public static final List<String> GLOBAL_SETTINGS = List.of("debug", "inPlaceModification");
 
     /**
      * The class part of a key, the same in all three tables: a class name, which matches that class only; with
@@ -383,6 +395,15 @@ public final class AugmentorConfig {
     public static final String BUILT_IN_LOCATION = "none, using the built-in configuration ("
             + AugmentorConfig.class.getPackageName().replace('.', '/') + "/" + BUILT_IN_RESOURCE + ")";
 
+    /** The configuration file on the classpath that applies to the classes of the jar or the directory that has it. */
+    public static final String LOCAL_RESOURCE = "stack-augmentor.toml";
+
+    /**
+     * The configuration file on the classpath that applies to all classes of the class loader that has it, before their
+     * local ones ({@link #LOCAL_RESOURCE}); at most one per class loader.
+     */
+    public static final String GLOBAL_RESOURCE = "stack-augmentor-global.toml";
+
     /** The default values: no class, method, annotation or exception entries, so nothing is augmented. See {@link #builtIn()}. */
     public AugmentorConfig() {
         this(Map.of(), Map.of(), DEFAULT_FRAME_FORMAT, DEFAULT_RECEIVER_FORMAT, DEFAULT_PARAMS_FORMAT,
@@ -405,6 +426,16 @@ public final class AugmentorConfig {
                            String frameFormat, String receiverFormat, String paramsFormat, int maxValueLength,
                            boolean debug, Boolean inPlaceModification, Map<String, Boolean> exceptions,
                            Map<String, Boolean> annotations) {
+        this(classes, methods, frameFormat, receiverFormat, paramsFormat, maxValueLength, debug, inPlaceModification, exceptions,
+                annotations, inPlaceModification != null ? SETTINGS
+                        : SETTINGS.stream().filter(setting -> !setting.equals("inPlaceModification")).toList());
+    }
+
+    private AugmentorConfig(Map<String, ReceiverSpec> classes, Map<String, List<ParamRef>> methods,
+                            String frameFormat, String receiverFormat, String paramsFormat, int maxValueLength,
+                            boolean debug, Boolean inPlaceModification, Map<String, Boolean> exceptions,
+                            Map<String, Boolean> annotations, Collection<String> settings) {
+        this.settings = Set.copyOf(settings);
         this.classes = Collections.unmodifiableMap(new LinkedHashMap<>(classes));
         Map<String, List<ParamRef>> methodsCopy = new LinkedHashMap<>();
         methods.forEach((target, refs) -> methodsCopy.put(target, List.copyOf(refs)));
@@ -460,6 +491,56 @@ public final class AugmentorConfig {
 
     public boolean debug() {
         return debug;
+    }
+
+    /** Whether the file or the builder sets this setting of {@link #SETTINGS}, rather than leaving its default. */
+    public boolean sets(String setting) {
+        return settings.contains(setting);
+    }
+
+    /**
+     * The configuration of a class from several, in the order they apply, e.g. the global configuration, the local one
+     * and the built-in one: each table has the entries of all of them in this order, so that the first matching entry of
+     * the first configuration that has one decides, and each of {@link #SETTINGS} comes from the first that sets it. An
+     * entry whose key an earlier configuration has already configured is left out, as it would never decide.
+     */
+    public static AugmentorConfig layered(List<AugmentorConfig> layers) {
+        if (layers.size() == 1) {
+            return layers.get(0);
+        }
+        Map<String, ReceiverSpec> classes = new LinkedHashMap<>();
+        Map<String, List<ParamRef>> methods = new LinkedHashMap<>();
+        Map<String, Boolean> exceptions = new LinkedHashMap<>();
+        Map<String, Boolean> annotations = new LinkedHashMap<>();
+        Builder builder = builder();
+        for (int i = layers.size() - 1; i >= 0; i--) {
+            AugmentorConfig layer = layers.get(i);
+            if (layer.sets("frameFormat")) {
+                builder.frameFormat(layer.frameFormat);
+            }
+            if (layer.sets("receiverFormat")) {
+                builder.receiverFormat(layer.receiverFormat);
+            }
+            if (layer.sets("paramsFormat")) {
+                builder.paramsFormat(layer.paramsFormat);
+            }
+            if (layer.sets("maxValueLength")) {
+                builder.maxValueLength(layer.maxValueLength);
+            }
+            if (layer.sets("debug")) {
+                builder.debug(layer.debug);
+            }
+            if (layer.sets("inPlaceModification")) {
+                builder.inPlaceModification(layer.inPlaceModification);
+            }
+        }
+        for (AugmentorConfig layer : layers) {
+            layer.classes.forEach(classes::putIfAbsent);
+            layer.methods.forEach(methods::putIfAbsent);
+            layer.exceptions.forEach(exceptions::putIfAbsent);
+            layer.annotations.forEach(annotations::putIfAbsent);
+        }
+        return builder.classes(classes).methods(methods).exceptions(exceptions).annotations(annotations).build();
     }
 
     /** The {@code [augment.exceptions]} entries, in the order of the file; empty when no throwable is augmented. */
@@ -699,22 +780,33 @@ public final class AugmentorConfig {
     }
 
     /**
-     * Loads the TOML file named by the agent arguments ({@code config=<path>} or just {@code <path>}),
-     * or by the {@code stackaugmentor.config} system property. Without either, the {@link #builtIn()} configuration
-     * applies.
+     * Loads the global TOML file named by the agent arguments ({@code config=<path>} or just {@code <path>}), or by the
+     * {@code stackaugmentor.config} system property; {@code null} without either.
      */
-    public static AugmentorConfig load(String agentArgs) {
+    public static AugmentorConfig global(String agentArgs) {
         String location = location(agentArgs);
-        return location != null ? load(Path.of(location)) : builtIn();
+        return location != null ? load(Path.of(location)) : null;
     }
 
-    /** The configuration of the {@link #BUILT_IN_RESOURCE}, for when none is given. */
+    /** The built-in configuration, read once. */
+    private static volatile AugmentorConfig builtIn;
+
+    /**
+     * The configuration of the {@link #BUILT_IN_RESOURCE}: it applies when no configuration file is given, and after all
+     * others when there are some, see {@link #layered}.
+     */
     public static AugmentorConfig builtIn() {
+        AugmentorConfig config = builtIn;
+        if (config != null) {
+            return config;
+        }
         try (InputStream in = AugmentorConfig.class.getResourceAsStream(BUILT_IN_RESOURCE)) {
             if (in == null) {
                 throw new ConfigException("The built-in configuration " + BUILT_IN_RESOURCE + " is missing from the classpath");
             }
-            return parse(new String(in.readAllBytes(), StandardCharsets.UTF_8), BUILT_IN_RESOURCE);
+            config = parse(new String(in.readAllBytes(), StandardCharsets.UTF_8), BUILT_IN_RESOURCE);
+            builtIn = config;
+            return config;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -751,14 +843,22 @@ public final class AugmentorConfig {
         return parse(text, "configuration");
     }
 
-    /** Parses a TOML configuration. {@code source} names it in error messages. */
+    /** Parses a global TOML configuration. {@code source} names it in error messages. */
     public static AugmentorConfig parse(String text, String source) {
+        return parse(text, source, true);
+    }
+
+    /**
+     * Parses a TOML configuration. {@code source} names it in error messages. A local one, which applies to the classes
+     * of one jar or directory, must not set the {@link #GLOBAL_SETTINGS}.
+     */
+    public static AugmentorConfig parse(String text, String source, boolean global) {
         TomlParseResult toml = Toml.parse(text);
         if (toml.hasErrors()) {
             String errors = toml.errors().stream().map(Object::toString).collect(Collectors.joining("; "));
             throw new ConfigException("Invalid TOML in " + source + ": " + errors);
         }
-        return new ConfigReader(toml, source).read();
+        return new ConfigReader(toml, source, global).read();
     }
 
     /** {@code *} matches within one package segment, {@code **} across segments, {@code ?} one character. */
@@ -823,6 +923,7 @@ public final class AugmentorConfig {
         private Boolean inPlaceModification;
         private Map<String, Boolean> exceptions = Map.of();
         private Map<String, Boolean> annotations = Map.of();
+        private final Set<String> settings = new LinkedHashSet<>();
 
         private Builder() {
         }
@@ -839,31 +940,37 @@ public final class AugmentorConfig {
 
         public Builder frameFormat(String frameFormat) {
             this.frameFormat = frameFormat;
+            settings.add("frameFormat");
             return this;
         }
 
         public Builder receiverFormat(String receiverFormat) {
             this.receiverFormat = receiverFormat;
+            settings.add("receiverFormat");
             return this;
         }
 
         public Builder paramsFormat(String paramsFormat) {
             this.paramsFormat = paramsFormat;
+            settings.add("paramsFormat");
             return this;
         }
 
         public Builder maxValueLength(int maxValueLength) {
             this.maxValueLength = maxValueLength;
+            settings.add("maxValueLength");
             return this;
         }
 
         public Builder debug(boolean debug) {
             this.debug = debug;
+            settings.add("debug");
             return this;
         }
 
         public Builder inPlaceModification(boolean inPlaceModification) {
             this.inPlaceModification = inPlaceModification;
+            settings.add("inPlaceModification");
             return this;
         }
 
@@ -887,7 +994,7 @@ public final class AugmentorConfig {
 
         public AugmentorConfig build() {
             return new AugmentorConfig(classes, methods, frameFormat, receiverFormat, paramsFormat, maxValueLength, debug,
-                    inPlaceModification, exceptions, annotations);
+                    inPlaceModification, exceptions, annotations, settings);
         }
     }
 
@@ -916,14 +1023,24 @@ public final class AugmentorConfig {
 
         private final TomlParseResult toml;
         private final String source;
+        private final boolean global;
 
-        ConfigReader(TomlParseResult toml, String source) {
+        ConfigReader(TomlParseResult toml, String source, boolean global) {
             this.toml = toml;
             this.source = source;
+            this.global = global;
         }
 
         AugmentorConfig read() {
             checkKeys(List.of(), toml, ROOT_KEYS);
+            if (!global) {
+                for (String setting : GLOBAL_SETTINGS) {
+                    if (toml.contains(List.of(setting))) {
+                        throw error(List.of(setting), "'" + setting + "' applies to the whole JVM, so only a global configuration "
+                                + "may set it: the agent's file, -D" + CONFIG_PROPERTY + " or " + GLOBAL_RESOURCE);
+                    }
+                }
+            }
             TomlTable augment = table(AUGMENT);
             if (augment != null) {
                 checkKeys(AUGMENT, augment, AUGMENT_KEYS);

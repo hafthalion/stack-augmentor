@@ -8,8 +8,8 @@ only needs the API and a small runtime library.
 
 ### Requirement: Build plugin
 A build plugin for Gradle SHALL instrument the project's compiled Java and Kotlin classes so that they are augmented as with the agent
-and the same configuration. It SHALL take the configuration file as an argument, and apply the built-in configuration
-without one. An invalid configuration, including an invalid template that only the runtime renders, SHALL fail the build,
+and the same configuration. It SHALL take a global configuration file as an argument, and apply the built-in configuration
+after it, or alone without one. An invalid configuration, including an invalid template that only the runtime renders, SHALL fail the build,
 with the reason printed. The build SHALL be repeatable: a changed configuration SHALL lead to re-instrumented classes.
 
 #### Scenario: Invalid template

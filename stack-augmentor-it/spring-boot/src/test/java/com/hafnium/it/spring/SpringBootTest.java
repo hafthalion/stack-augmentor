@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 /** Runs the application's executable jar, as built and packaged by Spring Boot, in a JVM of its own. */
 class SpringBootTest {
 
-    private static final String SHIP = "\tat com.hafnium.it.spring.Shipping<eu>.ship{orderId=o-1}(Shipping.java:";
+    private static final String SHIP = "\tat com.hafnium.it.spring.Shipping<eu>.ship{orderId: o-1}(Shipping.java:";
 
     private static String run(String... jvmOptions) throws IOException, InterruptedException {
         List<String> command = new ArrayList<>();
@@ -39,11 +39,11 @@ class SpringBootTest {
     }
 
     @Test
-    void theAgentUsesTheConfigurationInTheJarForItsClasses() throws Exception {
+    void theAgentUsesTheConfigurationInTheJarAfterItsOwn() throws Exception {
         String output = run("-javaagent:" + System.getProperty("stackaugmentor.it.agentJar") + "=config="
                 + System.getProperty("stackaugmentor.it.agentConfig"));
-        // The build-time instrumented class, with the format of the application's configuration, not the agent's.
-        assertTrue(output.contains(SHIP), output);
+        // The build-time instrumented class, with the format of the agent's configuration, which applies first.
+        assertTrue(output.contains("\tat com.hafnium.it.spring.Shipping[region: eu].ship{orderId: o-1}(Shipping.java:"), output);
         // The library class that the application's configuration selects: the agent instruments it.
         assertTrue(output.contains("\tat org.springframework.util.Assert.notNull{message=order o-1 has no address}(Assert.java:"), output);
         assertTrue(!output.contains("[stack-augmentor] WARN"), output);

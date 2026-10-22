@@ -39,30 +39,14 @@ public final class Startup {
         }
     }
 
-    /**
-     * Turns debug output on or off as configured, warns when no exception can be augmented, and describes the configuration
-     * and where it came from.
-     */
+    /** Turns debug output on or off as configured, and describes the configuration and where it came from. */
     public static void configure(String component, String location, AugmentorConfig config) {
         Log.setDebug(config.debug());
         describe(component, location, config);
     }
 
-    /**
-     * As {@link #configure}, for the configuration of a class loader ({@link ClassLoaderConfigs}): its {@code debug} turns
-     * debug output on, never off, as the output is the same for the whole JVM.
-     */
-    public static void configureFor(String component, String location, AugmentorConfig config) {
-        if (config.debug()) {
-            Log.setDebug(true);
-        }
-        describe(component, location, config);
-    }
-
-    private static void describe(String component, String location, AugmentorConfig config) {
-        if (config.hasAugmentEntries() && !config.exceptions().containsValue(true)) {
-            Log.warn(component + ": " + NO_EXCEPTIONS);
-        }
+    /** With debug output on, describes a configuration file and where it came from. */
+    public static void describe(String component, String location, AugmentorConfig config) {
         if (!Log.isDebug()) {
             return;
         }
@@ -73,6 +57,16 @@ public final class Startup {
         Log.debug(() -> component + ": [augment] frameFormat=" + config.frameFormat() + ", receiverFormat=" + config.receiverFormat()
                 + ", paramsFormat=" + config.paramsFormat() + ", maxValueLength=" + config.maxValueLength()
                 + ", exceptions=" + config.exceptionsDescription());
+    }
+
+    /**
+     * Warns when the configuration of the classes without configurations of their own, with the built-in one after the
+     * others, augments no exception.
+     */
+    public static void warnIfNoExceptions(String component, AugmentorConfig config) {
+        if (config.hasAugmentEntries() && !config.exceptions().containsValue(true)) {
+            Log.warn(component + ": " + NO_EXCEPTIONS);
+        }
     }
 
     /** For the components that decide what gets instrumented: warns when the configuration selects nothing. */

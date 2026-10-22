@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 /** Runs the application as Quarkus packages it (quarkus-app/quarkus-run.jar), in a JVM of its own. */
 class QuarkusTest {
 
-    private static final String SHIP = "\tat com.hafnium.it.quarkus.Shipping<us>.ship{orderId=o-2}(Shipping.java:";
+    private static final String SHIP = "\tat com.hafnium.it.quarkus.Shipping<us>.ship{orderId: o-2}(Shipping.java:";
 
     private static String run(String... jvmOptions) throws IOException, InterruptedException {
         List<String> command = new ArrayList<>();

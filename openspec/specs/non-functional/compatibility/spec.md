@@ -32,9 +32,9 @@ application server. Classes that a framework generates at runtime or at build ti
 like any other class: augmented by entries that match them, and left alone when they are compiler-generated.
 
 #### Scenario: Quarkus application
-- **GIVEN** a Quarkus application instrumented at build time, with `stack-augmentor.toml` in its resources
+- **GIVEN** a Quarkus application instrumented at build time, with `stack-augmentor-global.toml` and `stack-augmentor.toml` in its resources
 - **WHEN** it is run from its packaged form, without and with the agent
-- **THEN** the frames of its instrumented methods show their augmentation in the format of its configuration
+- **THEN** the frames of its instrumented methods show their augmentation in the format of its configurations, and those of its libraries without the format of its local one
 
 ### Requirement: No conflicts with the application's dependencies
 The Java agent SHALL keep its own dependencies apart from the application's, so that the application can use any

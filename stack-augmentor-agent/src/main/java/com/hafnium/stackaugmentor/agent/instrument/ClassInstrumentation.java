@@ -29,11 +29,11 @@ public final class ClassInstrumentation {
     }
 
     /**
-     * Installs the handler, and instruments the configured classes that are loaded now or later, each by the configuration
-     * of its class loader.
+     * Installs the handler, and instruments the configured classes that are loaded now or later, each by its own
+     * configuration.
      */
-    public static void install(Instrumentation instrumentation, AugmentorConfig config, ClassLoaderConfigs<Configured> contexts,
-                               boolean javaLangOpen) {
+    public static void install(Instrumentation instrumentation, ClassLoaderConfigs<Configured> contexts, boolean javaLangOpen) {
+        AugmentorConfig config = contexts.baseConfig();
         StackTraces stackTraces = StackTraces.configured(config, Startup.AGENT, javaLangOpen ? "but it is not" : "but the agent cannot open it");
         Dispatch.install(new ThrowHandler(contexts, stackTraces));
 
@@ -54,11 +54,11 @@ public final class ClassInstrumentation {
                 .ignore(TypeMatching.IGNORED)
                 .or(any(), isBootstrapClassLoader())
                 .type((type, classLoader, module, classBeingRedefined, protectionDomain) -> {
-                    Configured context = contexts.forLoader(classLoader);
+                    Configured context = contexts.forType(classLoader, type.getName(), protectionDomain);
                     return context != null && context.matching().instrument(type);
                 })
                 .transform((builder, type, classLoader, module, protectionDomain) -> {
-                    Configured context = contexts.forLoader(classLoader);
+                    Configured context = contexts.forType(classLoader, type.getName(), protectionDomain);
                     if (context == null) {
                         return builder;
                     }

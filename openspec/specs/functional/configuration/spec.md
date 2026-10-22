@@ -1,14 +1,14 @@
 # Configuration Specification
 
 ## Purpose
-Defines the configuration file: where it comes from, the built-in configuration, its keys and tables, how table keys match
-classes and methods, what each phase uses, and which files are rejected. It owns the key syntax and the matching rules; the
+Defines the configuration files: where they come from, in which order they apply to a class, the built-in configuration,
+their keys and tables, how table keys match classes and methods, what each phase uses, and which files are rejected. It owns the key syntax and the matching rules; the
 other specifications refer to them.
 
 ## Requirements
 
 ### Requirement: File and keys
-The configuration SHALL be one TOML file whose name ends in `.toml`, with these keys and defaults:
+A configuration SHALL be a TOML file whose name ends in `.toml`, with these keys and defaults:
 - `debug` (boolean, default `false`): diagnostics, see the diagnostics specification;
 - `inPlaceModification` (boolean, default `true`): a faster way of writing augmented frames that needs extra JVM
   permissions, used where the JVM allows it, see the performance specification; a system property
@@ -20,7 +20,8 @@ The configuration SHALL be one TOML file whose name ends in `.toml`, with these 
 - `[augment.receiver]` (method key → members): the receiver members by name;
 - `[augment.params]` (method key → parameters): the parameter values by name or index.
 
-The four tables SHALL default to empty: without entries, no throwable is augmented and no annotations are read. Any TOML
+The four tables SHALL default to empty: a file without entries augments no throwable and reads no annotations by itself,
+while the configurations after it in the chain still apply (see "Configuration chain"). Any TOML
 notation for the same keys (sections, dotted keys, inline tables) SHALL mean the same. The order of the tables SHALL NOT
 matter; the order of the entries within a table SHALL (see "First matching entry").
 
@@ -32,7 +33,7 @@ matter; the order of the entries within a table SHALL (see "First matching entry
 #### Scenario: Empty file
 - **GIVEN** an empty configuration file
 - **WHEN** it is loaded
-- **THEN** the default values apply, the built-in configuration does not, and nothing is augmented
+- **THEN** its default values apply where no earlier configuration sets them, and the built-in configuration after it decides the tables
 
 ### Requirement: Class keys
 A class key, the key of `[augment.exceptions]` and `[augment.annotations]` and the part before `::` of a method key, SHALL
@@ -156,48 +157,86 @@ rejected with a pointer to `[augment.annotations]`.
 - **THEN** it is rejected with a message naming the key and its line
 
 ### Requirement: Locating the configuration
-The base configuration file SHALL be taken from:
-- with the Java agent, in both of its modes: the agent argument (`config=<path>` or `<path>`), otherwise the system
-  property `stackaugmentor.config`;
-- with the build plugin: its argument;
-- at runtime with build-time instrumentation: the system property `stackaugmentor.config`, otherwise
-  `stack-augmentor.toml` visible to the runtime library.
+There SHALL be two kinds of configuration files: global ones, which apply to many classes, and local ones, which apply to
+the classes of one jar or directory. They SHALL be taken from:
+- the global configuration of the JVM: with the Java agent, in both of its modes, the agent argument (`config=<path>` or
+  `<path>`), otherwise the system property `stackaugmentor.config`; at runtime with build-time instrumentation, the
+  system property;
+- the global configuration of a class loader: a `stack-augmentor-global.toml` on its classpath;
+- the local configuration of a jar or directory: a `stack-augmentor.toml` in it;
+- with the build plugin: its argument, as a global configuration.
 
-Without a file, the built-in configuration SHALL apply. A named file that does not exist SHALL be an error.
+A named file that does not exist SHALL be an error.
 
 #### Scenario: Missing file
 - **GIVEN** `config=missing.toml` and no such file
 - **WHEN** the agent starts
 - **THEN** it fails with a message that `missing.toml` was not found
 
-### Requirement: Configurations of applications
-At runtime, with the agent in both of its modes and with build-time instrumentation, an application that has a class
-loader of its own, as in an application server, in Spring Boot or in Quarkus, MAY bring its own `stack-augmentor.toml`.
-Each class SHALL use the `stack-augmentor.toml` of the nearest class loader, from its own class loader upwards, that has
-one its parent class loader does not see; the classes of the JVM's own class loaders, of the class loader of Stack
-Augmentor, and of class loaders without such a file SHALL use the base configuration. With the agent, that configuration
-SHALL decide everything for the class; with build-time instrumentation, what the runtime decides. Each configuration
-SHALL be read once per class loader, before the first class of it is augmented. `inPlaceModification` SHALL be decided
-once, by the base configuration, and `debug = true` in any configuration SHALL turn on the debug output.
+### Requirement: Configuration chain
+At runtime, with the agent in both of its modes and with build-time instrumentation, each class SHALL use these
+configurations, in this order:
+1. the global configuration of the JVM;
+2. the `stack-augmentor-global.toml` of the nearest class loader, from the class's own upwards, that has one its parent
+   class loader does not see, otherwise that of the system class loader; a class loader SHALL have one at most, and
+   several SHALL be an error;
+3. the `stack-augmentor.toml` of the jar or directory the class comes from, if its class loader has one there that its
+   parent does not see; a class loader MAY have several, one per jar or directory, and each SHALL apply to the classes
+   of its own jar or directory only, `[augment]` included;
+4. the built-in configuration.
+
+In each of `[augment.exceptions]`, `[augment.annotations]`, `[augment.receiver]` and `[augment.params]`, the first
+matching entry of the first configuration in the chain that has one SHALL decide, so a `false` or `"-"` entry SHALL stop
+the later configurations too; each other key SHALL come from the first configuration that sets it. `debug` and
+`inPlaceModification` apply to the whole JVM: only global configurations SHALL set them, and a local one that does SHALL
+be rejected. `inPlaceModification` SHALL be decided once, by the global configurations of the JVM and of the system class
+loader; in that of another class loader it SHALL be ignored with a warning. `debug = true` in any global configuration
+SHALL turn on the debug output.
+
+With the agent, the chain SHALL decide everything for the class; with build-time instrumentation, what the runtime
+decides. The global configurations of the JVM and of the system class loader SHALL be read at startup, and an invalid one
+SHALL stop the agent as any invalid configuration does. The others SHALL be read once per class loader, before its first
+class is augmented; an invalid one SHALL be reported, the JVM SHALL keep running, and the classes it applies to SHALL stay
+unchanged.
 
 #### Scenario: Two applications in one server
-- **GIVEN** the agent with a configuration that selects nothing, and two applications in class loaders of their own, each with a `stack-augmentor.toml` that selects its classes, one with `receiverFormat = "<$value>"`
+- **GIVEN** the agent with a configuration that selects nothing in their packages, and two applications in class loaders of their own, each with a `stack-augmentor-global.toml` that selects its classes, one with `receiverFormat = "<$value>"`
 - **WHEN** an augmented exception leaves an annotated method of each
 - **THEN** each frame shows its receiver members in the format of its own application's configuration
 
+#### Scenario: Local configuration of a jar
+- **GIVEN** an application whose own classes come with a `stack-augmentor.toml` that sets `paramsFormat`, and a library jar without one, in the same class loader
+- **WHEN** augmented exceptions leave a method of each
+- **THEN** only the application's frame shows its parameter values in that format
+
+#### Scenario: Global before local
+- **GIVEN** a global configuration with `receiverFormat = "<$value>"` and a local one with `receiverFormat = "[$value]"` and `maxValueLength = 10`
+- **WHEN** a frame of a class of the local configuration's jar is augmented
+- **THEN** it shows its receiver members as `<…>`, with values cut off at 10 characters
+
 #### Scenario: Spring Boot application
-- **GIVEN** a Spring Boot executable jar with `stack-augmentor.toml`, run with the agent and another configuration
+- **GIVEN** a Spring Boot executable jar with `stack-augmentor-global.toml`, run with the agent and another configuration
 - **WHEN** an exception leaves a library method that the jar's configuration selects
-- **THEN** the frame shows the parameter values that the jar's configuration selects, in its format
+- **THEN** the frame shows the parameter values that the jar's configuration selects, in the format of the agent's configuration, which applies first
+
+#### Scenario: Several global files in one class loader
+- **GIVEN** a class loader with two jars that each have a `stack-augmentor-global.toml`
+- **WHEN** its first class is loaded with the agent
+- **THEN** an error names both files, and the classes of that class loader stay unchanged
+
+#### Scenario: Setting of the JVM in a local file
+- **GIVEN** a `stack-augmentor.toml` with `debug = true` on line 1
+- **WHEN** it is read
+- **THEN** it is rejected, naming the file, line 1 and `debug`, and the classes of its jar or directory stay unchanged
 
 #### Scenario: Invalid configuration of an application
-- **GIVEN** an application whose own `stack-augmentor.toml` has `maxValueLength = 1` on line 2
+- **GIVEN** an application whose own `stack-augmentor-global.toml` has `maxValueLength = 1` on line 2
 - **WHEN** its first class is loaded with the agent
 - **THEN** an error names the file, line 2 and `maxValueLength`, the JVM keeps running, and that application's frames stay unchanged
 
 ### Requirement: Built-in configuration
-Without a file, this configuration SHALL apply, with the default values of every other key, in the agent, the build plugin
-and the runtime alike:
+This configuration SHALL apply last in every chain, after the files, with the default values of every other key, in the
+agent, the build plugin and the runtime alike:
 
 ```toml
 [augment.exceptions]
@@ -207,8 +246,9 @@ and the runtime alike:
 "**" = true
 ```
 
-So all exceptions (not errors) are augmented with the annotated receiver members and parameter values of the classes and
-methods that `@Augmented` selects. A file SHALL replace it completely, also where it leaves a table out.
+So, unless an earlier configuration decides otherwise, all exceptions (not errors) are augmented with the annotated
+receiver members and parameter values of the classes and methods that `@Augmented` selects. A file that should not
+augment some exceptions or read some annotations SHALL say so with `false` entries, e.g. `"**" = false`.
 
 #### Scenario: Agent without configuration
 - **GIVEN** the agent without a configuration, and a class with `@Augmented`, an `@AugmentedReceiver` field `key = "java-1"` and a method `run(@AugmentedParam int value)` that throws an `IllegalStateException`
@@ -223,6 +263,11 @@ methods that `@Augmented` selects. A file SHALL replace it completely, also wher
 #### Scenario: File without entries
 - **GIVEN** a configuration file with only `debug = false`
 - **WHEN** the agent starts
+- **THEN** the built-in configuration decides, as without the file
+
+#### Scenario: File that turns the built-in configuration off
+- **GIVEN** a configuration file with only `[augment.annotations]` `"**" = false`
+- **WHEN** the agent starts
 - **THEN** nothing is augmented, and a warning says so
 
 ### Requirement: What each phase uses
@@ -233,11 +278,11 @@ With build-time instrumentation:
   augmented, which parameter values they show, and where their receiver members come from;
 - the runtime SHALL apply `[augment]`, `[augment.exceptions]`, `debug`, `inPlaceModification`, and the members of the
   `[augment.receiver]` entries the build chose (see the build-time instrumentation specification), from the
-  configuration of each class (see "Configurations of applications").
+  configuration of each class (see "Configuration chain").
 
-One file SHALL serve both phases of build-time instrumentation.
+One global file SHALL serve both phases of build-time instrumentation.
 
 #### Scenario: One file for build-time instrumentation
-- **GIVEN** `src/main/resources/stack-augmentor.toml` passed to the build plugin and packaged with the application
+- **GIVEN** `src/main/resources/stack-augmentor-global.toml` passed to the build plugin and packaged with the application
 - **WHEN** the project is built and run
 - **THEN** the build uses its method and annotation tables, and the runtime its formats, `[augment.exceptions]` and receiver members

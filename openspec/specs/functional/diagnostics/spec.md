@@ -34,7 +34,10 @@ The system SHALL always print a warning:
 - when a configured or annotated receiver member exists but cannot be read, and no readable field or getter of that name
   replaces it, also for an entry with wildcards, instead of the missing-member warning;
 - when the runtime cannot start, with the reason, so that stack traces stay unchanged;
-- when the runtime of build-time instrumentation finds no configuration file, so that the built-in configuration is used;
+- when the runtime of build-time instrumentation finds no configuration file for a class, so that the built-in
+  configuration is used alone;
+- when the global configuration of a class loader other than the system class loader sets `inPlaceModification`, which
+  is then ignored;
 - when the agent or the build plugin starts with a configuration that selects nothing to augment: no `[augment.receiver]`
   or `[augment.params]` entries other than `"-"` and no `[augment.annotations]` entry that is `true`;
 - when a configuration selects something to augment but no `[augment.exceptions]` entry is `true`, suggesting
@@ -68,8 +71,8 @@ fit every class it matches.
 
 ### Requirement: Debug output
 With `debug = true`, the system SHALL report:
-- the configuration: where it came from, and the entries of every table and the formats; the same for each
-  configuration of an application, naming its class loader;
+- each configuration file: where it came from, and the entries of every table and the formats, naming the class loader
+  of a file on the classpath;
 - each instrumented class: why (which entries, or the annotations), and its instrumented methods with their parameter values;
 - classes left alone, and why: annotations ignored because no `[augment.annotations]` entry selects the class or because
   entries or `@Augmented` decide otherwise; with the agent, classes already instrumented at build time;

@@ -36,7 +36,7 @@ dependencies), and on nothing at runtime of build-time instrumented applications
 ### Requirement: Tests
 The build SHALL run unit tests of the configuration, the frame format and the resolution of values, and integration tests
 that run real application classes with the built agent, in the live-stack mode, and instrumented at build time without
-and with the agent, also in class loaders of their own with their own configurations, and packaged Spring Boot and
+and with the agent, also in class loaders of their own with their own global and local configurations, and packaged Spring Boot and
 Quarkus applications. The live-stack tests MAY be skipped on machines without a C compiler, but not on CI. A test SHALL check
 that normal returns of instrumented methods allocate nothing.
 

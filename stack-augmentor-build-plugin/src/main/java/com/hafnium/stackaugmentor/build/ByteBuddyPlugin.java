@@ -16,17 +16,20 @@ import net.bytebuddy.dynamic.DynamicType;
 import net.bytebuddy.matcher.ElementMatcher;
 
 import java.nio.file.Path;
+import java.util.List;
 
 /**
  * Adds the exit advice to the compiled classes of a project at build time, so no Java agent is needed.
  * Only the project's classes are changed; libraries are left alone.
  * At runtime, the application needs {@code stack-augmentor-runtime} on its classpath.
  *
- * <p>Argument 0 is the path of a TOML configuration: its {@code [augment.annotations]}, {@code [augment.receiver]} and
+ * <p>Argument 0 is the path of a global TOML configuration, which applies before the built-in one
+ * ({@link AugmentorConfig#layered}): their {@code [augment.annotations]}, {@code [augment.receiver]} and
  * {@code [augment.params]} entries decide which receiver members and parameter values are shown, and the classes and
  * methods that need the advice for that are instrumented, as with the agent; {@code debug} logs what gets instrumented.
  * Without it (e.g. when discovered through {@code META-INF/net.bytebuddy/build.plugins}), the built-in configuration
- * applies ({@link AugmentorConfig#BUILT_IN_RESOURCE}): the methods that {@code @Augmented} selects are instrumented.
+ * applies alone ({@link AugmentorConfig#BUILT_IN_RESOURCE}): the methods that {@code @Augmented} selects are
+ * instrumented.
  */
 public final class ByteBuddyPlugin implements Plugin {
 
@@ -44,8 +47,10 @@ public final class ByteBuddyPlugin implements Plugin {
         this(Startup.load(Startup.BUILD_PLUGIN, () -> AugmentorConfig.load(Path.of(configFile))), configFile);
     }
 
-    private ByteBuddyPlugin(AugmentorConfig config, String location) {
-        Startup.configure(Startup.BUILD_PLUGIN, location, config);
+    private ByteBuddyPlugin(AugmentorConfig file, String location) {
+        Startup.configure(Startup.BUILD_PLUGIN, location, file);
+        AugmentorConfig config = AugmentorConfig.layered(file == AugmentorConfig.builtIn() ? List.of(file) : List.of(file, AugmentorConfig.builtIn()));
+        Startup.warnIfNoExceptions(Startup.BUILD_PLUGIN, config);
         Startup.warnIfNothingConfigured(Startup.BUILD_PLUGIN, config);
         this.parameters = new ParamSelection(config);
         this.matching = new TypeMatching(config, parameters);
