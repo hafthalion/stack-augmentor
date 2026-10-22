@@ -8,6 +8,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.annotation.Annotation;
 import java.net.URL;
+import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.security.CodeSource;
 import java.security.MessageDigest;
@@ -349,9 +350,17 @@ public final class ClassLoaderConfigs<T> {
         return AugmentorConfig.parse(new String(bytes(resource), StandardCharsets.UTF_8), resource.toString(), global);
     }
 
+    /**
+     * Reads without the JVM's cache of jar files, which would keep a jar open after its class loader is closed: on
+     * Windows, it could then not be deleted or replaced, e.g. a webapp's jar on redeployment.
+     */
     private static byte[] bytes(URL resource) {
-        try (InputStream in = resource.openStream()) {
-            return in.readAllBytes();
+        try {
+            URLConnection connection = resource.openConnection();
+            connection.setUseCaches(false);
+            try (InputStream in = connection.getInputStream()) {
+                return in.readAllBytes();
+            }
         } catch (IOException e) {
             throw new ConfigException("cannot read " + resource + ": " + e);
         } catch (UncheckedIOException e) {
