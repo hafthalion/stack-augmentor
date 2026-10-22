@@ -181,8 +181,9 @@ configurations, in this order:
    class loader does not see, otherwise that of the system class loader; a class loader SHALL have one at most, and
    several SHALL be an error;
 3. the `stack-augmentor.toml` of the jar or directory the class comes from, if its class loader has one there that its
-   parent does not see; a class loader MAY have several, one per jar or directory, and each SHALL apply to the classes
-   of its own jar or directory only, `[augment]` included;
+   parent does not see, or for a class instrumented at build time the module's local file (see the build-time
+   instrumentation specification); a class loader MAY have several, one per jar or directory, and each SHALL apply to
+   the classes of its own jar or directory only, `[augment]` included;
 4. the built-in configuration.
 
 In each of `[augment.exceptions]`, `[augment.annotations]`, `[augment.receiver]` and `[augment.params]`, the first
@@ -280,7 +281,12 @@ With build-time instrumentation:
   `[augment.receiver]` entries the build chose (see the build-time instrumentation specification), from the
   configuration of each class (see "Configuration chain").
 
-One global file SHALL serve both phases of build-time instrumentation.
+One global file, and one local file of the module, SHALL serve both phases of build-time instrumentation.
+
+#### Scenario: Local file of a module in its build directories
+- **GIVEN** `src/main/resources/stack-augmentor.toml` with `[augment.receiver]` entries, passed to the build plugin as the module's local file
+- **WHEN** the classes run from the module's build directories, where classes and resources are in different directories
+- **THEN** the frames show the receiver members of its entries
 
 #### Scenario: One file for build-time instrumentation
 - **GIVEN** `src/main/resources/stack-augmentor-global.toml` passed to the build plugin and packaged with the application

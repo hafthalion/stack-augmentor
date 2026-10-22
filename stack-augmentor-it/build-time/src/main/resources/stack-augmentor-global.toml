@@ -1,4 +1,4 @@
-# One file for both phases:
+# The module's global file, for both phases:
 # - [augment.annotations], [augment.receiver] and [augment.params] are read at build time by the ByteBuddy build
 #   plugin (see build.gradle.kts), which instruments the classes and methods they need;
 # - [augment], [augment.exceptions], [augment.annotations], [augment.receiver], debug and inPlaceModification are read
@@ -30,11 +30,7 @@ maxValueLength = 64
 # all. '*' matches within a package or name, '**' across packages, '?' one character. A method that no entry matches
 # uses its class's annotations, where [augment.annotations] selects the class.
 
-# Receiver members of classes you cannot annotate: a method() or a field. An order is identified by its
-# getOrderNumber() method, a customer by its customerId field.
-[augment.receiver]
-"com.hafnium.it.buildtime.configured.Order::*" = "getOrderNumber()"
-"com.hafnium.it.buildtime.configured.Customer::*" = "customerId"
+# The receiver members of the classes you cannot annotate are in the module's local stack-augmentor.toml.
 
 # Parameter values, independently of the receivers, selected by name or 0-based index, separated by commas; "#"
 # after one shows its value hashed, and "-" selects none. When several entries match a method, the first one
