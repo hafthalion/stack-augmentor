@@ -40,7 +40,6 @@ The system SHALL always print a warning:
   so that the local file of its jar or directory, if any, is used instead;
 - when the JVM was started with the native library of the live-stack mode but the agent cannot use it, with the reason;
 - when the agent cannot use its shared temporary files safely and falls back to private ones;
-- when a type has `@Augmented(false)`, which is the same as no `@Augmented`;
 - when frames cannot be written in place because `java.lang` is not open, so that stack traces are copied, naming
   `--add-opens java.base/java.lang=ALL-UNNAMED` for build-time instrumentation.
 
@@ -62,7 +61,8 @@ With `-Dstackaugmentor.debug=true`, the system SHALL report:
 - each configuration file: where it came from, and the entries of every table and the formats, naming the class loader
   of a file on the classpath;
 - each instrumented class: why (which entries, or the annotations), and its instrumented methods with their parameter values;
-- classes left alone, and why: annotations ignored because entries or `@Augmented` decide otherwise; with the agent, classes already instrumented at build time;
+- classes left alone, and why: annotations ignored because entries or `@Augmented` decide otherwise, including
+  `@Augmented` on methods of a type without it; with the agent, classes already instrumented at build time;
 - `[augment.params]` entries without wildcards or `+` that name a missing method, a missing parameter or an index out of
   range, with a hint when the class was compiled without parameter names;
 - receiver members missing for `[augment.receiver]` entries with wildcards;
@@ -90,9 +90,14 @@ on building them.
 - **THEN** no message about the entry is printed for `Customer`
 
 #### Scenario: Ignored annotations
-- **GIVEN** debug output on, and a class with `@Augmented` on one method only and an `@AugmentedParam` parameter in another
+- **GIVEN** debug output on, and a class with `@Augmented(false)`, `@Augmented` on one method and an `@AugmentedParam` parameter in another
 - **WHEN** the class is loaded
 - **THEN** a message reports that the parameter annotations of the other method are ignored, because an entry or `@Augmented` decides for it
+
+#### Scenario: @Augmented on a method of a type without it
+- **GIVEN** debug output on, and a class without `@Augmented` whose method `send` has `@Augmented`
+- **WHEN** the class is loaded
+- **THEN** a message reports that the `@Augmented` of `send` is ignored, because the type has no `@Augmented`
 
 #### Scenario: Annotations replaced by entries
 - **GIVEN** debug output on, `"com.acme.Order::*" = "getId()"` in `[augment.receiver]`, and `com.acme.Order` with `@Augmented` and `@AugmentedReceiver`

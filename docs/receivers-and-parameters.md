@@ -71,18 +71,19 @@ The annotations of `stack-augmentor-api` are read by the class that declares the
 - **`@AugmentedReceiver`** on a field, a no-argument method, or (in Kotlin) a primary-constructor `val`: a receiver member, one value each; fields first, in declaration order, then methods by name, starting with the class itself and then its superclasses, which need no `@Augmented` of their own. Static members and methods with parameters are not used.
 - **`@AugmentedParam`** on a parameter: its value; `@AugmentedParam(secret = true)` shows it hashed.
 - **`@AugmentedParams`** on a method or constructor: all its parameters; not of methods that override it.
-- **`@Augmented`** selects the methods and constructors of the class that the annotations augment. On a method or constructor, `@Augmented` turns them on for it and `@Augmented(false)` off. Otherwise `@Augmented` on the class turns them on; `@Augmented(false)` belongs on methods and constructors only, on a class it is the same as none, with a warning. Otherwise they are not augmented: a class without `@Augmented`, on the class or on its methods, is ignored, and its other annotations are not even looked for. Usually it goes on the class, for all its methods and constructors. Only the class that declares the method counts; methods that override it are not affected. A Kotlin top-level function takes it on the function itself, since the class of its file cannot carry it.
+- **`@Augmented`** selects the methods and constructors of the class that the annotations augment. The class decides first: without `@Augmented` on it, the class is ignored, and its methods and other annotations are not even looked at. With `@Augmented`, all its methods and constructors are augmented, except those with `@Augmented(false)`; with `@Augmented(false)`, only those with `@Augmented` of their own. Only the class that declares the method counts; methods that override it are not affected. A Kotlin top-level function takes it on the function itself: the class of its file cannot carry it, and counts as `@Augmented(false)`.
 
 ```kotlin
+@Augmented(false)                                // only the methods with @Augmented of their own
 class Dispatcher(@AugmentedReceiver val hub: String) {
-    @Augmented                                   // only send is augmented: Dispatcher{hub=H-1}.send{order=o-1}
+    @Augmented                                   // Dispatcher{hub=H-1}.send{order=o-1}
     fun send(@AugmentedParam order: String) { }
 
-    fun track(@AugmentedParam order: String) { } // unchanged: neither it nor the class has @Augmented
+    fun track(@AugmentedParam order: String) { } // unchanged
 }
 ```
 
-`@Augmented` on the class would augment `track` too, unless `track` had `@Augmented(false)`. Without the `@Augmented` on `send`, the class would be ignored and both frames unchanged. `[augment.receiver]` and `[augment.params]` entries never read `@Augmented`, so an entry for `track` still applies.
+`@Augmented` on the class would augment `track` too, unless `track` had `@Augmented(false)`. Without any `@Augmented` on the class, it would be ignored and both frames unchanged, whatever its methods say. `[augment.receiver]` and `[augment.params]` entries never read `@Augmented`, so an entry for `track` still applies.
 
 ## Labels and values
 

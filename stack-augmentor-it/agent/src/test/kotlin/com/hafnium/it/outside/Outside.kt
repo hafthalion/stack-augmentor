@@ -35,7 +35,8 @@ class VipCustomer(customerId: String) : Customer(customerId) {
     fun upgrade(): Nothing = throw IllegalStateException("upgrade")
 }
 
-/** @Augmented on a method: only that method is augmented by the annotations, not track. */
+/** @Augmented(false) on the type and @Augmented on a method: only that method is augmented by the annotations, not track. */
+@Augmented(false)
 class Dispatcher(@AugmentedReceiver private val hub: String) {
     @Augmented
     fun send(@AugmentedParam order: String): Nothing = throw IllegalStateException("cannot send $order")
@@ -54,5 +55,11 @@ class Selective(@AugmentedReceiver private val code: String) {
 
 /** It has no @Augmented: its annotations are ignored. */
 class WithoutAugmented(@AugmentedReceiver private val code: String) {
+    fun run(@AugmentedParam x: Int): Nothing = throw IllegalStateException("run $x")
+}
+
+/** @Augmented on a method, but none on the type: the type is ignored, its methods are not looked at. */
+class Unmarked(@AugmentedReceiver private val code: String) {
+    @Augmented
     fun run(@AugmentedParam x: Int): Nothing = throw IllegalStateException("run $x")
 }

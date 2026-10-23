@@ -5,12 +5,10 @@ import com.hafnium.stackaugmentor.instrument.TypeMatching;
 import com.hafnium.stackaugmentor.runtime.Log;
 import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
 import com.hafnium.stackaugmentor.runtime.config.ReceiverSpec;
-import com.hafnium.stackaugmentor.runtime.values.ValueResolver;
 import net.bytebuddy.description.method.MethodDescription;
 import net.bytebuddy.description.method.ParameterDescription;
 import net.bytebuddy.description.type.TypeDescription;
 
-import java.lang.annotation.Annotation;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
@@ -66,44 +64,21 @@ public final class FrameSpecs {
     };
 
     /**
-     * Whether the class or one of its methods or constructors has {@code @Augmented}: without it, the class's
-     * annotations are ignored, so a class without it needs no look at its methods.
+     * Whether the class has {@code @Augmented}, or is a Kotlin file class: without it, the class's annotations are
+     * ignored, and its methods are not looked at.
      */
     private final ClassValue<Boolean> augmented = new ClassValue<>() {
         @Override
         protected Boolean computeValue(Class<?> type) {
             try {
-                if (hasAugmented(type.getDeclaredAnnotations())) {
-                    return true;
-                }
-                for (Method method : type.getDeclaredMethods()) {
-                    if (hasAugmented(method.getDeclaredAnnotations())) {
-                        return true;
-                    }
-                }
-                for (Constructor<?> constructor : type.getDeclaredConstructors()) {
-                    if (hasAugmented(constructor.getDeclaredAnnotations())) {
-                        return true;
-                    }
-                }
-                return false;
+                return TypeMatching.readsAnnotations(TypeDescription.ForLoadedType.of(type));
             } catch (LinkageError | RuntimeException e) {
                 return true; // left to spec(), which reports it
             }
         }
     };
 
-    /** By name: the application may load its own copy of the API. */
-    private static boolean hasAugmented(Annotation[] annotations) {
-        for (Annotation annotation : annotations) {
-            if (annotation.annotationType().getName().equals(ValueResolver.AUGMENTED)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** Whether the annotations may apply to the class: it has {@code @Augmented}. */
+    /** Whether the annotations may apply to the class: it has {@code @Augmented}, or is a Kotlin file class. */
     private boolean readsAnnotations(Class<?> type) {
         return augmented.get(type);
     }

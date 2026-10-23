@@ -29,6 +29,7 @@ import com.hafnium.it.fixtures.Shipping
 import com.hafnium.it.fixtures.Unprintable
 import com.hafnium.it.fixtures.WithToString
 import com.hafnium.it.fixtures.staticWithParam
+import com.hafnium.it.fixtures.staticWithParamWithoutAugmented
 import com.hafnium.it.fixtures.staticWithoutParam
 import com.hafnium.it.report.FrameReport
 import com.hafnium.it.report.ReceiverEntries
@@ -109,6 +110,13 @@ class StackTraceReceiversTest {
         val e = report.thrown<IllegalStateException>("staticWithParam(5)") { staticWithParam(5) }
         assertEquals("com.hafnium.it.fixtures.FixturesKt", e.stackTrace[0].className)
         assertEquals("staticWithParam{code=5}", e.stackTrace[0].methodName)
+    }
+
+    @Test
+    fun `top-level function without @Augmented is unchanged`() {
+        val e = report.thrown<IllegalStateException>("staticWithParamWithoutAugmented(6)") { staticWithParamWithoutAugmented(6) }
+        assertEquals("com.hafnium.it.fixtures.FixturesKt", e.stackTrace[0].className)
+        assertEquals("staticWithParamWithoutAugmented", e.stackTrace[0].methodName)
     }
 
     @Test

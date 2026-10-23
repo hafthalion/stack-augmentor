@@ -216,8 +216,11 @@ class Closer : AutoCloseable {
     override fun close(): Unit = throw IllegalArgumentException("close failed")
 }
 
+// Top-level functions: their file class FixturesKt cannot carry @Augmented, so each function takes its own.
 @Augmented
 fun staticWithParam(@AugmentedParam code: Int): Nothing = throw IllegalStateException("static $code")
+
+fun staticWithParamWithoutAugmented(@AugmentedParam code: Int): Nothing = throw IllegalStateException("static $code")
 
 fun staticWithoutParam(): Nothing = throw IllegalStateException("static")
 

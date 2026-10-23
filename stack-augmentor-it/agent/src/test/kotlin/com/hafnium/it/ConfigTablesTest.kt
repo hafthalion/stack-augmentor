@@ -7,6 +7,7 @@ import com.hafnium.it.outside.ClassParamsViaMethods
 import com.hafnium.it.outside.Dispatcher
 import com.hafnium.it.outside.MethodAnnotationsOutside
 import com.hafnium.it.outside.Selective
+import com.hafnium.it.outside.Unmarked
 import com.hafnium.it.outside.WithoutAugmented
 import com.hafnium.it.outside.PremiumAccount
 import com.hafnium.it.outside.VipCustomer
@@ -73,6 +74,13 @@ class ConfigTablesTest {
         val track = frame("Dispatcher(\"H-1\").track(\"o-1\")", Dispatcher("H-1")) { it.track("o-1") }
         assertEquals("com.hafnium.it.outside.Dispatcher", track.className)
         assertEquals("track", track.methodName)
+    }
+
+    @Test
+    fun `@Augmented on a method needs @Augmented on its type`() {
+        val frame = frame("Unmarked(\"U-1\").run(5)", Unmarked("U-1")) { it.run(5) }
+        assertEquals("com.hafnium.it.outside.Unmarked", frame.className)
+        assertEquals("run", frame.methodName)
     }
 
     @Test

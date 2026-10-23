@@ -46,6 +46,14 @@ class BuildTimeInstrumentationTest {
     }
 
     @Test
+    fun `a Kotlin top-level function takes @Augmented of its own`() {
+        val augmented = assertThrows<IllegalStateException> { topLevel(5) }.stackTrace[0]
+        assertEquals("com.hafnium.it.buildtime.TopLevelKt.topLevel{code=5}", "${augmented.className}.${augmented.methodName}")
+        val plain = assertThrows<IllegalStateException> { topLevelWithoutAugmented(6) }.stackTrace[0]
+        assertEquals("com.hafnium.it.buildtime.TopLevelKt.topLevelWithoutAugmented", "${plain.className}.${plain.methodName}")
+    }
+
+    @Test
     fun `a cause shows the values of the frames it shares with the wrapper`() {
         val e = assertThrows<RuntimeException> { Wrapping("w-1").outer() }
         val outer = e.stackTrace.indexOfFirst { it.methodName == "outer" }
