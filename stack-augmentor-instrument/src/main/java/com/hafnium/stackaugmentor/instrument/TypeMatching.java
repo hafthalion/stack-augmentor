@@ -52,10 +52,6 @@ public final class TypeMatching {
         if (type.isAnnotation()) {
             return false;
         }
-        if (Boolean.FALSE.equals(AugmentedSelection.flag(type.getDeclaredAnnotations()))) {
-            Log.warn("@Augmented(false) on " + type.getName() + " is the same as no @Augmented: put it on methods and "
-                    + "constructors only, to turn them off under an @Augmented type");
-        }
         // The receiver members and the parameter values are configured independently; either one needs the advice.
         boolean instrument = hasReceiverMethods(type) || hasSelectedParams(type);
         if (Log.isDebug()) {
@@ -65,6 +61,14 @@ public final class TypeMatching {
             logIgnoredAnnotations(type);
         }
         return instrument;
+    }
+
+    /**
+     * Whether the annotations may apply to the methods of the type: it has {@code @Augmented}, or is a Kotlin file
+     * class. Without it, its methods need no look.
+     */
+    public static boolean readsAnnotations(TypeDescription type) {
+        return AugmentedSelection.onType(type) != null;
     }
 
     /** Whether the class name is in a package of {@link #IGNORED}, without describing the class. */
@@ -224,6 +228,19 @@ public final class TypeMatching {
 
     /** For the debug log: the annotations of the type that are not used, and why. */
     private void logIgnoredAnnotations(TypeDescription type) {
+        if (AugmentedSelection.onType(type) == null) {
+            List<String> augmented = new ArrayList<>();
+            for (MethodDescription method : type.getDeclaredMethods()) {
+                if (AugmentedSelection.flag(method.getDeclaredAnnotations()) != null) {
+                    augmented.add(method.getInternalName());
+                }
+            }
+            if (!augmented.isEmpty()) {
+                augmented.sort(null);
+                Log.debug(() -> "ignoring @Augmented on " + String.join(", ", augmented) + " in " + type.getName()
+                        + ": the type has no @Augmented; @Augmented(false) on it augments only the methods with their own");
+            }
+        }
         boolean receiverUsed = false;
         for (MethodDescription method : type.getDeclaredMethods()) {
             if (receiverEntry(type, method) == AugmentorConfig.ANNOTATION_ENTRY) {

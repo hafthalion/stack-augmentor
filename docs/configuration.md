@@ -189,12 +189,12 @@ A method belongs to the class that declares it: a subclass's own methods need an
 The annotations of `stack-augmentor-api`, `@AugmentedReceiver`, `@AugmentedParam` and `@AugmentedParams`, augment the methods and constructors that `@Augmented` selects. No table says where they are read: `@Augmented` in the code does, in every class, with every configuration.
 
 - **Names come first.** For each method, the first matching `[augment.receiver]` entry decides its receiver members, `"-"` included; only if none matches, and `@Augmented` selects the method, are the class's `@AugmentedReceiver` members used (also those of its superclasses, which need no `@Augmented` of their own). The same holds for parameters: the first matching `[augment.params]` entry decides; only without one are the method's `@AugmentedParam` and `@AugmentedParams` used. Receiver members and parameter values are decided independently.
-- **`@Augmented` selects the methods and constructors that the annotations augment**:
-  - on a method or constructor, `@Augmented` turns the annotations on for it, `@Augmented(false)` off;
-  - otherwise, `@Augmented` on the class turns them on for its methods and constructors;
-  - otherwise they are not augmented. A class without `@Augmented`, on the class or on its methods, is ignored: its `@AugmentedReceiver`, `@AugmentedParam` and `@AugmentedParams` are not even looked for.
+- **`@Augmented` on the class decides first**, then on the methods and constructors:
+  - `@Augmented` on the class: all its methods and constructors, except those with `@Augmented(false)`;
+  - `@Augmented(false)` on the class: only the methods and constructors with `@Augmented` of their own;
+  - no `@Augmented` on the class: none. The class is ignored, and its methods are not even looked at, so an `@Augmented` on a method of such a class has no effect (debug output says so).
 
-  `@Augmented` on a class says "all its methods and constructors", on a method "only this one", and `@Augmented(false)` on a method turns that one off under an `@Augmented` on the class. `@Augmented(false)` belongs on methods and constructors only: on a class it is the same as no `@Augmented`, and a warning says so. Only the annotation of the class that declares the method counts; methods that override it are not affected. A Kotlin top-level function takes `@Augmented` on the function itself, since the class of its file cannot carry it. `[augment.receiver]` and `[augment.params]` entries never read `@Augmented` and work without it; a `"-"` entry turns the annotations of the methods it matches off, e.g. for a library whose classes have `@Augmented`.
+  So `@Augmented` on a class says "all its methods and constructors", and `@Augmented(false)` on it "only those I mark". Only the annotation of the class that declares the method counts; methods that override it are not affected. A Kotlin top-level function takes `@Augmented` on the function itself: the class of its file cannot carry the annotation, and counts as `@Augmented(false)`. `[augment.receiver]` and `[augment.params]` entries never read `@Augmented` and work without it; a `"-"` entry turns the annotations of the methods it matches off, e.g. for a library whose classes have `@Augmented`.
 - **The agent checks every loaded class for `@Augmented`**, apart from the JDK, Kotlin and ByteBuddy, but looks for nothing more in a class without it, so this costs little class-loading time.
 
 ```java
@@ -210,7 +210,7 @@ public class Dispatcher {
 }
 ```
 
-Without the `@Augmented` on the class, both frames would be unchanged; with `@Augmented` on `send` instead, only `send` would be augmented.
+Without the `@Augmented` on the class, both frames would be unchanged; with `@Augmented(false)` on the class and `@Augmented` on `send` instead, only `send` would be augmented.
 
 [Receivers and parameters](receivers-and-parameters.md#annotations) describes the annotations themselves.
 
@@ -315,7 +315,6 @@ With build-time instrumentation, the runtime reads its configuration when the fi
 
 - no runtime configuration for a class instrumented at build time: the built-in configuration is used alone;
 - `java.lang` not open, so stack traces are copied instead of written in place: with build-time instrumentation, start the application with `--add-opens java.base/java.lang=ALL-UNNAMED`;
-- `@Augmented(false)` on a type, where it is the same as no `@Augmented`;
 - a receiver member the class does not have, for a key with a class name. For a pattern it is a debug message, since a pattern may match classes that don't have it. So are parameter names that a method does not have.
 
 ## Tips
