@@ -40,8 +40,8 @@ class SpringBootTest {
 
     @Test
     void theAgentUsesTheConfigurationInTheJarAfterItsOwn() throws Exception {
-        String output = run("-javaagent:" + System.getProperty("stackaugmentor.it.agentJar") + "=config="
-                + System.getProperty("stackaugmentor.it.agentConfig"));
+        String output = run("-javaagent:" + System.getProperty("stackaugmentor.it.agentJar"),
+                "-Dstackaugmentor.config=" + System.getProperty("stackaugmentor.it.agentConfig"));
         // The build-time instrumented class, with the format of the agent's configuration, which applies first.
         assertTrue(output.contains("\tat com.hafnium.it.spring.Shipping[region: eu].ship{orderId: o-1}(Shipping.java:"), output);
         // The library class that the application's configuration selects: the agent instruments it.

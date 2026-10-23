@@ -38,20 +38,12 @@ class AugmentorConfigTest {
         assertEquals("{\$name=\$value, ...}", AugmentorConfig().paramsFormat())
         assertFalse(AugmentorConfig().hasAugmentEntries())
         assertNull(AugmentorConfig().entryOf("any.pkg.Class"))
-        assertTrue(AugmentorConfig().inPlaceModification())
-        assertFalse(AugmentorConfig().inPlaceModificationRequested())
-        assertFalse(parse("settings.inPlaceModification = false").inPlaceModification())
-        assertTrue(parse("settings.inPlaceModification = false").inPlaceModificationRequested())
     }
 
     @Test
     fun `full configuration`() {
         val config = parse(
             """
-            [settings]
-            debug = true
-            inPlaceModification = true
-
             [augment.annotations]
             "com.hafnium.generated.**" = false
             "com.hafnium.**" = true
@@ -88,8 +80,6 @@ class AugmentorConfigTest {
                 .receiverFormat("<\$value>")
                 .paramsFormat("[\$name: \$value; ...]")
                 .maxValueLength(32)
-                .debug(true)
-                .inPlaceModification(true)
                 .build(),
             config,
         )
@@ -100,22 +90,6 @@ class AugmentorConfigTest {
         assertFalse(config.readsAnnotations("com.thirdparty.Order") { false })
         assertEquals("com.hafnium.generated.**=false, com.hafnium.**=true", config.annotationsDescription())
         assertTrue(config.hasAugmentEntries())
-    }
-
-    @Test
-    fun `the system property overrides inPlaceModification of the file`() {
-        val property = AugmentorConfig.IN_PLACE_MODIFICATION_PROPERTY
-        try {
-            System.setProperty(property, "false")
-            assertFalse(parse("").inPlaceModification())
-            System.setProperty(property, "true")
-            assertTrue(parse("settings.inPlaceModification = false").inPlaceModification())
-            System.setProperty(property, "false")
-            assertFalse(parse("settings.inPlaceModification = true").inPlaceModification())
-        } finally {
-            System.clearProperty(property)
-        }
-        assertTrue(parse("settings.inPlaceModification = true").inPlaceModification())
     }
 
     @Test
@@ -377,17 +351,10 @@ class AugmentorConfigTest {
     fun `invalid values name the key and its line`() {
         assertEquals(
             "test.toml, line 3: maxValueLength must be between 2 and 10000, was 1",
-            error("settings.debug = false\n[augment]\nmaxValueLength = 1"),
+            error("[augment]\nframeFormat = \"\$class.\$method\"\nmaxValueLength = 1"),
         )
         assertTrue(error("augment.maxValueLength = \"64\"").contains("'augment.maxValueLength' must be an integer"))
         assertTrue(error("augment.maxValueLength = 1.5").contains("'augment.maxValueLength' must be an integer"))
-        assertTrue(error("[settings]\ndebug = \"yes\"").contains("'settings.debug' must be true or false"))
-        assertTrue(error("[settings]\ninPlaceModification = 1").contains("'settings.inPlaceModification' must be true or false"))
-        assertTrue(error("settings = 1").contains("'settings' must be a table"))
-        assertTrue(error("[settings]\nmaxValueLength = 10").contains("unknown key 'maxValueLength' in [settings]"))
-        // Before the [settings] table, they were keys of their own.
-        assertEquals("test.toml, line 1: 'debug' belongs in the [settings] table", error("debug = true"))
-        assertEquals("test.toml, line 1: 'inPlaceModification' belongs in the [settings] table", error("inPlaceModification = false"))
         assertTrue(error("augment = \"x\"").contains("'augment' must be a table"))
         assertTrue(error("[augment]\nreceiver = \"x\"").contains("'augment.receiver' must be a table"))
     }
@@ -410,9 +377,12 @@ class AugmentorConfigTest {
                 "exceptions, annotations, receiver, params",
             error("[augment]\nframe = \"\$class.\$method\""),
         )
-        assertTrue(error("[other]\nx = 1").contains("unknown key 'other'; allowed: settings, augment"))
+        assertTrue(error("[other]\nx = 1").contains("unknown key 'other'; allowed: augment"))
         // Keys in the wrong place are rejected, not silently ignored.
-        assertTrue(error("maxValueLength = 64").contains("unknown key 'maxValueLength'; allowed: settings, augment"))
+        assertTrue(error("maxValueLength = 64").contains("unknown key 'maxValueLength'; allowed: augment"))
+        // What applies to the whole JVM is given by system properties, not by files.
+        assertTrue(error("[settings]\ndebug = true").contains("unknown key 'settings'; allowed: augment"))
+        assertTrue(error("debug = true").contains("unknown key 'debug'; allowed: augment"))
         assertTrue(error("[augment.other]\nx = 1").contains("unknown key 'other' in [augment]"))
     }
 
@@ -421,7 +391,7 @@ class AugmentorConfigTest {
         assertEquals(
             "test.toml, line 3: invalid receiver member 'get-id()': use a field name (e.g. \"orderId\") or a method (e.g. \"getOrderId()\"), " +
                 "several separated by commas",
-            error("settings.debug = false\n[augment.receiver]\n\"com.acme.Order::*\" = \"get-id()\""),
+            error("[augment]\n[augment.receiver]\n\"com.acme.Order::*\" = \"get-id()\""),
         )
         assertEquals(
             "test.toml, line 2: must be a string: a field name (e.g. \"orderId\"), a method (e.g. \"getOrderId()\"), several of them " +
@@ -629,17 +599,26 @@ class AugmentorConfigTest {
     fun `load reads toml files only`(@TempDir dir: Path) {
         val toml = dir.resolve("agent.toml")
         Files.writeString(toml, "augment.maxValueLength = 10")
-        assertEquals(10, AugmentorConfig.global("config=$toml").maxValueLength())
-        assertEquals(10, AugmentorConfig.global(toml.toString()).maxValueLength())
+        assertEquals(10, withConfigProperty(toml.toString()) { AugmentorConfig.global() }!!.maxValueLength())
         assertEquals(10, AugmentorConfig.load(toml).maxValueLength())
 
         val properties = dir.resolve("agent.properties")
         Files.writeString(properties, "maxValueLength=10")
-        val message = assertThrows<ConfigException> { AugmentorConfig.global("config=$properties") }.message!!
+        val message = assertThrows<ConfigException> { withConfigProperty(properties.toString()) { AugmentorConfig.global() } }.message!!
         assertTrue(message.contains("must be a TOML file ending in .toml"), message)
 
-        assertTrue(assertThrows<ConfigException> { AugmentorConfig.global("config=${dir.resolve("missing.toml")}") }.message!!.contains("not found"))
-        assertNull(AugmentorConfig.global(null))
+        assertTrue(assertThrows<ConfigException> { withConfigProperty(dir.resolve("missing.toml").toString()) { AugmentorConfig.global() } }
+            .message!!.contains("not found"))
+        assertNull(AugmentorConfig.global())
+    }
+
+    private fun <T> withConfigProperty(value: String, action: () -> T): T {
+        System.setProperty(AugmentorConfig.CONFIG_PROPERTY, value)
+        try {
+            return action()
+        } finally {
+            System.clearProperty(AugmentorConfig.CONFIG_PROPERTY)
+        }
     }
 
     @Test

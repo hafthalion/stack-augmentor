@@ -34,7 +34,7 @@ public final class ClassInstrumentation {
      */
     public static void install(Instrumentation instrumentation, ClassLoaderConfigs<Configured> contexts, boolean javaLangOpen) {
         AugmentorConfig config = contexts.baseConfig();
-        StackTraces stackTraces = StackTraces.configured(config, Startup.AGENT, javaLangOpen ? "but it is not" : "but the agent cannot open it");
+        StackTraces stackTraces = StackTraces.configured(Startup.AGENT, javaLangOpen ? "but it is not" : "but the agent cannot open it");
         Dispatch.install(new ThrowHandler(contexts, stackTraces));
 
         new AgentBuilder.Default()
@@ -44,7 +44,7 @@ public final class ClassInstrumentation {
                 // The advice is inlined, so no helper classes need to be injected into class loaders.
                 .with(AgentBuilder.InjectionStrategy.Disabled.INSTANCE)
                 // Transformations are logged by the transformer below; ByteBuddy only reports classes it failed on.
-                .with(config.debug()
+                .with(Log.isDebug()
                         ? AgentBuilder.Listener.StreamWriting.toSystemError().withErrorsOnly()
                         : AgentBuilder.Listener.NoOp.INSTANCE)
                 .assureReadEdgeTo(instrumentation, Dispatch.class)

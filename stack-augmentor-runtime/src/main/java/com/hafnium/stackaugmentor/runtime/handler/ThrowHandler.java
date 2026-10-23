@@ -22,17 +22,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Called when an exception leaves an instrumented method: finds that method's frame in the
  * exception's stack trace and augments it.
  *
- * <p>The Java agent creates it with the agent's configuration and installs it. With build-time
+ * <p>The Java agent creates it with the JVM's configuration and installs it. With build-time
  * instrumentation no agent does that: {@link Dispatch} creates it through {@code ServiceLoader} with the
  * no-argument constructor, which reads the global configuration from {@code -Dstackaugmentor.config}, and those on
  * the classpath as {@link ClassLoaderConfigs} describes. What gets instrumented was decided at build
- * time; at runtime, {@code [augment]}, {@code [augment.exceptions]}, the {@code [settings]} of {@code -Dstackaugmentor.config}
+ * time; at runtime, {@code [augment]}, {@code [augment.exceptions]}
  * and the {@code [augment.receiver]} entries apply, the latter by the key of the entry that decided the method at build time: a method without such an
  * entry shows no receiver members, even if its class is annotated.
  *
  * <p>Each frame uses the configuration of its method's class ({@link ClassLoaderConfigs}), so the applications of one
- * server, and the jars of one application, can have their own; {@code [settings]} come from the global configuration given
- * to the JVM only.
+ * server, and the jars of one application, can have their own; what applies to the whole JVM comes from system properties.
  */
 public final class ThrowHandler implements Dispatch.Handler {
 
@@ -105,7 +104,7 @@ public final class ThrowHandler implements Dispatch.Handler {
     }
 
     private ThrowHandler(ClassLoaderConfigs<Context> contexts) {
-        this(contexts, runtimeStackTraces(contexts.baseConfig()));
+        this(contexts, runtimeStackTraces());
         builtInUnannounced.set(contexts.builtInOnly());
     }
 
@@ -304,16 +303,16 @@ public final class ThrowHandler implements Dispatch.Handler {
      * loader is printed as an error; {@link Dispatch} then warns that there is no handler.
      */
     private static ClassLoaderConfigs<Context> runtimeConfigs() {
-        return Startup.load(Startup.RUNTIME, () -> ClassLoaderConfigs.create(Startup.RUNTIME, AugmentorConfig.global(null),
-                AugmentorConfig.location(null), Context::of));
+        return Startup.load(Startup.RUNTIME, () -> ClassLoaderConfigs.create(Startup.RUNTIME, AugmentorConfig.global(),
+                AugmentorConfig.location(), Context::of));
     }
 
     /**
      * For build-time instrumentation, no agent opens {@code java.lang}: frames are written in place
-     * ({@code inPlaceModification}) only if the application was started with
+     * only if the application was started with
      * {@code --add-opens java.base/java.lang=ALL-UNNAMED}, and copied otherwise.
      */
-    static StackTraces runtimeStackTraces(AugmentorConfig config) {
-        return StackTraces.configured(config, Startup.RUNTIME, "start the application with --add-opens java.base/java.lang=ALL-UNNAMED");
+    static StackTraces runtimeStackTraces() {
+        return StackTraces.configured(Startup.RUNTIME, "start the application with --add-opens java.base/java.lang=ALL-UNNAMED");
     }
 }

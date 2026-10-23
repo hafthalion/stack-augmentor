@@ -65,7 +65,7 @@ val benchmarkTasks = modes.map { mode ->
             val agentJar = agent
             inputs.files(agentJar).withPropertyName("agent")
             jvmArgumentProviders.add(CommandLineArgumentProvider {
-                listOf("-javaagent:${agentJar.singleFile.absolutePath}=config=${config.asFile.absolutePath}")
+                listOf("-javaagent:${agentJar.singleFile.absolutePath}", "-Dstackaugmentor.config=${config.asFile.absolutePath}")
             })
         }
         // In place is the default; copying needs it turned off.

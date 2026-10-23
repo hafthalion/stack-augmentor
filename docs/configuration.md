@@ -14,7 +14,7 @@ Everything Stack Augmentor does is set in TOML files. They say which exceptions 
 - [Receiver members](#receiver-members): `[augment.receiver]`
 - [Parameter values](#parameter-values): `[augment.params]`
 - [Formats](#formats): `[augment]`
-- [Settings](#settings): `[settings]`, `debug`, `inPlaceModification`
+- [System properties](#system-properties): `stackaugmentor.config`, `stackaugmentor.debug`, `stackaugmentor.inPlaceModification`
 - [Errors and warnings](#errors-and-warnings)
 - [Tips](#tips)
 
@@ -23,10 +23,6 @@ Everything Stack Augmentor does is set in TOML files. They say which exceptions 
 ## The file at a glance
 
 ```toml
-[settings]                     # for the whole JVM: only in the file given to the agent or by -Dstackaugmentor.config
-debug = false                  # print what gets instrumented and where each value comes from
-inPlaceModification = true     # write frames into the exception's own stack trace instead of copying it
-
 [augment]                      # how frames look (these are the defaults)
 frameFormat = "$class$receiver.$method$params"
 receiverFormat = "{$name=$value, ...}"
@@ -54,8 +50,6 @@ maxValueLength = 64
 
 | Key | Value | Default | Section |
 |---|---|---|---|
-| `[settings]` `debug` | `true` or `false` | `false` | [Settings](#settings) |
-| `[settings]` `inPlaceModification` | `true` or `false` | `true` | [Settings](#settings) |
 | `[augment]` `frameFormat` | template | `"$class$receiver.$method$params"` | [Formats](#formats) |
 | `[augment]` `receiverFormat` | template | `"{$name=$value, ...}"` | [Formats](#formats) |
 | `[augment]` `paramsFormat` | template | `"{$name=$value, ...}"` | [Formats](#formats) |
@@ -67,24 +61,26 @@ maxValueLength = 64
 
 TOML in short: `#` starts a comment, a key with `::`, `*` or `+` in it must be quoted, an unquoted key with `.` is read as nested tables (which works for `[augment.exceptions]` and `[augment.annotations]` class names only), and dotted keys (`augment.maxValueLength = 32`) work as well as sections. The order of the tables does not matter. The order of the entries within each of `[augment.exceptions]`, `[augment.annotations]`, `[augment.receiver]` and `[augment.params]` does: the first entry that matches decides.
 
+What applies to the whole JVM is not in any file: it is given by [system properties](#system-properties).
+
 ## Where the files come from
 
 File names must end in `.toml`. The JVM's global file and the context files of class loaders apply to many classes, local files to the classes of one jar or directory.
 
 | File | Where from | Applies to |
 |---|---|---|
-| the JVM's global file, by convention `stack-augmentor-global.toml` outside the classpath | `-javaagent:stack-augmentor-agent.jar=config=<file>` (or just `=<file>`), otherwise `-Dstackaugmentor.config=<file>`; with build-time instrumentation, the system property | all classes, first |
+| the JVM's global file, by convention `stack-augmentor-global.toml` outside the classpath | `-Dstackaugmentor.config=<file>`, with the agent and with build-time instrumentation alike | all classes, first |
 | `stack-augmentor-context.toml` | on the classpath of a class loader: one per class loader at most | all classes of that class loader, and of those below it without one of their own |
 | `stack-augmentor.toml` | in a jar or directory on the classpath: one per jar or directory, a class loader may have several | the classes of that jar or directory only |
-| the build plugin's files | the plugin's arguments in `build.gradle.kts` (see the [README](../README.md#quick-start-build-time-instrumentation)), in the order they apply: the build's own file, like the agent's (`stack-augmentor-global.toml` outside the classpath, e.g. in the module's directory), a context file, and the module's local `stack-augmentor.toml` | the build, in this order; the context and the local file also at runtime, see below |
+| the build plugin's files | the plugin's arguments in `build.gradle.kts` (see the [README](../README.md#quick-start-build-time-instrumentation)), in the order they apply: the build's own file, like the JVM's (`stack-augmentor-global.toml` outside the classpath, e.g. in the module's directory), a context file, and the module's local `stack-augmentor.toml` | the build, in this order; the context and the local file also at runtime, see below |
 
 Who reads what:
 
 - **The Java agent**, also in the live-stack mode, uses everything at runtime: what is instrumented, which exceptions are augmented, and how the frames look.
-- **The build plugin** uses `[augment.annotations]`, `[augment.receiver]` and `[augment.params]`, to decide which classes and methods to instrument and which parameters they pass, and `[settings]` `debug` from its first file, the build's own. It validates every file.
-- **The runtime of classes instrumented at build time** uses `[augment]`, `[augment.exceptions]`, `[augment.receiver]`, and the `[settings]` of `-Dstackaugmentor.config`; the parameters and where the annotations are read were chosen at build time.
+- **The build plugin** uses `[augment.annotations]`, `[augment.receiver]` and `[augment.params]`, to decide which classes and methods to instrument and which parameters they pass. It validates every file.
+- **The runtime of classes instrumented at build time** uses `[augment]`, `[augment.exceptions]` and `[augment.receiver]`; the parameters and where the annotations are read were chosen at build time.
 
-For build-time instrumentation, one `src/main/resources/stack-augmentor-context.toml` serves both the build and the runtime. It is on the classpath, so it has no `[settings]`, and the plugin rejects them in it as the runtime does: they go in a file given by `-Dstackaugmentor.config` at runtime, and in the plugin's first file, the build's own, for the build. A frame's receiver members come from the runtime entry with the same key as the entry that decided its method at build time, so if you change a key, rebuild. Where the annotations decided at build time, the frame shows the `@AugmentedReceiver` members, as it shows the annotated parameters: the build decides both, and the runtime's `[augment.annotations]` is not checked again. Without a runtime file for a class, the built-in configuration applies alone and a warning says so: a forgotten file would otherwise go unnoticed, since the built-in configuration does not have the keys of your build file.
+For build-time instrumentation, one `src/main/resources/stack-augmentor-context.toml` serves both the build and the runtime. A frame's receiver members come from the runtime entry with the same key as the entry that decided its method at build time, so if you change a key, rebuild. Where the annotations decided at build time, the frame shows the `@AugmentedReceiver` members, as it shows the annotated parameters: the build decides both, and the runtime's `[augment.annotations]` is not checked again. Without a runtime file for a class, the built-in configuration applies alone and a warning says so: a forgotten file would otherwise go unnoticed, since the built-in configuration does not have the keys of your build file.
 
 A local `stack-augmentor.toml` in `src/main/resources` applies to the classes of the jar it is packaged in. When the classes run from the build directories, as with `gradle run`, in tests or in an IDE, the resources and the classes are different directories. So pass it to the build plugin as its third argument: the plugin marks the classes it instruments with the file's SHA-256 (`@LocalConfiguration`), and at runtime they use the `stack-augmentor.toml` with that content wherever their class loader has it. If none matches, e.g. because it changed after the build, a warning says so and their jar or directory decides. Classes the agent instruments always go by their jar or directory.
 
@@ -101,12 +97,11 @@ How they combine:
 
 - In each of `[augment.exceptions]`, `[augment.annotations]`, `[augment.receiver]` and `[augment.params]`, the first matching entry decides, looking through the entries of the first configuration, then those of the next, and so on. So a `false` or `"-"` entry of the JVM's or a context file decides for the local ones too, and the built-in configuration only decides what none of the files does. An entry with the same key as one before it is left out.
 - `frameFormat`, `receiverFormat`, `paramsFormat` and `maxValueLength` each come from the first configuration that sets them: the JVM's or a context file's format applies to all their classes, a local file's to the classes of its jar or directory where neither sets it.
-- `[settings]` apply to the whole JVM, so only the JVM's global file may have them; a file on the classpath that does is rejected, see [Settings](#settings).
 
 So an application server, Spring Boot or Quarkus, which run each application in a class loader of its own, let each application bring its own `stack-augmentor-context.toml` (in `WEB-INF/classes`, `BOOT-INF/classes` or `src/main/resources`) for its classes and libraries, and each jar its own `stack-augmentor.toml` for its classes:
 
 ```
--javaagent:...=config=ops.toml                 # first, for every class
+-Dstackaugmentor.config=ops.toml               # first, for every class
 webapp A: WEB-INF/classes/stack-augmentor-context.toml   # then, for every class of webapp A
           WEB-INF/lib/orders.jar!/stack-augmentor.toml  # then, for the classes of orders.jar only
 built-in configuration                         # last
@@ -296,18 +291,18 @@ Without the `@Augmented` on the class, both frames would be unchanged; with `@Au
 | `receiverFormat = "<$value>"` | `com.hafnium.ObjectClass<1>.process{orderId=42}(ObjectClass.java:13)` |
 | `receiverFormat = "[$name=$value, ...]"`, `paramsFormat = "[$name=$value, ...]"` | `com.hafnium.ObjectClass[objectId=1].process[orderId=42](ObjectClass.java:13)` |
 
-## Settings
+## System properties
 
-The `[settings]` table applies to the whole JVM, so only the file given explicitly may have it: the agent's (`config=<file>`) or `-Dstackaugmentor.config`, and for the build, the build plugin's first file. A file on the classpath, also when it is given to the build plugin as its context or local file, `stack-augmentor-context.toml` or `stack-augmentor.toml`, that has it is rejected. Without `[settings]` in the JVM's global file, the defaults apply.
+What applies to the whole JVM, or to the whole build, is given by system properties, the same way for the agent, the runtime of build-time instrumentation and the build plugin. The agent takes no arguments: `-javaagent:stack-augmentor-agent.jar=<anything>` stops the JVM with a message to use `-Dstackaugmentor.config`.
 
-```toml
-[settings]
-debug = true
-inPlaceModification = false
+```
+java -javaagent:stack-augmentor-agent.jar -Dstackaugmentor.config=stack-augmentor-global.toml -Dstackaugmentor.debug=true -jar app.jar
+./gradlew -Dstackaugmentor.debug=true build      # what the build plugin instruments, and why
 ```
 
-- **`debug = true`** prints diagnostics to stderr: the configuration and where it came from, which classes and methods get instrumented and by which entry, where each value comes from, and annotations or entries that have no effect. Startup messages start with their source: `agent:`, `build plugin:` or `runtime:` (classes instrumented at build time, at runtime); the others name the class or the entry they are about.
-- **`inPlaceModification = true`** (the default) writes each frame into the exception's own stack trace instead of copying the trace, which is faster for deep stacks (see [Limitations](limitations.md)). It needs `java.lang` open: the agent opens it; with build-time instrumentation, start the application with `--add-opens java.base/java.lang=ALL-UNNAMED`. Where `java.lang` is not open, frames are copied instead, with a warning if the file or the system property sets `inPlaceModification = true` explicitly. `false` always copies. `-Dstackaugmentor.inPlaceModification=true|false` overrides the file.
+- **`-Dstackaugmentor.config=<file>`** names the JVM's global file, the first in the [chain](#the-configuration-chain).
+- **`-Dstackaugmentor.debug=true`** prints diagnostics to stderr: the configuration and where it came from, which classes and methods get instrumented and by which entry, where each value comes from, and annotations or entries that have no effect. Startup messages start with their source: `agent:`, `build plugin:` or `runtime:` (classes instrumented at build time, at runtime); the others name the class or the entry they are about.
+- **`-Dstackaugmentor.inPlaceModification`**: `true`, the default, writes each frame into the exception's own stack trace instead of copying the trace, which is faster for deep stacks (see [Limitations](limitations.md)). It needs `java.lang` open: the agent opens it; with build-time instrumentation, start the application with `--add-opens java.base/java.lang=ALL-UNNAMED`. Where `java.lang` is not open, frames are copied instead, with a warning if the property is set to `true` explicitly. `false` always copies.
 
 ## Errors and warnings
 
@@ -327,8 +322,7 @@ With build-time instrumentation, the runtime reads its configuration when the fi
 - invalid values, e.g. an index above 254, an empty item in `"a,,b"`, or a method, receiver member or parameter listed twice (`"email, email#"` too; a name and an index of the same parameter are allowed, and it is shown once);
 - the same key twice, also written differently: `"com.acme.Order"` and unquoted `com.acme.Order`, or `"Order::a, b"`, `"Order::a,b"` and `"Order::b, a"`;
 - templates with `(`, `)`, an unknown placeholder, or without `.$method`;
-- `[settings]` in a file on the classpath, `stack-augmentor-context.toml` or `stack-augmentor.toml`;
-- `debug` or `inPlaceModification` outside `[settings]`: `'debug' belongs in the [settings] table`;
+- arguments to the agent (use `-Dstackaugmentor.config`);
 - two `stack-augmentor-context.toml` in one class loader.
 
 **Warnings** don't stop anything:

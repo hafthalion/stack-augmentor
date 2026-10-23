@@ -40,10 +40,10 @@ class QuarkusTest {
 
     @Test
     void theAgentUsesTheConfigurationInTheApplicationForItsClasses() throws Exception {
-        String output = run("-javaagent:" + System.getProperty("stackaugmentor.it.agentJar") + "=config="
-                + System.getProperty("stackaugmentor.it.agentConfig"));
-        // The build-time instrumented class, with the format of the application's configuration, not the agent's.
-        assertTrue(output.contains(SHIP), output);
+        String output = run("-javaagent:" + System.getProperty("stackaugmentor.it.agentJar"),
+                "-Dstackaugmentor.config=" + System.getProperty("stackaugmentor.it.agentConfig"));
+        // The build-time instrumented class, with the format of the JVM's configuration, which applies first.
+        assertTrue(output.contains("\tat com.hafnium.it.quarkus.Shipping[region: us].ship{orderId: o-2}(Shipping.java:"), output);
         // The library class that the application's configuration selects: the agent instruments it (compiled without
         // parameter names).
         assertTrue(output.contains("\tat io.smallrye.mutiny.helpers.ParameterValidation.nonNull{arg1=address of o-2}("), output);

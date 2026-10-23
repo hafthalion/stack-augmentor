@@ -91,7 +91,7 @@ class ClassLoaderConfigsTest {
             [augment.receiver]
             "com.acme.Order::*" = "number"
             "com.acme.Invoice::*" = "number"
-            """.trimIndent(), "local.toml", false,
+            """.trimIndent(), "local.toml",
         )
         val config = AugmentorConfig.layered(listOf(context, local, AugmentorConfig.builtIn()))
         assertEquals("<\$value>", config.receiverFormat())
@@ -109,17 +109,6 @@ class ClassLoaderConfigsTest {
         assertEquals(mapOf("**" to true), config.annotations())
         assertTrue(config.augments(IllegalStateException::class.java))
         assertFalse(config.augments(Error::class.java))
-    }
-
-    @Test
-    fun `only the file given explicitly may have the settings of the whole JVM`() {
-        for (setting in listOf("debug = true", "inPlaceModification = false")) {
-            val message = assertThrows<ConfigException> {
-                AugmentorConfig.parse("[settings]\n$setting", "stack-augmentor.toml", false)
-            }.message!!
-            assertTrue(message.startsWith("stack-augmentor.toml, line 1: [settings] applies to the whole JVM"), message)
-        }
-        assertTrue(AugmentorConfig.parse("[settings]\ndebug = true", "agent.toml", true).debug())
     }
 
     @Test
@@ -218,29 +207,16 @@ class ClassLoaderConfigsTest {
 
     @Test
     fun `an invalid local configuration leaves the classes of its source unchanged only`(@TempDir dir: Path) {
-        val invalid = directory(dir, "invalid", "stack-augmentor.toml" to "[settings]\ndebug = true\n")
+        val invalid = directory(dir, "invalid", "stack-augmentor.toml" to "[augment]\nmaxValueLength = 1\n")
         val valid = directory(dir, "valid", "stack-augmentor.toml" to "[augment]\nmaxValueLength = 10\n")
         val configs = configs()
         loader(invalid, valid).use { loader ->
             val output = stderrOf { configs.register(loader) }
             assertTrue(output.contains("ERROR runtime: "), output)
-            assertTrue(output.contains("line 1: [settings] applies to the whole JVM"), output)
+            assertTrue(output.contains("line 2: maxValueLength must be between 2 and 10000"), output)
             assertTrue(output.contains("the classes of file:"), output)
             assertNull(configs.forType(loader, "com.acme.Order", from(invalid)))
             assertEquals(10, configs.forType(loader, "com.acme.Invoice", from(valid)).maxValueLength())
-        }
-    }
-
-    @Test
-    fun `the context configuration of a class loader must not have the settings of the whole JVM`(@TempDir dir: Path) {
-        val application = directory(dir, "application", "stack-augmentor-context.toml" to "[settings]\ninPlaceModification = false\n")
-        val configs = configs()
-        loader(application).use { loader ->
-            val output = stderrOf { configs.register(loader) }
-            assertTrue(output.contains("ERROR runtime: "), output)
-            assertTrue(output.contains("line 1: [settings] applies to the whole JVM"), output)
-            assertTrue(output.contains("are not augmented"), output)
-            assertNull(configs.forType(loader, "com.acme.Order", from(application)))
         }
     }
 

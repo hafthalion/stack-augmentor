@@ -71,12 +71,12 @@ enum class Mode(val title: String, val description: String) {
     AGENT_IN_PLACE(
         "Agent, frames written in place",
         "The agent instruments the configured classes; when the exception leaves a configured method, its frame is " +
-            "written into the exception's own stack trace (inPlaceModification = true, the default).",
+            "written into the exception's own stack trace (in-place modification, the default).",
     ),
     AGENT_COPYING(
         "Agent, stack trace copied",
         "The same, but each frame is written by copying the whole stack trace and setting it again " +
-            "(inPlaceModification = false, or where java.lang cannot be opened).",
+            "(-Dstackaugmentor.inPlaceModification=false, or where java.lang cannot be opened).",
     ),
     LIVE(
         "Agent, live-stack mode",

@@ -1,4 +1,4 @@
-# The agent's configuration: it applies to all classes, before the application's own stack-augmentor-context.toml.
+# The JVM's configuration (-Dstackaugmentor.config): it applies to all classes, before the application's own stack-augmentor-context.toml.
 
 [augment]
 receiverFormat = "[$name: $value]"

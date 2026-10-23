@@ -12,10 +12,10 @@ context: |
   Modules: api, instrument-bridge, runtime, instrument, agent, native, build-plugin; not published: under it/,
   agent (agent and live-stack integration tests), build-time, spring-boot, quarkus, benchmark; examples/java-agent,
   examples/live-agent, examples/build-time.
-  Configuration: stack-augmentor.toml with debug, inPlaceModification and [augment] (formats,
-  maxValueLength) with the tables [augment.exceptions], [augment.annotations], [augment.receiver] and
+  Configuration: TOML files with [augment] only (formats, maxValueLength) with the tables [augment.exceptions], [augment.annotations], [augment.receiver] and
   [augment.params]; first matching entry decides in every table. Annotations: @Augmented,
-  @AugmentedReceiver, @AugmentedParam, @AugmentedParams.
+  @AugmentedReceiver, @AugmentedParam, @AugmentedParams. Options of the whole JVM are system properties:
+  stackaugmentor.config, stackaugmentor.debug, stackaugmentor.inPlaceModification; the agent takes no arguments.
   Wording: frames and exceptions are "augmented"; say "receiver members" and "parameter values", never "ids".
   Specs: start with specs/functional/overview (goal, terminology, which spec owns which rule); functional
   capabilities under specs/functional/, non-functional requirements under specs/non-functional/.

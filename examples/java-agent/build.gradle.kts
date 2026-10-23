@@ -24,6 +24,6 @@ tasks.named<JavaExec>("run") {
     val config = layout.projectDirectory.file("stack-augmentor-global.toml")
     inputs.files(agentJar)
     jvmArgumentProviders.add(CommandLineArgumentProvider {
-        listOf("-javaagent:${agentJar.singleFile.absolutePath}=config=${config.asFile.absolutePath}")
+        listOf("-javaagent:${agentJar.singleFile.absolutePath}", "-Dstackaugmentor.config=${config.asFile.absolutePath}")
     })
 }

@@ -45,7 +45,7 @@ tasks.withType<Test>().configureEach {
     inputs.files(agentJar).withPropertyName("agent")
     inputs.file(config).withPropertyName("agentConfig")
     jvmArgumentProviders.add(CommandLineArgumentProvider {
-        listOf("-javaagent:${agentJar.singleFile.absolutePath}=config=${config.asFile.absolutePath}")
+        listOf("-javaagent:${agentJar.singleFile.absolutePath}", "-Dstackaugmentor.config=${config.asFile.absolutePath}")
     })
 
     // WithoutKotlinTest starts a JVM of its own with the agent and only the Java test classes and the API jar:

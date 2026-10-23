@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  * {@link AugmentorConfig#layered}):
  *
  * <ol>
- *     <li>the global configuration given to the JVM: the agent's file or {@code -Dstackaugmentor.config};</li>
+ *     <li>the global configuration given to the JVM by {@code -Dstackaugmentor.config};</li>
  *     <li>the {@value AugmentorConfig#CONTEXT_RESOURCE} of the nearest class loader, from the class's own upwards, that has
  *     one of its own, one that its parent does not see; without one, that of the system class loader, if any. A class
  *     loader may have one only;</li>
@@ -123,11 +123,11 @@ public final class ClassLoaderConfigs<T> {
      */
     public static <T> ClassLoaderConfigs<T> create(String component, AugmentorConfig argument, String argumentLocation,
                                                    Function<AugmentorConfig, T> factory) {
+        Log.setDebug(Log.debugRequested());
         ClassLoader system = ClassLoader.getSystemClassLoader();
         URL resource = contextResource(system);
         AugmentorConfig systemContext = resource != null ? read(resource) : null;
         ClassLoaderConfigs<T> configs = new ClassLoaderConfigs<>(component, factory, argument, systemContext, null);
-        Log.setDebug(configs.baseConfig.debug());
         if (argument != null) {
             Startup.describe(component, argumentLocation, argument);
         }
@@ -153,7 +153,7 @@ public final class ClassLoaderConfigs<T> {
 
     /**
      * The configuration of {@link #base()}: the global one given to the JVM, the context one of the system class loader,
-     * and the built-in one. Its {@code [settings]}, which only the one given to the JVM may have, apply to the whole JVM.
+     * and the built-in one.
      */
     public AugmentorConfig baseConfig() {
         return baseConfig;
@@ -335,14 +335,14 @@ public final class ClassLoaderConfigs<T> {
 
     /** Reads a configuration file of a class loader, and describes it. */
     private AugmentorConfig readFor(ClassLoader loader, URL resource, byte[] content) {
-        AugmentorConfig config = AugmentorConfig.parse(new String(content, StandardCharsets.UTF_8), resource.toString(), false);
+        AugmentorConfig config = AugmentorConfig.parse(new String(content, StandardCharsets.UTF_8), resource.toString());
         String location = resource + " of class loader " + describe(loader);
         Startup.describe(component, location, config);
         return config;
     }
 
     private static AugmentorConfig read(URL resource) {
-        return AugmentorConfig.parse(new String(bytes(resource), StandardCharsets.UTF_8), resource.toString(), false);
+        return AugmentorConfig.parse(new String(bytes(resource), StandardCharsets.UTF_8), resource.toString());
     }
 
     /**

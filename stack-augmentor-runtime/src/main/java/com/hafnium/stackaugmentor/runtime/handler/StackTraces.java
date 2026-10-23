@@ -1,7 +1,6 @@
 package com.hafnium.stackaugmentor.runtime.handler;
 
 import com.hafnium.stackaugmentor.runtime.Log;
-import com.hafnium.stackaugmentor.runtime.config.AugmentorConfig;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -45,23 +44,27 @@ public abstract sealed class StackTraces {
         return new InPlace();
     }
 
+    /** Turns off in-place modification for the whole JVM: {@code -Dstackaugmentor.inPlaceModification=false}. */
+    public static final String IN_PLACE_MODIFICATION_PROPERTY = "stackaugmentor.inPlaceModification";
+
     /**
-     * In place, unless the configuration turns it off ({@link AugmentorConfig#inPlaceModification()}) or {@code java.lang}
-     * is not open to this module: then copying, with a warning if in-place modification was asked for explicitly.
+     * In place, unless {@value #IN_PLACE_MODIFICATION_PROPERTY} is {@code false} or {@code java.lang} is not open to
+     * this module: then copying, with a warning if the property asked for in-place modification.
      *
      * @param component the component, for the messages
      * @param notOpen   how to open {@code java.lang}, for the messages
      */
-    public static StackTraces configured(AugmentorConfig config, String component, String notOpen) {
-        if (!config.inPlaceModification()) {
+    public static StackTraces configured(String component, String notOpen) {
+        String property = System.getProperty(IN_PLACE_MODIFICATION_PROPERTY);
+        if (property != null && !Boolean.parseBoolean(property.trim())) {
             return COPYING;
         }
         try {
             return inPlace();
         } catch (IllegalAccessException | RuntimeException e) {
-            String message = component + ": inPlaceModification needs java.lang open to stack-augmentor, " + notOpen
+            String message = component + ": in-place modification needs java.lang open to stack-augmentor, " + notOpen
                     + ", so stack traces are copied (" + e + ")";
-            if (config.inPlaceModificationRequested()) {
+            if (property != null) {
                 Log.warn(message);
             } else {
                 Log.debug(() -> message);

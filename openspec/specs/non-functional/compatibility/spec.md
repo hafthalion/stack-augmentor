@@ -70,7 +70,7 @@ Every way to run SHALL work for an application that does not have the Kotlin sta
 Augmentor SHALL NOT need any Kotlin class at runtime, also not for debug output or configuration errors.
 
 #### Scenario: Agent with a Java application
-- **GIVEN** a Java application without `kotlin-stdlib`, started with the agent and `debug = true`
+- **GIVEN** a Java application without `kotlin-stdlib`, started with the agent and `-Dstackaugmentor.debug=true`
 - **WHEN** an annotated method throws
 - **THEN** the frame shows its augmentation, and no `NoClassDefFoundError` or `ClassNotFoundException` for a `kotlin.*` class occurs
 
