@@ -44,31 +44,28 @@ public abstract sealed class StackTraces {
         return new InPlace();
     }
 
-    /** Turns off in-place modification for the whole JVM: {@code -Dstackaugmentor.inPlaceModification=false}. */
-    public static final String IN_PLACE_MODIFICATION_PROPERTY = "stackaugmentor.inPlaceModification";
+    /**
+     * Undocumented, for the integration tests and the benchmark only: {@code -Dstackaugmentor.it.forceStackTraceCopy=true}
+     * copies stack traces also where they could be written in place.
+     */
+    public static final String FORCE_COPY_PROPERTY = "stackaugmentor.it.forceStackTraceCopy";
 
     /**
-     * In place, unless {@value #IN_PLACE_MODIFICATION_PROPERTY} is {@code false} or {@code java.lang} is not open to
-     * this module: then copying, with a warning if the property asked for in-place modification.
+     * In place, unless {@code java.lang} is not open to this module or {@value #FORCE_COPY_PROPERTY} is {@code true}:
+     * then copying.
      *
      * @param component the component, for the messages
      * @param notOpen   how to open {@code java.lang}, for the messages
      */
     public static StackTraces configured(String component, String notOpen) {
-        String property = System.getProperty(IN_PLACE_MODIFICATION_PROPERTY);
-        if (property != null && !Boolean.parseBoolean(property.trim())) {
+        if (Boolean.getBoolean(FORCE_COPY_PROPERTY)) {
             return COPYING;
         }
         try {
             return inPlace();
         } catch (IllegalAccessException | RuntimeException e) {
-            String message = component + ": in-place modification needs java.lang open to stack-augmentor, " + notOpen
-                    + ", so stack traces are copied (" + e + ")";
-            if (property != null) {
-                Log.warn(message);
-            } else {
-                Log.debug(() -> message);
-            }
+            Log.debug(() -> component + ": in-place modification needs java.lang open to stack-augmentor, " + notOpen
+                    + ", so stack traces are copied (" + e + ")");
             return COPYING;
         }
     }

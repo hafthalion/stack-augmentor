@@ -5,10 +5,9 @@
 # What applies to the whole JVM are system properties, not keys:
 # -Dstackaugmentor.config=<file>                 the JVM's configuration file, before all others
 # -Dstackaugmentor.debug=true                    print diagnostics to stderr (also for the build plugin, on the build)
-# -Dstackaugmentor.inPlaceModification=false     copy stack traces instead of writing augmented frames into the
-#                                                exception's own; writing in place needs java.lang open (the agent opens
-#                                                it; with build-time instrumentation, start with
-#                                                --add-opens java.base/java.lang=ALL-UNNAMED), otherwise frames are copied
+#
+# Augmented frames are written into the exception's own stack trace where java.lang is open (the agent opens it; with
+# build-time instrumentation, start with --add-opens java.base/java.lang=ALL-UNNAMED), otherwise the trace is copied.
 
 # How frames look.
 [augment]

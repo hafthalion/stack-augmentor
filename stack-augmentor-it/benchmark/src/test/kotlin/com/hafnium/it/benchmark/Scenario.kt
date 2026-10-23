@@ -76,7 +76,7 @@ enum class Mode(val title: String, val description: String) {
     AGENT_COPYING(
         "Agent, stack trace copied",
         "The same, but each frame is written by copying the whole stack trace and setting it again " +
-            "(-Dstackaugmentor.inPlaceModification=false, or where java.lang cannot be opened).",
+            "(as where java.lang cannot be opened; forced here with -Dstackaugmentor.it.forceStackTraceCopy=true).",
     ),
     LIVE(
         "Agent, live-stack mode",

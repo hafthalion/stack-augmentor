@@ -83,12 +83,12 @@ class StackTracesTest {
     }
 
     @Test
-    fun `build-time handler copies when in-place modification is turned off`() {
-        System.setProperty(StackTraces.IN_PLACE_MODIFICATION_PROPERTY, "false")
+    fun `build-time handler copies when copying is forced`() {
+        System.setProperty(StackTraces.FORCE_COPY_PROPERTY, "true")
         try {
             assertSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces())
         } finally {
-            System.clearProperty(StackTraces.IN_PLACE_MODIFICATION_PROPERTY)
+            System.clearProperty(StackTraces.FORCE_COPY_PROPERTY)
         }
     }
 }
