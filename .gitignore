@@ -2,6 +2,6 @@
 .kotlin/
 /build/
 /*/build/
-/examples/*/build/
+/stack-augmentor-example/*/build/
 /stack-augmentor-it/*/build/
 /stack-augmentor-native/jdk-include/

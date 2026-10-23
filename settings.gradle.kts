@@ -19,7 +19,7 @@ include(
     "stack-augmentor-it:benchmark",
     "stack-augmentor-it:spring-boot",
     "stack-augmentor-it:quarkus",
-    "examples:java-agent",
-    "examples:live-agent",
-    "examples:build-time",
+    "stack-augmentor-example:java-agent",
+    "stack-augmentor-example:live-agent",
+    "stack-augmentor-example:build-time",
 )

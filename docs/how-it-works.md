@@ -28,10 +28,10 @@ The library modules are written in Java and don't depend on the Kotlin runtime; 
 | `stack-augmentor-native` | The native library (C) for the agent's experimental live-stack mode, loaded with `-agentpath` |
 | `stack-augmentor-build-plugin` | The ByteBuddy build plugin for build-time instrumentation |
 | `stack-augmentor-it/agent` | Integration tests, run with the agent attached (`test`) and in the live-stack mode (`testLiveStack`), including a Java application run without the Kotlin runtime |
-| `examples/java-agent` | Demo with the agent: the example in the README, plus third-party stand-ins configured in `stack-augmentor.toml` |
-| `examples/live-agent` | Demo of the agent's live-stack mode, where every frame of the logged stack traces is augmented |
+| `stack-augmentor-example/java-agent` | Demo with the agent: the example in the README, plus third-party stand-ins configured in `stack-augmentor.toml` |
+| `stack-augmentor-example/live-agent` | Demo of the agent's live-stack mode, where every frame of the logged stack traces is augmented |
 | `stack-augmentor-it/build-time` | Integration tests for build-time instrumentation: fixtures instrumented by the build plugin, run without an agent, and again with it (`testWithAgent`) |
-| `examples/build-time` | The same demo with build-time instrumentation (the stand-ins are compiled with it) |
+| `stack-augmentor-example/build-time` | The same demo with build-time instrumentation (the stand-ins are compiled with it) |
 | `stack-augmentor-it/spring-boot` | A Spring Boot application instrumented at build time, packaged as an executable jar, and run without and with the agent: its own `stack-augmentor-context.toml` applies to its classes and libraries, its `stack-augmentor.toml` to its own classes only |
 | `stack-augmentor-it/quarkus` | The same for a Quarkus application in JVM mode (fast-jar) |
 | `stack-augmentor-it/benchmark` | Benchmark of exceptions 1000 frames deep without stack-augmentor, with the agent copying stack traces, with the agent writing frames in place (the default), and in the live-stack mode; `./gradlew :stack-augmentor-it:benchmark:benchmark` writes an HTML report to `build/reports/benchmark/index.html` and copies it to `docs/benchmark/index.html`, which GitHub Pages publishes once it is committed to master; the project build only compiles it |

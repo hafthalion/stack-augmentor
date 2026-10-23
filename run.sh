@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds the project and runs one of the examples, the same way an application would, or the benchmark:
-#   ./run.sh [example] [JVM options]     example: java-agent, live-agent or build-time, the modules in examples
+#   ./run.sh [example] [JVM options]     example: java-agent, live-agent or build-time, the modules in stack-augmentor-example
 #   ./run.sh benchmark
 # Without an argument, it asks which one to run.
 #
@@ -67,12 +67,12 @@ if [ "$EXAMPLE" = benchmark ]; then
     exit
 fi
 
-# The example is the Gradle module examples/$EXAMPLE. Its jar's manifest names the main class and the other jars
+# The example is the Gradle module stack-augmentor-example/$EXAMPLE. Its jar's manifest names the main class and the other jars
 # in its lib folder.
-CONFIG=examples/$EXAMPLE/stack-augmentor-global.toml
-JAR=examples/$EXAMPLE/build/install/$EXAMPLE/lib/$EXAMPLE-0.1.0-SNAPSHOT.jar
+CONFIG=stack-augmentor-example/$EXAMPLE/stack-augmentor-global.toml
+JAR=stack-augmentor-example/$EXAMPLE/build/install/$EXAMPLE/lib/$EXAMPLE-0.1.0-SNAPSHOT.jar
 
-if ! ./gradlew build ":examples:$EXAMPLE:installDist"; then
+if ! ./gradlew build ":stack-augmentor-example:$EXAMPLE:installDist"; then
     echo "Build FAILED. Test reports: stack-augmentor-*/build/reports/tests"
     exit 1
 fi

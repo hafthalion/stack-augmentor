@@ -10,8 +10,8 @@ context: |
   Tech stack: Java for the published modules (no Kotlin runtime dependency), Kotlin for examples and
   tests, Java 25, Gradle 9 (Kotlin DSL, version catalog), ByteBuddy, tomlj, JUnit 6, C for the native library.
   Modules: api, instrument-bridge, runtime, instrument, agent, native, build-plugin; not published: under it/,
-  agent (agent and live-stack integration tests), build-time, spring-boot, quarkus, benchmark; examples/java-agent,
-  examples/live-agent, examples/build-time.
+  agent (agent and live-stack integration tests), build-time, spring-boot, quarkus, benchmark; stack-augmentor-example/java-agent,
+  stack-augmentor-example/live-agent, stack-augmentor-example/build-time.
   Configuration: TOML files with [augment] only (formats, maxValueLength) with the tables [augment.exceptions], [augment.receiver] and
   [augment.params]; first matching entry decides in every table; @Augmented alone says where annotations are read. Annotations: @Augmented,
   @AugmentedReceiver, @AugmentedParam, @AugmentedParams. Options of the whole JVM are system properties:

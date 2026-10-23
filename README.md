@@ -27,7 +27,7 @@ Stack Augmentor augments the frames of stack traces with receiver members and pa
 | Third-party classes | yes, from the configuration | yes, from the configuration | no, only the classes of the project being built |
 | Cost | a few µs per configured frame the exception leaves | every exception that `[augment.exceptions]` selects pays a stack walk, more with configured frames | as the agent |
 | Needs at runtime | the agent jar | the agent jar and the native library | `stack-augmentor-runtime` on the classpath |
-| Example | `./gradlew :examples:java-agent:run` | `./gradlew :examples:live-agent:run` | `./gradlew :examples:build-time:run` |
+| Example | `./gradlew :stack-augmentor-example:java-agent:run` | `./gradlew :stack-augmentor-example:live-agent:run` | `./gradlew :stack-augmentor-example:build-time:run` |
 
 An application with classes instrumented at build time can also run with the agent, in either mode.
 
@@ -54,7 +54,7 @@ In all three tables the first matching entry decides, and classes are written th
 ## Quick start: Java agent
 
 ```bash
-./gradlew :examples:java-agent:run
+./gradlew :stack-augmentor-example:java-agent:run
 ```
 
 Use it in your own application:
@@ -113,10 +113,10 @@ Use it in your own application:
 ## Quick start: build-time instrumentation
 
 ```bash
-./gradlew :examples:build-time:run
+./gradlew :stack-augmentor-example:build-time:run
 ```
 
-Use it in your own Gradle project (see [examples/build-time/build.gradle.kts](examples/build-time/build.gradle.kts)):
+Use it in your own Gradle project (see [stack-augmentor-example/build-time/build.gradle.kts](stack-augmentor-example/build-time/build.gradle.kts)):
 
 ```kotlin
 import net.bytebuddy.build.EntryPoint
@@ -175,4 +175,4 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 - [Limitations](docs/limitations.md): the details, with measured costs
 - [How it works](docs/how-it-works.md): the instrumentation, the modules and packages
 
-Build and test with `./gradlew build`. `./run.sh [java-agent|live-agent|build-time|benchmark]` (or `run.bat` on Windows) builds the project and runs that example module from `examples`, or the benchmark, and asks which one without an argument: `java-agent` with a simple cause chain printed by `printStackTrace` and root cause first; `live-agent` twice, with the agent alone and in the live-stack mode if a C compiler (`cc`, or MinGW `gcc` on Windows) built the native library; `build-time` without an agent; `benchmark` runs `:stack-augmentor-it:benchmark:benchmark`, which writes `stack-augmentor-it/benchmark/build/reports/benchmark/index.html` and copies it to `docs/benchmark/index.html` (for a quick, rough run, pass shorter settings such as `-Pbenchmark.batchMillis=50 -Pbenchmark.batches=5`, see `stack-augmentor-it/benchmark/build.gradle.kts`); committed to master, it is published on [GitHub Pages](https://hafthalion.github.io/stack-augmentor/). This needs JDK 25.
+Build and test with `./gradlew build`. `./run.sh [java-agent|live-agent|build-time|benchmark]` (or `run.bat` on Windows) builds the project and runs that example module from `stack-augmentor-example`, or the benchmark, and asks which one without an argument: `java-agent` with a simple cause chain printed by `printStackTrace` and root cause first; `live-agent` twice, with the agent alone and in the live-stack mode if a C compiler (`cc`, or MinGW `gcc` on Windows) built the native library; `build-time` without an agent; `benchmark` runs `:stack-augmentor-it:benchmark:benchmark`, which writes `stack-augmentor-it/benchmark/build/reports/benchmark/index.html` and copies it to `docs/benchmark/index.html` (for a quick, rough run, pass shorter settings such as `-Pbenchmark.batchMillis=50 -Pbenchmark.batches=5`, see `stack-augmentor-it/benchmark/build.gradle.kts`); committed to master, it is published on [GitHub Pages](https://hafthalion.github.io/stack-augmentor/). This needs JDK 25.
