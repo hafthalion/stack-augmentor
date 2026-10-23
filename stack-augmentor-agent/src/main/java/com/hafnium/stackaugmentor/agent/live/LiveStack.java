@@ -24,8 +24,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class LiveStack {
 
-    static final int DEFAULT_MAX_DEPTH = 1024;
-
     private LiveStack() {
     }
 
@@ -61,9 +59,8 @@ public final class LiveStack {
         if (problem != null) {
             return problem;
         }
-        int maxDepth = jvm.vmOption("MaxJavaStackTraceDepth", DEFAULT_MAX_DEPTH);
         boolean eliminatedAllocations = jvm.vmOption("EliminateAllocations", 1) != 0;
-        LiveFrames handler = new LiveFrames(live, contexts, maxDepth <= 0 ? Integer.MAX_VALUE : maxDepth, eliminatedAllocations);
+        LiveFrames handler = new LiveFrames(live, contexts, eliminatedAllocations);
 
         AtomicBoolean probed = new AtomicBoolean();
         LiveDispatch.install(new ProbeHandler(probed));
@@ -88,7 +85,7 @@ public final class LiveStack {
         // Classes instrumented at build time still call the handler: the live stack already covers their frames.
         Dispatch.install((self, thrown, receiverKey, ownerClass, owner, method, args, paramNames) -> {
         });
-        Log.debug(() -> "agent: reading frames from the live stack (native library version " + version + "), stack trace depth " + maxDepth + (eliminatedAllocations
+        Log.debug(() -> "agent: reading frames from the live stack (native library version " + version + ")" + (eliminatedAllocations
                 ? ", an object argument the JIT optimized away shows as '" + LiveFrames.UNKNOWN + "' (-XX:-EliminateAllocations avoids that)"
                 : ""));
         return null;
