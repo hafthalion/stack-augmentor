@@ -41,7 +41,6 @@ An application with classes instrumented at build time can also run with the age
 | `[augment.params]` | configuration | empty | which frames show parameter values by name or index, and which parameters, e.g. `"com.acme.Order::ship, cancel*" = "orderId"` ([Parameter values](docs/configuration.md#parameter-values)) |
 | `[augment]` | configuration | see [Formats](docs/configuration.md#formats) | how frames look: `frameFormat`, `receiverFormat`, `paramsFormat`, `maxValueLength` |
 | `stackaugmentor.debug` | system property, e.g. `-Dstackaugmentor.debug=true`, also on the Gradle build | `false` | prints what gets instrumented and where each value comes from |
-| `stackaugmentor.inPlaceModification` | system property, e.g. `-Dstackaugmentor.inPlaceModification=false` | `true` | writes each frame into the exception's own stack trace instead of copying the trace; faster for deep stacks, needs `java.lang` open, otherwise frames are copied (see [Limitations](docs/limitations.md)) |
 | Live stack | `-agentpath:<native library>` | off | the agent reads the values from the live stack instead of instrumenting classes (see [Live stack](docs/live-stack.md)) |
 
 In all three tables the first matching entry decides, and classes are written the same way: a class name matches that class only, `+` after it also its subclasses, and a pattern (`*`, `**`, `?`) matches class names. The tables differ in their keys and values:

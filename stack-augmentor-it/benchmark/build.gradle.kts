@@ -68,9 +68,9 @@ val benchmarkTasks = modes.map { mode ->
                 listOf("-javaagent:${agentJar.singleFile.absolutePath}", "-Dstackaugmentor.config=${config.asFile.absolutePath}")
             })
         }
-        // In place is the default; copying needs it turned off.
+        // In place is the default; copying is forced by an undocumented property for tests.
         if (mode == "agentCopying") {
-            systemProperty("stackaugmentor.inPlaceModification", "false")
+            systemProperty("stackaugmentor.it.forceStackTraceCopy", "true")
         }
         if (mode == "live") {
             val library = nativeLibrary

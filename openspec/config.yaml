@@ -15,7 +15,8 @@ context: |
   Configuration: TOML files with [augment] only (formats, maxValueLength) with the tables [augment.exceptions], [augment.receiver] and
   [augment.params]; first matching entry decides in every table; @Augmented alone says where annotations are read. Annotations: @Augmented,
   @AugmentedReceiver, @AugmentedParam, @AugmentedParams. Options of the whole JVM are system properties:
-  stackaugmentor.config, stackaugmentor.debug, stackaugmentor.inPlaceModification; the agent takes no arguments.
+  stackaugmentor.config, stackaugmentor.debug; the agent takes no arguments. Undocumented, for ITs/benchmark only:
+  stackaugmentor.it.forceStackTraceCopy=true.
   Wording: frames and exceptions are "augmented"; say "receiver members" and "parameter values", never "ids".
   Specs: start with specs/functional/overview (goal, terminology, which spec owns which rule); functional
   capabilities under specs/functional/, non-functional requirements under specs/non-functional/.

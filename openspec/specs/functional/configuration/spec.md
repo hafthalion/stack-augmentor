@@ -41,9 +41,7 @@ What applies to the whole JVM, or to the whole build, SHALL be given by system p
 and the same way for the agent, the build plugin and the runtime:
 - `stackaugmentor.config`: the path of the JVM's global configuration file (see "Locating the configuration");
 - `stackaugmentor.debug` (boolean, default `false`): diagnostics, see the diagnostics specification; for the build plugin,
-  a system property of the build;
-- `stackaugmentor.inPlaceModification` (boolean, default `true`): a faster way of writing augmented frames that needs
-  extra JVM permissions, used where the JVM allows it, see the performance specification.
+  a system property of the build.
 
 The agent SHALL take no arguments; an agent started with arguments SHALL fail as with an invalid configuration, saying
 to use `stackaugmentor.config`.

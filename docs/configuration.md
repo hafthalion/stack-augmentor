@@ -14,7 +14,7 @@ Everything Stack Augmentor does is set in TOML files. They say which exceptions 
 - [Receiver members](#receiver-members): `[augment.receiver]`
 - [Parameter values](#parameter-values): `[augment.params]`
 - [Formats](#formats): `[augment]`
-- [System properties](#system-properties): `stackaugmentor.config`, `stackaugmentor.debug`, `stackaugmentor.inPlaceModification`
+- [System properties](#system-properties): `stackaugmentor.config`, `stackaugmentor.debug`
 - [Errors and warnings](#errors-and-warnings)
 - [Tips](#tips)
 
@@ -287,7 +287,8 @@ java -javaagent:stack-augmentor-agent.jar -Dstackaugmentor.config=stack-augmento
 
 - **`-Dstackaugmentor.config=<file>`** names the JVM's global file, the first in the [chain](#the-configuration-chain).
 - **`-Dstackaugmentor.debug=true`** prints diagnostics to stderr: the configuration and where it came from, which classes and methods get instrumented and by which entry, where each value comes from, and annotations or entries that have no effect. Startup messages start with their source: `agent:`, `build plugin:` or `runtime:` (classes instrumented at build time, at runtime); the others name the class or the entry they are about.
-- **`-Dstackaugmentor.inPlaceModification`**: `true`, the default, writes each frame into the exception's own stack trace instead of copying the trace, which is faster for deep stacks (see [Limitations](limitations.md)). It needs `java.lang` open: the agent opens it; with build-time instrumentation, start the application with `--add-opens java.base/java.lang=ALL-UNNAMED`. Where `java.lang` is not open, frames are copied instead, with a warning if the property is set to `true` explicitly. `false` always copies.
+
+Augmented frames are written into the exception's own stack trace instead of copying the trace, which is faster for deep stacks (see [Limitations](limitations.md)). That needs `java.lang` open: the agent opens it; with build-time instrumentation, start the application with `--add-opens java.base/java.lang=ALL-UNNAMED`. Where `java.lang` is not open, frames are copied instead (`-Dstackaugmentor.debug=true` says so).
 
 ## Errors and warnings
 

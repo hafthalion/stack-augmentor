@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 /**
  * The configuration, read from a TOML file. What applies to the whole JVM is given by system properties instead:
  * {@value #CONFIG_PROPERTY} names the JVM's file, {@code stackaugmentor.debug} turns on the debug output (see
- * {@code Log}), {@code stackaugmentor.inPlaceModification=false} has frames copied (see {@code StackTraces}).
+ * {@code Log}).
  *
  * <pre>{@code
  * [augment]                   # how frames look

@@ -38,17 +38,8 @@ class ThrowHandlerTest {
     }
 
     @Test
-    fun `build-time handler copies the trace and warns when in-place modification is asked for but java lang is not open`() {
-        val property = StackTraces.IN_PLACE_MODIFICATION_PROPERTY
-        System.setProperty(property, "true")
-        val output = try {
-            stderrOf { assertSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces()) }
-        } finally {
-            System.clearProperty(property)
-        }
-        assertTrue(output.contains("WARN runtime: in-place modification needs java.lang open"), output)
-        assertTrue(output.contains("--add-opens java.base/java.lang=ALL-UNNAMED"), output)
-        assertEquals("", stderrOf { ThrowHandler.runtimeStackTraces() }, "no warning by default")
+    fun `build-time handler copies the trace silently when java lang is not open`() {
+        assertEquals("", stderrOf { assertSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces()) })
     }
 
     private fun stderrOf(action: () -> Unit): String {
