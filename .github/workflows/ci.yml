@@ -15,8 +15,17 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Windows too: file locking and path forms (backslashes, drive letters) differ there, and only show up on it.
+    # Its native library is built with the runner's MinGW gcc.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
 
@@ -40,7 +49,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: test-reports
+          # reports.yml takes the Linux one.
+          name: test-reports${{ matrix.os != 'ubuntu-latest' && format('-{0}', matrix.os) || '' }}
           path: |
             **/build/reports/tests/
             **/build/reports/frames/
