@@ -63,18 +63,18 @@ SHALL also be recognised when the application brings its own copy of the API.
 `@Augmented` (`com.hafnium.stackaugmentor.Augmented`, targets type, method and constructor, with `boolean value()`
 defaulting to `true`) SHALL decide which methods and constructors the annotations augment:
 - the method's or constructor's own `@Augmented` SHALL decide for it: `@Augmented` on, `@Augmented(false)` off;
-- otherwise the `@Augmented` of the declaring type SHALL decide;
+- otherwise `@Augmented` on the declaring type SHALL turn it on;
 - otherwise the method or constructor SHALL NOT be augmented by the annotations.
 
 A class without `@Augmented`, on the type or on any of its methods and constructors, SHALL therefore be ignored: its
-`@AugmentedReceiver`, `@AugmentedParam` and `@AugmentedParams` SHALL NOT be looked for. `@Augmented(false)` on a type SHALL
-have the effect of no `@Augmented` on it. Only the annotation of the declaring class SHALL count; methods that override
+`@AugmentedReceiver`, `@AugmentedParam` and `@AugmentedParams` SHALL NOT be looked for. `@Augmented(false)` SHALL belong on
+methods and constructors only: on a type it SHALL have the effect of no `@Augmented`, with a warning. Only the annotation of the declaring class SHALL count; methods that override
 it SHALL NOT be affected. A Kotlin top-level function SHALL take `@Augmented` on the function, since the class of its file
 cannot carry it. `[augment.receiver]` and `[augment.params]` entries SHALL NOT read `@Augmented` and SHALL apply without
 it.
 
 #### Scenario: @Augmented on a method
-- **GIVEN** and `com.acme.Dispatcher`, without `@Augmented` on the class, with `@AugmentedReceiver val hub = "H-1"`, `@Augmented fun send(@AugmentedParam order: String)` and `fun track(@AugmentedParam order: String)`
+- **GIVEN** `com.acme.Dispatcher`, without `@Augmented` on the class, with `@AugmentedReceiver val hub = "H-1"`, `@Augmented fun send(@AugmentedParam order: String)` and `fun track(@AugmentedParam order: String)`
 - **WHEN** `send("o-1")` throws, and separately `track("o-1")` throws
 - **THEN** the first frame shows `Dispatcher{hub=H-1}.send{order=o-1}`, and the second frame is unchanged
 
@@ -91,11 +91,11 @@ it.
 #### Scenario: @Augmented(false) on the type
 - **GIVEN** the `Dispatcher` above, with `@Augmented(false)` on the class and `@Augmented` on `send`
 - **WHEN** `send("o-1")` throws, and separately `track("o-1")` throws
-- **THEN** the first frame shows `Dispatcher{hub=H-1}.send{order=o-1}`, and the second frame is unchanged
-- **AND** without `@Augmented` on `send`, both frames are unchanged
+- **THEN** the first frame shows `Dispatcher{hub=H-1}.send{order=o-1}`, and the second frame is unchanged, as without the annotation on the class
+- **AND** a warning says that `@Augmented(false)` on a type is the same as no `@Augmented`
 
 #### Scenario: Class without @Augmented
-- **GIVEN** and `com.acme.Plain` with `@AugmentedReceiver val code = "c-1"` and `fun run(@AugmentedParam x: Int)`, but no `@Augmented` on the class or on any of its methods and constructors
+- **GIVEN** `com.acme.Plain` with `@AugmentedReceiver val code = "c-1"` and `fun run(@AugmentedParam x: Int)`, but no `@Augmented` on the class or on any of its methods and constructors
 - **WHEN** `run(1)` throws
 - **THEN** its frame is unchanged: the annotations of `Plain` are not looked for
 - **AND** with `@Augmented` on the class, the frame shows `Plain{code=c-1}.run{x=1}`

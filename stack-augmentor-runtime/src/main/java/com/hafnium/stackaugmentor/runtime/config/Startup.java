@@ -15,10 +15,6 @@ public final class Startup {
     /** The handler that build-time instrumented code calls at runtime. */
     public static final String RUNTIME = "runtime";
 
-    public static final String NO_EXCEPTIONS =
-            "no [augment.exceptions] entry is true, so no exception is augmented; \"java.lang.Exception+\" = true augments "
-                    + "all exceptions, \"**\" = true all throwables";
-
     private Startup() {
     }
 
@@ -47,15 +43,5 @@ public final class Startup {
         Log.debug(() -> component + ": [augment] frameFormat=" + config.frameFormat() + ", receiverFormat=" + config.receiverFormat()
                 + ", paramsFormat=" + config.paramsFormat() + ", maxValueLength=" + config.maxValueLength()
                 + ", exceptions=" + config.exceptionsDescription());
-    }
-
-    /**
-     * Warns when the configuration of the classes without configurations of their own, with the built-in one after the
-     * others, augments no exception.
-     */
-    public static void warnIfNoExceptions(String component, AugmentorConfig config) {
-        if (!config.exceptions().containsValue(true)) {
-            Log.warn(component + ": " + NO_EXCEPTIONS);
-        }
     }
 }

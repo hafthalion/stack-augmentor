@@ -38,13 +38,9 @@ The system SHALL always print a warning:
   configuration is used alone;
 - when the runtime of build-time instrumentation does not find the local configuration a class was instrumented with,
   so that the local file of its jar or directory, if any, is used instead;
-- when the configuration of the classes without configurations of their own has no `[augment.exceptions]` entry that is
-  `true`, also after the built-in one, suggesting
-  `"java.lang.Exception+" = true`;
 - when the JVM was started with the native library of the live-stack mode but the agent cannot use it, with the reason;
 - when the agent cannot use its shared temporary files safely and falls back to private ones;
-- when `-Dstackaugmentor.inPlaceModification=true` was set explicitly but is not possible, so that frames are written the
-  slower way.
+- when a type has `@Augmented(false)`, which is the same as no `@Augmented`.
 
 A member missing for an entry with wildcards SHALL only be reported in debug output, since a pattern is not expected to
 fit every class it matches.
@@ -58,11 +54,6 @@ fit every class it matches.
 - **GIVEN** `"com.thirdparty.*::*" = "getId()"`, debug output off, and `com.thirdparty.Customer` without `getId()`
 - **WHEN** the receiver members of `Customer` are first needed
 - **THEN** no warning is printed and frames of `Customer` show no receiver members
-
-#### Scenario: No exceptions
-- **GIVEN** the agent started with a configuration that has only `"java.lang.Exception+" = false` in `[augment.exceptions]`
-- **WHEN** it starts
-- **THEN** a warning says that no exception is augmented
 
 ### Requirement: Debug output
 With `-Dstackaugmentor.debug=true`, the system SHALL report:

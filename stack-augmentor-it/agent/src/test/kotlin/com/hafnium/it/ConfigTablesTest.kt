@@ -6,7 +6,6 @@ import com.hafnium.it.fixtures.ignored.Ignored
 import com.hafnium.it.outside.ClassParamsViaMethods
 import com.hafnium.it.outside.Dispatcher
 import com.hafnium.it.outside.MethodAnnotationsOutside
-import com.hafnium.it.outside.Muted
 import com.hafnium.it.outside.Selective
 import com.hafnium.it.outside.WithoutAugmented
 import com.hafnium.it.outside.PremiumAccount
@@ -78,13 +77,6 @@ class ConfigTablesTest {
 
     @Test
     fun `@Augmented on the type decides for the methods without their own`() {
-        val quiet = frame("Muted(\"M-1\").quiet(1)", Muted("M-1")) { it.quiet(1) }
-        assertEquals("com.hafnium.it.outside.Muted", quiet.className)
-        assertEquals("quiet", quiet.methodName)
-        val loud = frame("Muted(\"M-1\").loud(2)", Muted("M-1")) { it.loud(2) }
-        assertEquals("com.hafnium.it.outside.Muted{code=M-1}", loud.className)
-        assertEquals("loud{x=2}", loud.methodName)
-
         val run = frame("Selective(\"S-1\").run(3)", Selective("S-1")) { it.run(3) }
         assertEquals("com.hafnium.it.outside.Selective{code=S-1}", run.className)
         assertEquals("run{x=3}", run.methodName)
