@@ -187,19 +187,19 @@ class LiveStackTest {
         assertInstanceOf(LiveStack.ClassLoaderRegistration.class, jvm.transformers.getFirst());
         String output = err.toString(StandardCharsets.UTF_8);
         assertTrue(output.contains("DEBUG agent: reading frames from the live stack (native library version " + NativeLibrary.VERSION
-                + "), stack trace depth " + LiveStack.DEFAULT_MAX_DEPTH + ", an object argument the JIT optimized away shows as '"), output);
+                + "), an object argument the JIT optimized away shows as '"), output);
     }
 
     @Test
     void withoutEliminatedAllocationsTheHintIsLeftOut() {
         FakeJvm jvm = new FakeJvm();
-        jvm.options = Map.of("EliminateAllocations", 0, "MaxJavaStackTraceDepth", 0);
+        jvm.options = Map.of("EliminateAllocations", 0);
         Log.setDebug(true);
         ByteArrayOutputStream err = captureErr();
         assertNull(LiveStack.install(jvm, contexts));
         String output = err.toString(StandardCharsets.UTF_8);
         assertTrue(output.contains("DEBUG agent: reading frames from the live stack (native library version " + NativeLibrary.VERSION
-                + "), stack trace depth 0" + System.lineSeparator()), output);
+                + ")" + System.lineSeparator()), output);
     }
 
     @Test

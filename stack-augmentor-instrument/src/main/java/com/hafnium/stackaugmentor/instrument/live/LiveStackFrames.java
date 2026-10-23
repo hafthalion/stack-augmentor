@@ -16,6 +16,10 @@ import java.util.Set;
  * <p>A local variable of a primitive type is a {@code PrimitiveSlot} with the raw 64-bit slot: an {@code int} in its
  * low 32 bits, a {@code long} or {@code double} in the second of its two slots. A slot that the JIT no longer keeps
  * reads as 0 or {@code null}, so the native library must have asked the JVM to keep them all.
+ *
+ * <p>It also reads, from {@code java.lang}, the frames that the VM recorded for a throwable ({@link Backtrace}), and the
+ * VM's object for the method of a frame, which is the same for all its frames, so that the method's name and type,
+ * which cost far more, are needed only once.
  */
 public final class LiveStackFrames {
 
@@ -25,7 +29,6 @@ public final class LiveStackFrames {
 
     private static final int MODE_COMPILED = 2;
 
-    private final StackWalker plain = StackWalker.getInstance(OPTIONS);
     private final StackWalker walker;
     private final MethodHandle getLocals;
     private final Class<?> primitiveSlot;
@@ -33,6 +36,10 @@ public final class LiveStackFrames {
     private final MethodHandle slotValue;
     /** {@code LiveStackFrameInfo.mode}: whether the frame is interpreted or compiled; null if the JDK has no such field. */
     private final VarHandle mode;
+    /** {@code Throwable.backtrace}: the frames that the VM recorded ({@link Backtrace}). */
+    private final VarHandle backtrace;
+    /** {@code ClassFrameInfo.classOrMemberName}: the JVM's object for the frame's method, one per method. */
+    private final VarHandle method;
 
     /**
      * @throws ReflectiveOperationException if this JDK has no live stack frames, or {@code java.lang} is not open
@@ -55,16 +62,24 @@ public final class LiveStackFrames {
             modeField = null;
         }
         mode = modeField;
+        backtrace = MethodHandles.privateLookupIn(Throwable.class, MethodHandles.lookup()).findVarHandle(Throwable.class, "backtrace", Object.class);
+        Class<?> classFrameInfo = Class.forName("java.lang.ClassFrameInfo");
+        method = MethodHandles.privateLookupIn(classFrameInfo, MethodHandles.lookup()).findVarHandle(classFrameInfo, "classOrMemberName", Object.class);
     }
 
-    /** The walker whose frames hold their local variables: far slower than {@link #plainWalker()}. */
+    /** What the VM recorded for the throwable, see {@link Backtrace}. */
+    Object backtrace(Throwable thrown) {
+        return backtrace.get(thrown);
+    }
+
+    /** The JVM's object for the frame's method: the same for all frames of a method. */
+    Object method(StackWalker.StackFrame frame) {
+        return method.get(frame);
+    }
+
+    /** The walker whose frames hold their local variables. */
     StackWalker walker() {
         return walker;
-    }
-
-    /** A walker over the same frames, without their local variables. */
-    StackWalker plainWalker() {
-        return plain;
     }
 
     /** The frame's local variables, starting with the receiver of an instance method and then the arguments. */
@@ -176,7 +191,10 @@ public final class LiveStackFrames {
             } catch (RuntimeException e) {
                 expected = false;
             }
-            return expected ? null : "live stack frames do not hold the receiver and the arguments as expected";
+            if (!expected) {
+                return "live stack frames do not hold the receiver and the arguments as expected";
+            }
+            return Backtrace.check(live.backtrace(new Throwable()), Probe.class);
         }
 
         private void run(long a, int b, Object c, double d, boolean e) {
