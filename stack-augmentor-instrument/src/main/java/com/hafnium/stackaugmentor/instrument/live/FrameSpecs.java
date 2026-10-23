@@ -83,22 +83,68 @@ public final class FrameSpecs {
         return augmented.get(type);
     }
 
+    /** Whether any method or constructor that the class declares is augmented. */
+    private final ClassValue<Boolean> withAugmented = new ClassValue<>() {
+        @Override
+        protected Boolean computeValue(Class<?> type) {
+            if (byClass.get(type) == IRRELEVANT) {
+                return false;
+            }
+            try {
+                for (Method method : type.getDeclaredMethods()) {
+                    if (of(type, method.getName(), MethodType.methodType(method.getReturnType(), method.getParameterTypes())) != NONE) {
+                        return true;
+                    }
+                }
+                for (Constructor<?> constructor : type.getDeclaredConstructors()) {
+                    if (of(type, AugmentorConfig.CONSTRUCTOR, MethodType.methodType(void.class, constructor.getParameterTypes())) != NONE) {
+                        return true;
+                    }
+                }
+                return false;
+            } catch (RuntimeException | LinkageError e) {
+                return true;
+            }
+        }
+    };
+
     public FrameSpecs(AugmentorConfig config, TypeMatching matching) {
         this.config = config;
         this.matching = matching;
     }
 
+    /**
+     * Whether frames of the class may be augmented: an entry or the annotations may apply to it, and it declares a
+     * method or constructor that is augmented. Needs only the class, so a walk without method information
+     * ({@link StackWalker.Option#DROP_METHOD_INFO}) can tell. Looks at the class with reflection the first time.
+     */
+    boolean mayAugment(Class<?> type) {
+        return withAugmented.get(type);
+    }
+
+    /** Whether an entry or the annotations may apply to the class; cheaper than {@link #mayAugment}. */
+    boolean isNamed(Class<?> type) {
+        return byClass.get(type) != IRRELEVANT;
+    }
+
     /** What this frame shows; needs {@link StackWalker.Option#RETAIN_CLASS_REFERENCE}. */
     Spec of(StackWalker.StackFrame frame) {
         Class<?> type = frame.getDeclaringClass();
+        if (byClass.get(type) == IRRELEVANT) {
+            return NONE;
+        }
+        return of(type, frame.getMethodName(), frame.getMethodType());
+    }
+
+    private Spec of(Class<?> type, String name, MethodType methodType) {
         Map<MethodKey, Spec> methods = byClass.get(type);
         if (methods == IRRELEVANT) {
             return NONE;
         }
-        MethodKey method = new MethodKey(frame.getMethodName(), frame.getMethodType());
+        MethodKey method = new MethodKey(name, methodType);
         Spec spec = methods.get(method);
         if (spec == null) {
-            spec = named(type, method.name()) ? spec(type, method.name(), method.type()) : NONE;
+            spec = named(type, name) ? spec(type, name, methodType) : NONE;
             methods.putIfAbsent(method, spec);
         }
         return spec;
