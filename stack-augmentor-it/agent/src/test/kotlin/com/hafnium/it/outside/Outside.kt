@@ -43,15 +43,6 @@ class Dispatcher(@AugmentedReceiver private val hub: String) {
     fun track(@AugmentedParam order: String): Nothing = throw IllegalStateException("cannot track $order")
 }
 
-/** @Augmented(false) on the type: its methods are not augmented, unless their own @Augmented says so. */
-@Augmented(false)
-class Muted(@AugmentedReceiver private val code: String) {
-    fun quiet(@AugmentedParam x: Int): Nothing = throw IllegalStateException("quiet $x")
-
-    @Augmented
-    fun loud(@AugmentedParam x: Int): Nothing = throw IllegalStateException("loud $x")
-}
-
 /** @Augmented on the type: all its methods, except one with @Augmented(false). */
 @Augmented
 class Selective(@AugmentedReceiver private val code: String) {

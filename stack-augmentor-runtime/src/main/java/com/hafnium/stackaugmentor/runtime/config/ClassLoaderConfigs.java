@@ -137,7 +137,6 @@ public final class ClassLoaderConfigs<T> {
         if (configs.builtInOnly) {
             Startup.describe(component, AugmentorConfig.BUILT_IN_LOCATION, AugmentorConfig.builtIn());
         }
-        Startup.warnIfNoExceptions(component, configs.baseConfig);
         return configs;
     }
 

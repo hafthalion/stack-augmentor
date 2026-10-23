@@ -52,6 +52,10 @@ public final class TypeMatching {
         if (type.isAnnotation()) {
             return false;
         }
+        if (Boolean.FALSE.equals(AugmentedSelection.flag(type.getDeclaredAnnotations()))) {
+            Log.warn("@Augmented(false) on " + type.getName() + " is the same as no @Augmented: put it on methods and "
+                    + "constructors only, to turn them off under an @Augmented type");
+        }
         // The receiver members and the parameter values are configured independently; either one needs the advice.
         boolean instrument = hasReceiverMethods(type) || hasSelectedParams(type);
         if (Log.isDebug()) {

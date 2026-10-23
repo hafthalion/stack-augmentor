@@ -12,7 +12,9 @@ import java.lang.annotation.Target;
  *
  * <ul>
  *   <li>On a method or constructor, it decides for that one: {@code @Augmented} on, {@code @Augmented(false)} off.</li>
- *   <li>On a type, it decides for the methods and constructors without one of their own.</li>
+ *   <li>On a type, {@code @Augmented} turns them on for the methods and constructors without one of their own.
+ *       {@code @Augmented(false)} belongs on methods and constructors only: on a type it is the same as none, with a
+ *       warning.</li>
  *   <li>Without either, the method or constructor is not augmented: a class without {@code @Augmented} is ignored, and
  *       its other annotations are not looked for.</li>
  * </ul>
@@ -25,6 +27,6 @@ import java.lang.annotation.Target;
 @Target({ElementType.TYPE, ElementType.METHOD, ElementType.CONSTRUCTOR})
 public @interface Augmented {
 
-    /** Whether the annotations augment the method, or the methods of the type. */
+    /** Whether the annotations augment the method or constructor; {@code false} belongs on methods and constructors only. */
     boolean value() default true;
 }

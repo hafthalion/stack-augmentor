@@ -81,7 +81,7 @@ class ParameterSelectionTest {
         }
     }
 
-    /** {@code @Augmented(false)} on the type: only loud, which turns it on again, is augmented. */
+    /** {@code @Augmented(false)} on the type is the same as none, with a warning: only loud, with its own, is augmented. */
     @Augmented(false)
     static class Muted {
         @AugmentedReceiver
@@ -397,6 +397,18 @@ class ParameterSelectionTest {
         assertEquals(List.of(), labels(parameters, Muted.class, "quiet"));
         assertTrue(matching.showsReceiver(type(Muted.class), method(Muted.class, "loud")));
         assertEquals(List.of("x"), labels(parameters, Muted.class, "loud"));
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        PrintStream previous = System.err;
+        System.setErr(new PrintStream(err, true, StandardCharsets.UTF_8));
+        try {
+            assertTrue(matching.instrument(type(Muted.class)));
+            assertTrue(matching.instrument(type(Selective.class)));
+        } finally {
+            System.setErr(previous);
+        }
+        String output = err.toString(StandardCharsets.UTF_8);
+        assertTrue(output.contains("WARN @Augmented(false) on " + Muted.class.getName() + " is the same as no @Augmented"), output);
+        assertFalse(output.contains(Selective.class.getName()), output);
 
         // @Augmented on the type augments run, which has none of its own.
         assertTrue(matching.showsReceiver(type(Selective.class), method(Selective.class, "run")));

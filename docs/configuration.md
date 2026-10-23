@@ -191,10 +191,10 @@ The annotations of `stack-augmentor-api`, `@AugmentedReceiver`, `@AugmentedParam
 - **Names come first.** For each method, the first matching `[augment.receiver]` entry decides its receiver members, `"-"` included; only if none matches, and `@Augmented` selects the method, are the class's `@AugmentedReceiver` members used (also those of its superclasses, which need no `@Augmented` of their own). The same holds for parameters: the first matching `[augment.params]` entry decides; only without one are the method's `@AugmentedParam` and `@AugmentedParams` used. Receiver members and parameter values are decided independently.
 - **`@Augmented` selects the methods and constructors that the annotations augment**:
   - on a method or constructor, `@Augmented` turns the annotations on for it, `@Augmented(false)` off;
-  - otherwise, `@Augmented` or `@Augmented(false)` on the class decides for its methods and constructors;
+  - otherwise, `@Augmented` on the class turns them on for its methods and constructors;
   - otherwise they are not augmented. A class without `@Augmented`, on the class or on its methods, is ignored: its `@AugmentedReceiver`, `@AugmentedParam` and `@AugmentedParams` are not even looked for.
 
-  `@Augmented` on a class says "all its methods and constructors", on a method "only this one", and `@Augmented(false)` on a method turns that one off under an `@Augmented` on the class. `@Augmented(false)` on a class is the same as no `@Augmented`, except that it says so: the methods with an `@Augmented` of their own are still augmented. Only the annotation of the class that declares the method counts; methods that override it are not affected. A Kotlin top-level function takes `@Augmented` on the function itself, since the class of its file cannot carry it. `[augment.receiver]` and `[augment.params]` entries never read `@Augmented` and work without it; a `"-"` entry turns the annotations of the methods it matches off, e.g. for a library whose classes have `@Augmented`.
+  `@Augmented` on a class says "all its methods and constructors", on a method "only this one", and `@Augmented(false)` on a method turns that one off under an `@Augmented` on the class. `@Augmented(false)` belongs on methods and constructors only: on a class it is the same as no `@Augmented`, and a warning says so. Only the annotation of the class that declares the method counts; methods that override it are not affected. A Kotlin top-level function takes `@Augmented` on the function itself, since the class of its file cannot carry it. `[augment.receiver]` and `[augment.params]` entries never read `@Augmented` and work without it; a `"-"` entry turns the annotations of the methods it matches off, e.g. for a library whose classes have `@Augmented`.
 - **The agent checks every loaded class for `@Augmented`**, apart from the JDK, Kotlin and ByteBuddy, but looks for nothing more in a class without it, so this costs little class-loading time.
 
 ```java
@@ -313,7 +313,6 @@ With build-time instrumentation, the runtime reads its configuration when the fi
 **Warnings** don't stop anything:
 
 - no runtime configuration for a class instrumented at build time: the built-in configuration is used alone;
-- no `[augment.exceptions]` entry that is `true` for the classes without configurations of their own, also after the built-in one: no exception is augmented;
 - a receiver member the class does not have, for a key with a class name. For a pattern it is a debug message, since a pattern may match classes that don't have it. So are parameter names that a method does not have.
 
 ## Tips
