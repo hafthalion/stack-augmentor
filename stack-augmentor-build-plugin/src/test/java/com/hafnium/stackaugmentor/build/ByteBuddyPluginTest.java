@@ -111,13 +111,9 @@ class ByteBuddyPluginTest {
     @Test
     void debugDescribesTheConfigurationAsTheAgentDoes(@TempDir Path dir) throws IOException {
         Path config = dir.resolve("stack-augmentor.toml");
-        Files.writeString(config, "[settings]\ndebug = true\n[augment]\nmaxValueLength = 32\n[augment.annotations]\n\"com.hafnium.**\" = true\n");
+        Files.writeString(config, "[augment]\nmaxValueLength = 32\n[augment.annotations]\n\"com.hafnium.**\" = true\n");
         ByteArrayOutputStream err = captureErr();
-        try {
-            new ByteBuddyPlugin(config.toString());
-        } finally {
-            Log.setDebug(false);
-        }
+        withDebug(() -> new ByteBuddyPlugin(config.toString()));
         String output = err.toString(StandardCharsets.UTF_8);
         assertTrue(output.contains("DEBUG build plugin: configuration " + config), output);
         assertTrue(output.contains("DEBUG build plugin: [augment.receiver] none"), output);
@@ -130,10 +126,11 @@ class ByteBuddyPluginTest {
     @Test
     void theAdviceAugmentsTheFramesOfTheClassesItIsAppliedTo(@TempDir Path dir) throws Exception {
         Path config = dir.resolve("stack-augmentor.toml");
-        Files.writeString(config, "[settings]\ndebug = true\n[augment.annotations]\n\"com.hafnium.**\" = true\n");
+        Files.writeString(config, "[augment.annotations]\n\"com.hafnium.**\" = true\n");
         ByteArrayOutputStream err = captureErr();
         TypeDescription type = TypeDescription.ForLoadedType.of(Failing.class);
         Class<?> instrumented;
+        System.setProperty(Log.DEBUG_PROPERTY, "true");
         try (ByteBuddyPlugin plugin = new ByteBuddyPlugin(config.toString())) {
             assertTrue(plugin.matches(type));
             instrumented = plugin.apply(new ByteBuddy().redefine(Failing.class), type, ClassFileLocator.ForClassLoader.of(Failing.class.getClassLoader()))
@@ -141,6 +138,7 @@ class ByteBuddyPluginTest {
                     .load(Failing.class.getClassLoader(), ClassLoadingStrategy.Default.CHILD_FIRST)
                     .getLoaded();
         } finally {
+            System.clearProperty(Log.DEBUG_PROPERTY);
             Log.setDebug(false);
         }
         String output = err.toString(StandardCharsets.UTF_8);
@@ -179,13 +177,13 @@ class ByteBuddyPluginTest {
     }
 
     @Test
-    void theSettingsFileAppliesBeforeTheContextOne(@TempDir Path dir) throws IOException {
-        Path settings = dir.resolve("build.toml");
-        Files.writeString(settings, "[augment.annotations]\n\"com.hafnium.buildfixture.Failing\" = false\n");
+    void theBuildFileAppliesBeforeTheContextOne(@TempDir Path dir) throws IOException {
+        Path build = dir.resolve("build.toml");
+        Files.writeString(build, "[augment.annotations]\n\"com.hafnium.buildfixture.Failing\" = false\n");
         Path context = dir.resolve("stack-augmentor-context.toml");
         Files.writeString(context, "[augment.annotations]\n\"com.hafnium.**\" = true\n");
         TypeDescription type = TypeDescription.ForLoadedType.of(Failing.class);
-        try (ByteBuddyPlugin plugin = new ByteBuddyPlugin(settings.toString(), context.toString())) {
+        try (ByteBuddyPlugin plugin = new ByteBuddyPlugin(build.toString(), context.toString())) {
             assertFalse(plugin.matches(type));
         }
         try (ByteBuddyPlugin plugin = new ByteBuddyPlugin("", context.toString())) {
@@ -194,18 +192,31 @@ class ByteBuddyPluginTest {
     }
 
     @Test
-    void onlyTheSettingsFileMayHaveSettings(@TempDir Path dir) throws IOException {
-        Path context = dir.resolve("stack-augmentor-context.toml");
-        Files.writeString(context, "[settings]\ndebug = true\n");
-        Path local = dir.resolve("stack-augmentor.toml");
-        Files.writeString(local, "[settings]\ndebug = true\n");
+    void aMissingFileFailsTheBuild(@TempDir Path dir) {
         captureErr();
-        // The context and the local file are on the application's classpath too.
-        ConfigException error = assertThrows(ConfigException.class, () -> new ByteBuddyPlugin("", context.toString()));
-        assertTrue(error.getMessage().startsWith("stack-augmentor-context.toml, line 1: [settings] applies to the whole JVM"), error.getMessage());
-        error = assertThrows(ConfigException.class, () -> new ByteBuddyPlugin("", "", local.toString()));
-        assertTrue(error.getMessage().startsWith("stack-augmentor.toml, line 1: [settings] applies to the whole JVM"), error.getMessage());
         assertTrue(assertThrows(ConfigException.class, () -> new ByteBuddyPlugin("", "", dir.resolve("missing.toml").toString()))
                 .getMessage().contains("not found"));
+    }
+
+    @Test
+    void debugIsTurnedOnByTheSystemPropertyOnEveryBuild(@TempDir Path dir) throws IOException {
+        Path config = dir.resolve("build.toml");
+        Files.writeString(config, "[augment]\nmaxValueLength = 32\n");
+        captureErr();
+        withDebug(() -> new ByteBuddyPlugin(config.toString()));
+        // The Gradle daemon keeps the plugin's classes loaded: the next build without the property has no debug output.
+        new ByteBuddyPlugin(config.toString());
+        assertFalse(Log.isDebug());
+    }
+
+    private static void withDebug(Runnable action) {
+        System.setProperty(Log.DEBUG_PROPERTY, "true");
+        try {
+            action.run();
+            assertTrue(Log.isDebug());
+        } finally {
+            System.clearProperty(Log.DEBUG_PROPERTY);
+            Log.setDebug(false);
+        }
     }
 }

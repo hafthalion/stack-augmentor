@@ -6,10 +6,10 @@ rem Without an argument, it asks which one to run.
 rem
 rem   java-agent  the Java agent instruments classes, values from annotations and from
 rem               stack-augmentor-global.toml, and a simple cause chain printed both ways:
-rem                 java -javaagent:<agent jar>=config=<stack-augmentor-global.toml> -jar <example jar>
+rem                 java -javaagent:<agent jar> -Dstackaugmentor.config=<stack-augmentor-global.toml> -jar <example jar>
 rem   live-agent  twice: with the agent alone, and in the agent's live-stack mode with the
 rem               native library as well, which augments every frame:
-rem                 java -agentpath:<native library> -javaagent:<agent jar>=config=<stack-augmentor-global.toml> -jar <example jar>
+rem                 java -agentpath:<native library> -javaagent:<agent jar> -Dstackaugmentor.config=<stack-augmentor-global.toml> -jar <example jar>
 rem               Without MinGW gcc on the PATH there is no native library, and only the first runs.
 rem   build-time  classes instrumented when they were built, no agent:
 rem                 java -jar <example jar>
@@ -81,7 +81,7 @@ if /i "%EXAMPLE%"=="build-time" goto buildTime
 echo.
 echo === 1. Agent alone, instrumenting classes: %AGENT_JAR%
 echo.
-java %JVM_ARGS% -javaagent:%AGENT_JAR%=config=%CONFIG% -jar "%JAR%"
+java %JVM_ARGS% -javaagent:%AGENT_JAR% "-Dstackaugmentor.config=%CONFIG%" -jar "%JAR%"
 if %ERRORLEVEL% neq 0 (
     endlocal & exit /b 1
 )
@@ -90,7 +90,7 @@ echo.
 if not exist "%NATIVE_LIB%" goto noNativeLibrary
 echo === 2. Live-stack mode: %AGENT_JAR% with %NATIVE_LIB%
 echo.
-java %JVM_ARGS% "-agentpath:%NATIVE_LIB%" -javaagent:%AGENT_JAR%=config=%CONFIG% -jar "%JAR%"
+java %JVM_ARGS% "-agentpath:%NATIVE_LIB%" -javaagent:%AGENT_JAR% "-Dstackaugmentor.config=%CONFIG%" -jar "%JAR%"
 if %ERRORLEVEL% neq 0 (
     endlocal & exit /b 1
 )
@@ -104,7 +104,7 @@ endlocal & exit /b 0
 echo.
 echo === Java agent: %AGENT_JAR%
 echo.
-java %JVM_ARGS% -javaagent:%AGENT_JAR%=config=%CONFIG% -jar "%JAR%"
+java %JVM_ARGS% -javaagent:%AGENT_JAR% "-Dstackaugmentor.config=%CONFIG%" -jar "%JAR%"
 if %ERRORLEVEL% neq 0 (
     endlocal & exit /b 1
 )

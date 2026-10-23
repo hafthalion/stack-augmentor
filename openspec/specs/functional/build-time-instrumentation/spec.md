@@ -10,8 +10,8 @@ only needs the API and a small runtime library.
 A build plugin for Gradle SHALL instrument the project's compiled Java and Kotlin classes so that they are augmented as with the agent
 and the same configuration. It SHALL take a configuration file of the build itself, a context configuration file and the
 module's local configuration file as optional arguments, in the order they apply, then the built-in configuration. The context and the local file, which the application also has on its
-classpath, SHALL reject `[settings]` as every file on the classpath does; only the build's file, which plays the role
-of the agent's file for the build, MAY have them. Each class it instruments SHALL then
+classpath, SHALL be read as every file on the classpath is; the build's file plays the role of the JVM's file for the
+build, and a system property of the build, as at runtime, SHALL turn on the debug output. Each class it instruments SHALL then
 use that local configuration at runtime too, wherever it is on the classpath of its class loader, also where classes and
 resources are in different directories, as in a build directory; where it is not found, e.g. as it changed after the
 build, a warning SHALL say so and the class's jar or directory SHALL decide. An invalid configuration, including an invalid template that only the runtime renders, SHALL fail the build,
@@ -31,7 +31,7 @@ with the reason printed. The build SHALL be repeatable: a changed configuration 
 #### Scenario: Configuration change
 - **GIVEN** the `[augment.annotations]` entries in the build plugin's configuration no longer select the project's classes
 - **WHEN** the project is rebuilt
-- **THEN** its classes are not instrumented, and with `debug = true` in the `[settings]` of the build's own configuration the build lists the ignored annotations
+- **THEN** its classes are not instrumented, and with `-Dstackaugmentor.debug=true` the build lists the ignored annotations
 
 #### Scenario: No configuration
 - **GIVEN** the build plugin without a configuration

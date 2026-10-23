@@ -13,7 +13,7 @@ the application's logging configuration. Each message SHALL start with `[stack-a
 the build plugin and the runtime SHALL report the same configuration the same way.
 
 #### Scenario: Same messages from every component
-- **GIVEN** `debug = true` in the configuration of the agent, of the build plugin and of the runtime
+- **GIVEN** `-Dstackaugmentor.debug=true` for the agent, the build plugin and the runtime
 - **WHEN** each of them starts
 - **THEN** each prints the same description of its configuration, marked with its name
 
@@ -44,23 +44,24 @@ The system SHALL always print a warning:
   `"java.lang.Exception+" = true`;
 - when the JVM was started with the native library of the live-stack mode but the agent cannot use it, with the reason;
 - when the agent cannot use its shared temporary files safely and falls back to private ones;
-- when `inPlaceModification = true` was set explicitly but is not possible, so that frames are written the slower way.
+- when `-Dstackaugmentor.inPlaceModification=true` was set explicitly but is not possible, so that frames are written the
+  slower way.
 
 A member missing for an entry with wildcards SHALL only be reported in debug output, since a pattern is not expected to
 fit every class it matches.
 
 #### Scenario: Missing configured member
-- **GIVEN** `"com.thirdparty.Customer::*" = "customerNo"`, a misspelling: `Customer` has a field `customerId`, but no field and no getter for `customerNo`; and `debug = false`
+- **GIVEN** `"com.thirdparty.Customer::*" = "customerNo"`, a misspelling: `Customer` has a field `customerId`, but no field and no getter for `customerNo`, and debug output off
 - **WHEN** the receiver members of `Customer` are first needed
 - **THEN** a warning names the entry and `customerNo`
 
 #### Scenario: Missing member for a wildcard entry
-- **GIVEN** `"com.thirdparty.*::*" = "getId()"`, `debug = false`, and `com.thirdparty.Customer` without `getId()`
+- **GIVEN** `"com.thirdparty.*::*" = "getId()"`, debug output off, and `com.thirdparty.Customer` without `getId()`
 - **WHEN** the receiver members of `Customer` are first needed
 - **THEN** no warning is printed and frames of `Customer` show no receiver members
 
 #### Scenario: Nothing configured
-- **GIVEN** the agent started with a configuration that has only `debug = false`
+- **GIVEN** the agent started with a configuration that has only `[augment]` `maxValueLength = 32`
 - **WHEN** it starts
 - **THEN** a warning says that nothing will be augmented
 
@@ -70,7 +71,7 @@ fit every class it matches.
 - **THEN** a warning says that no exception is augmented
 
 ### Requirement: Debug output
-With `debug = true`, the system SHALL report:
+With `-Dstackaugmentor.debug=true`, the system SHALL report:
 - each configuration file: where it came from, and the entries of every table and the formats, naming the class loader
   of a file on the classpath;
 - each instrumented class: why (which entries, or the annotations), and its instrumented methods with their parameter values;
@@ -84,35 +85,35 @@ With `debug = true`, the system SHALL report:
 - in the live-stack mode, that it is used.
 
 Entries with wildcards or `+` SHALL NOT produce messages for classes or methods they do not match, or for names and
-indexes a matched method does not have. With `debug = false`, no debug message SHALL be printed, and no work SHALL be spent
+indexes a matched method does not have. Without it, no debug message SHALL be printed, and no work SHALL be spent
 on building them.
 
 #### Scenario: Unmatched configuration entry
-- **GIVEN** `debug = true` and `"com.thirdparty.OrderService::process" = "order, missing, 7"`
+- **GIVEN** debug output on and `"com.thirdparty.OrderService::process" = "order, missing, 7"`
 - **WHEN** `OrderService` is loaded
 - **THEN** a message reports that `process(Order order, int quantity, String note)` has no parameter `missing` and no parameter `#7`
 
 #### Scenario: Instrumented class
-- **GIVEN** `debug = true` and `"com.thirdparty.OrderService::process" = "order, 1"` in `[augment.params]`
+- **GIVEN** debug output on and `"com.thirdparty.OrderService::process" = "order, 1"` in `[augment.params]`
 - **WHEN** `OrderService` is instrumented
 - **THEN** a message says that it is instrumented for parameter values only, with `process{order, quantity}`
 
 #### Scenario: Wildcard entry
-- **GIVEN** `debug = true` and `"com.thirdparty.*::*" = "order"`
+- **GIVEN** debug output on and `"com.thirdparty.*::*" = "order"`
 - **WHEN** `Customer`, whose methods have no parameter `order`, is loaded
 - **THEN** no message about the entry is printed for `Customer`
 
 #### Scenario: Ignored annotations
-- **GIVEN** `debug = true`, `"com.hafnium.it.fixtures.**" = true` in `[augment.annotations]`, and a class in `com.hafnium.it.outside` with `@Augmented`, `@AugmentedReceiver` and `@AugmentedParam`
+- **GIVEN** debug output on, `"com.hafnium.it.fixtures.**" = true` in `[augment.annotations]`, and a class in `com.hafnium.it.outside` with `@Augmented`, `@AugmentedReceiver` and `@AugmentedParam`
 - **WHEN** the class is loaded
 - **THEN** messages report that its `@AugmentedReceiver` and its parameter annotations are ignored, because no `[augment.annotations]` entry selects it
 
 #### Scenario: Annotations replaced by entries
-- **GIVEN** `debug = true`, `"com.acme.**" = true` in `[augment.annotations]`, `"com.acme.Order::*" = "getId()"` in `[augment.receiver]`, and `com.acme.Order` with `@Augmented` and `@AugmentedReceiver`
+- **GIVEN** debug output on, `"com.acme.**" = true` in `[augment.annotations]`, `"com.acme.Order::*" = "getId()"` in `[augment.receiver]`, and `com.acme.Order` with `@Augmented` and `@AugmentedReceiver`
 - **WHEN** `Order` is loaded
 - **THEN** a message reports that its `@AugmentedReceiver` is ignored, because entries decide for all its methods
 
 #### Scenario: Debug off
-- **GIVEN** `debug = false`
+- **GIVEN** debug output off
 - **WHEN** the demo application runs
 - **THEN** no debug message is printed

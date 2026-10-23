@@ -30,14 +30,11 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * The configuration, read from a TOML file:
+ * The configuration, read from a TOML file. What applies to the whole JVM is given by system properties instead:
+ * {@value #CONFIG_PROPERTY} names the JVM's file, {@code stackaugmentor.debug} turns on the debug output (see
+ * {@code Log}), {@code stackaugmentor.inPlaceModification=false} has frames copied (see {@code StackTraces}).
  *
  * <pre>{@code
- * [settings]                  # for the whole JVM: only in the file given to the agent or by -Dstackaugmentor.config
- * debug = false
- * inPlaceModification = true   # write frames into the exception's own stack trace instead of copying it; needs
- *                              # java.lang open (the agent opens it), otherwise frames are copied
- *
  * [augment]                   # how frames look
  * frameFormat = "$class$receiver.$method$params"
  * receiverFormat = "{$name=$value, ...}"
@@ -102,9 +99,8 @@ public final class AugmentorConfig {
     public static final String DEFAULT_RECEIVER_FORMAT = "{$name=$value, ...}";
     public static final String DEFAULT_PARAMS_FORMAT = "{$name=$value, ...}";
     public static final int DEFAULT_MAX_VALUE_LENGTH = 64;
+    /** Names the JVM's configuration file: {@code -Dstackaugmentor.config=<file>}. */
     public static final String CONFIG_PROPERTY = "stackaugmentor.config";
-    /** Overrides {@code inPlaceModification} of the file: {@code -Dstackaugmentor.inPlaceModification=true}. */
-    public static final String IN_PLACE_MODIFICATION_PROPERTY = "stackaugmentor.inPlaceModification";
 
     /**
      * The key that the instrumentation passes for a method whose receiver members come from the annotations, as no
@@ -125,24 +121,13 @@ public final class AugmentorConfig {
     private final String receiverFormat;
     private final String paramsFormat;
     private final int maxValueLength;
-    private final boolean debug;
-    /** Null where neither the file nor the builder sets it. */
-    private final Boolean inPlaceModification;
     private final Map<String, Boolean> exceptions;
     private final Map<String, Boolean> annotations;
     /** The settings, of {@link #SETTINGS}, that the file or the builder sets, for {@link #layered}. */
     private final Set<String> settings;
 
     /** The settings outside the tables: a {@link #layered} configuration takes each from the first layer that sets it. */
-    public static final List<String> SETTINGS = List.of("debug", "inPlaceModification", "frameFormat", "receiverFormat", "paramsFormat",
-            "maxValueLength");
-
-    /**
-     * The settings of the {@code [settings]} table, which apply to the whole JVM: only the file given explicitly, to the
-     * agent or by {@code -Dstackaugmentor.config}, or the build plugin's settings file, may set them, no file on the
-     * classpath.
-     */
-    public static final List<String> JVM_SETTINGS = List.of("debug", "inPlaceModification");
+    public static final List<String> SETTINGS = List.of("frameFormat", "receiverFormat", "paramsFormat", "maxValueLength");
 
     /**
      * The class part of a key, the same in all three tables: a class name, which matches that class only; with
@@ -412,7 +397,7 @@ public final class AugmentorConfig {
     /** The default values: no class, method, annotation or exception entries, so nothing is augmented. See {@link #builtIn()}. */
     public AugmentorConfig() {
         this(Map.of(), Map.of(), DEFAULT_FRAME_FORMAT, DEFAULT_RECEIVER_FORMAT, DEFAULT_PARAMS_FORMAT,
-                DEFAULT_MAX_VALUE_LENGTH, false, null, Map.of(), Map.of());
+                DEFAULT_MAX_VALUE_LENGTH, Map.of(), Map.of());
     }
 
     /**
@@ -429,17 +414,13 @@ public final class AugmentorConfig {
      */
     public AugmentorConfig(Map<String, ReceiverSpec> classes, Map<String, List<ParamRef>> methods,
                            String frameFormat, String receiverFormat, String paramsFormat, int maxValueLength,
-                           boolean debug, Boolean inPlaceModification, Map<String, Boolean> exceptions,
-                           Map<String, Boolean> annotations) {
-        this(classes, methods, frameFormat, receiverFormat, paramsFormat, maxValueLength, debug, inPlaceModification, exceptions,
-                annotations, inPlaceModification != null ? SETTINGS
-                        : SETTINGS.stream().filter(setting -> !setting.equals("inPlaceModification")).toList());
+                           Map<String, Boolean> exceptions, Map<String, Boolean> annotations) {
+        this(classes, methods, frameFormat, receiverFormat, paramsFormat, maxValueLength, exceptions, annotations, SETTINGS);
     }
 
     private AugmentorConfig(Map<String, ReceiverSpec> classes, Map<String, List<ParamRef>> methods,
                             String frameFormat, String receiverFormat, String paramsFormat, int maxValueLength,
-                            boolean debug, Boolean inPlaceModification, Map<String, Boolean> exceptions,
-                            Map<String, Boolean> annotations, Collection<String> settings) {
+                            Map<String, Boolean> exceptions, Map<String, Boolean> annotations, Collection<String> settings) {
         this.settings = Set.copyOf(settings);
         this.classes = Collections.unmodifiableMap(new LinkedHashMap<>(classes));
         Map<String, List<ParamRef>> methodsCopy = new LinkedHashMap<>();
@@ -449,8 +430,6 @@ public final class AugmentorConfig {
         this.receiverFormat = Objects.requireNonNull(receiverFormat, "receiverFormat");
         this.paramsFormat = Objects.requireNonNull(paramsFormat, "paramsFormat");
         this.maxValueLength = maxValueLength;
-        this.debug = debug;
-        this.inPlaceModification = inPlaceModification;
         this.exceptions = Collections.unmodifiableMap(new LinkedHashMap<>(exceptions));
         this.exceptionEntries = switchEntries(this.exceptions);
         this.annotations = Collections.unmodifiableMap(new LinkedHashMap<>(annotations));
@@ -494,10 +473,6 @@ public final class AugmentorConfig {
         return maxValueLength;
     }
 
-    public boolean debug() {
-        return debug;
-    }
-
     /** Whether the file or the builder sets this setting of {@link #SETTINGS}, rather than leaving its default. */
     public boolean sets(String setting) {
         return settings.contains(setting);
@@ -531,12 +506,6 @@ public final class AugmentorConfig {
             }
             if (layer.sets("maxValueLength")) {
                 builder.maxValueLength(layer.maxValueLength);
-            }
-            if (layer.sets("debug")) {
-                builder.debug(layer.debug);
-            }
-            if (layer.sets("inPlaceModification")) {
-                builder.inPlaceModification(layer.inPlaceModification);
             }
         }
         for (AugmentorConfig layer : layers) {
@@ -597,27 +566,6 @@ public final class AugmentorConfig {
                 .map(entry -> entry.getKey() + "=" + entry.getValue())
                 .collect(Collectors.joining(", "));
         return text.isEmpty() ? "none" : text;
-    }
-
-    /**
-     * Whether the handler writes frames into the exception's own stack trace instead of copying it, where the JVM allows
-     * it: the system property {@value #IN_PLACE_MODIFICATION_PROPERTY}, else the {@code inPlaceModification} key, else
-     * {@code true}.
-     */
-    public boolean inPlaceModification() {
-        String property = System.getProperty(IN_PLACE_MODIFICATION_PROPERTY);
-        if (property != null) {
-            return Boolean.parseBoolean(property.trim());
-        }
-        return inPlaceModification == null || inPlaceModification;
-    }
-
-    /**
-     * Whether {@link #inPlaceModification()} was asked for explicitly, by the system property or the key, rather than
-     * by default: then copying instead is worth a warning.
-     */
-    public boolean inPlaceModificationRequested() {
-        return System.getProperty(IN_PLACE_MODIFICATION_PROPERTY) != null || inPlaceModification != null;
     }
 
     /** The {@code [augment.receiver]} entries for the debug log, e.g. {@code com.acme.**::*=@, com.acme.Order::*=getId()}. */
@@ -784,12 +732,9 @@ public final class AugmentorConfig {
         return key.indexOf('*') >= 0 || key.indexOf('?') >= 0;
     }
 
-    /**
-     * Loads the global TOML file named by the agent arguments ({@code config=<path>} or just {@code <path>}), or by the
-     * {@code stackaugmentor.config} system property; {@code null} without either.
-     */
-    public static AugmentorConfig global(String agentArgs) {
-        String location = location(agentArgs);
+    /** Loads the JVM's TOML file named by the {@value #CONFIG_PROPERTY} system property; {@code null} without it. */
+    public static AugmentorConfig global() {
+        String location = location();
         return location != null ? load(Path.of(location)) : null;
     }
 
@@ -817,13 +762,8 @@ public final class AugmentorConfig {
         }
     }
 
-    /** Loads a TOML configuration file given explicitly, which may have {@code [settings]}. */
+    /** Loads a TOML configuration file. */
     public static AugmentorConfig load(Path path) {
-        return load(path, true);
-    }
-
-    /** Loads a TOML configuration file; only one given explicitly may have {@code [settings]}, see {@link #parse(String, String, boolean)}. */
-    public static AugmentorConfig load(Path path, boolean explicit) {
         if (!Files.isRegularFile(path)) {
             throw new ConfigException("Configuration file not found: " + path);
         }
@@ -832,18 +772,14 @@ public final class AugmentorConfig {
             throw new ConfigException(path + ": the configuration must be a TOML file ending in .toml");
         }
         try {
-            return parse(Files.readString(path), fileName, explicit);
+            return parse(Files.readString(path), fileName);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
-    /** The configuration file named by the agent arguments or the system property, if any. */
-    public static String location(String agentArgs) {
-        if (agentArgs != null && !agentArgs.trim().isEmpty()) {
-            String trimmed = agentArgs.trim();
-            return trimmed.startsWith("config=") ? trimmed.substring("config=".length()) : trimmed;
-        }
+    /** The JVM's configuration file named by the {@value #CONFIG_PROPERTY} system property, if any. */
+    public static String location() {
         String property = System.getProperty(CONFIG_PROPERTY);
         return property != null && !property.isBlank() ? property : null;
     }
@@ -853,23 +789,14 @@ public final class AugmentorConfig {
         return parse(text, "configuration");
     }
 
-    /** Parses a TOML configuration given explicitly, which may have {@code [settings]}. {@code source} names it in errors. */
+    /** Parses a TOML configuration. {@code source} names it in error messages. */
     public static AugmentorConfig parse(String text, String source) {
-        return parse(text, source, true);
-    }
-
-    /**
-     * Parses a TOML configuration. {@code source} names it in error messages. Only one given explicitly, to the agent or
-     * by {@code -Dstackaugmentor.config}, may have {@code [settings]}, see {@link #JVM_SETTINGS}; a file on the classpath
-     * must not.
-     */
-    public static AugmentorConfig parse(String text, String source, boolean explicit) {
         TomlParseResult toml = Toml.parse(text);
         if (toml.hasErrors()) {
             String errors = toml.errors().stream().map(Object::toString).collect(Collectors.joining("; "));
             throw new ConfigException("Invalid TOML in " + source + ": " + errors);
         }
-        return new ConfigReader(toml, source, explicit).read();
+        return new ConfigReader(toml, source).read();
     }
 
     /** {@code *} matches within one package segment, {@code **} across segments, {@code ?} one character. */
@@ -902,23 +829,20 @@ public final class AugmentorConfig {
                 && receiverFormat.equals(that.receiverFormat)
                 && paramsFormat.equals(that.paramsFormat)
                 && maxValueLength == that.maxValueLength
-                && debug == that.debug
-                && Objects.equals(inPlaceModification, that.inPlaceModification)
                 && exceptions.equals(that.exceptions)
                 && annotations.equals(that.annotations);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classes, methods, frameFormat, receiverFormat, paramsFormat, maxValueLength, debug, inPlaceModification,
-                exceptions, annotations);
+        return Objects.hash(classes, methods, frameFormat, receiverFormat, paramsFormat, maxValueLength, exceptions, annotations);
     }
 
     @Override
     public String toString() {
         return "AugmentorConfig[classes=" + classes + ", methods=" + methods
                 + ", frameFormat=" + frameFormat + ", receiverFormat=" + receiverFormat + ", paramsFormat=" + paramsFormat
-                + ", maxValueLength=" + maxValueLength + ", debug=" + debug + ", inPlaceModification=" + inPlaceModification + ", exceptions=" + exceptions + ", annotations=" + annotations + "]";
+                + ", maxValueLength=" + maxValueLength  + ", exceptions=" + exceptions + ", annotations=" + annotations + "]";
     }
 
     /** Starts from the defaults; every setter replaces one value. */
@@ -930,8 +854,6 @@ public final class AugmentorConfig {
         private String receiverFormat = DEFAULT_RECEIVER_FORMAT;
         private String paramsFormat = DEFAULT_PARAMS_FORMAT;
         private int maxValueLength = DEFAULT_MAX_VALUE_LENGTH;
-        private boolean debug;
-        private Boolean inPlaceModification;
         private Map<String, Boolean> exceptions = Map.of();
         private Map<String, Boolean> annotations = Map.of();
         private final Set<String> settings = new LinkedHashSet<>();
@@ -973,18 +895,6 @@ public final class AugmentorConfig {
             return this;
         }
 
-        public Builder debug(boolean debug) {
-            this.debug = debug;
-            settings.add("debug");
-            return this;
-        }
-
-        public Builder inPlaceModification(boolean inPlaceModification) {
-            this.inPlaceModification = inPlaceModification;
-            settings.add("inPlaceModification");
-            return this;
-        }
-
         /**
          * In the order the first matching entry is looked for, e.g. a {@link LinkedHashMap}; empty (the default) for
          * none, {@code "**" = true} for all.
@@ -1004,22 +914,21 @@ public final class AugmentorConfig {
         }
 
         public AugmentorConfig build() {
-            return new AugmentorConfig(classes, methods, frameFormat, receiverFormat, paramsFormat, maxValueLength, debug,
-                    inPlaceModification, exceptions, annotations, settings);
+            return new AugmentorConfig(classes, methods, frameFormat, receiverFormat, paramsFormat, maxValueLength, exceptions,
+                    annotations, settings);
         }
     }
 
     /** Maps the parsed TOML onto {@link AugmentorConfig}; errors name the key and its line. */
     private static final class ConfigReader {
 
-        private static final List<String> SETTINGS_TABLE = List.of("settings");
         private static final List<String> AUGMENT = List.of("augment");
         private static final List<String> CLASSES = List.of("augment", "receiver");
         private static final List<String> METHODS = List.of("augment", "params");
         private static final List<String> EXCEPTIONS = List.of("augment", "exceptions");
         private static final List<String> ANNOTATION_CLASSES = List.of("augment", "annotations");
 
-        private static final List<String> ROOT_KEYS = List.of("settings", "augment");
+        private static final List<String> ROOT_KEYS = List.of("augment");
         private static final List<String> AUGMENT_KEYS = List.of("frameFormat", "receiverFormat", "paramsFormat", "maxValueLength",
                 "exceptions", "annotations", "receiver", "params");
 
@@ -1035,30 +944,14 @@ public final class AugmentorConfig {
 
         private final TomlParseResult toml;
         private final String source;
-        private final boolean explicit;
 
-        ConfigReader(TomlParseResult toml, String source, boolean explicit) {
+        ConfigReader(TomlParseResult toml, String source) {
             this.toml = toml;
             this.source = source;
-            this.explicit = explicit;
         }
 
         AugmentorConfig read() {
-            for (String setting : JVM_SETTINGS) {
-                if (toml.contains(List.of(setting))) {
-                    throw error(List.of(setting), "'" + setting + "' belongs in the [settings] table");
-                }
-            }
             checkKeys(List.of(), toml, ROOT_KEYS);
-            TomlTable settings = table(SETTINGS_TABLE);
-            if (settings != null) {
-                if (!explicit) {
-                    throw error(SETTINGS_TABLE, "[settings] applies to the whole JVM, so only the file given to the agent "
-                            + "(config=<file>) or by -D" + CONFIG_PROPERTY + ", or the build plugin's settings file, may have it, no file on "
-                            + "the classpath");
-                }
-                checkKeys(SETTINGS_TABLE, settings, JVM_SETTINGS);
-            }
             TomlTable augment = table(AUGMENT);
             if (augment != null) {
                 checkKeys(AUGMENT, augment, AUGMENT_KEYS);
@@ -1099,14 +992,6 @@ public final class AugmentorConfig {
                     + "false not to"));
             config.annotations(switches(ANNOTATION_CLASSES, "must be true to read the annotations of this class or class "
                     + "pattern, or false not to"));
-            Boolean debug = value(plus(SETTINGS_TABLE, "debug"), Boolean.class, "true or false");
-            if (debug != null) {
-                config.debug(debug);
-            }
-            Boolean inPlaceModification = value(plus(SETTINGS_TABLE, "inPlaceModification"), Boolean.class, "true or false");
-            if (inPlaceModification != null) {
-                config.inPlaceModification(inPlaceModification);
-            }
             AugmentorConfig result = config.build();
             checkFormats(result);
             return result;

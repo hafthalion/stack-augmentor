@@ -6,10 +6,10 @@
 #
 #   java-agent  the Java agent instruments classes, values from annotations and from
 #               stack-augmentor-global.toml, and a simple cause chain printed both ways:
-#                 java -javaagent:<agent jar>=config=<stack-augmentor-global.toml> -jar <example jar>
+#                 java -javaagent:<agent jar> -Dstackaugmentor.config=<stack-augmentor-global.toml> -jar <example jar>
 #   live-agent  twice: with the agent alone, and in the agent's live-stack mode with the
 #               native library as well, which augments every frame:
-#                 java -agentpath:<native library> -javaagent:<agent jar>=config=<stack-augmentor-global.toml> -jar <example jar>
+#                 java -agentpath:<native library> -javaagent:<agent jar> -Dstackaugmentor.config=<stack-augmentor-global.toml> -jar <example jar>
 #               Without a C compiler (cc or gcc) there is no native library, and only the first runs.
 #   build-time  classes instrumented when they were built, no agent:
 #                 java -jar <example jar>
@@ -82,7 +82,7 @@ case "$EXAMPLE" in
         echo
         echo "=== Java agent: $AGENT_JAR"
         echo
-        java "$@" "-javaagent:$AGENT_JAR=config=$CONFIG" -jar "$JAR"
+        java "$@" "-javaagent:$AGENT_JAR" "-Dstackaugmentor.config=$CONFIG" -jar "$JAR"
         ;;
     build-time)
         echo
@@ -94,7 +94,7 @@ case "$EXAMPLE" in
         echo
         echo "=== 1. Agent alone, instrumenting classes: $AGENT_JAR"
         echo
-        java "$@" "-javaagent:$AGENT_JAR=config=$CONFIG" -jar "$JAR"
+        java "$@" "-javaagent:$AGENT_JAR" "-Dstackaugmentor.config=$CONFIG" -jar "$JAR"
         echo
         if [ ! -f "$NATIVE_LIB" ]; then
             echo "=== 2. Live-stack mode skipped: no $NATIVE_LIB, which needs a C compiler"
@@ -102,6 +102,6 @@ case "$EXAMPLE" in
         fi
         echo "=== 2. Live-stack mode: $AGENT_JAR with $NATIVE_LIB"
         echo
-        java "$@" "-agentpath:$NATIVE_LIB" "-javaagent:$AGENT_JAR=config=$CONFIG" -jar "$JAR"
+        java "$@" "-agentpath:$NATIVE_LIB" "-javaagent:$AGENT_JAR" "-Dstackaugmentor.config=$CONFIG" -jar "$JAR"
         ;;
 esac

@@ -7,7 +7,7 @@ changing the application's build.
 ## Requirements
 
 ### Requirement: Starting the agent
-The agent SHALL be one self-contained jar, started with `-javaagent:<agent jar>[=config=<path>]`, and MAY also be attached
+The agent SHALL be one self-contained jar, started with `-javaagent:<agent jar>`, without arguments (see the configuration specification), and MAY also be attached
 to a running JVM. A second start in the same JVM SHALL have no effect. At startup it SHALL read and validate the
 configuration (see the configuration specification), and use the live-stack mode when the JVM was started with its native
 library and can use it (see the live-stack specification), otherwise instrument classes.

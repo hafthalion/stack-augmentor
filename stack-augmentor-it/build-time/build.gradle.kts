@@ -57,7 +57,7 @@ tasks.matching { it.name == "byteBuddyKotlin" }.configureEach {
 }
 
 // The same tests with java.lang open, as with --add-opens java.base/java.lang=ALL-UNNAMED in an application: then the
-// handler writes frames into the exception's own stack trace instead of copying it (inPlaceModification, the default).
+// handler writes frames into the exception's own stack trace instead of copying it (in-place modification, the default).
 val testOpenJavaLang = tasks.register<Test>("testOpenJavaLang") {
     description = "Runs the integration tests with java.lang open to the runtime classes."
     group = "verification"
@@ -77,7 +77,7 @@ val testWithAgent = tasks.register<Test>("testWithAgent") {
     inputs.files(agentJar).withPropertyName("agent")
     inputs.file(stackAugmentorConfig).withPropertyName("agentConfig")
     jvmArgumentProviders.add(CommandLineArgumentProvider {
-        listOf("-javaagent:${agentJar.singleFile.absolutePath}=config=${stackAugmentorConfig.asFile.absolutePath}")
+        listOf("-javaagent:${agentJar.singleFile.absolutePath}", "-Dstackaugmentor.config=${stackAugmentorConfig.asFile.absolutePath}")
     })
 }
 

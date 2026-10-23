@@ -34,16 +34,21 @@ class ThrowHandlerTest {
 
     @Test
     fun `build-time handler copies the trace when java lang is not open`() {
-        assertSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces(AugmentorConfig()))
+        assertSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces())
     }
 
     @Test
     fun `build-time handler copies the trace and warns when in-place modification is asked for but java lang is not open`() {
-        val config = AugmentorConfig.builder().inPlaceModification(true).build()
-        val output = stderrOf { assertSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces(config)) }
-        assertTrue(output.contains("WARN runtime: inPlaceModification needs java.lang open"), output)
+        val property = StackTraces.IN_PLACE_MODIFICATION_PROPERTY
+        System.setProperty(property, "true")
+        val output = try {
+            stderrOf { assertSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces()) }
+        } finally {
+            System.clearProperty(property)
+        }
+        assertTrue(output.contains("WARN runtime: in-place modification needs java.lang open"), output)
         assertTrue(output.contains("--add-opens java.base/java.lang=ALL-UNNAMED"), output)
-        assertEquals("", stderrOf { ThrowHandler.runtimeStackTraces(AugmentorConfig()) }, "no warning by default")
+        assertEquals("", stderrOf { ThrowHandler.runtimeStackTraces() }, "no warning by default")
     }
 
     private fun stderrOf(action: () -> Unit): String {
@@ -60,7 +65,7 @@ class ThrowHandlerTest {
 
     @Test
     fun `build-time handler uses the built-in configuration and warns without a runtime configuration`() {
-        assertNull(AugmentorConfig.location(null), "the test must run without -Dstackaugmentor.config")
+        assertNull(AugmentorConfig.location(), "the test must run without -Dstackaugmentor.config")
         val target = Annotated()
         val built = thrownBy(target)
         val other = thrownBy(target)

@@ -35,15 +35,13 @@ import java.util.List;
  * {@code [augment.receiver]} and {@code [augment.params]} entries decide which receiver members and parameter values are
  * shown, and the classes and methods that need the advice for that are instrumented, as with the agent:
  * <ol start="0">
- *   <li>the build's own configuration, as the agent's file is of the JVM: the only one that may have
- *       {@code [settings]}, whose {@code debug} logs what gets instrumented;</li>
+ *   <li>the build's own configuration, as {@code -Dstackaugmentor.config} names the JVM's;</li>
  *   <li>the context configuration, usually the application's {@code src/main/resources/stack-augmentor-context.toml};</li>
  *   <li>the module's local configuration, {@code src/main/resources/stack-augmentor.toml}: the instrumented classes get a
  *       {@link LocalConfiguration} naming it, so that they use it at runtime wherever it is on the classpath, also when
  *       classes and resources are in different build directories.</li>
  * </ol>
- * The context and the local configuration are on the application's classpath too, so like every file there they must not
- * have {@code [settings]}. Without any (e.g. when discovered through {@code META-INF/net.bytebuddy/build.plugins}), the
+ * {@code -Dstackaugmentor.debug=true} on the build logs what gets instrumented. Without any (e.g. when discovered through {@code META-INF/net.bytebuddy/build.plugins}), the
  * built-in configuration applies alone ({@link AugmentorConfig#BUILT_IN_RESOURCE}): the methods that {@code @Augmented}
  * selects are instrumented.
  */
@@ -59,31 +57,31 @@ public final class ByteBuddyPlugin implements Plugin {
         this(null, null, null, null, null, null);
     }
 
-    /** @param settingsFile the build's own TOML configuration, which may have {@code [settings]}, or empty for none */
-    public ByteBuddyPlugin(String settingsFile) {
-        this(settingsFile, "");
+    /** @param buildFile the build's own TOML configuration, or empty for none */
+    public ByteBuddyPlugin(String buildFile) {
+        this(buildFile, "");
     }
 
     /**
-     * @param settingsFile the build's own TOML configuration, which may have {@code [settings]}, or empty for none
-     * @param contextFile  a context TOML configuration, or empty for none
+     * @param buildFile   the build's own TOML configuration, or empty for none
+     * @param contextFile a context TOML configuration, or empty for none
      */
     @Plugin.Factory.UsingReflection.Priority(1)
-    public ByteBuddyPlugin(String settingsFile, String contextFile) {
-        this(settingsFile, contextFile, "");
+    public ByteBuddyPlugin(String buildFile, String contextFile) {
+        this(buildFile, contextFile, "");
     }
 
     /**
-     * @param settingsFile the build's own TOML configuration, which may have {@code [settings]}, or empty for none
-     * @param contextFile  a context TOML configuration, or empty for none
-     * @param localFile    the module's local TOML configuration, or empty for none
+     * @param buildFile   the build's own TOML configuration, or empty for none
+     * @param contextFile a context TOML configuration, or empty for none
+     * @param localFile   the module's local TOML configuration, or empty for none
      */
     @Plugin.Factory.UsingReflection.Priority(2)
-    public ByteBuddyPlugin(String settingsFile, String contextFile, String localFile) {
+    public ByteBuddyPlugin(String buildFile, String contextFile, String localFile) {
         // The ByteBuddy Gradle plugin reports a failing constructor without its cause, so Startup prints the reason too.
-        this(settingsFile.isBlank() ? null : Startup.load(Startup.BUILD_PLUGIN, () -> AugmentorConfig.load(Path.of(settingsFile))),
-                settingsFile,
-                contextFile.isBlank() ? null : Startup.load(Startup.BUILD_PLUGIN, () -> AugmentorConfig.load(Path.of(contextFile), false)),
+        this(buildFile.isBlank() ? null : Startup.load(Startup.BUILD_PLUGIN, () -> AugmentorConfig.load(Path.of(buildFile))),
+                buildFile,
+                contextFile.isBlank() ? null : Startup.load(Startup.BUILD_PLUGIN, () -> AugmentorConfig.load(Path.of(contextFile))),
                 contextFile,
                 localFile.isBlank() ? null : Startup.load(Startup.BUILD_PLUGIN, () -> local(Path.of(localFile))), localFile);
     }
@@ -92,7 +90,7 @@ public final class ByteBuddyPlugin implements Plugin {
     }
 
     private static Local local(Path file) {
-        AugmentorConfig config = AugmentorConfig.load(file, false);
+        AugmentorConfig config = AugmentorConfig.load(file);
         try {
             return new Local(config, ClassLoaderConfigs.hash(Files.readAllBytes(file)));
         } catch (IOException e) {
@@ -100,11 +98,13 @@ public final class ByteBuddyPlugin implements Plugin {
         }
     }
 
-    private ByteBuddyPlugin(AugmentorConfig settings, String settingsLocation, AugmentorConfig file, String location, Local local,
+    private ByteBuddyPlugin(AugmentorConfig build, String buildLocation, AugmentorConfig file, String location, Local local,
                             String localLocation) {
+        // Set on every build: the Gradle daemon keeps this class loaded from one build to the next.
+        Log.setDebug(Log.debugRequested());
         List<AugmentorConfig> layers = new ArrayList<>();
-        if (settings != null) {
-            layers.add(settings);
+        if (build != null) {
+            layers.add(build);
         }
         if (file != null) {
             layers.add(file);
@@ -113,11 +113,10 @@ public final class ByteBuddyPlugin implements Plugin {
             layers.add(local.config());
         }
         layers.add(AugmentorConfig.builtIn());
-        Log.setDebug(settings != null && settings.debug());
-        if (settings != null) {
-            Startup.describe(Startup.BUILD_PLUGIN, settingsLocation, settings);
+        if (build != null) {
+            Startup.describe(Startup.BUILD_PLUGIN, buildLocation, build);
         }
-        if (file != null || settings == null) {
+        if (file != null || build == null) {
             Startup.describe(Startup.BUILD_PLUGIN, file != null ? location : AugmentorConfig.BUILT_IN_LOCATION,
                     file != null ? file : AugmentorConfig.builtIn());
         }
