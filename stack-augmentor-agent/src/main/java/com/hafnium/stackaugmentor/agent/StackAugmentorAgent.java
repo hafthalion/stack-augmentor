@@ -44,7 +44,6 @@ public final class StackAugmentorAgent {
         // An invalid configuration of the JVM or of the system class loader stops the JVM here, with the reason.
         ClassLoaderConfigs<Configured> contexts = Startup.load(Startup.AGENT, () -> ClassLoaderConfigs.create(Startup.AGENT,
                 AugmentorConfig.global(), AugmentorConfig.location(), Configured::of));
-        Startup.warnIfNothingConfigured(Startup.AGENT, contexts.baseConfig());
         BridgeInjector.inject(instrumentation);
         Installer.install(instrumentation, contexts);
     }

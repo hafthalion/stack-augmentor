@@ -14,8 +14,7 @@ import java.lang.annotation.Target;
  * is also recognised. Several members may carry it: each is shown, e.g. {@code Order{tenant=acme, orderId=42}.process},
  * fields first, in declaration order, then methods by name, starting with the class itself and then its superclasses. For method parameters, use {@link AugmentedParam} and {@link AugmentedParams}.
  *
- * <p>It is shown only in the frames of classes that {@code [augment.annotations]} selects, e.g.
- * {@code "com.acme.**" = true}, for the methods that {@link Augmented} selects and that no {@code [augment.receiver]}
+ * <p>It is shown only in the frames of the methods that {@link Augmented} selects and that no {@code [augment.receiver]}
  * entry matches.
  */
 @Documented

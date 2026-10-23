@@ -8,7 +8,6 @@ import com.hafnium.it.outside.Dispatcher
 import com.hafnium.it.outside.MethodAnnotationsOutside
 import com.hafnium.it.outside.Muted
 import com.hafnium.it.outside.Selective
-import com.hafnium.it.outside.Unread
 import com.hafnium.it.outside.WithoutAugmented
 import com.hafnium.it.outside.PremiumAccount
 import com.hafnium.it.outside.VipCustomer
@@ -102,13 +101,6 @@ class ConfigTablesTest {
     }
 
     @Test
-    fun `the first matching annotations entry decides`() {
-        val frame = frame("Unread(\"U-1\").run(5)", Unread("U-1")) { it.run(5) }
-        assertEquals("com.hafnium.it.outside.Unread", frame.className)
-        assertEquals("run", frame.methodName)
-    }
-
-    @Test
     fun `a class name without plus does not apply to subclasses, with plus it does`() {
         // "com.thirdparty.Customer::*" has no "+": the methods VipCustomer declares show no receiver member, those it
         // inherits from Customer do.
@@ -140,7 +132,7 @@ class ConfigTablesTest {
     }
 
     @Test
-    fun `a method without a params entry uses its annotations where the annotations table selects the class`() {
+    fun `a method without a params entry uses its annotations where @Augmented selects it`() {
         val frame = frame("Overridden().failAnnotated(2)", Overridden()) { it.failAnnotated(2) }
         assertEquals("com.hafnium.it.fixtures.Overridden{getId=o-1}", frame.className)
         assertEquals("failAnnotated{y=2}", frame.methodName)

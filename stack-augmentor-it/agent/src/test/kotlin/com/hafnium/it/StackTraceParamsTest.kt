@@ -9,7 +9,6 @@ import com.hafnium.it.fixtures.Overlap
 import com.hafnium.it.fixtures.Pallet
 import com.hafnium.it.fixtures.Secrets
 import com.hafnium.it.fixtures.Shipment
-import com.hafnium.it.outside.AllParamsOutside
 import com.hafnium.it.report.FrameReport
 import com.thirdparty.InventoryService
 import com.thirdparty.UserService
@@ -47,11 +46,6 @@ class StackTraceParamsTest {
         val derived = report.thrown<IllegalStateException, _>("DerivedInventory().reserve(\"x-3\", 1)", DerivedInventory()) { it.reserve("x-3", 1) }
         assertEquals("com.hafnium.it.fixtures.DerivedInventory", derived.stackTrace[0].className)
         assertEquals("reserve", derived.method())
-    }
-
-    @Test
-    fun `an annotation outside the @ entries is ignored`() {
-        assertEquals("run", report.thrown<IllegalStateException, _>("AllParamsOutside().run(1)", AllParamsOutside()) { it.run(1) }.method())
     }
 
     @Test

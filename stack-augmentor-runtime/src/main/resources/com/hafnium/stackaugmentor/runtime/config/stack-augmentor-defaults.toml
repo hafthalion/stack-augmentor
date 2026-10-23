@@ -22,11 +22,6 @@ maxValueLength = 64
 [augment.exceptions]
 "java.lang.Exception+" = true
 
-# The annotations are read in all classes: those with @Augmented show their @AugmentedReceiver members and
-# @AugmentedParam(s) parameter values. Classes without @Augmented are ignored.
-[augment.annotations]
-"**" = true
-
 # No receiver members or parameter values by name.
 [augment.receiver]
 

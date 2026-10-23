@@ -12,7 +12,7 @@ Stack Augmentor augments the frames of stack traces with receiver members and pa
 
 - **Receiver members**: members of the object a frame's method runs on, from `@AugmentedReceiver` fields and methods, or from fields and getters named in the configuration.
 - **Parameter values**: selected arguments, from `@AugmentedParam` and `@AugmentedParams`, or by name or index; sensitive values can be shown as a hash.
-- **Classes you cannot change**: one TOML file names their members and parameters, selecting classes by name, with their subclasses (`+`) or by pattern, and methods by name or pattern; it also says in which classes the annotations are read, which exceptions are augmented and how frames look. The annotations augment only the classes and methods with `@Augmented`. See [Configuration](docs/configuration.md).
+- **Classes you cannot change**: one TOML file names their members and parameters, selecting classes by name, with their subclasses (`+`) or by pattern, and methods by name or pattern; it also says which exceptions are augmented and how frames look. The annotations augment only the classes and methods with `@Augmented`. See [Configuration](docs/configuration.md).
 - **Three ways to run**: a Java agent, the agent reading every frame from the live stack (experimental), or build-time instrumentation without an agent.
 - **Cause chains**: the frames a cause shares with its wrapper are augmented the same way, so `... N more` still works; `ExceptionFormat.rootCauseFirst` prints the root cause first.
 - **Java and Kotlin**, constructors included; the library is Java and does not need the Kotlin runtime.
@@ -37,7 +37,6 @@ An application with classes instrumented at build time can also run with the age
 |---|---|---|---|
 | Configuration files | the JVM's: `-Dstackaugmentor.config=<file>`; context: `stack-augmentor-context.toml` on the classpath of a class loader; local: `stack-augmentor.toml` in a jar or directory, for its own classes | none: the [built-in configuration](docs/configuration.md#the-built-in-configuration), which also applies after the files, augments all exceptions with the annotated members and parameters of the classes with `@Augmented` | TOML files with the tables below ([where they come from](docs/configuration.md#where-the-files-come-from)) |
 | `[augment.exceptions]` | configuration | empty: the next configuration decides | which exceptions are augmented, e.g. `"java.lang.Exception+" = true` ([Exceptions](docs/configuration.md#exceptions)) |
-| `[augment.annotations]` | configuration | empty: the next configuration decides | in which classes `@AugmentedReceiver`, `@AugmentedParam`, `@AugmentedParams` and `@Augmented` are read, e.g. `"com.acme.**" = true` ([Annotations](docs/configuration.md#annotations)) |
 | `[augment.receiver]` | configuration | empty | which frames show receiver members by name, and which ones, e.g. `"com.thirdparty.Order+::*" = "getOrderNumber()"` ([Receiver members](docs/configuration.md#receiver-members)) |
 | `[augment.params]` | configuration | empty | which frames show parameter values by name or index, and which parameters, e.g. `"com.acme.Order::ship, cancel*" = "orderId"` ([Parameter values](docs/configuration.md#parameter-values)) |
 | `[augment]` | configuration | see [Formats](docs/configuration.md#formats) | how frames look: `frameFormat`, `receiverFormat`, `paramsFormat`, `maxValueLength` |
@@ -45,11 +44,11 @@ An application with classes instrumented at build time can also run with the age
 | `stackaugmentor.inPlaceModification` | system property, e.g. `-Dstackaugmentor.inPlaceModification=false` | `true` | writes each frame into the exception's own stack trace instead of copying the trace; faster for deep stacks, needs `java.lang` open, otherwise frames are copied (see [Limitations](docs/limitations.md)) |
 | Live stack | `-agentpath:<native library>` | off | the agent reads the values from the live stack instead of instrumenting classes (see [Live stack](docs/live-stack.md)) |
 
-In all four tables the first matching entry decides, and classes are written the same way: a class name matches that class only, `+` after it also its subclasses, and a pattern (`*`, `**`, `?`) matches class names. The tables differ in their keys and values:
+In all three tables the first matching entry decides, and classes are written the same way: a class name matches that class only, `+` after it also its subclasses, and a pattern (`*`, `**`, `?`) matches class names. The tables differ in their keys and values:
 
 - `[augment.receiver]` and `[augment.params]` keys name a class and its methods, `"<class>::<methods>"`, and their values name what to show: `"com.acme.Order::ship, cancel*" = "orderId"`.
-- `[augment.exceptions]` and `[augment.annotations]` keys name only a class, and their values are `true` or `false`: `"java.io.IOException+" = true` augments that exception and its subclasses, `"com.acme.**" = true` reads the annotations of the classes under `com.acme`.
-- For each method, an `[augment.receiver]` or `[augment.params]` entry that matches it decides; only without one are the annotations used, where `[augment.annotations]` selects the class.
+- `[augment.exceptions]` keys name only a class, and their values are `true` or `false`: `"java.io.IOException+" = true` augments that exception and its subclasses.
+- For each method, an `[augment.receiver]` or `[augment.params]` entry that matches it decides; only without one are the annotations used, where `@Augmented` selects the method ([Annotations](docs/configuration.md#annotations)).
 
 [Configuration](docs/configuration.md) describes the file in full: the syntax, every table and option, and the errors and warnings.
 
@@ -95,15 +94,11 @@ Use it in your own application:
    }
    ```
 
-2. Say which exceptions are augmented and in which classes the annotations are read, in `stack-augmentor.toml`:
+2. Say which exceptions are augmented, in `stack-augmentor.toml`:
 
    ```toml
    [augment.exceptions]    # the first matching entry decides; the built-in configuration after it augments all exceptions
    "com.acme.FlowException+" = false
-
-   [augment.annotations]   # where @AugmentedReceiver, @AugmentedParam(s) and @Augmented are read
-   "com.acme.**" = true
-   "**" = false            # nowhere else, as the built-in configuration would
    ```
 
    Classes you cannot annotate get `[augment.receiver]` and `[augment.params]` entries that name their members and parameters (see [Configuration](docs/configuration.md)).
@@ -158,10 +153,10 @@ tasks.matching { it.name == "byteBuddy" || it.name == "byteBuddyKotlin" }.config
 }
 ```
 
-- **At build time**, the plugin instruments the classes and methods that `[augment.annotations]`, `[augment.receiver]` and `[augment.params]` need. Without the configuration argument, the built-in configuration applies: the methods that `@Augmented` selects are instrumented, where their class has annotated members or they have annotated parameters.
+- **At build time**, the plugin instruments the classes and methods that `@Augmented`, `[augment.receiver]` and `[augment.params]` need. Without the configuration argument, the built-in configuration applies: the methods that `@Augmented` selects are instrumented, where their class has annotated members or they have annotated parameters.
 - **At runtime**, the application needs only `stack-augmentor-api` and `stack-augmentor-runtime` (no agent, no ByteBuddy, no Kotlin). The runtime reads the file in `-Dstackaugmentor.config` and those on the classpath, `stack-augmentor-context.toml` of the class loader and `stack-augmentor.toml` of the class's jar or directory, for `[augment]`, `[augment.exceptions]` and `[augment.receiver]` (receiver members) ([the configuration chain](docs/configuration.md#the-configuration-chain)).
 - **One file serves both** when it is `src/main/resources/stack-augmentor-context.toml`. A module's local `src/main/resources/stack-augmentor.toml`, for its own classes only, serves both when it is the plugin's third argument: the plugin marks the classes it instruments with it, so they find it at runtime also when classes and resources are in different build directories ([where the files come from](docs/configuration.md#where-the-files-come-from)).
-- A frame's receiver members come from the runtime `[augment.receiver]` entry with the same key as the entry that decided its method at build time; without that key they are left out. Where the annotations decided at build time, the `@AugmentedReceiver` members are shown, like the annotated parameters: the runtime's `[augment.annotations]` is not checked again.
+- A frame's receiver members come from the runtime `[augment.receiver]` entry with the same key as the entry that decided its method at build time; without that key they are left out. Where the annotations decided at build time, the `@AugmentedReceiver` members are shown, like the annotated parameters.
 - Without a runtime configuration, a warning says so and the built-in configuration applies; it shows the `@AugmentedReceiver` members, but not the receiver members of `[augment.receiver]` entries. An invalid one is printed as an error, and stack traces stay unchanged.
 
 ## Limitations in short

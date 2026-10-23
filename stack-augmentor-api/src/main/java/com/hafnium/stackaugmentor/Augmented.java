@@ -7,8 +7,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Selects the methods and constructors of a class that the annotations augment, where {@code [augment.annotations]}
- * selects the class: their frames show the class's {@link AugmentedReceiver} members and their own
+ * Selects the methods and constructors of a class that the annotations augment: their frames show the class's {@link AugmentedReceiver} members and their own
  * {@link AugmentedParam} and {@link AugmentedParams} parameters.
  *
  * <ul>

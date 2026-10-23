@@ -17,8 +17,7 @@ import java.lang.annotation.Target;
  * {@code invite{email=#71d4f55f}}: the same value gives the same hash, so it can be followed across log lines
  * without appearing in them.
  *
- * <p>It is read only in the classes that {@code [augment.annotations]} selects, e.g. {@code "com.acme.**" = true}, in
- * the methods and constructors that {@link Augmented} selects and that no {@code [augment.params]} entry matches.
+ * <p>It is read only in the methods and constructors that {@link Augmented} selects and that no {@code [augment.params]} entry matches.
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)

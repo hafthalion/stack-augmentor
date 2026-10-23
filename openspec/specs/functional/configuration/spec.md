@@ -12,17 +12,17 @@ A configuration SHALL be a TOML file whose name ends in `.toml`, with these keys
 - `[augment]`: `frameFormat`, `receiverFormat`, `paramsFormat` (see the frame format specification) and `maxValueLength`
   (integer from 2 to 10000, default 64, see the receivers and parameters specification);
 - `[augment.exceptions]` (class key → `true` or `false`): which throwables are augmented;
-- `[augment.annotations]` (class key → `true` or `false`): in which declaring classes the annotations are read;
 - `[augment.receiver]` (method key → members): the receiver members by name;
 - `[augment.params]` (method key → parameters): the parameter values by name or index.
 
-The four tables SHALL default to empty: a file without entries augments no throwable and reads no annotations by itself,
-while the configurations after it in the chain still apply (see "Configuration chain"). Any TOML
-notation for the same keys (sections, dotted keys, inline tables) SHALL mean the same. The order of the tables SHALL NOT
+The three tables SHALL default to empty: a file without entries augments no throwable by itself, while the
+configurations after it in the chain still apply (see "Configuration chain"). Where the
+annotations are read SHALL NOT be configured: `@Augmented` in the code says it (see the receivers and parameters
+specification). Any TOML notation for the same keys (sections, dotted keys, inline tables) SHALL mean the same. The order of the tables SHALL NOT
 matter; the order of the entries within a table SHALL (see "First matching entry").
 
 #### Scenario: Full configuration
-- **GIVEN** a file with `[augment]`, `[augment.exceptions]`, `[augment.annotations]`, `[augment.receiver]` and `[augment.params]` entries
+- **GIVEN** a file with `[augment]`, `[augment.exceptions]`, `[augment.receiver]` and `[augment.params]` entries
 - **WHEN** it is loaded
 - **THEN** every value is used as written, and the entries of each table in the order of the file
 
@@ -30,6 +30,11 @@ matter; the order of the entries within a table SHALL (see "First matching entry
 - **GIVEN** an empty configuration file
 - **WHEN** it is loaded
 - **THEN** its default values apply where no earlier configuration sets them, and the built-in configuration after it decides the tables
+
+#### Scenario: Annotations table
+- **GIVEN** a configuration file with `[augment.annotations]`
+- **WHEN** it is loaded
+- **THEN** it is rejected as having an unknown key in `[augment]`
 
 ### Requirement: Options of the whole JVM
 What applies to the whole JVM, or to the whole build, SHALL be given by system properties, never by a configuration file,
@@ -59,7 +64,7 @@ to use `stackaugmentor.config`.
 - **THEN** it is rejected as having an unknown key, naming the allowed `augment`
 
 ### Requirement: Class keys
-A class key, the key of `[augment.exceptions]` and `[augment.annotations]` and the part before `::` of a method key, SHALL
+A class key, the key of `[augment.exceptions]` and the part before `::` of a method key, SHALL
 be one of:
 - a class name, with `$` for nested classes (`com.acme.Order$Line`): it SHALL match that class only;
 - a class name followed by `+` (`com.acme.Order+`): it SHALL match that class, its subclasses and, for an interface, the
@@ -70,7 +75,7 @@ be one of:
   after a pattern SHALL be rejected.
 
 A class key SHALL be matched against the throwable's class in `[augment.exceptions]`, and against the declaring class of
-the frame's method in the other three tables.
+the frame's method in the other two tables.
 
 #### Scenario: Class name, plus and pattern
 - **GIVEN** the keys `"java.io.IOException"`, `"java.io.IOException+"` and `"java.io.IO*"` in `[augment.exceptions]`, each alone with `true`
@@ -97,38 +102,33 @@ any name. Spaces around the commas SHALL NOT matter. One class MAY have several 
 
 ### Requirement: First matching entry
 In each table, the first entry in the order of the file that matches SHALL decide, however specific the later ones are,
-and later entries SHALL NOT be combined with it: in `[augment.exceptions]` per throwable class, in `[augment.annotations]`
-per declaring class, in `[augment.receiver]` and `[augment.params]` per method. A method that no entry of
+and later entries SHALL NOT be combined with it: in `[augment.exceptions]` per throwable class, in `[augment.receiver]`
+and `[augment.params]` per method. A method that no entry of
 `[augment.receiver]` or `[augment.params]` matches SHALL use the annotations in that table's place (see the receivers and
 parameters specification). The two method tables SHALL be independent: no entry of one SHALL change what the other selects.
 
-#### Scenario: First matching annotations entry
-- **GIVEN** `"com.acme.generated.**" = false` and then `"com.acme.**" = true` in `[augment.annotations]`
+#### Scenario: First matching exceptions entry
+- **GIVEN** `"java.io.FileNotFoundException+" = false` and then `"java.io.IOException+" = true` in `[augment.exceptions]`
 - **WHEN** it is loaded
-- **THEN** the classes under `com.acme.generated` read no annotations, and the other classes under `com.acme` read them
-- **AND** with the two entries the other way round, `"com.acme.**" = true` decides for the classes under `com.acme.generated` too
+- **THEN** a `FileNotFoundException` is not augmented, and the other `IOException`s are
+- **AND** with the two entries the other way round, `"java.io.IOException+" = true` decides for `FileNotFoundException` too
 
 #### Scenario: Constructor entry first
-- **GIVEN** `"com.acme.**" = true` in `[augment.annotations]`, and `"com.acme.legacy.*::<init>" = "-"` and then `"com.acme.legacy.*::*" = "0"` in `[augment.params]`
+- **GIVEN** classes with `@Augmented` in `com.acme.legacy`, and `"com.acme.legacy.*::<init>" = "-"` and then `"com.acme.legacy.*::*" = "0"` in `[augment.params]`
 - **WHEN** it is loaded
 - **THEN** the constructors of the classes directly in `com.acme.legacy` show no parameter values, not even their annotated parameters, and their methods show their first parameter
 
 ### Requirement: Values
 The values SHALL be:
-- in `[augment.exceptions]` and `[augment.annotations]`: `true` or `false`;
+- in `[augment.exceptions]`: `true` or `false`;
 - in `[augment.receiver]`: a string with a field name or a no-argument method written with `()`, or several of them
   separated by commas (`"tenant, lineId()"`), or `"-"` for no receiver members;
 - in `[augment.params]`: a string with parameter names and 0-based indexes from 0 to 254 (a method has at most 255
   parameters), separated by commas, each optionally followed by `#` to show the value hashed (`"order, 2, email#"`), or
   `"-"` for none. There SHALL be no value that selects all parameters.
 
-The method tables SHALL name members and parameters only; where the annotations are read SHALL be said by
-`[augment.annotations]` alone.
-
-#### Scenario: Annotations of some classes
-- **GIVEN** `"com.acme.legacy.*" = true` in `[augment.annotations]`
-- **WHEN** it is loaded
-- **THEN** in the classes directly in `com.acme.legacy`, the methods and constructors that `@Augmented` selects use their annotations
+The method tables SHALL name members and parameters only; where the annotations are read SHALL be said by `@Augmented`
+alone.
 
 ### Requirement: Invalid configuration
 The system SHALL reject a configuration that is not valid TOML, has an unknown key in any section (also a known key in the
@@ -137,7 +137,7 @@ syntax above, the same member, parameter or method twice in one entry, or two en
 classes and methods in another spelling (quoted and unquoted, other spaces, another order of methods). An error message
 SHALL name the file, the key and its line, and say what is allowed; for an unknown key it SHALL list the allowed keys. An
 attempt to say in `[augment.receiver]` or `[augment.params]` that the annotations are to be used (such as `"@"`) SHALL be
-rejected with a pointer to `[augment.annotations]`.
+rejected with a pointer to `@Augmented`.
 
 #### Scenario: Value out of range
 - **GIVEN** `[augment]` with `maxValueLength = 1` on line 3 of `stack-augmentor.toml`
@@ -150,19 +150,19 @@ rejected with a pointer to `[augment.annotations]`.
 - **THEN** it is rejected with a message naming `frame`, the section `[augment]` and the allowed keys
 
 #### Scenario: Same entry twice
-- **GIVEN** `"com.acme.Order::a,b"` on line 2 and `"com.acme.Order::b, a"` on line 3 of `[augment.receiver]`, or `"com.acme.Order"` and unquoted `com.acme.Order` in `[augment.annotations]`
+- **GIVEN** `"com.acme.Order::a,b"` on line 2 and `"com.acme.Order::b, a"` on line 3 of `[augment.receiver]`, or `"java.io.IOException"` and unquoted `java.io.IOException` in `[augment.exceptions]`
 - **WHEN** it is loaded
 - **THEN** it is rejected with a message naming the key and the lines of both entries
 
 #### Scenario: Not a boolean
-- **GIVEN** `"java.io.IOException" = "yes"` in `[augment.exceptions]` or in `[augment.annotations]`
+- **GIVEN** `"java.io.IOException" = "yes"` in `[augment.exceptions]`
 - **WHEN** it is loaded
 - **THEN** it is rejected with a message that the value must be `true` or `false`
 
 #### Scenario: Annotations requested in a method table
 - **GIVEN** `"com.acme.**::*" = "@"` in `[augment.receiver]`, or `"com.acme.Order::ship, @" = "0"` in `[augment.params]`
 - **WHEN** it is loaded
-- **THEN** it is rejected with a message that `[augment.annotations]` says where the annotations are read
+- **THEN** it is rejected with a message that `@Augmented` says where the annotations are read
 
 #### Scenario: Not a TOML file
 - **GIVEN** a configuration path ending in `.properties`
@@ -208,7 +208,7 @@ configurations, in this order:
    the classes of its own jar or directory only, `[augment]` included;
 4. the built-in configuration.
 
-In each of `[augment.exceptions]`, `[augment.annotations]`, `[augment.receiver]` and `[augment.params]`, the first
+In each of `[augment.exceptions]`, `[augment.receiver]` and `[augment.params]`, the first
 matching entry of the first configuration in the chain that has one SHALL decide, so a `false` or `"-"` entry SHALL stop
 the later configurations too; each other key SHALL come from the first configuration that sets it. Every file SHALL be
 read the same way, wherever it comes from.
@@ -222,7 +222,7 @@ class is augmented; an invalid one SHALL be reported, the JVM SHALL keep running
 unchanged.
 
 #### Scenario: Two applications in one server
-- **GIVEN** the agent with a configuration that selects nothing in their packages, and two applications in class loaders of their own, each with a `stack-augmentor-context.toml` that selects its classes, one with `receiverFormat = "<$value>"`
+- **GIVEN** the agent with a configuration that sets no format, and two applications in class loaders of their own, with classes that have `@Augmented`, each with a `stack-augmentor-context.toml`, one with `receiverFormat = "<$value>"`
 - **WHEN** an augmented exception leaves an annotated method of each
 - **THEN** each frame shows its receiver members in the format of its own application's configuration
 
@@ -258,14 +258,11 @@ agent, the build plugin and the runtime alike:
 ```toml
 [augment.exceptions]
 "java.lang.Exception+" = true
-
-[augment.annotations]
-"**" = true
 ```
 
-So, unless an earlier configuration decides otherwise, all exceptions (not errors) are augmented with the annotated
-receiver members and parameter values of the classes and methods that `@Augmented` selects. A file that should not
-augment some exceptions or read some annotations SHALL say so with `false` entries, e.g. `"**" = false`.
+So, unless an earlier configuration decides otherwise, all exceptions (not errors) are augmented, with the annotated
+receiver members and parameter values of the methods that `@Augmented` selects. A file that should not augment some
+exceptions SHALL say so with `false` entries, e.g. `"**" = false`.
 
 #### Scenario: Agent without configuration
 - **GIVEN** the agent without a configuration, and a class with `@Augmented`, an `@AugmentedReceiver` field `key = "java-1"` and a method `run(@AugmentedParam int value)` that throws an `IllegalStateException`
@@ -282,16 +279,11 @@ augment some exceptions or read some annotations SHALL say so with `false` entri
 - **WHEN** the agent starts
 - **THEN** the built-in configuration decides, as without the file
 
-#### Scenario: File that turns the built-in configuration off
-- **GIVEN** a configuration file with only `[augment.annotations]` `"**" = false`
-- **WHEN** the agent starts
-- **THEN** nothing is augmented, and a warning says so
-
 ### Requirement: What each phase uses
-What is instrumented SHALL follow from `[augment.annotations]`, `[augment.receiver]` and `[augment.params]`; it SHALL NOT be
+What is instrumented SHALL follow from `@Augmented`, `[augment.receiver]` and `[augment.params]`; it SHALL NOT be
 configured directly. Every component SHALL validate the whole file. With the agent, the whole file SHALL apply at runtime.
 With build-time instrumentation:
-- the build SHALL decide, from `[augment.annotations]`, `[augment.receiver]` and `[augment.params]`, which methods are
+- the build SHALL decide, from `@Augmented`, `[augment.receiver]` and `[augment.params]`, which methods are
   augmented, which parameter values they show, and where their receiver members come from;
 - the runtime SHALL apply `[augment]`, `[augment.exceptions]`, and the
   members of the `[augment.receiver]` entries the build chose (see the build-time instrumentation specification), from
@@ -307,4 +299,4 @@ One context file, and one local file of the module, SHALL serve both phases of b
 #### Scenario: One file for build-time instrumentation
 - **GIVEN** `src/main/resources/stack-augmentor-context.toml` passed to the build plugin and packaged with the application
 - **WHEN** the project is built and run
-- **THEN** the build uses its method and annotation tables, and the runtime its formats, `[augment.exceptions]` and receiver members
+- **THEN** the build uses its receiver and parameter tables, and the runtime its formats, `[augment.exceptions]` and receiver members

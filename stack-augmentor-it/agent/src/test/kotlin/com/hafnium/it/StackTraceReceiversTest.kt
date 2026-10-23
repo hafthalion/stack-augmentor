@@ -30,8 +30,6 @@ import com.hafnium.it.fixtures.Unprintable
 import com.hafnium.it.fixtures.WithToString
 import com.hafnium.it.fixtures.staticWithParam
 import com.hafnium.it.fixtures.staticWithoutParam
-import com.hafnium.it.outside.DerivedOutside
-import com.hafnium.it.outside.ParamsOnly
 import com.hafnium.it.report.FrameReport
 import com.hafnium.it.report.ReceiverEntries
 import com.hafnium.stackaugmentor.ExceptionFormat
@@ -82,17 +80,6 @@ class StackTraceReceiversTest {
     fun `inherited receiver member`() {
         val e = report.thrown<IllegalStateException, _>("Derived().fail()", Derived()) { it.fail() }
         assertEquals("com.hafnium.it.fixtures.Derived{baseId=b1}", e.stackTrace[0].className)
-    }
-
-    @Test
-    fun `annotations outside the @ entries are ignored, also of subclasses of matched classes`() {
-        // No [augment.annotations] entry matches DerivedOutside; the entry of its superclass Base does not apply to it.
-        val derived = report.thrown<IllegalStateException, _>("DerivedOutside().fail()", DerivedOutside()) { it.fail() }
-        assertEquals("com.hafnium.it.outside.DerivedOutside", derived.stackTrace[0].className)
-
-        val withParam = report.thrown<IllegalStateException, _>("ParamsOnly().withParam(7)", ParamsOnly()) { it.withParam(7) }
-        assertEquals("com.hafnium.it.outside.ParamsOnly", withParam.stackTrace[0].className)
-        assertEquals("withParam", withParam.stackTrace[0].methodName)
     }
 
     @Test

@@ -234,14 +234,9 @@ class ParameterSelectionTest {
         return AugmentorConfig.builder().methods(methods).build();
     }
 
-    /** {@code [augment.annotations]} with one entry that is true. */
-    private static AugmentorConfig annotations(String classes) {
-        return AugmentorConfig.builder().annotations(Map.of(classes, true)).build();
-    }
-
     @Test
     void methodAnnotations() {
-        ParamSelection parameters = new ParamSelection(annotations(HERE));
+        ParamSelection parameters = new ParamSelection(new AugmentorConfig());
         assertEquals(List.of("item", "count"), labels(parameters, MethodLevel.class, "move"));
         assertEquals(List.of(), labels(parameters, MethodLevel.class, "plain"));
         assertEquals(List.of("sku", "count"), labels(parameters, Reservations.class, "reserve"));
@@ -252,25 +247,9 @@ class ParameterSelectionTest {
     }
 
     @Test
-    void annotationsAreReadOnlyWhereTheAnnotationsTableSelectsTheClass() {
-        Map<String, Boolean> offFirst = new LinkedHashMap<>();
-        offFirst.put(Reservations.class.getName(), false);
-        offFirst.put(MethodLevel.class.getName(), false);
-        offFirst.put(HERE, true);
-        for (AugmentorConfig config : List.of(new AugmentorConfig(), annotations("com.acme.**"),
-                AugmentorConfig.builder().annotations(offFirst).build(),
-                AugmentorConfig.builder().annotations(Map.of(HERE, false)).build())) {
-            ParamSelection parameters = new ParamSelection(config);
-            assertEquals(List.of(), labels(parameters, Reservations.class, "reserve"));
-            assertEquals(List.of(), labels(parameters, MethodLevel.class, "move"));
-        }
-    }
-
-    @Test
     void aParamsEntryDecidesBeforeTheAnnotations() {
         String explicit = Explicit.class.getName();
         ParamSelection parameters = new ParamSelection(AugmentorConfig.builder()
-                .annotations(Map.of(HERE, true))
                 .methods(inOrder(
                         explicit + "::fail", List.of(new ParamRef.Excluded()),
                         Reservations.class.getName() + "::reserve", List.of(new ParamRef.ByName("count"))))
@@ -334,18 +313,12 @@ class ParameterSelectionTest {
         AugmentorConfig config = AugmentorConfig.builder()
                 .classes(Map.of(explicit + "::*", new ReceiverSpec.MethodSpec("getId")))
                 .methods(Map.of(explicit + "::fail", List.of(new ParamRef.ByIndex(0))))
-                .annotations(Map.of(explicit, true))
                 .build();
         TypeMatching matching = new TypeMatching(config, new ParamSelection(config));
 
-        assertFalse(matching.instrument(type(Reservations.class)));
-        assertFalse(matching.instrument(type(MethodLevel.class)));
         assertTrue(matching.instrument(type(Explicit.class)));
 
         String output = err.toString(StandardCharsets.UTF_8);
-        String notRead = ": no [augment.annotations] entry that is true matches it";
-        assertTrue(output.contains("ignoring the parameter annotations of release, reserve in " + Reservations.class.getName() + notRead), output);
-        assertTrue(output.contains("ignoring the parameter annotations of move in " + MethodLevel.class.getName() + notRead), output);
         assertTrue(output.contains("ignoring @AugmentedReceiver in " + explicit + ": [augment.receiver] entries or @Augmented decide for all its methods"),
                 output);
         // failAnnotated uses its annotation; the params entry decides for fail.
@@ -363,13 +336,14 @@ class ParameterSelectionTest {
                 .build();
         TypeMatching matching = new TypeMatching(config, new ParamSelection(config));
 
-        // Only fail shows the receiver member; failAnnotated is instrumented for its parameter only, getId not at all.
-        assertTrue(matching.showsReceiver(type(Explicit.class), method(Explicit.class, "fail")));
-        assertFalse(matching.showsReceiver(type(Explicit.class), method(Explicit.class, "failAnnotated")));
+        // The entry decides for fail only; the other methods, which @Augmented on the type selects, show the
+        // @AugmentedReceiver member instead.
+        assertTrue(matching.receiverEntry(type(Explicit.class), method(Explicit.class, "fail")) instanceof AugmentorConfig.ClassEntry);
+        assertEquals(AugmentorConfig.ANNOTATION_ENTRY, matching.receiverEntry(type(Explicit.class), method(Explicit.class, "failAnnotated")));
+        assertEquals(AugmentorConfig.ANNOTATION_ENTRY, matching.receiverEntry(type(Explicit.class), method(Explicit.class, "getId")));
         var methods = matching.methods(type(Explicit.class));
         assertTrue(methods.matches(method(Explicit.class, "fail")));
         assertTrue(methods.matches(method(Explicit.class, "failAnnotated")));
-        assertFalse(methods.matches(method(Explicit.class, "getId")));
         // Login declares no method of its entry, so it is not instrumented.
         assertFalse(matching.instrument(type(Login.class)));
         assertFalse(matching.methods(type(Login.class)).matches(method(Login.class, "login")));
@@ -398,7 +372,6 @@ class ParameterSelectionTest {
     void augmentedOnMethodsSelectsThem() {
         String shipping = Shipping.class.getName();
         AugmentorConfig config = AugmentorConfig.builder()
-                .annotations(Map.of(HERE, true))
                 .methods(Map.of(shipping + "::weigh", List.of(new ParamRef.ByName("unit"))))
                 .build();
         ParamSelection parameters = new ParamSelection(config);
@@ -412,16 +385,11 @@ class ParameterSelectionTest {
         MethodDescription constructor = type(Shipping.class).getDeclaredMethods().filter(isConstructor()).getOnly();
         assertEquals(List.of("code"), parameters.select(type(Shipping.class), constructor).stream().map(SelectedParam::label).toList());
         assertTrue(matching.describe(type(Shipping.class), matching.methods(type(Shipping.class))).contains("receiver members from @AugmentedReceiver"));
-
-        // Without [augment.annotations], @Augmented selects nothing.
-        AugmentorConfig named = methods(Map.of(shipping + "::weigh", List.of(new ParamRef.ByName("unit"))));
-        assertFalse(new TypeMatching(named, new ParamSelection(named)).showsReceiver(type(Shipping.class), method(Shipping.class, "ship")));
-        assertEquals(List.of(), labels(new ParamSelection(named), Shipping.class, "ship"));
     }
 
     @Test
     void augmentedOnTheTypeDecidesForTheMethodsWithoutTheirOwn() {
-        AugmentorConfig config = annotations(HERE);
+        AugmentorConfig config = new AugmentorConfig();
         ParamSelection parameters = new ParamSelection(config);
         TypeMatching matching = new TypeMatching(config, parameters);
 
@@ -440,7 +408,7 @@ class ParameterSelectionTest {
 
     @Test
     void aClassWithoutAugmentedIsIgnored() {
-        AugmentorConfig config = annotations(HERE);
+        AugmentorConfig config = new AugmentorConfig();
         ParamSelection parameters = new ParamSelection(config);
         TypeMatching matching = new TypeMatching(config, parameters);
 
@@ -458,7 +426,6 @@ class ParameterSelectionTest {
         String explicit = Explicit.class.getName();
         AugmentorConfig config = AugmentorConfig.builder()
                 .classes(Map.of(explicit + "::*", new ReceiverSpec.Excluded()))
-                .annotations(Map.of(HERE, true))
                 .methods(inOrder(
                         service + "::process", List.of(new ParamRef.ByName("note")),
                         service + "::*", List.of(new ParamRef.Excluded()),
@@ -483,7 +450,7 @@ class ParameterSelectionTest {
 
     @Test
     void onlyUsableReceiverMethodsGetAClassInstrumented() {
-        AugmentorConfig config = annotations(HERE);
+        AugmentorConfig config = new AugmentorConfig();
         TypeMatching matching = new TypeMatching(config, new ParamSelection(config));
 
         assertFalse(matching.instrument(type(UnusableReceiver.class)));
@@ -516,13 +483,12 @@ class ParameterSelectionTest {
 
     @Test
     void secretAnnotations() {
-        ParamSelection annotations = new ParamSelection(annotations(Secrets.class.getName()));
+        ParamSelection annotations = new ParamSelection(new AugmentorConfig());
         assertEquals(List.of("userName", "email#"), encoded(annotations, Secrets.class, "login"));
         // Under @AugmentedParams, @AugmentedParam(secret = true) hashes one parameter.
         assertEquals(List.of("name", "token#"), encoded(annotations, Secrets.class, "update"));
         // A params entry decides alone: the annotations, secret included, do not apply.
         ParamSelection named = new ParamSelection(AugmentorConfig.builder()
-                .annotations(Map.of(Secrets.class.getName(), true))
                 .methods(Map.of(Secrets.class.getName() + "::login", List.of(new ParamRef.ByName("email"))))
                 .build());
         assertEquals(List.of("email"), encoded(named, Secrets.class, "login"));
@@ -536,7 +502,7 @@ class ParameterSelectionTest {
         MethodDescription plain = built.getDeclaredMethods().filter(isConstructor().and(takesArguments(1))).getOnly();
 
         // The annotations apply to constructors too.
-        AugmentorConfig fromAnnotations = annotations(HERE);
+        AugmentorConfig fromAnnotations = new AugmentorConfig();
         ParamSelection annotationParameters = new ParamSelection(fromAnnotations);
         assertEquals(List.of("code", "size"), annotationParameters.select(built, annotated).stream().map(SelectedParam::label).toList());
         assertTrue(new TypeMatching(fromAnnotations, annotationParameters).constructors(built).matches(annotated));

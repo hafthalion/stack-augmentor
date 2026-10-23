@@ -1,6 +1,5 @@
 package com.hafnium.it.outside
 
-import com.hafnium.it.fixtures.Base
 import com.hafnium.stackaugmentor.Augmented
 import com.hafnium.stackaugmentor.AugmentedParam
 import com.hafnium.stackaugmentor.AugmentedParams
@@ -8,32 +7,15 @@ import com.hafnium.stackaugmentor.AugmentedReceiver
 import com.thirdparty.Customer
 import com.thirdparty.SavingsAccount
 
-// No [augment.annotations] entry selects these classes, unless named below, and entries of their superclasses do not
-// apply to them: their annotations are ignored.
+// Classes outside the fixtures: @Augmented alone decides where their annotations are read.
 
-@Augmented
-class DerivedOutside : Base() {
-    fun fail(): Nothing = throw IllegalStateException("outside")
-}
-
-@Augmented
-class ParamsOnly {
-    fun withParam(@AugmentedParam code: Int): Nothing = throw IllegalStateException("code $code")
-}
-
-@Augmented
-class AllParamsOutside {
-    @AugmentedParams
-    fun run(x: Int): Nothing = throw IllegalStateException("run $x")
-}
-
-/** Its parameter annotations are read: an [augment.annotations] entry names the class. */
+/** Its parameter annotations are read: it has @Augmented. */
 @Augmented
 class MethodAnnotationsOutside {
     fun run(@AugmentedParam code: Int): Nothing = throw IllegalStateException("run $code")
 }
 
-/** Its @AugmentedParams is read: an [augment.annotations] entry names the class. */
+/** Its @AugmentedParams is read: it has @Augmented. */
 @Augmented
 class ClassParamsViaMethods {
     @AugmentedParams
@@ -79,13 +61,7 @@ class Selective(@AugmentedReceiver private val code: String) {
     fun skip(@AugmentedParam x: Int): Nothing = throw IllegalStateException("skip $x")
 }
 
-/** A false [augment.annotations] entry comes before the pattern that would read its annotations. */
-@Augmented
-class Unread(@AugmentedReceiver private val code: String) {
-    fun run(@AugmentedParam x: Int): Nothing = throw IllegalStateException("run $x")
-}
-
-/** An [augment.annotations] entry names it, but it has no @Augmented: its annotations are ignored. */
+/** It has no @Augmented: its annotations are ignored. */
 class WithoutAugmented(@AugmentedReceiver private val code: String) {
     fun run(@AugmentedParam x: Int): Nothing = throw IllegalStateException("run $x")
 }

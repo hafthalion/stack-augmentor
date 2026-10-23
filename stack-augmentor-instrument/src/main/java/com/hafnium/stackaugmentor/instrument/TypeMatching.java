@@ -40,12 +40,10 @@ public final class TypeMatching {
      */
     public static final ElementMatcher.Junction<TypeDescription> IGNORED = ignored();
 
-    private final AugmentorConfig config;
     private final ParamSelection parameters;
     private final ClassEntries classEntries;
 
     public TypeMatching(AugmentorConfig config, ParamSelection parameters) {
-        this.config = config;
         this.parameters = parameters;
         this.classEntries = new ClassEntries(config);
     }
@@ -164,8 +162,8 @@ public final class TypeMatching {
     /**
      * The deciding receiver entry of the frames of this method if they show receiver members, else {@code null}, for a
      * method, not a constructor, that is not static: the first {@code [augment.receiver]} entry that matches it, unless
-     * it is {@code "-"}; without one, {@link AugmentorConfig#ANNOTATION_ENTRY} if {@code [augment.annotations]} selects
-     * the type, {@code @Augmented} the method, and the type or one of its superclasses has an
+     * it is {@code "-"}; without one, {@link AugmentorConfig#ANNOTATION_ENTRY} if {@code @Augmented} selects the method
+     * and the type or one of its superclasses has an
      * {@code @AugmentedReceiver} member.
      */
     public AugmentorConfig.ReceiverEntry receiverEntry(TypeDescription type, MethodDescription method) {
@@ -176,7 +174,7 @@ public final class TypeMatching {
         if (deciding != null) {
             return deciding.excluded() ? null : deciding.entry();
         }
-        return parameters.annotationsSelect(type, method) && annotated(type) ? AugmentorConfig.ANNOTATION_ENTRY : null;
+        return AugmentedSelection.augments(type, method) && annotated(type) ? AugmentorConfig.ANNOTATION_ENTRY : null;
     }
 
     /** The type weakly, as its description holds its class loader, as in {@link ClassEntries}. */
@@ -222,8 +220,6 @@ public final class TypeMatching {
 
     /** For the debug log: the annotations of the type that are not used, and why. */
     private void logIgnoredAnnotations(TypeDescription type) {
-        boolean readsAnnotations = config.readsAnnotations(type.getName(), new ClassEntries.SupertypeNames(type)::contains);
-        String notRead = "no [augment.annotations] entry that is true matches it";
         boolean receiverUsed = false;
         for (MethodDescription method : type.getDeclaredMethods()) {
             if (receiverEntry(type, method) == AugmentorConfig.ANNOTATION_ENTRY) {
@@ -232,8 +228,8 @@ public final class TypeMatching {
             }
         }
         if (!receiverUsed && firstInHierarchy(type, TypeMatching::hasAnnotatedMember) != null) {
-            String why = readsAnnotations ? "[augment.receiver] entries or @Augmented decide for all its methods" : notRead;
-            Log.debug(() -> "ignoring @AugmentedReceiver in " + type.getName() + ": " + why);
+            Log.debug(() -> "ignoring @AugmentedReceiver in " + type.getName() + ": [augment.receiver] entries or @Augmented decide "
+                    + "for all its methods");
         }
         List<String> methods = new ArrayList<>();
         for (MethodDescription method : type.getDeclaredMethods()) {
@@ -244,9 +240,8 @@ public final class TypeMatching {
         }
         if (!methods.isEmpty()) {
             methods.sort(null);
-            String why = readsAnnotations ? "an [augment.params] entry or @Augmented decides for them" : notRead;
             Log.debug(() -> "ignoring the parameter annotations of " + String.join(", ", methods) + " in " + type.getName()
-                    + ": " + why);
+                    + ": an [augment.params] entry or @Augmented decides for them");
         }
     }
 

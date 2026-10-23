@@ -35,7 +35,7 @@ modes, an exception thrown inside the called constructor itself SHALL leave the 
 the limitations specification).
 
 #### Scenario: Constructor with parameter values
-- **GIVEN** `@Augmented class Shipment(@AugmentedParam val orderId: Long, val weight: Int)` whose `init` block calls `require(weight > 0)`, and `"com.acme.**" = true` in `[augment.annotations]`
+- **GIVEN** `@Augmented class Shipment(@AugmentedParam val orderId: Long, val weight: Int)` whose `init` block calls `require(weight > 0)`
 - **WHEN** `Shipment(42, 0)` throws
 - **THEN** its frame shows `Shipment.<init>{orderId=42}`
 

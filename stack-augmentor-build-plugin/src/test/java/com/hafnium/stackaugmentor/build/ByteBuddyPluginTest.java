@@ -70,23 +70,9 @@ class ByteBuddyPluginTest {
     }
 
     @Test
-    void aConfigurationWithoutEntriesInstrumentsNothing(@TempDir Path dir) throws IOException {
-        Path config = dir.resolve("stack-augmentor.toml");
-        // The built-in configuration, which applies after the file, reads the annotations of all classes.
-        Files.writeString(config, "[augment.annotations]\n\"**\" = false\n");
-        ByteArrayOutputStream err = captureErr();
-
-        assertFalse(new ByteBuddyPlugin("", config.toString()).matches(tracked()));
-
-        String output = err.toString(StandardCharsets.UTF_8);
-        assertTrue(output.contains("WARN build plugin: the configuration has no [augment.receiver] or [augment.params] entries other "
-                + "than \"-\" and no [augment.annotations] entry that is true, so nothing will be augmented"), output);
-    }
-
-    @Test
     void invalidTemplatesFailTheBuild(@TempDir Path dir) throws IOException {
         Path config = dir.resolve("stack-augmentor.toml");
-        Files.writeString(config, "[augment]\nparamsFormat = \"($name: $value; ...)\"\n\n[augment.annotations]\n\"com.hafnium.**\" = true\n");
+        Files.writeString(config, "[augment]\nparamsFormat = \"($name: $value; ...)\"\n");
         ByteArrayOutputStream err = captureErr();
         ConfigException error = assertThrows(ConfigException.class, () -> new ByteBuddyPlugin("", config.toString()));
         assertTrue(error.getMessage().startsWith("stack-augmentor.toml, line 2: paramsFormat must not contain '('"), error.getMessage());
@@ -95,29 +81,19 @@ class ByteBuddyPluginTest {
     }
 
     @Test
-    void anAnnotationsEntryEnablesTheAnnotations(@TempDir Path dir) throws IOException {
-        Path config = dir.resolve("stack-augmentor.toml");
-        Files.writeString(config, "[augment.annotations]\n\"com.hafnium.**\" = true\n");
-        assertTrue(new ByteBuddyPlugin("", config.toString()).matches(tracked()));
-    }
-
-    @Test
-    void theAgentsIgnoredTypesAreLeftAlone(@TempDir Path dir) throws IOException {
-        Path config = dir.resolve("stack-augmentor.toml");
-        Files.writeString(config, "[augment.annotations]\n\"com.hafnium.**\" = true\n");
-        assertFalse(new ByteBuddyPlugin("", config.toString()).matches(TypeDescription.ForLoadedType.of(Annotated.class)));
+    void theAgentsIgnoredTypesAreLeftAlone() {
+        assertFalse(new ByteBuddyPlugin().matches(TypeDescription.ForLoadedType.of(Annotated.class)));
     }
 
     @Test
     void debugDescribesTheConfigurationAsTheAgentDoes(@TempDir Path dir) throws IOException {
         Path config = dir.resolve("stack-augmentor.toml");
-        Files.writeString(config, "[augment]\nmaxValueLength = 32\n[augment.annotations]\n\"com.hafnium.**\" = true\n");
+        Files.writeString(config, "[augment]\nmaxValueLength = 32\n");
         ByteArrayOutputStream err = captureErr();
         withDebug(() -> new ByteBuddyPlugin(config.toString()));
         String output = err.toString(StandardCharsets.UTF_8);
         assertTrue(output.contains("DEBUG build plugin: configuration " + config), output);
         assertTrue(output.contains("DEBUG build plugin: [augment.receiver] none"), output);
-        assertTrue(output.contains("DEBUG build plugin: [augment.annotations] com.hafnium.**=true"), output);
         assertTrue(output.contains("DEBUG build plugin: [augment.params] none"), output);
         assertTrue(output.contains("DEBUG build plugin: [augment] frameFormat="), output);
         assertTrue(output.contains("maxValueLength=32"), output);
@@ -126,7 +102,7 @@ class ByteBuddyPluginTest {
     @Test
     void theAdviceAugmentsTheFramesOfTheClassesItIsAppliedTo(@TempDir Path dir) throws Exception {
         Path config = dir.resolve("stack-augmentor.toml");
-        Files.writeString(config, "[augment.annotations]\n\"com.hafnium.**\" = true\n");
+        Files.writeString(config, "[augment]\n");
         ByteArrayOutputStream err = captureErr();
         TypeDescription type = TypeDescription.ForLoadedType.of(Failing.class);
         Class<?> instrumented;
@@ -154,14 +130,14 @@ class ByteBuddyPluginTest {
     @Test
     void aLocalConfigurationAppliesAfterTheContextOneAndIsNamedOnTheInstrumentedClasses(@TempDir Path dir) throws Exception {
         Path config = dir.resolve("stack-augmentor-context.toml");
-        Files.writeString(config, "[augment.annotations]\n\"com.hafnium.buildfixture.Plain\" = false\n");
+        Files.writeString(config, "[augment.receiver]\n\"com.hafnium.buildfixture.Plain::*\" = \"-\"\n");
         Path local = dir.resolve("stack-augmentor.toml");
-        String text = "[augment.annotations]\n\"com.hafnium.**\" = false\n";
+        String text = "[augment.receiver]\n\"com.hafnium.**::*\" = \"-\"\n";
         Files.writeString(local, text);
         TypeDescription type = TypeDescription.ForLoadedType.of(Failing.class);
         Class<?> instrumented;
         try (ByteBuddyPlugin plugin = new ByteBuddyPlugin("", config.toString(), local.toString())) {
-            // The local file's false entry decides where the context file has none.
+            // The local file's "-" entry decides where the context file has none.
             assertFalse(plugin.matches(type));
         }
         Files.writeString(local, "[augment]\nmaxValueLength = 10\n");
@@ -179,9 +155,9 @@ class ByteBuddyPluginTest {
     @Test
     void theBuildFileAppliesBeforeTheContextOne(@TempDir Path dir) throws IOException {
         Path build = dir.resolve("build.toml");
-        Files.writeString(build, "[augment.annotations]\n\"com.hafnium.buildfixture.Failing\" = false\n");
+        Files.writeString(build, "[augment.receiver]\n\"com.hafnium.buildfixture.Failing::*\" = \"-\"\n");
         Path context = dir.resolve("stack-augmentor-context.toml");
-        Files.writeString(context, "[augment.annotations]\n\"com.hafnium.**\" = true\n");
+        Files.writeString(context, "[augment.receiver]\n\"com.hafnium.buildfixture.Failing::*\" = \"id\"\n");
         TypeDescription type = TypeDescription.ForLoadedType.of(Failing.class);
         try (ByteBuddyPlugin plugin = new ByteBuddyPlugin(build.toString(), context.toString())) {
             assertFalse(plugin.matches(type));

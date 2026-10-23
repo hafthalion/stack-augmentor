@@ -6,6 +6,3 @@ receiverFormat = "[$name: $value]"
 
 [augment.exceptions]
 "**" = true
-
-[augment.annotations]
-"**" = true
