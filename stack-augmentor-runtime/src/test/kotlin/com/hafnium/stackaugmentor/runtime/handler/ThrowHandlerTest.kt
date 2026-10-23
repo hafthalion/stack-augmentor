@@ -38,8 +38,10 @@ class ThrowHandlerTest {
     }
 
     @Test
-    fun `build-time handler copies the trace silently when java lang is not open`() {
-        assertEquals("", stderrOf { assertSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces()) })
+    fun `build-time handler warns when it copies the trace because java lang is not open`() {
+        val output = stderrOf { assertSame(StackTraces.copying(), ThrowHandler.runtimeStackTraces()) }
+        assertTrue(output.contains("WARN runtime: writing frames in place needs java.lang open"), output)
+        assertTrue(output.contains("--add-opens java.base/java.lang=ALL-UNNAMED"), output)
     }
 
     private fun stderrOf(action: () -> Unit): String {
