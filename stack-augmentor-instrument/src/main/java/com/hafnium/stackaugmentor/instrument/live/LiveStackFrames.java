@@ -25,7 +25,9 @@ public final class LiveStackFrames {
 
     private static final int MODE_COMPILED = 2;
 
-    private final StackWalker plain = StackWalker.getInstance(OPTIONS);
+    /** Over the same frames, with only their classes: the cheapest walk. */
+    private final StackWalker classes = StackWalker.getInstance(EnumSet.of(StackWalker.Option.RETAIN_CLASS_REFERENCE,
+            StackWalker.Option.SHOW_REFLECT_FRAMES, StackWalker.Option.DROP_METHOD_INFO));
     private final StackWalker walker;
     private final MethodHandle getLocals;
     private final Class<?> primitiveSlot;
@@ -57,14 +59,14 @@ public final class LiveStackFrames {
         mode = modeField;
     }
 
-    /** The walker whose frames hold their local variables: far slower than {@link #plainWalker()}. */
+    /** The walker whose frames hold their local variables: far slower than {@link #classWalker()}. */
     StackWalker walker() {
         return walker;
     }
 
-    /** A walker over the same frames, without their local variables. */
-    StackWalker plainWalker() {
-        return plain;
+    /** A walker over the same frames, whose frames have only their class. */
+    StackWalker classWalker() {
+        return classes;
     }
 
     /** The frame's local variables, starting with the receiver of an instance method and then the arguments. */
