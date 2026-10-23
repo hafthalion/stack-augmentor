@@ -3,7 +3,7 @@ plugins {
     application
 }
 
-// The agent's experimental live-stack mode: the same agent jar as examples/java-agent, plus the native library.
+// The agent's experimental live-stack mode: the same agent jar as stack-augmentor-example/java-agent, plus the native library.
 
 val agent = configurations.create("agent") {
     isCanBeConsumed = false

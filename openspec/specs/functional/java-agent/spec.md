@@ -13,7 +13,7 @@ configuration (see the configuration specification), and use the live-stack mode
 library and can use it (see the live-stack specification), otherwise instrument classes.
 
 #### Scenario: Demo application
-- **GIVEN** the `examples/java-agent` application started with the agent and its `stack-augmentor.toml`
+- **GIVEN** the `stack-augmentor-example/java-agent` application started with the agent and its `stack-augmentor.toml`
 - **WHEN** its methods throw
 - **THEN** the printed stack traces show the receiver members and parameter values of the annotated classes and of the configured third-party classes
 

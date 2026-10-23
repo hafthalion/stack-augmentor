@@ -9,10 +9,10 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
-            <option value="$PROJECT_DIR$/examples" />
-            <option value="$PROJECT_DIR$/examples/build-time" />
-            <option value="$PROJECT_DIR$/examples/java-agent" />
-            <option value="$PROJECT_DIR$/examples/live-agent" />
+            <option value="$PROJECT_DIR$/stack-augmentor-example" />
+            <option value="$PROJECT_DIR$/stack-augmentor-example/build-time" />
+            <option value="$PROJECT_DIR$/stack-augmentor-example/java-agent" />
+            <option value="$PROJECT_DIR$/stack-augmentor-example/live-agent" />
             <option value="$PROJECT_DIR$/stack-augmentor-agent" />
             <option value="$PROJECT_DIR$/stack-augmentor-api" />
             <option value="$PROJECT_DIR$/stack-augmentor-build-plugin" />

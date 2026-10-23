@@ -1,6 +1,6 @@
 @echo off
 rem Builds the project and runs one of the examples, the same way an application would, or the benchmark:
-rem   run.bat [example] [JVM options]     example: java-agent, live-agent or build-time, the modules in examples
+rem   run.bat [example] [JVM options]     example: java-agent, live-agent or build-time, the modules in stack-augmentor-example
 rem   run.bat benchmark
 rem Without an argument, it asks which one to run.
 rem
@@ -63,13 +63,13 @@ rem Everything after the example name goes to the JVM.
 for /f "tokens=1,*" %%a in ("%*") do set JVM_ARGS=%%b
 
 :build
-rem The example is the Gradle module examples\%EXAMPLE%. Its jar's manifest names the main class and the other
+rem The example is the Gradle module stack-augmentor-example\%EXAMPLE%. Its jar's manifest names the main class and the other
 rem jars in its lib folder.
 set PROJECT=%EXAMPLE%
-set CONFIG=examples\%PROJECT%\stack-augmentor-global.toml
-set JAR=examples\%PROJECT%\build\install\%PROJECT%\lib\%PROJECT%-0.1.0-SNAPSHOT.jar
+set CONFIG=stack-augmentor-example\%PROJECT%\stack-augmentor-global.toml
+set JAR=stack-augmentor-example\%PROJECT%\build\install\%PROJECT%\lib\%PROJECT%-0.1.0-SNAPSHOT.jar
 
-call "%~dp0gradlew.bat" build :examples:%PROJECT%:installDist
+call "%~dp0gradlew.bat" build :stack-augmentor-example:%PROJECT%:installDist
 if %ERRORLEVEL% neq 0 (
     echo Build FAILED. Test reports: stack-augmentor-*\build\reports\tests
     endlocal & exit /b 1

@@ -21,6 +21,6 @@ Differences from instrumenting classes:
 - **An object argument that the JIT optimized away reads as `null`, and is shown as `?`**, e.g. a boxed `Integer` created in compiled code and never stored (scalar replacement). `-XX:-EliminateAllocations` turns that optimization off, at some cost; a receiver optimized away shows no receiver members.
 - **It relies on JDK internals.** If they are missing or behave differently, the agent says so and instruments classes as usual. There is no build-time equivalent.
 
-- `./gradlew :examples:live-agent:run`: a shop that logs the exceptions of three requests, where every frame is augmented.
-- `./gradlew :examples:live-agent:runInstrumented`: the same with the agent alone, which augments only the frames the exceptions left.
+- `./gradlew :stack-augmentor-example:live-agent:run`: a shop that logs the exceptions of three requests, where every frame is augmented.
+- `./gradlew :stack-augmentor-example:live-agent:runInstrumented`: the same with the agent alone, which augments only the frames the exceptions left.
 - `./gradlew :stack-augmentor-it:agent:testLiveStack`: the integration tests in this mode; skipped without a C compiler, except on CI.

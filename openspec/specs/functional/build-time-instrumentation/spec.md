@@ -23,7 +23,7 @@ with the reason printed. The build SHALL be repeatable: a changed configuration 
 - **THEN** the build fails, with an error naming the file, line 14 and `paramsFormat`
 
 #### Scenario: Example project
-- **GIVEN** `examples/build-time`, built with the build plugin and its context configuration
+- **GIVEN** `stack-augmentor-example/build-time`, built with the build plugin and its context configuration
 - **WHEN** it is run without `-javaagent`
 - **THEN** the frames of `ClassWithAnnotation` show `{objectId=object-1}` and `{param=ObjectParam{name=object-param-1}, token=#fb07916a}`, the argument's `toString()` with its parentheses replaced by braces and the secret token hashed
 - **AND** the frame of `ClassWithoutAnnotation.method` shows `{q=123}` from its own `[augment.params]` entry, and no receiver members

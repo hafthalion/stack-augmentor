@@ -6,7 +6,7 @@ plugins {
 }
 
 // Integration tests for build-time instrumentation: the ByteBuddy Gradle plugin applies
-// stack-augmentor-build-plugin to the fixtures in src/main, as in examples/build-time, and the tests in
+// stack-augmentor-build-plugin to the fixtures in src/main, as in stack-augmentor-example/build-time, and the tests in
 // src/test run them without -javaagent (and with it in testWithAgent).
 
 // The shaded agent jar, for testWithAgent.
