@@ -40,7 +40,9 @@ The system SHALL always print a warning:
   so that the local file of its jar or directory, if any, is used instead;
 - when the JVM was started with the native library of the live-stack mode but the agent cannot use it, with the reason;
 - when the agent cannot use its shared temporary files safely and falls back to private ones;
-- when a type has `@Augmented(false)`, which is the same as no `@Augmented`.
+- when a type has `@Augmented(false)`, which is the same as no `@Augmented`;
+- when frames cannot be written in place because `java.lang` is not open, so that stack traces are copied, naming
+  `--add-opens java.base/java.lang=ALL-UNNAMED` for build-time instrumentation.
 
 A member missing for an entry with wildcards SHALL only be reported in debug output, since a pattern is not expected to
 fit every class it matches.

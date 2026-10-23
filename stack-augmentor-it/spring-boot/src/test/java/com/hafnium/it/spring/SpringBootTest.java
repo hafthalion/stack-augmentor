@@ -19,6 +19,8 @@ class SpringBootTest {
     private static String run(String... jvmOptions) throws IOException, InterruptedException {
         List<String> command = new ArrayList<>();
         command.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
+        // As the documentation asks for build-time instrumentation: frames are written in place, without a warning.
+        command.add("--add-opens=java.base/java.lang=ALL-UNNAMED");
         command.addAll(List.of(jvmOptions));
         command.add("-jar");
         command.add(System.getProperty("stackaugmentor.it.application"));

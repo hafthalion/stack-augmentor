@@ -288,7 +288,7 @@ java -javaagent:stack-augmentor-agent.jar -Dstackaugmentor.config=stack-augmento
 - **`-Dstackaugmentor.config=<file>`** names the JVM's global file, the first in the [chain](#the-configuration-chain).
 - **`-Dstackaugmentor.debug=true`** prints diagnostics to stderr: the configuration and where it came from, which classes and methods get instrumented and by which entry, where each value comes from, and annotations or entries that have no effect. Startup messages start with their source: `agent:`, `build plugin:` or `runtime:` (classes instrumented at build time, at runtime); the others name the class or the entry they are about.
 
-Augmented frames are written into the exception's own stack trace instead of copying the trace, which is faster for deep stacks (see [Limitations](limitations.md)). That needs `java.lang` open: the agent opens it; with build-time instrumentation, start the application with `--add-opens java.base/java.lang=ALL-UNNAMED`. Where `java.lang` is not open, frames are copied instead (`-Dstackaugmentor.debug=true` says so).
+Augmented frames are written into the exception's own stack trace instead of copying the trace, which is faster for deep stacks (see [Limitations](limitations.md)). That needs `java.lang` open: the agent opens it; with build-time instrumentation, start the application with `--add-opens java.base/java.lang=ALL-UNNAMED`. Where `java.lang` is not open, frames are copied instead, with a warning.
 
 ## Errors and warnings
 
@@ -314,6 +314,8 @@ With build-time instrumentation, the runtime reads its configuration when the fi
 **Warnings** don't stop anything:
 
 - no runtime configuration for a class instrumented at build time: the built-in configuration is used alone;
+- `java.lang` not open, so stack traces are copied instead of written in place: with build-time instrumentation, start the application with `--add-opens java.base/java.lang=ALL-UNNAMED`;
+- `@Augmented(false)` on a type, where it is the same as no `@Augmented`;
 - a receiver member the class does not have, for a key with a class name. For a pattern it is a debug message, since a pattern may match classes that don't have it. So are parameter names that a method does not have.
 
 ## Tips

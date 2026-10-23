@@ -52,7 +52,7 @@ public abstract sealed class StackTraces {
 
     /**
      * In place, unless {@code java.lang} is not open to this module or {@value #FORCE_COPY_PROPERTY} is {@code true}:
-     * then copying.
+     * then copying, with a warning where {@code java.lang} is not open.
      *
      * @param component the component, for the messages
      * @param notOpen   how to open {@code java.lang}, for the messages
@@ -64,8 +64,8 @@ public abstract sealed class StackTraces {
         try {
             return inPlace();
         } catch (IllegalAccessException | RuntimeException e) {
-            Log.debug(() -> component + ": in-place modification needs java.lang open to stack-augmentor, " + notOpen
-                    + ", so stack traces are copied (" + e + ")");
+            Log.warn(component + ": writing frames in place needs java.lang open to stack-augmentor, " + notOpen
+                    + ", so stack traces are copied, which is slower for deep stacks (" + e + ")");
             return COPYING;
         }
     }

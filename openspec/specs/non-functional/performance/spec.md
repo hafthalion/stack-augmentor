@@ -22,7 +22,7 @@ exceptions thrown before. What can be prepared once per class, such as finding i
 The cost per frame MAY grow with the length of the stack trace, which the JVM caps; writing frames in place, the
 default, SHALL use a way whose cost per frame does not, where the JVM allows it: the agent SHALL make it possible itself,
 and with build-time instrumentation the application's start options SHALL. Where it is not possible, frames SHALL be
-written the slower way, without a warning. The documentation SHALL state
+written the slower way, with a warning that names what is missing. The documentation SHALL state
 the costs with measured numbers.
 
 #### Scenario: Deep recursion
@@ -33,8 +33,8 @@ the costs with measured numbers.
 #### Scenario: In-place modification not possible
 - **GIVEN** build-time instrumentation in an application started without `--add-opens`
 - **WHEN** the first exception leaves an instrumented method
-- **THEN** its frame is augmented the slower way, without a warning
-- **AND** with debug output on, a message names `--add-opens java.base/java.lang=ALL-UNNAMED`
+- **THEN** its frame is augmented the slower way
+- **AND** a warning names `--add-opens java.base/java.lang=ALL-UNNAMED`
 
 #### Scenario: Repeated exceptions of one class
 - **GIVEN** a class whose receiver member is an annotated field

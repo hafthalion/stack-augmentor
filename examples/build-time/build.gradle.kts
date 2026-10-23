@@ -48,4 +48,13 @@ tasks.matching { it.name == "byteBuddyKotlin" }.configureEach {
 
 application {
     mainClass = "com.hafnium.examples.buildtime.Main"
+    // Frames are written into the exception's own stack trace only with java.lang open, otherwise copied with a warning
+    applicationDefaultJvmArgs = listOf("--add-opens=java.base/java.lang=ALL-UNNAMED")
+}
+
+// The same for `java -jar`
+tasks.named<Jar>("jar") {
+    manifest {
+        attributes("Add-Opens" to "java.base/java.lang")
+    }
 }
