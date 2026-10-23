@@ -24,7 +24,7 @@ dependencies or Stack Augmentor itself, nor compiler-generated classes, even whe
 SHALL leave the same types alone. Instrumenting SHALL NOT change the classes' fields or method signatures.
 
 #### Scenario: JDK classes
-- **GIVEN** `"java.**::*" = "0"` in `[augment.params]`, `"java.**::*" = "id"` in `[augment.receiver]` and `"java.**" = true` in `[augment.annotations]`
+- **GIVEN** `"java.**::*" = "0"` in `[augment.params]` and `"java.**::*" = "id"` in `[augment.receiver]`
 - **WHEN** an exception is thrown inside a JDK method
 - **THEN** the JDK frames are unchanged
 

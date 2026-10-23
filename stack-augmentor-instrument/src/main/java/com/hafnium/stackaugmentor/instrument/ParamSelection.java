@@ -20,8 +20,7 @@ import java.util.stream.Collectors;
 /**
  * Finds the parameters whose values a method's frames show: those the first matching {@code [augment.params]} entry
  * selects, by name or index, or, without such an entry, those the method's {@code @AugmentedParam} and
- * {@code @AugmentedParams} annotations select, where {@code [augment.annotations]} selects the class and
- * {@code @Augmented} the method. Also whether their values are hashed: {@code #} after a name or index, or
+ * {@code @AugmentedParams} annotations select, where {@code @Augmented} selects the method. Also whether their values are hashed: {@code #} after a name or index, or
  * {@code @AugmentedParam(secret = true)}. {@code [augment.receiver]} plays no part.
  */
 public final class ParamSelection {
@@ -33,19 +32,11 @@ public final class ParamSelection {
     }
 
     /**
-     * Whether the parameter annotations of this method are used: no {@code [augment.params]} entry matches it,
-     * {@code @Augmented} selects it and {@code [augment.annotations]} its class.
+     * Whether the parameter annotations of this method are used: no {@code [augment.params]} entry matches it, and
+     * {@code @Augmented} selects it.
      */
     boolean annotationsUsed(TypeDescription type, MethodDescription method) {
-        return paramsEntry(type, method) == null && annotationsSelect(type, method);
-    }
-
-    /**
-     * Whether {@code @Augmented} selects the method and {@code [augment.annotations]} the type. Without
-     * {@code @Augmented}, the other annotations are not looked for.
-     */
-    boolean annotationsSelect(TypeDescription type, MethodDescription method) {
-        return AugmentedSelection.augments(type, method) && config.readsAnnotations(type.getName(), supertypes(type)::contains);
+        return paramsEntry(type, method) == null && AugmentedSelection.augments(type, method);
     }
 
     /** The values of the first matching {@code [augment.params]} entry, {@code null} if none matches. */
@@ -88,7 +79,7 @@ public final class ParamSelection {
         TreeMap<Integer, Boolean> selected = new TreeMap<>();
         List<ParamRef> refs = paramsEntry(type, method);
         if (refs == null) {
-            if (annotationsSelect(type, method)) {
+            if (AugmentedSelection.augments(type, method)) {
                 annotated(method, selected);
             }
             refs = List.of();

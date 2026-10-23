@@ -36,7 +36,6 @@ class AugmentorConfigTest {
         assertEquals("\$class\$receiver.\$method\$params", AugmentorConfig().frameFormat())
         assertEquals("{\$name=\$value, ...}", AugmentorConfig().receiverFormat())
         assertEquals("{\$name=\$value, ...}", AugmentorConfig().paramsFormat())
-        assertFalse(AugmentorConfig().hasAugmentEntries())
         assertNull(AugmentorConfig().entryOf("any.pkg.Class"))
     }
 
@@ -44,10 +43,6 @@ class AugmentorConfigTest {
     fun `full configuration`() {
         val config = parse(
             """
-            [augment.annotations]
-            "com.hafnium.generated.**" = false
-            "com.hafnium.**" = true
-
             [augment.receiver]
             "com.thirdparty.Order+::*" = "getOrderNumber()"
             "com.thirdparty.Customer::*" = "customerId"
@@ -64,7 +59,6 @@ class AugmentorConfigTest {
         )
         assertEquals(
             AugmentorConfig.builder()
-                .annotations(mapOf("com.hafnium.generated.**" to false, "com.hafnium.**" to true))
                 .classes(
                     mapOf(
                         "com.thirdparty.Order+::*" to ReceiverSpec.MethodSpec("getOrderNumber"),
@@ -85,11 +79,6 @@ class AugmentorConfigTest {
         )
         assertEquals(listOf(ParamRef.ByName("orderId"), ParamRef.ByIndex(2)), config.paramRefs("com.thirdparty.OrderService", "process"))
         assertEquals(emptyList<ParamRef>(), config.paramRefs("com.hafnium.Legacy", "run"))
-        assertTrue(config.readsAnnotations("com.hafnium.Legacy") { false })
-        assertFalse(config.readsAnnotations("com.hafnium.generated.Legacy") { false })
-        assertFalse(config.readsAnnotations("com.thirdparty.Order") { false })
-        assertEquals("com.hafnium.generated.**=false, com.hafnium.**=true", config.annotationsDescription())
-        assertTrue(config.hasAugmentEntries())
     }
 
     @Test
@@ -98,7 +87,7 @@ class AugmentorConfigTest {
             """
             [augment.receiver]
             "com.acme.**::*" = "id"
-            [augment.annotations]
+            [augment.exceptions]
             "com.acme.**" = true
             [augment]
             maxValueLength = 20
@@ -106,11 +95,11 @@ class AugmentorConfigTest {
         )
         assertEquals(
             sections,
-            parse("augment.receiver.\"com.acme.**::*\" = \"id\"\naugment.annotations.\"com.acme.**\" = true\naugment.maxValueLength = 20"),
+            parse("augment.receiver.\"com.acme.**::*\" = \"id\"\naugment.exceptions.\"com.acme.**\" = true\naugment.maxValueLength = 20"),
         )
         assertEquals(
             sections,
-            parse("augment = { receiver = { \"com.acme.**::*\" = \"id\" }, annotations = { \"com.acme.**\" = true }, maxValueLength = 20 }"),
+            parse("augment = { receiver = { \"com.acme.**::*\" = \"id\" }, exceptions = { \"com.acme.**\" = true }, maxValueLength = 20 }"),
         )
     }
 
@@ -263,7 +252,7 @@ class AugmentorConfigTest {
             "com.acme.Order::ship, cancel*=[id, code()], com.acme.Order::*=number, com.acme.Customer::*=customerId",
             config.classesDescription(),
         )
-        // "@" names no methods: [augment.annotations] says where the annotations are read.
+        // "@" names no methods: @Augmented says where the annotations are read.
         assertTrue(error("[augment.receiver]\n\"com.acme.A::@\" = \"id\"").contains("\"@\" is not allowed here"))
 
         // The methods are mandatory.
@@ -374,7 +363,7 @@ class AugmentorConfigTest {
     fun `unknown keys are rejected, in every section`() {
         assertEquals(
             "test.toml, line 2: unknown key 'frame' in [augment]; allowed: frameFormat, receiverFormat, paramsFormat, maxValueLength, " +
-                "exceptions, annotations, receiver, params",
+                "exceptions, receiver, params",
             error("[augment]\nframe = \"\$class.\$method\""),
         )
         assertTrue(error("[other]\nx = 1").contains("unknown key 'other'; allowed: augment"))
@@ -550,24 +539,12 @@ class AugmentorConfigTest {
 
         assertTrue(config.classesDescription().contains("com.acme.generated.**::*=-"), config.classesDescription())
         assertTrue(config.methodsDescription().contains("com.thirdparty.audit.AuditService::*[-]"), config.methodsDescription())
-        assertTrue(config.hasAugmentEntries())
-        val onlyExcluded = parse("[augment.receiver]\n\"com.acme.**::*\" = \"-\"\n[augment.params]\n\"com.acme.A::b\" = \"-\"")
-        assertFalse(onlyExcluded.hasAugmentEntries())
     }
 
     @Test
-    fun `invalid annotations entries`() {
-        assertTrue(
-            error("[augment.annotations]\n\"com.acme.**\" = \"@\"")
-                .contains("must be true to read the annotations of this class or class pattern, or false not to, was @"),
-        )
-        assertTrue(error("[augment.annotations]\n\"com.acme.**::*\" = true").contains("[augment.annotations]"))
-        // Like [augment.exceptions]: the first matching entry decides, + includes the subclasses.
-        val config = parse("[augment.annotations]\n\"com.acme.Old\" = false\n\"com.acme.*\" = true\n\"java.lang.Runnable+\" = true")
-        assertFalse(config.readsAnnotations("com.acme.Old") { false })
-        assertTrue(config.readsAnnotations("com.acme.New") { false })
-        assertTrue(config.readsAnnotations(Thread::class.java))
-        assertFalse(config.readsAnnotations("com.other.Task") { false })
+    fun `the annotations table is gone`() {
+        // @Augmented alone decides where the annotations are read.
+        assertTrue(error("[augment.annotations]\n\"com.acme.**\" = true").contains("unknown key 'annotations' in [augment]"))
     }
 
     @Test
@@ -622,18 +599,15 @@ class AugmentorConfigTest {
     }
 
     @Test
-    fun `without a file the built-in configuration augments all exceptions and reads the annotations of all classes`() {
+    fun `without a file the built-in configuration augments all exceptions`() {
         val config = AugmentorConfig.builtIn()
         // It lists every other key with its default value.
         assertEquals(
-            AugmentorConfig.builder().exceptions(mapOf("java.lang.Exception+" to true)).annotations(mapOf("**" to true)).build(),
+            AugmentorConfig.builder().exceptions(mapOf("java.lang.Exception+" to true)).build(),
             config,
         )
-        assertTrue(config.hasAugmentEntries())
         assertTrue(config.augments(IllegalStateException::class.java))
         assertFalse(config.augments(Error::class.java))
-        assertEquals(mapOf("**" to true), config.annotations())
-        assertTrue(config.readsAnnotations("com.acme.Order") { false })
         assertEquals("none", config.classesDescription())
         assertEquals(emptyList<ParamRef>(), config.paramRefs("com.acme.Order", "process"))
     }

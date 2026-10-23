@@ -6,24 +6,8 @@ maxValueLength = 20
 "com.hafnium.it.fixtures.PlainCause" = false
 "**" = true
 
-# Where the annotations are read, for the methods that no [augment.receiver] or [augment.params] entry matches.
-# Keys as in [augment.exceptions]: the first matching entry wins.
-[augment.annotations]
-"com.hafnium.it.fixtures.**" = true
-# Parameter annotations outside the fixtures
-"com.hafnium.it.outside.MethodAnnotationsOutside" = true
-"com.hafnium.it.outside.ClassParamsViaMethods" = true
-# @Augmented selects the methods: on methods, on the type, and off with false
-"com.hafnium.it.outside.Dispatcher" = true
-"com.hafnium.it.outside.Muted" = true
-"com.hafnium.it.outside.Selective" = true
-# Read, but without @Augmented: ignored
-"com.hafnium.it.outside.WithoutAugmented" = true
-# Not read: a false entry before the pattern that would match
-"com.hafnium.it.outside.Unread" = false
-"com.hafnium.it.outside.Un*" = true
-# Nowhere else in this package: without this entry, the built-in configuration, which applies after this one, would read them
-"com.hafnium.it.outside.**" = false
+# The annotations are read in the methods that @Augmented selects and that no [augment.receiver] or [augment.params]
+# entry matches.
 
 # The two tables below are independent: [augment.receiver] for the receiver members, [augment.params] for the
 # parameter values. Their keys are "<class>::<methods>": a class name matches that class only, "+" after it its

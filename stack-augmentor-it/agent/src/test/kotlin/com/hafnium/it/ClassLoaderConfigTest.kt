@@ -64,14 +64,10 @@ class ClassLoaderConfigTest {
         val first = application(dir, "first", """
             [augment]
             receiverFormat = "<${'$'}value>"
-            [augment.annotations]
-            "com.hafnium.it.webapp.**" = true
             """.trimIndent())
         val second = application(dir, "second", """
             [augment]
             paramsFormat = "[${'$'}name:${'$'}value]"
-            [augment.annotations]
-            "com.hafnium.it.webapp.Webapp" = true
             """.trimIndent())
         first.use { second.use {
             val firstFrame = frame(first, "a", 1)
@@ -81,8 +77,7 @@ class ClassLoaderConfigTest {
             assertEquals("com.hafnium.it.webapp.Webapp{name=b}", secondFrame.className)
             assertEquals("fail[code:2]", secondFrame.methodName)
         } }
-        // The class of the system class loader: the agent's configuration does not read the annotations of this package,
-        // the built-in one after it does.
+        // The class of the system class loader: the agent's configuration, with the default formats.
         val base = try {
             Webapp("c").fail(3)
         } catch (e: IllegalStateException) {

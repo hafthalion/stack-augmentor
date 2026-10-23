@@ -83,9 +83,6 @@ class ValueResolverTest {
     /** All classes of this test are in this package. */
     private val here = ValueResolverTest::class.java.packageName + ".**"
 
-    /** [augment.annotations] entries that are true. */
-    private fun reads(vararg classes: String) = classes.associateWith { true }
-
     private val originalErr = System.err
 
     @AfterEach
@@ -93,8 +90,7 @@ class ValueResolverTest {
 
     /**
      * An [ValueResolver] that picks the receiver entry as the instrumentation would: the first [augment.receiver] entry
-     * matching the declaring class, whatever methods it names, or without one the annotations, where
-     * [augment.annotations] selects the class.
+     * matching the declaring class, whatever methods it names, or without one the annotations.
      */
     private class Resolver(private val config: AugmentorConfig) {
         private val resolver = ValueResolver(config)
@@ -102,8 +98,7 @@ class ValueResolverTest {
         fun receiverValues(target: Any, declaringClass: String = target.javaClass.name): List<NamedValue> {
             val owner = ValueResolver.declaringClass(target.javaClass, declaringClass)
             val key = config.classEntries(owner).firstOrNull()?.key()
-                ?: AugmentorConfig.ANNOTATIONS.takeIf { config.readsAnnotations(owner) }
-                ?: return listOf()
+                ?: AugmentorConfig.ANNOTATIONS
             return resolver.receiverValues(target, declaringClass, key)
         }
 
@@ -114,18 +109,17 @@ class ValueResolverTest {
         fun paramValue(value: Any?) = resolver.paramValue(value)
     }
 
-    private fun config(vararg classes: Pair<String, ReceiverSpec>, annotations: Map<String, Boolean> = mapOf()) =
+    private fun config(vararg classes: Pair<String, ReceiverSpec>) =
         AugmentorConfig.builder().classes(classes.associate { (key, spec) -> (if ("::" in key) key else "$key::*") to spec })
-            .annotations(annotations).maxValueLength(10).exceptions(mapOf("**" to true)).build()
+            .maxValueLength(10).exceptions(mapOf("**" to true)).build()
 
     /** A key without methods gets "::*", all methods. */
-    private fun resolver(vararg classes: Pair<String, ReceiverSpec>, annotations: Map<String, Boolean> = mapOf()) =
-        Resolver(config(*classes, annotations = annotations))
+    private fun resolver(vararg classes: Pair<String, ReceiverSpec>) = Resolver(config(*classes))
 
     private fun name(type: Class<*>) = type.name
 
     @Test
-    fun `the annotations key reads the annotations, whatever the annotations table says`() {
+    fun `the annotations key reads the annotations`() {
         // The instrumentation decided it, e.g. at build time with another configuration.
         val annotated = Annotated()
         assertEquals(listOf(NamedValue("objectId", "a-1")), ValueResolver(config()).receiverValues(annotated, name(Annotated::class.java), AugmentorConfig.ANNOTATIONS))
@@ -135,7 +129,7 @@ class ValueResolverTest {
 
     @Test
     fun `every annotated member gives a value, fields first, then methods by name, nearest class first`() {
-        val resolver = resolver(annotations = reads(here))
+        val resolver = resolver()
         assertEquals(
             listOf(NamedValue("tenant", "acme"), NamedValue("orderId", "42"), NamedValue("channel", "web"), NamedValue("region", "eu")),
             resolver.receiverValues(MultiAnnotated()),
@@ -163,38 +157,24 @@ class ValueResolverTest {
 
     @Test
     fun `annotated field, method and constructor property`() {
-        val resolver = resolver(annotations = reads(here))
+        val resolver = resolver()
         assertEquals(NamedValue("objectId", "a-1"), resolver.receiverValue(Annotated()))
         assertEquals(NamedValue("computeKey", "k-2"), resolver.receiverValue(ByMethod()))
         assertEquals(NamedValue("code", "X"), resolver.receiverValue(ConstructorProperty("X")))
     }
 
     @Test
-    fun `annotations are only used where an annotations entry selects the class`() {
-        assertNull(resolver().receiverValue(Annotated()))
-        assertNull(resolver(annotations = reads("com.acme.**")).receiverValue(Annotated()))
-        assertEquals(NamedValue("objectId", "a-1"), resolver(annotations = reads(name(Annotated::class.java))).receiverValue(Annotated()))
-    }
-
-    @Test
     fun `the first matching entry wins`() {
         // An [augment.receiver] entry decides before the annotations.
-        val exact = resolver(name(Annotated::class.java) to ReceiverSpec.FieldSpec("customerId"), annotations = reads(here))
+        val exact = resolver(name(Annotated::class.java) to ReceiverSpec.FieldSpec("customerId"))
         assertEquals(NamedValue("customerId", "c-1"), exact.receiverValue(Annotated()))
-        // The first matching [augment.annotations] entry decides, false included.
-        val first = resolver(annotations = linkedMapOf(name(Annotated::class.java) to false, here to true))
-        assertNull(first.receiverValue(Annotated()))
-        assertEquals(NamedValue("computeKey", "k-2"), first.receiverValue(ByMethod()))
     }
 
     @Test
-    fun `a class name with plus applies to subclasses, without plus or a pattern it does not, and members are found in superclasses`() {
-        assertEquals(NamedValue("baseId", "b1"), resolver(annotations = reads(name(BaseWithReceiver::class.java) + "+")).receiverValue(ChildOfBase()))
+    fun `a class name with plus applies to subclasses, and members are found in superclasses`() {
         assertEquals(NamedValue("baseId", "b1"), resolver(name(BaseWithReceiver::class.java) + "+" to ReceiverSpec.FieldSpec("baseId")).receiverValue(ChildOfBase()))
-        assertNull(resolver(annotations = reads(name(BaseWithReceiver::class.java))).receiverValue(ChildOfBase()))
-        assertNull(resolver(annotations = reads(name(BaseWithReceiver::class.java).dropLast(1) + "?")).receiverValue(ChildOfBase()))
-        // An entry of the subclass itself finds the annotation or the field that the superclass declares.
-        assertEquals(NamedValue("baseId", "b1"), resolver(annotations = reads(name(ChildOfBase::class.java))).receiverValue(ChildOfBase()))
+        // The annotations, and an entry of the subclass itself, find the annotation or the field that the superclass declares.
+        assertEquals(NamedValue("baseId", "b1"), resolver().receiverValue(ChildOfBase()))
         assertEquals(NamedValue("baseId", "b1"), resolver(name(ChildOfBase::class.java) to ReceiverSpec.FieldSpec("baseId")).receiverValue(ChildOfBase()))
     }
 
@@ -215,8 +195,8 @@ class ValueResolverTest {
 
     @Test
     fun `no receiver member means no receiver value`() {
-        assertNull(resolver(annotations = reads(here)).receiverValue(Unannotated("c")))
-        assertNull(resolver(annotations = reads(here)).receiverValue(Any()))
+        assertNull(resolver().receiverValue(Unannotated("c")))
+        assertNull(resolver().receiverValue(Any()))
     }
 
     @Test
@@ -254,7 +234,7 @@ class ValueResolverTest {
     fun `a '-' entry ignores the class, without a warning`() {
         val err = ByteArrayOutputStream()
         System.setErr(PrintStream(err, true, Charsets.UTF_8))
-        val resolver = resolver(name(Annotated::class.java) to ReceiverSpec.Excluded(), annotations = reads(here))
+        val resolver = resolver(name(Annotated::class.java) to ReceiverSpec.Excluded())
         assertNull(resolver.receiverValue(Annotated()))
         assertEquals(NamedValue("computeKey", "k-2"), resolver.receiverValue(ByMethod()))
         assertFalse(err.toString(Charsets.UTF_8).contains("WARN"), err.toString(Charsets.UTF_8))
@@ -277,17 +257,17 @@ class ValueResolverTest {
 
     @Test
     fun `an array receiver value shows its elements, like an argument`() {
-        assertEquals(NamedValue("codes", "[1, 2]"), resolver(annotations = reads(here)).receiverValue(WithArrayReceiver()))
+        assertEquals(NamedValue("codes", "[1, 2]"), resolver().receiverValue(WithArrayReceiver()))
     }
 
     @Test
     fun `failing receiver member`() {
-        assertEquals(NamedValue("id", "?"), resolver(annotations = reads(here)).receiverValue(Throwing()))
+        assertEquals(NamedValue("id", "?"), resolver().receiverValue(Throwing()))
     }
 
     @Test
     fun `parameter values are their text`() {
-        val resolver = resolver(name(Unannotated::class.java) to ReceiverSpec.FieldSpec("customerId"), annotations = reads(here))
+        val resolver = resolver(name(Unannotated::class.java) to ReceiverSpec.FieldSpec("customerId"))
         assertEquals("null", resolver.paramValue(null))
         assertEquals("42", resolver.paramValue(42))
         assertEquals("RED", resolver.paramValue(Color.RED))

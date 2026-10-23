@@ -12,8 +12,8 @@ context: |
   Modules: api, instrument-bridge, runtime, instrument, agent, native, build-plugin; not published: under it/,
   agent (agent and live-stack integration tests), build-time, spring-boot, quarkus, benchmark; examples/java-agent,
   examples/live-agent, examples/build-time.
-  Configuration: TOML files with [augment] only (formats, maxValueLength) with the tables [augment.exceptions], [augment.annotations], [augment.receiver] and
-  [augment.params]; first matching entry decides in every table. Annotations: @Augmented,
+  Configuration: TOML files with [augment] only (formats, maxValueLength) with the tables [augment.exceptions], [augment.receiver] and
+  [augment.params]; first matching entry decides in every table; @Augmented alone says where annotations are read. Annotations: @Augmented,
   @AugmentedReceiver, @AugmentedParam, @AugmentedParams. Options of the whole JVM are system properties:
   stackaugmentor.config, stackaugmentor.debug, stackaugmentor.inPlaceModification; the agent takes no arguments.
   Wording: frames and exceptions are "augmented"; say "receiver members" and "parameter values", never "ids".

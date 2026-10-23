@@ -106,7 +106,6 @@ class ClassLoaderConfigsTest {
             config.exceptions().keys.toList(),
         )
         // The built-in configuration comes last.
-        assertEquals(mapOf("**" to true), config.annotations())
         assertTrue(config.augments(IllegalStateException::class.java))
         assertFalse(config.augments(Error::class.java))
     }

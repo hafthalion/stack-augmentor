@@ -18,19 +18,16 @@ maxValueLength = 64
 "java.lang.IllegalArgumentException+" = false            # this class and its subclasses: not augmented
 "java.lang.*" = true                                     # these classes only, e.g. Exception, IllegalStateException
 
-# Where the annotations are read: @AugmentedReceiver, @AugmentedParam, @AugmentedParams and @Augmented. Keys and
-# values as in [augment.exceptions]; a class that no entry matches does not read them. Only the methods that
-# @Augmented selects, on the class or on the method, use them: a class without @Augmented is ignored.
-[augment.annotations]
-"com.hafnium.examples.agent.**" = true
+# @AugmentedReceiver, @AugmentedParam and @AugmentedParams are read in the methods that @Augmented selects, on the class
+# or on the method: a class without @Augmented is ignored.
 
 # The two tables below name members and parameters, independently: [augment.receiver] decides which receivers
-# are augmented, [augment.params] which parameters. The agent instruments whatever classes and methods they and the
-# annotations need.
+# are augmented, [augment.params] which parameters. The agent instruments whatever classes and methods they and
+# @Augmented need.
 # Keys are "<class>::<methods>": a class name matches that class only, "+" after it ("com.acme.Order+::*") its
 # subclasses too, and a pattern matches class names. The methods are names or patterns separated by commas, "*" for
 # all. '*' matches within a package or name, '**' across packages, '?' one character. A method that no entry matches
-# uses its class's annotations, where [augment.annotations] selects the class.
+# uses its annotations, where @Augmented selects it.
 
 # Receiver members of classes you cannot annotate: a method() or a field. An order is identified by its
 # getOrderNumber() method, a customer by its customerId field.

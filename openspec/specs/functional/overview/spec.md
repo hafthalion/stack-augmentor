@@ -59,15 +59,14 @@ either of its modes.
 For each frame, the system SHALL decide independently:
 1. whether the exception is augmented at all: the deciding `[augment.exceptions]` entry for its class is `true`;
 2. the receiver members of the method: its deciding `[augment.receiver]` entry, `"-"` meaning none; without one, the
-   `@AugmentedReceiver` members, if the deciding `[augment.annotations]` entry for the declaring class is `true` and
-   `@Augmented` selects the method; otherwise none. Constructors and static methods have none;
+   `@AugmentedReceiver` members, if `@Augmented` selects the method; otherwise none. Constructors and static methods have none;
 3. the parameter values of the method: its deciding `[augment.params]` entry, `"-"` meaning none; without one, its
-   `@AugmentedParam` and `@AugmentedParams` parameters under the same two conditions; otherwise none.
+   `@AugmentedParam` and `@AugmentedParams` parameters under the same condition; otherwise none.
 
 What is instrumented SHALL follow from these rules and SHALL NOT be configured separately.
 
 #### Scenario: Names before annotations
-- **GIVEN** `"com.acme.**" = true` in `[augment.annotations]`, `"com.acme.Order::*" = "getId()"` in `[augment.receiver]`, no `[augment.params]` entries, and `com.acme.Order` with `@Augmented`, `@AugmentedReceiver val code` and `fun ship(@AugmentedParam to: String)`
+- **GIVEN** `"com.acme.Order::*" = "getId()"` in `[augment.receiver]`, no `[augment.params]` entries, and `com.acme.Order` with `@Augmented`, `@AugmentedReceiver val code` and `fun ship(@AugmentedParam to: String)`
 - **WHEN** an augmented exception leaves `ship("Main St")`
 - **THEN** the frame shows `Order{getId=…}.ship{to=Main St}`: the entry decides the receiver members, the annotation the parameter values
 

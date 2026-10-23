@@ -13,8 +13,7 @@ import java.lang.annotation.Target;
  * <p>Labels are the parameter names as compiled into the class file (see {@link AugmentedParam}). To show one of
  * these parameters hashed, annotate it with {@code @AugmentedParam(secret = true)}.
  *
- * <p>It is read only in the classes that {@code [augment.annotations]} selects, e.g. {@code "com.acme.**" = true}, in
- * the methods and constructors that {@link Augmented} selects and that no {@code [augment.params]} entry matches.
+ * <p>It is read only in the methods and constructors that {@link Augmented} selects and that no {@code [augment.params]} entry matches.
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)

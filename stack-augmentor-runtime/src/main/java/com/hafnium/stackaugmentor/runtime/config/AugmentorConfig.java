@@ -49,16 +49,10 @@ import java.util.stream.Collectors;
  * "com.acme.**" = true
  * "java.io.IOException+" = true   # and its subclasses
  *
- * [augment.annotations]      # where the annotations are read: true or false, the first matching entry wins, keys as
- *                            # in [augment.exceptions]; a class that no entry matches is not, so without the table no
- *                            # annotations are read
- * "com.acme.generated.**" = false
- * "com.acme.**" = true
- *
  * # Keys of [augment.receiver] and [augment.params]: "<class>::<methods>". A class name matches that class only, with
  * # "+" after it also its subclasses and implementing classes; a pattern matches class names only. The methods are
  * # names or patterns separated by commas, "*" for all. For each method the first matching entry of a table wins; a
- * # method that no entry matches uses the annotations, if [augment.annotations] selects its class.
+ * # method that no entry matches uses the annotations, if @Augmented selects it.
  *
  * [augment.receiver]         # receiver members: a field, a "method()", several separated by commas, "-" for none
  * "com.thirdparty.Order+::*" = "getOrderNumber()"   # Order and its subclasses
@@ -75,8 +69,8 @@ import java.util.stream.Collectors;
  * }</pre>
  *
  * <p>The tables are independent: {@code [augment.receiver]} decides the receiver members, {@code [augment.params]} the
- * parameter values, by names and patterns; {@code [augment.annotations]} decides where the annotations count for the
- * methods that these tables do not match. Which methods get instrumented follows from all three. Keys may use
+ * parameter values, by names and patterns; for the methods that these tables do not match, {@code @Augmented} decides
+ * where the annotations count. Which methods get instrumented follows from both and the annotations. Keys may use
  * wildcards: {@code *} within one package segment (or name), {@code **} across segments, {@code ?} one character.
  * Where entries of a table overlap, the first in the file decides, see {@link #classEntry(Class, String)} and
  * {@link #paramRefs}. Immutable. Equality covers the configured values only.
@@ -105,7 +99,7 @@ public final class AugmentorConfig {
     /**
      * The key that the instrumentation passes for a method whose receiver members come from the annotations, as no
      * {@code [augment.receiver]} entry matches it: see {@link #receiverEntry(String)}. The instrumentation decides
-     * this from its own {@code [augment.annotations]} and {@code @Augmented}; the runtime does not check them again.
+     * this from {@code @Augmented}; the runtime does not check it again.
      */
     public static final String ANNOTATIONS = "@";
 
@@ -122,7 +116,6 @@ public final class AugmentorConfig {
     private final String paramsFormat;
     private final int maxValueLength;
     private final Map<String, Boolean> exceptions;
-    private final Map<String, Boolean> annotations;
     /** The settings, of {@link #SETTINGS}, that the file or the builder sets, for {@link #layered}. */
     private final Set<String> settings;
 
@@ -153,7 +146,7 @@ public final class AugmentorConfig {
         }
     }
 
-    /** An {@code [augment.exceptions]} or {@code [augment.annotations]} entry. */
+    /** An {@code [augment.exceptions]} entry. */
     private record SwitchEntry(ClassPart classPart, boolean on) {
     }
 
@@ -179,17 +172,6 @@ public final class AugmentorConfig {
         @Override
         protected Boolean computeValue(Class<?> type) {
             return firstMatch(exceptionEntries, type.getName(), name -> isA(type, name));
-        }
-    };
-
-    /** The {@code [augment.annotations]} entries, in the order of the file. */
-    private final List<SwitchEntry> annotationEntries;
-
-    /** Per class, whether its annotations are read: the value of the first {@code [augment.annotations]} entry it matches. */
-    private final ClassValue<Boolean> annotatedClasses = new ClassValue<>() {
-        @Override
-        protected Boolean computeValue(Class<?> type) {
-            return firstMatch(annotationEntries, type.getName(), name -> isA(type, name));
         }
     };
 
@@ -335,8 +317,8 @@ public final class AugmentorConfig {
     }
 
     /**
-     * The receiver members of a method that no {@code [augment.receiver]} entry matches, where {@code [augment.annotations]}
-     * selects the class and {@code @Augmented} the method: its {@code @AugmentedReceiver} members.
+     * The receiver members of a method that no {@code [augment.receiver]} entry matches, where {@code @Augmented} selects
+     * the method: its {@code @AugmentedReceiver} members.
      */
     public record AnnotationEntry() implements ReceiverEntry {
 
@@ -394,10 +376,10 @@ public final class AugmentorConfig {
      */
     public static final String CONTEXT_RESOURCE = "stack-augmentor-context.toml";
 
-    /** The default values: no class, method, annotation or exception entries, so nothing is augmented. See {@link #builtIn()}. */
+    /** The default values: no class, method or exception entries, so nothing is augmented. See {@link #builtIn()}. */
     public AugmentorConfig() {
         this(Map.of(), Map.of(), DEFAULT_FRAME_FORMAT, DEFAULT_RECEIVER_FORMAT, DEFAULT_PARAMS_FORMAT,
-                DEFAULT_MAX_VALUE_LENGTH, Map.of(), Map.of());
+                DEFAULT_MAX_VALUE_LENGTH, Map.of());
     }
 
     /**
@@ -408,19 +390,16 @@ public final class AugmentorConfig {
      * @param exceptions whether throwables are augmented, by class name (with {@code +} also the subclasses) or class pattern
      *                  (of the runtime class), in the order the first matching entry is looked for: the {@code [augment.exceptions]}
      *                  table; empty for none, {@code "**" = true} for all
-     * @param annotations whether the annotations of a class are read, by class name (with {@code +} also the subclasses) or
-     *                  class pattern, in the order the first matching entry is looked for: the {@code [augment.annotations]}
-     *                  table; empty for none, {@code "**" = true} for all
      */
     public AugmentorConfig(Map<String, ReceiverSpec> classes, Map<String, List<ParamRef>> methods,
                            String frameFormat, String receiverFormat, String paramsFormat, int maxValueLength,
-                           Map<String, Boolean> exceptions, Map<String, Boolean> annotations) {
-        this(classes, methods, frameFormat, receiverFormat, paramsFormat, maxValueLength, exceptions, annotations, SETTINGS);
+                           Map<String, Boolean> exceptions) {
+        this(classes, methods, frameFormat, receiverFormat, paramsFormat, maxValueLength, exceptions, SETTINGS);
     }
 
     private AugmentorConfig(Map<String, ReceiverSpec> classes, Map<String, List<ParamRef>> methods,
                             String frameFormat, String receiverFormat, String paramsFormat, int maxValueLength,
-                            Map<String, Boolean> exceptions, Map<String, Boolean> annotations, Collection<String> settings) {
+                            Map<String, Boolean> exceptions, Collection<String> settings) {
         this.settings = Set.copyOf(settings);
         this.classes = Collections.unmodifiableMap(new LinkedHashMap<>(classes));
         Map<String, List<ParamRef>> methodsCopy = new LinkedHashMap<>();
@@ -432,8 +411,6 @@ public final class AugmentorConfig {
         this.maxValueLength = maxValueLength;
         this.exceptions = Collections.unmodifiableMap(new LinkedHashMap<>(exceptions));
         this.exceptionEntries = switchEntries(this.exceptions);
-        this.annotations = Collections.unmodifiableMap(new LinkedHashMap<>(annotations));
-        this.annotationEntries = switchEntries(this.annotations);
         Map<String, ClassEntry> classEntries = new LinkedHashMap<>();
         this.classes.forEach((key, spec) -> classEntries.put(key, new ClassEntry(key, spec)));
         this.classEntriesByKey = Collections.unmodifiableMap(classEntries);
@@ -491,7 +468,6 @@ public final class AugmentorConfig {
         Map<String, ReceiverSpec> classes = new LinkedHashMap<>();
         Map<String, List<ParamRef>> methods = new LinkedHashMap<>();
         Map<String, Boolean> exceptions = new LinkedHashMap<>();
-        Map<String, Boolean> annotations = new LinkedHashMap<>();
         Builder builder = builder();
         for (int i = layers.size() - 1; i >= 0; i--) {
             AugmentorConfig layer = layers.get(i);
@@ -512,42 +488,13 @@ public final class AugmentorConfig {
             layer.classes.forEach(classes::putIfAbsent);
             layer.methods.forEach(methods::putIfAbsent);
             layer.exceptions.forEach(exceptions::putIfAbsent);
-            layer.annotations.forEach(annotations::putIfAbsent);
         }
-        return builder.classes(classes).methods(methods).exceptions(exceptions).annotations(annotations).build();
+        return builder.classes(classes).methods(methods).exceptions(exceptions).build();
     }
 
     /** The {@code [augment.exceptions]} entries, in the order of the file; empty when no throwable is augmented. */
     public Map<String, Boolean> exceptions() {
         return exceptions;
-    }
-
-    /** The {@code [augment.annotations]} entries, in the order of the file; empty when no annotations are read. */
-    public Map<String, Boolean> annotations() {
-        return annotations;
-    }
-
-    /**
-     * Whether the annotations of the class that declares a frame's method are read, for the methods that no
-     * {@code [augment.receiver]} or {@code [augment.params]} entry matches: the value of the first
-     * {@code [augment.annotations]} entry that matches, and {@code false} if none does. Entries match as in
-     * {@code [augment.exceptions]}.
-     */
-    public boolean readsAnnotations(Class<?> type) {
-        return annotatedClasses.get(type);
-    }
-
-    /** {@link #readsAnnotations(Class)} for a class known by its name; {@code isA} as in {@link EntryKey#matchesClass}. */
-    public boolean readsAnnotations(String className, Predicate<String> isA) {
-        return firstMatch(annotationEntries, className, isA);
-    }
-
-    /** The {@code [augment.annotations]} entries for the debug log, e.g. {@code com.acme.generated.**=false, com.acme.**=true}. */
-    public String annotationsDescription() {
-        String text = annotations.entrySet().stream()
-                .map(entry -> entry.getKey() + "=" + entry.getValue())
-                .collect(Collectors.joining(", "));
-        return text.isEmpty() ? "none" : text;
     }
 
     /**
@@ -602,16 +549,6 @@ public final class AugmentorConfig {
     }
 
     /**
-     * Whether anything can be augmented: without class or method entries other than {@code "-"}, and without an
-     * {@code [augment.annotations]} entry that is {@code true}, nothing is.
-     */
-    public boolean hasAugmentEntries() {
-        return classes.values().stream().anyMatch(spec -> !(spec instanceof ReceiverSpec.Excluded))
-                || methods.values().stream().anyMatch(refs -> !refs.contains(new ParamRef.Excluded()))
-                || annotations.containsValue(true);
-    }
-
-    /**
      * The {@code [augment.receiver]} entries whose class part matches the class, in the order of the file: see
      * {@link EntryKey#matchesClass}. The class is the one that declares a frame's method.
      */
@@ -661,9 +598,8 @@ public final class AugmentorConfig {
 
     /**
      * The receiver entry that the instrumentation found for a method, by its key: the {@code [augment.receiver]} entry
-     * with this key, or for {@link #ANNOTATIONS} the {@link #ANNOTATION_ENTRY}, whatever this configuration's
-     * {@code [augment.annotations]} says (the instrumentation decided that, as it did for the parameters); {@code null}
-     * otherwise.
+     * with this key, or for {@link #ANNOTATIONS} the {@link #ANNOTATION_ENTRY} (the instrumentation decided that, as it did for the
+     * parameters); {@code null} otherwise.
      */
     public ReceiverEntry receiverEntry(String key) {
         return ANNOTATIONS.equals(key) ? ANNOTATION_ENTRY : classEntry(key);
@@ -829,20 +765,19 @@ public final class AugmentorConfig {
                 && receiverFormat.equals(that.receiverFormat)
                 && paramsFormat.equals(that.paramsFormat)
                 && maxValueLength == that.maxValueLength
-                && exceptions.equals(that.exceptions)
-                && annotations.equals(that.annotations);
+                && exceptions.equals(that.exceptions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classes, methods, frameFormat, receiverFormat, paramsFormat, maxValueLength, exceptions, annotations);
+        return Objects.hash(classes, methods, frameFormat, receiverFormat, paramsFormat, maxValueLength, exceptions);
     }
 
     @Override
     public String toString() {
         return "AugmentorConfig[classes=" + classes + ", methods=" + methods
                 + ", frameFormat=" + frameFormat + ", receiverFormat=" + receiverFormat + ", paramsFormat=" + paramsFormat
-                + ", maxValueLength=" + maxValueLength  + ", exceptions=" + exceptions + ", annotations=" + annotations + "]";
+                + ", maxValueLength=" + maxValueLength  + ", exceptions=" + exceptions + "]";
     }
 
     /** Starts from the defaults; every setter replaces one value. */
@@ -855,7 +790,6 @@ public final class AugmentorConfig {
         private String paramsFormat = DEFAULT_PARAMS_FORMAT;
         private int maxValueLength = DEFAULT_MAX_VALUE_LENGTH;
         private Map<String, Boolean> exceptions = Map.of();
-        private Map<String, Boolean> annotations = Map.of();
         private final Set<String> settings = new LinkedHashSet<>();
 
         private Builder() {
@@ -904,18 +838,9 @@ public final class AugmentorConfig {
             return this;
         }
 
-        /**
-         * In the order the first matching entry is looked for, e.g. a {@link LinkedHashMap}; empty (the default) for
-         * none, {@code "**" = true} for all.
-         */
-        public Builder annotations(Map<String, Boolean> annotations) {
-            this.annotations = annotations;
-            return this;
-        }
-
         public AugmentorConfig build() {
             return new AugmentorConfig(classes, methods, frameFormat, receiverFormat, paramsFormat, maxValueLength, exceptions,
-                    annotations, settings);
+                    settings);
         }
     }
 
@@ -926,18 +851,17 @@ public final class AugmentorConfig {
         private static final List<String> CLASSES = List.of("augment", "receiver");
         private static final List<String> METHODS = List.of("augment", "params");
         private static final List<String> EXCEPTIONS = List.of("augment", "exceptions");
-        private static final List<String> ANNOTATION_CLASSES = List.of("augment", "annotations");
 
         private static final List<String> ROOT_KEYS = List.of("augment");
         private static final List<String> AUGMENT_KEYS = List.of("frameFormat", "receiverFormat", "paramsFormat", "maxValueLength",
-                "exceptions", "annotations", "receiver", "params");
+                "exceptions", "receiver", "params");
 
         /** A class name or class pattern: dotted segments of identifier characters and wildcards. */
         private static final Pattern CLASS_PART = Pattern.compile("[\\p{L}\\p{N}_$*?]+(\\.[\\p{L}\\p{N}_$*?]+)*");
         private static final Pattern METHOD_PART = Pattern.compile("[\\p{L}\\p{N}_$*?]+");
         /** For {@code "@"} in a key or value of {@code [augment.receiver]} or {@code [augment.params]}. */
         private static final String ANNOTATIONS_ELSEWHERE = "\"@\" is not allowed here: these tables name members and "
-                + "parameters, and [augment.annotations] says where the annotations are read, e.g. \"com.acme.**\" = true";
+                + "parameters by name, and @Augmented says where the annotations are read";
 
         private static final String ALLOWED_CHARACTERS =
                 "allowed are letters, digits, _, $ and the wildcards * (within a package or name), ** (across packages) and ?";
@@ -990,8 +914,6 @@ public final class AugmentorConfig {
             }
             config.exceptions(switches(EXCEPTIONS, "must be true to augment the exceptions of this class or class pattern, or "
                     + "false not to"));
-            config.annotations(switches(ANNOTATION_CLASSES, "must be true to read the annotations of this class or class "
-                    + "pattern, or false not to"));
             AugmentorConfig result = config.build();
             checkFormats(result);
             return result;
@@ -1095,7 +1017,7 @@ public final class AugmentorConfig {
             return String.join(".", path.subList(table.size(), path.size()));
         }
 
-        /** The entries of {@code [augment.exceptions]} or {@code [augment.annotations]}: a class part, true or false. */
+        /** The entries of {@code [augment.exceptions]}: a class part, true or false. */
         private Map<String, Boolean> switches(List<String> table, String expected) {
             Map<String, Boolean> switches = new LinkedHashMap<>();
             Map<String, List<String>> paths = new HashMap<>();
@@ -1110,14 +1032,12 @@ public final class AugmentorConfig {
         }
 
         /**
-         * An {@code [augment.exceptions]} or {@code [augment.annotations]} key: a class name, optionally followed by
+         * An {@code [augment.exceptions]} key: a class name, optionally followed by
          * {@code +}, or a class pattern.
          */
         private String classKey(List<String> path, List<String> table) {
             String target = target(path, table);
-            String example = table.equals(EXCEPTIONS)
-                    ? "\"com.acme.FlowException\", \"java.io.IOException+\" with its subclasses"
-                    : "\"com.acme.Order\", \"com.acme.Order+\" with its subclasses";
+            String example = "\"com.acme.FlowException\", \"java.io.IOException+\" with its subclasses";
             checkClassPart(path, target, () -> error(path, "[" + name(table) + "] keys must name a class or a class pattern, "
                     + "e.g. " + example + ", or \"com.acme.**\"; " + ALLOWED_CHARACTERS));
             return target;

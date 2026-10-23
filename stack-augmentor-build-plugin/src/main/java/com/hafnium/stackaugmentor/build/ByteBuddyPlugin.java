@@ -127,7 +127,6 @@ public final class ByteBuddyPlugin implements Plugin {
         this.localConfiguration = local == null ? null
                 : AnnotationDescription.Builder.ofType(LocalConfiguration.class).define("value", local.hash()).build();
         Startup.warnIfNoExceptions(Startup.BUILD_PLUGIN, config);
-        Startup.warnIfNothingConfigured(Startup.BUILD_PLUGIN, config);
         this.parameters = new ParamSelection(config);
         this.matching = new TypeMatching(config, parameters);
         this.advice = ExitAdviceFactory.create(matching, parameters);

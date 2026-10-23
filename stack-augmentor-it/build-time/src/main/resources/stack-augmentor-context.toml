@@ -1,7 +1,7 @@
 # The module's context file, for both phases:
-# - [augment.annotations], [augment.receiver] and [augment.params] are read at build time by the ByteBuddy build
-#   plugin (see build.gradle.kts), which instruments the classes and methods they need;
-# - [augment], [augment.exceptions], [augment.annotations] and [augment.receiver] are read at runtime, from the
+# - [augment.receiver] and [augment.params] are read at build time by the ByteBuddy build
+#   plugin (see build.gradle.kts), which instruments the classes and methods they and @Augmented need;
+# - [augment], [augment.exceptions] and [augment.receiver] are read at runtime, from the
 #   classpath.
 
 # How frames look, at runtime (these are the defaults, see the README).
@@ -16,16 +16,13 @@ maxValueLength = 64
 [augment.exceptions]
 "**" = true
 
-# Where the annotations are read: the project's classes. The classes in com.hafnium.it.buildtime.configured have no
-# annotations: the entries below augment them.
-[augment.annotations]
-"com.hafnium.it.buildtime.**" = true
+# The classes in com.hafnium.it.buildtime.configured have no annotations: the entries below augment them.
 
 # Only this project's classes are changed.
 # Keys are "<class>::<methods>": a class name matches that class only, "+" after it ("com.acme.Order+::*") its
 # subclasses too, and a pattern matches class names. The methods are names or patterns separated by commas, "*" for
 # all. '*' matches within a package or name, '**' across packages, '?' one character. A method that no entry matches
-# uses its class's annotations, where [augment.annotations] selects the class.
+# uses its annotations, where @Augmented selects it.
 
 # The receiver members of the classes you cannot annotate are in the module's local stack-augmentor.toml.
 

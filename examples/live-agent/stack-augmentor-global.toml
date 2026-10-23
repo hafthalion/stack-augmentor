@@ -13,5 +13,3 @@
 # Every class of the example has @Augmented and is augmented by its annotations, so every frame of its stack traces
 # can be augmented; the formats are the defaults. The configuration is the same whether or not the agent reads the frames
 # from the live stack (see examples/java-agent for all the options).
-[augment.annotations]
-"com.hafnium.examples.live.**" = true

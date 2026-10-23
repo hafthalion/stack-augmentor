@@ -38,9 +38,8 @@ The system SHALL always print a warning:
   configuration is used alone;
 - when the runtime of build-time instrumentation does not find the local configuration a class was instrumented with,
   so that the local file of its jar or directory, if any, is used instead;
-- when the agent or the build plugin starts with a configuration that selects nothing to augment: no `[augment.receiver]`
-  or `[augment.params]` entries other than `"-"` and no `[augment.annotations]` entry that is `true`;
-- when a configuration selects something to augment but no `[augment.exceptions]` entry is `true`, suggesting
+- when the configuration of the classes without configurations of their own has no `[augment.exceptions]` entry that is
+  `true`, also after the built-in one, suggesting
   `"java.lang.Exception+" = true`;
 - when the JVM was started with the native library of the live-stack mode but the agent cannot use it, with the reason;
 - when the agent cannot use its shared temporary files safely and falls back to private ones;
@@ -60,13 +59,8 @@ fit every class it matches.
 - **WHEN** the receiver members of `Customer` are first needed
 - **THEN** no warning is printed and frames of `Customer` show no receiver members
 
-#### Scenario: Nothing configured
-- **GIVEN** the agent started with a configuration that has only `[augment]` `maxValueLength = 32`
-- **WHEN** it starts
-- **THEN** a warning says that nothing will be augmented
-
-#### Scenario: Annotations without exceptions
-- **GIVEN** the agent started with a configuration that has only `"com.acme.**" = true` in `[augment.annotations]`
+#### Scenario: No exceptions
+- **GIVEN** the agent started with a configuration that has only `"java.lang.Exception+" = false` in `[augment.exceptions]`
 - **WHEN** it starts
 - **THEN** a warning says that no exception is augmented
 
@@ -75,8 +69,7 @@ With `-Dstackaugmentor.debug=true`, the system SHALL report:
 - each configuration file: where it came from, and the entries of every table and the formats, naming the class loader
   of a file on the classpath;
 - each instrumented class: why (which entries, or the annotations), and its instrumented methods with their parameter values;
-- classes left alone, and why: annotations ignored because no `[augment.annotations]` entry selects the class or because
-  entries or `@Augmented` decide otherwise; with the agent, classes already instrumented at build time;
+- classes left alone, and why: annotations ignored because entries or `@Augmented` decide otherwise; with the agent, classes already instrumented at build time;
 - `[augment.params]` entries without wildcards or `+` that name a missing method, a missing parameter or an index out of
   range, with a hint when the class was compiled without parameter names;
 - receiver members missing for `[augment.receiver]` entries with wildcards;
@@ -104,12 +97,12 @@ on building them.
 - **THEN** no message about the entry is printed for `Customer`
 
 #### Scenario: Ignored annotations
-- **GIVEN** debug output on, `"com.hafnium.it.fixtures.**" = true` in `[augment.annotations]`, and a class in `com.hafnium.it.outside` with `@Augmented`, `@AugmentedReceiver` and `@AugmentedParam`
+- **GIVEN** debug output on, and a class with `@Augmented` on one method only and an `@AugmentedParam` parameter in another
 - **WHEN** the class is loaded
-- **THEN** messages report that its `@AugmentedReceiver` and its parameter annotations are ignored, because no `[augment.annotations]` entry selects it
+- **THEN** a message reports that the parameter annotations of the other method are ignored, because an entry or `@Augmented` decides for it
 
 #### Scenario: Annotations replaced by entries
-- **GIVEN** debug output on, `"com.acme.**" = true` in `[augment.annotations]`, `"com.acme.Order::*" = "getId()"` in `[augment.receiver]`, and `com.acme.Order` with `@Augmented` and `@AugmentedReceiver`
+- **GIVEN** debug output on, `"com.acme.Order::*" = "getId()"` in `[augment.receiver]`, and `com.acme.Order` with `@Augmented` and `@AugmentedReceiver`
 - **WHEN** `Order` is loaded
 - **THEN** a message reports that its `@AugmentedReceiver` is ignored, because entries decide for all its methods
 

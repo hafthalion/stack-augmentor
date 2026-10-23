@@ -23,13 +23,13 @@ with the reason printed. The build SHALL be repeatable: a changed configuration 
 - **THEN** the build fails, with an error naming the file, line 14 and `paramsFormat`
 
 #### Scenario: Example project
-- **GIVEN** `examples/build-time`, built with the build plugin and a configuration with `"com.hafnium.examples.buildtime.**" = true` in `[augment.annotations]`
+- **GIVEN** `examples/build-time`, built with the build plugin and its context configuration
 - **WHEN** it is run without `-javaagent`
 - **THEN** the frames of `ClassWithAnnotation` show `{objectId=object-1}` and `{param=ObjectParam{name=object-param-1}, token=#fb07916a}`, the argument's `toString()` with its parentheses replaced by braces and the secret token hashed
 - **AND** the frame of `ClassWithoutAnnotation.method` shows `{q=123}` from its own `[augment.params]` entry, and no receiver members
 
 #### Scenario: Configuration change
-- **GIVEN** the `[augment.annotations]` entries in the build plugin's configuration no longer select the project's classes
+- **GIVEN** `"-"` entries in `[augment.receiver]` and `[augment.params]` of the build plugin's configuration that match all methods of the project's classes
 - **WHEN** the project is rebuilt
 - **THEN** its classes are not instrumented, and with `-Dstackaugmentor.debug=true` the build lists the ignored annotations
 
@@ -53,7 +53,7 @@ its configuration, and each application's own where it has one (see the configur
 their parameter values, and whether their receiver members come from the annotations or from an `[augment.receiver]`
 entry. For an entry, the runtime SHALL show the members of its own entry with the same key; a method whose key the runtime
 configuration does not have, e.g. after a key was changed without rebuilding, SHALL show no receiver members. For the
-annotations, the runtime SHALL show the `@AugmentedReceiver` members without checking its own `[augment.annotations]`. If
+annotations, the runtime SHALL show the `@AugmentedReceiver` members. If
 the runtime cannot start, it SHALL warn with the reason, and exceptions SHALL keep their original stack traces.
 
 #### Scenario: Tests without an agent
@@ -73,7 +73,7 @@ the runtime cannot start, it SHALL warn with the reason, and exceptions SHALL ke
 - **THEN** the frame shows the annotated receiver members
 
 #### Scenario: The build decides where the annotations are read
-- **GIVEN** a class with `@Augmented`, `@AugmentedReceiver` and `@AugmentedParam`, built with `"com.acme.**" = true` in `[augment.annotations]`, and a runtime configuration without that entry
+- **GIVEN** a class with `@Augmented`, `@AugmentedReceiver` and `@AugmentedParam`, built without entries for it, and a runtime configuration with `"com.acme.**::*" = "-"` in `[augment.receiver]`
 - **WHEN** one of its methods throws
 - **THEN** the frame shows the annotated receiver members and parameter values, as the build decided
 

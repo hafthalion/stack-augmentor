@@ -67,7 +67,7 @@ public final class FrameSpecs {
 
     /**
      * Whether the class or one of its methods or constructors has {@code @Augmented}: without it, the class's
-     * annotations are ignored, so a class that only {@code [augment.annotations]} selects needs no look at its methods.
+     * annotations are ignored, so a class without it needs no look at its methods.
      */
     private final ClassValue<Boolean> augmented = new ClassValue<>() {
         @Override
@@ -103,9 +103,9 @@ public final class FrameSpecs {
         return false;
     }
 
-    /** Whether the annotations may apply to the class: {@code [augment.annotations]} selects it and it has {@code @Augmented}. */
+    /** Whether the annotations may apply to the class: it has {@code @Augmented}. */
     private boolean readsAnnotations(Class<?> type) {
-        return config.readsAnnotations(type) && augmented.get(type);
+        return augmented.get(type);
     }
 
     public FrameSpecs(AugmentorConfig config, TypeMatching matching) {

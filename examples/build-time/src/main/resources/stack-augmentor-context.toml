@@ -1,7 +1,7 @@
 # One file for both phases:
-# - [augment.annotations], [augment.receiver] and [augment.params] are read at build time by the ByteBuddy build
-#   plugin (see build.gradle.kts), which instruments the classes and methods they need;
-# - [augment], [augment.exceptions], [augment.annotations] and [augment.receiver] are read at runtime, from the
+# - [augment.receiver] and [augment.params] are read at build time by the ByteBuddy build
+#   plugin (see build.gradle.kts), which instruments the classes and methods they and @Augmented need;
+# - [augment], [augment.exceptions] and [augment.receiver] are read at runtime, from the
 #   classpath. -Dstackaugmentor.debug=true prints what the runtime reads.
 
 # How frames look, at runtime (these are the defaults, see the README).
@@ -19,18 +19,15 @@ maxValueLength = 64
 "java.lang.IllegalArgumentException+" = false            # this class and its subclasses: not augmented
 "java.lang.*" = true                                     # these classes only, e.g. Exception, IllegalStateException
 
-# Where the annotations are read: @AugmentedReceiver, @AugmentedParam, @AugmentedParams and @Augmented. Keys and
-# values as in [augment.exceptions]; a class that no entry matches does not read them. Only the methods that
-# @Augmented selects, on the class or on the method, use them: a class without @Augmented is ignored.
-[augment.annotations]
-"com.hafnium.examples.buildtime.**" = true
+# @AugmentedReceiver, @AugmentedParam and @AugmentedParams are read in the methods that @Augmented selects, on the class
+# or on the method: a class without @Augmented is ignored.
 
 # Only this project's classes are changed: entries for real library classes don't apply. The com.thirdparty
 # classes here are stand-ins compiled with this project, so their entries do.
 # Keys are "<class>::<methods>": a class name matches that class only, "+" after it ("com.acme.Order+::*") its
 # subclasses too, and a pattern matches class names. The methods are names or patterns separated by commas, "*" for
 # all. '*' matches within a package or name, '**' across packages, '?' one character. A method that no entry matches
-# uses its class's annotations, where [augment.annotations] selects the class.
+# uses its annotations, where @Augmented selects it.
 
 # Receiver members of classes you cannot annotate: a method() or a field. An order is identified by its
 # getOrderNumber() method, a customer by its customerId field.
