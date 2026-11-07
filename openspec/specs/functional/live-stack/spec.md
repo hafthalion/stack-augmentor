@@ -32,7 +32,9 @@ and each frame SHALL be augmented only where the configuration of its class does
 created SHALL be augmented, also the method that catches it and its callers, and a constructor while it calls
 `super(...)` or `this(...)`; the values SHALL be those at that moment. The augmentation SHALL appear in the stack trace
 when it is first read or printed, and not at all if the application replaced the stack trace. Exceptions created while a
-class is being loaded SHALL be skipped, so that the mode never interferes with class loading.
+class is being loaded SHALL be skipped, so that the mode never interferes with class loading. The agent SHALL read the
+live stack only when a frame the JVM recorded belongs to a class whose configuration may augment it, and only down to the
+last such frame.
 
 #### Scenario: Frames below a catch
 - **GIVEN** `Layers.catchAndReturn()` catches the exception that `Layers.inner(1)` throws, and returns it

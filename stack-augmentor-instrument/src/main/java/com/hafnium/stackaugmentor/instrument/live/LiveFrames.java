@@ -28,6 +28,10 @@ import java.util.stream.Stream;
  * <p>Each frame uses the configuration of the class loader of its method's class ({@link ClassLoaderConfigs}): whether
  * it augments the throwable, which values the frame shows and how. A throwable that no configuration augments is left
  * alone without a look at the stack.
+ *
+ * <p>Reading the live stack costs most, so the recorded frames ({@link Backtrace}) decide first, without walking the
+ * stack, whether any frame may be augmented, and down to which frame the walk must go. The walk then matches each frame
+ * to its recorded one by class and bytecode index, which also gives its position in the trace.
  */
 public final class LiveFrames implements LiveDispatch.Handler {
 
@@ -45,22 +49,17 @@ public final class LiveFrames implements LiveDispatch.Handler {
                     FrameFormat format) {
     }
 
-    private final StackWalker plain;
     private final LiveStackFrames live;
     private final ClassLoaderConfigs<? extends Context> contexts;
-    /** Frames beyond this depth are not in the trace: {@code -XX:MaxJavaStackTraceDepth}. */
-    private final int maxDepth;
     /** Whether a {@code null} object in a compiled frame may be one the JIT optimized away: {@code -XX:+EliminateAllocations}. */
     private final boolean eliminatedAllocations;
 
     /** The captured frames of the throwables whose stack trace array was not created yet. */
     private final WeakIdentityMap<Throwable, List<Captured>> pending = new WeakIdentityMap<>();
 
-    public LiveFrames(LiveStackFrames live, ClassLoaderConfigs<? extends Context> contexts, int maxDepth, boolean eliminatedAllocations) {
-        this.plain = live.plainWalker();
+    public LiveFrames(LiveStackFrames live, ClassLoaderConfigs<? extends Context> contexts, boolean eliminatedAllocations) {
         this.live = live;
         this.contexts = contexts;
-        this.maxDepth = maxDepth;
         this.eliminatedAllocations = eliminatedAllocations;
     }
 
@@ -71,9 +70,11 @@ public final class LiveFrames implements LiveDispatch.Handler {
             pending.remove(thrown);
             return;
         }
-        // Reading local variables is far slower than walking the stack: only when a frame is augmented, and only down to it.
-        int last = plain.walk(frames -> lastAugmented(frames, thrown));
-        List<Captured> captured = last < 0 ? List.of() : live.walker().walk(frames -> capture(frames, thrown, last));
+        // Reading the live stack is far slower than anything else: only when a frame may be augmented, and only down to it.
+        Object backtrace = live.backtrace(thrown);
+        int last = lastAugmented(backtrace, thrown);
+        List<Captured> captured = last < 0 ? List.of()
+                : live.walker().walk(frames -> capture(frames, thrown, Backtrace.of(backtrace, last + 1)));
         if (captured.isEmpty()) {
             // Also when the application fills in the trace again.
             pending.remove(thrown);
@@ -168,50 +169,84 @@ public final class LiveFrames implements LiveDispatch.Handler {
     }
 
     /**
-     * The trace index of the last augmented frame, or -1. Also -1 while a class is being loaded, e.g. for the
-     * {@code ClassNotFoundException}s of class loaders: looking at classes then could load the class being loaded again.
+     * From the recorded frames, without walking the stack: the index of the last frame that is augmented or whose method
+     * was not seen yet, or -1. The recorded frames end at {@code -XX:MaxJavaStackTraceDepth}, as the trace does. Also -1
+     * while a class is being loaded, e.g. for the {@code ClassNotFoundException}s of class loaders: looking at classes
+     * then could load the class being loaded again.
      */
-    private int lastAugmented(Stream<StackWalker.StackFrame> frames, Throwable thrown) {
-        Iterator<StackWalker.StackFrame> iterator = frames.iterator();
-        StackWalker.StackFrame frame = firstTraceFrame(iterator, thrown);
+    private int lastAugmented(Object backtrace, Throwable thrown) {
         int last = -1;
-        for (int index = 0; frame != null; index++) {
-            if (ClassLoader.class.isAssignableFrom(frame.getDeclaringClass())) {
-                return -1;
+        int index = 0;
+        for (Object chunk = backtrace; chunk != null; chunk = Backtrace.next(chunk)) {
+            Object[] classes = Backtrace.classes(chunk);
+            short[] methods = Backtrace.methods(chunk);
+            for (int k = 0; k < classes.length; k++, index++) {
+                if (!(classes[k] instanceof Class<?> type)) {
+                    return last;
+                }
+                if (ClassLoader.class.isAssignableFrom(type)) {
+                    return -1;
+                }
+                Context context = contexts.forClass(type);
+                if (context != null && context.specs().of(type).byNumber(methods[k] & 0xFFFF) != FrameSpecs.NONE
+                        && context.resolver().augments(thrown)) {
+                    last = index;
+                }
             }
-            if (index < maxDepth && spec(frame, thrown) != FrameSpecs.NONE) {
-                last = index;
-            }
-            frame = iterator.hasNext() ? iterator.next() : null;
         }
         return last;
     }
 
-    private List<Captured> capture(Stream<StackWalker.StackFrame> frames, Throwable thrown, int last) {
+    /** How many recorded frames may be missing from the walk, should it leave out some. */
+    private static final int SEARCH_RECORDED = 8;
+
+    /**
+     * Walks the live stack down to the last of the recorded frames, and captures the values of those of the configured
+     * methods. Each walked frame learns its method's spec for the recorded number of its method, see
+     * {@link #lastAugmented}.
+     */
+    private List<Captured> capture(Stream<StackWalker.StackFrame> frames, Throwable thrown, Backtrace recorded) {
         Iterator<StackWalker.StackFrame> iterator = frames.iterator();
         StackWalker.StackFrame frame = firstTraceFrame(iterator, thrown);
         List<Captured> captured = new ArrayList<>();
-        for (int index = 0; frame != null && index <= last; index++) {
-            Context context = contexts.forClass(frame.getDeclaringClass());
-            FrameSpecs.Spec spec = spec(context, frame, thrown);
-            if (spec != FrameSpecs.NONE) {
-                Captured values = capture(context, frame, spec, index);
-                if (values != null) {
-                    captured.add(values);
+        int index = 0;
+        while (frame != null && index < recorded.length) {
+            Class<?> type = frame.getDeclaringClass();
+            int bci = frame.isNativeMethod() ? -1 : frame.getByteCodeIndex();
+            int at = find(recorded, index, type, bci);
+            if (at >= 0) {
+                index = at;
+                Context context = contexts.forClass(type);
+                FrameSpecs.ClassInfo info = context != null ? context.specs().of(type) : null;
+                if (info != null && info.relevant && context.resolver().augments(thrown)) {
+                    FrameSpecs.Spec spec = context.specs().of(frame, info, live.method(frame));
+                    info.learn(recorded.methods[index] & 0xFFFF, spec);
+                    if (spec != FrameSpecs.NONE) {
+                        Captured values = capture(context, frame, spec, index);
+                        if (values != null) {
+                            captured.add(values);
+                        }
+                    }
                 }
+                index++;
             }
             frame = iterator.hasNext() ? iterator.next() : null;
         }
         return captured;
     }
 
-    /** What the frame shows: nothing where the configuration of its class does not augment the throwable. */
-    private FrameSpecs.Spec spec(StackWalker.StackFrame frame, Throwable thrown) {
-        return spec(contexts.forClass(frame.getDeclaringClass()), frame, thrown);
-    }
-
-    private static FrameSpecs.Spec spec(Context context, StackWalker.StackFrame frame, Throwable thrown) {
-        return context != null && context.resolver().augments(thrown) ? context.specs().of(frame) : FrameSpecs.NONE;
+    /** The index of the recorded frame at or after {@code from} that is this frame (a native one has no bci), or -1. */
+    private static int find(Backtrace recorded, int from, Class<?> type, int bci) {
+        int end = Math.min(recorded.length, from + SEARCH_RECORDED + 1);
+        for (int index = from; index < end; index++) {
+            if (recorded.classes[index] == type && (bci < 0 || recorded.bcis[index] == bci)) {
+                return index;
+            }
+        }
+        if (Log.isDebug()) {
+            Log.debug(() -> "live stack: a frame of " + type.getName() + " is not at position " + from + " of the stack trace, so it is not augmented");
+        }
+        return -1;
     }
 
     private Captured capture(Context context, StackWalker.StackFrame frame, FrameSpecs.Spec spec, int index) {
