@@ -4,9 +4,12 @@ plugins {
     alias(libs.plugins.bytebuddy) apply false
 }
 
+// The next release's version. Local builds are snapshots; release.yml passes -PreleaseVersion=<major>.<minor>.<run number>.
+val baseVersion = "0.1.0"
+
 allprojects {
     group = "com.hafnium"
-    version = "0.1.0-SNAPSHOT"
+    version = providers.gradleProperty("releaseVersion").getOrElse("$baseVersion-SNAPSHOT")
 }
 
 // The modules that applications (or, for the build plugin, their builds) depend on. They are written in Java,

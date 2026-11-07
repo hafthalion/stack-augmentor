@@ -102,7 +102,7 @@ Use it in your own application:
 
    Classes you cannot annotate get `[augment.receiver]` and `[augment.params]` entries that name their members and parameters (see [Configuration](docs/configuration.md)).
 
-3. Start the JVM with the agent (`./gradlew :stack-augmentor-agent:shadowJar` builds it):
+3. Start the JVM with the agent (from the [releases](https://github.com/hafthalion/stack-augmentor/releases), or `./gradlew :stack-augmentor-agent:shadowJar` builds it):
 
    ```
    java -javaagent:stack-augmentor-agent-<version>.jar -Dstackaugmentor.config=stack-augmentor-global.toml -jar app.jar
