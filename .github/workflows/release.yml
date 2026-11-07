@@ -1,0 +1,126 @@
+name: Release
+
+# Makes a GitHub release of every push to master: builds and tests the project, then tags the commit
+# v<major>.<minor>.<run number> (major and minor from baseVersion in build.gradle.kts) and attaches the jars of the
+# published modules, the native libraries of the live-stack mode and their SHA-256 checksums.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One release after the other, in push order; none is cancelled.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: build.gradle.kts
+          sparse-checkout-cone-mode: false
+
+      - id: version
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          base=$(sed -n 's/^val baseVersion = "\([0-9]*\.[0-9]*\)\.[0-9]*"$/\1/p' build.gradle.kts)
+          if [ -z "$base" ]; then
+            echo "::error::no 'val baseVersion = \"<major>.<minor>.<patch>\"' in build.gradle.kts"
+            exit 1
+          fi
+          echo "version=$base.$RUN_NUMBER" >> "$GITHUB_OUTPUT"
+
+  # The native library is platform-specific, so each platform builds its own (Windows with the runner's MinGW gcc).
+  native:
+    needs: version
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            library: libstackaugmentor.so
+            asset: libstackaugmentor-linux-x64.so
+          - os: windows-latest
+            library: stackaugmentor.dll
+            asset: stackaugmentor-windows-x64.dll
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - run: ./gradlew :stack-augmentor-native:compileNative -PreleaseVersion=${{ needs.version.outputs.version }}
+
+      - run: |
+          mkdir dist
+          cp stack-augmentor-native/build/native/${{ matrix.library }} dist/${{ matrix.asset }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: native-${{ matrix.os }}
+          path: dist/
+          retention-days: 1
+
+  release:
+    needs: [version, native]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # The same build as CI, so a release is only made of a commit whose tests pass.
+      - run: ./gradlew build -PreleaseVersion=$VERSION
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          path: dist
+          merge-multiple: true
+
+      # The agent's shaded jar (not its -plain jar) and the plain jars of the other published modules.
+      - name: Collect the release files
+        run: |
+          for module in api instrument-bridge runtime instrument agent build-plugin; do
+            cp "stack-augmentor-$module/build/libs/stack-augmentor-$module-$VERSION.jar" dist/
+          done
+          (cd dist && sha256sum * > SHA256SUMS)
+          ls -l dist
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v$VERSION" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "$VERSION" \
+            --generate-notes
