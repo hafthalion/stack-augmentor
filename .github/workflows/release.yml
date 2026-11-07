@@ -1,12 +1,12 @@
 name: Release
 
-# Makes a GitHub release of every push to master: builds and tests the project, then tags the commit
+# Makes a GitHub release of every push to main: builds and tests the project, then tags the commit
 # v<major>.<minor>.<run number> (major and minor from baseVersion in build.gradle.kts) and attaches the jars of the
 # published modules, the native libraries of the live-stack mode and their SHA-256 checksums.
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

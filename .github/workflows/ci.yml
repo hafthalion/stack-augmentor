@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -44,7 +44,7 @@ jobs:
       # On every run, also when the build fails: the run's summary page links the archive. The frame reports
       # (stack-augmentor-it/agent/build/reports/frames, start with index.html) show the frames each agent test caught;
       # frames-live the same for the agent's live-stack mode.
-      # On master, reports.yml publishes this archive to GitHub Pages.
+      # On main, reports.yml publishes this archive to GitHub Pages.
       - name: Upload test and frame reports
         if: always()
         uses: actions/upload-artifact@v7
