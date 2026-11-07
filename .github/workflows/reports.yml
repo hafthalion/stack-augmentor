@@ -1,17 +1,17 @@
 name: Reports
 
-# Publishes the test and frame reports of each CI run on master to GitHub Pages: the frame reports under
+# Publishes the test and frame reports of each CI run on main to GitHub Pages: the frame reports under
 # frames/, each module's test report under tests/<module>/, the committed benchmark report (docs/benchmark,
 # written by a local run of the benchmark task) under benchmark/, and an index page that links them. It takes the
 # test-reports archive that CI uploaded, so nothing is built again, and it never runs for pull requests.
 # Needs Pages enabled in the repository settings, with "GitHub Actions" as the source. GitHub runs it from
-# master's copy of this file.
+# main's copy of this file.
 
 on:
   workflow_run:
     workflows: [CI]
     types: [completed]
-    branches: [master]
+    branches: [main]
 
 permissions:
   contents: read
@@ -23,7 +23,7 @@ concurrency:
 jobs:
   publish:
     # Also after a failed build, whose reports show what failed; not for a cancelled one, or a pull request
-    # from a fork's master branch.
+    # from a fork's main branch.
     if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -82,7 +82,7 @@ jobs:
           <title>stack-augmentor reports</title>
           <style>body{font:15px/1.6 system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 16px}</style></head>
           <body><h1>stack-augmentor reports</h1>
-          <p>Build of master at <code>${SHA::7}</code>: $CONCLUSION, <a href="$RUN_URL">run $RUN_NUMBER</a>, published $(date -u '+%Y-%m-%d %H:%M UTC').</p>
+          <p>Build of main at <code>${SHA::7}</code>: $CONCLUSION, <a href="$RUN_URL">run $RUN_NUMBER</a>, published $(date -u '+%Y-%m-%d %H:%M UTC').</p>
           <ul>$links</ul></body></html>
           HTML
 
